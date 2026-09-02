@@ -1,0 +1,122 @@
+name: security
+
+# Release gate de seguridad en CI. Detecta automáticamente el stack del proyecto
+# y ejecuta los scanners correspondientes:
+# - Python: bandit (SAST) + pip-audit (dependencias) + detect-secrets.
+# - JS/TS: npm audit.
+# Complementa a /8-auditar que se ejecuta manualmente durante el desarrollo.
+# Si alguno falla, el PR se bloquea hasta resolver o documentar la excepción
+# en docs/security/.
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  detect:
+    name: Detectar stack
+    runs-on: ubuntu-latest
+    outputs:
+      python: ${{ steps.check.outputs.python }}
+      node: ${{ steps.check.outputs.node }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detectar pyproject.toml / requirements.txt / package.json
+        id: check
+        shell: bash
+        run: |
+          if [ -f pyproject.toml ] || [ -f requirements.txt ] || [ -f Pipfile ]; then
+            echo "python=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "python=false" >> "$GITHUB_OUTPUT"
+          fi
+          if [ -f package.json ]; then
+            echo "node=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "node=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  python-sast:
+    name: Python SAST (bandit)
+    needs: detect
+    if: needs.detect.outputs.python == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install bandit
+        run: pip install bandit[toml]
+      - name: Run bandit
+        # -ll = medium+ severity; -i = include confidence filter.
+        # Falla el CI si hay findings medium+ no suprimidos en pyproject.toml.
+        run: bandit -r src/ -ll -i -f txt
+
+  python-deps:
+    name: Python dependency scan (pip-audit)
+    needs: detect
+    if: needs.detect.outputs.python == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install pip-audit
+        run: pip install pip-audit
+      - name: Run pip-audit
+        # Modo "require" falla con cualquier CVE en dependencias declaradas.
+        # Ajustar a --no-deps o --strict según necesidad del proyecto.
+        run: |
+          if [ -f requirements.txt ]; then
+            pip-audit -r requirements.txt --desc
+          else
+            pip install -e . && pip-audit --desc
+          fi
+
+  python-secrets:
+    name: Secret scanning (detect-secrets)
+    needs: detect
+    if: needs.detect.outputs.python == 'true' || needs.detect.outputs.node == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install detect-secrets
+        run: pip install detect-secrets
+      - name: Scan for secrets
+        # Si el repo tiene baseline (.secrets.baseline), usarla; si no, escanear todo.
+        run: |
+          if [ -f .secrets.baseline ]; then
+            detect-secrets audit .secrets.baseline
+          else
+            detect-secrets scan --all-files
+          fi
+
+  node-deps:
+    name: Node dependency scan (npm audit)
+    needs: detect
+    if: needs.detect.outputs.node == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install deps
+        run: npm ci
+      - name: Run npm audit
+        # Falla el CI si hay vulnerabilidades de nivel high+.
+        run: npm audit --audit-level=high

@@ -1,0 +1,47 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Temporary files
+.tmp/
+*.pyc
+__pycache__/
+
+# Credentials
+credentials.json
+token.json
+
+# IDEs
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node (if applicable)
+node_modules/
+dist/
+
+# Python (if applicable)
+venv/
+.venv/
+*.egg-info/
+
+# Downloaded corpus and regenerable experiment artifacts
+data/*
+!data/.gitkeep
+.cache/
+models/
+output/
+*.npy
+*.npz
+
+# Python tooling
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+
+# Saved-webpage asset folders (js/css/images), not worth versioning
+*_files/
