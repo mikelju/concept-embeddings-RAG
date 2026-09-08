@@ -29,9 +29,15 @@ venv/
 .venv/
 *.egg-info/
 
-# Downloaded corpus and regenerable experiment artifacts
+# Downloaded corpus and regenerable experiment artifacts stay out; measured
+# results and the manifest that gives them provenance are the deliverable and
+# are versioned.
 data/*
 !data/.gitkeep
+!data/manifest.json
+!data/results/
+data/results/*
+!data/results/*.json
 .cache/
 models/
 output/

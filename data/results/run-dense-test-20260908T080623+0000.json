@@ -1,0 +1,45 @@
+{
+  "config": {
+    "code_version": "0.1.0",
+    "model": "BAAI/bge-small-en-v1.5",
+    "n_units": 19366,
+    "revision": "main",
+    "seed": 42,
+    "tokenizer": "BAAI/bge-small-en-v1.5",
+    "top_k": 100,
+    "unit_set_hash": "101f564fdcca620c"
+  },
+  "cost": {
+    "mean_latency_ms": 30.70609621271225,
+    "mean_units_included": 33.072857142857146,
+    "n_questions": 1400
+  },
+  "created_at": "2026-09-08T08:06:23+00:00",
+  "metrics": {
+    "budget_1024": {
+      "full_support": 0.7585714285714286,
+      "gold_recall": 0.8725,
+      "precision": 0.19333595372881088
+    },
+    "budget_2048": {
+      "full_support": 0.825,
+      "gold_recall": 0.9082142857142858,
+      "precision": 0.1076085148456478
+    },
+    "budget_4096": {
+      "full_support": 0.8707142857142857,
+      "gold_recall": 0.9328571428571428,
+      "precision": 0.05717169212719751
+    },
+    "budget_512": {
+      "full_support": 0.6542857142857142,
+      "gold_recall": 0.8153571428571429,
+      "precision": 0.3271743197278911
+    },
+    "recall_at_10": 0.8796428571428572,
+    "recall_at_2": 0.6917857142857143,
+    "recall_at_5": 0.8203571428571429
+  },
+  "split": "test",
+  "system": "dense"
+}

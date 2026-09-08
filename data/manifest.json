@@ -1,0 +1,15 @@
+{
+  "dataset": "hotpotqa-distractor-dev",
+  "downloaded_at": "2026-09-08T07:28:15+00:00",
+  "n_questions": 2000,
+  "n_units": 19366,
+  "seed": 42,
+  "sha256": "bb6680bbe74a1005c66c9161bf5f1e339c4c2ad3158b9fb1b6d6c125f8cd3010",
+  "source_url": "huggingface:hotpotqa/hotpot_qa[distractor/validation]",
+  "split_sizes": {
+    "dev": 600,
+    "test": 1400
+  },
+  "tool_version": "0.1.0",
+  "unit_set_hash": "101f564fdcca620c"
+}

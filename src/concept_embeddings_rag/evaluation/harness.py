@@ -1,0 +1,136 @@
+"""The evaluation loop and its results.
+
+The harness treats every retriever identically: it only knows the interface, so
+it cannot favour one system over another. Results carry the full configuration
+that produced them and are written append-only, because a measurement you cannot
+reproduce - or that a later run silently replaced - is not evidence.
+"""
+
+import json
+import time
+from collections.abc import Mapping, Sequence
+from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
+from pathlib import Path
+
+from concept_embeddings_rag.corpus.pool import Question
+from concept_embeddings_rag.evaluation.budget import fill_context
+from concept_embeddings_rag.evaluation.metrics import (
+    context_precision,
+    full_support,
+    gold_recall,
+    recall_at_k,
+)
+from concept_embeddings_rag.retrieval.base import Retriever
+
+REQUIRED_CONFIG_KEYS: frozenset[str] = frozenset(
+    {"model", "revision", "unit_set_hash", "seed", "tokenizer", "code_version", "top_k"}
+)
+
+
+class ProvenanceError(Exception):
+    """A result is missing the configuration needed to reproduce it."""
+
+
+@dataclass(frozen=True)
+class RunResult:
+    system: str
+    split: str
+    config: dict
+    metrics: dict
+    cost: dict
+    created_at: str = field(
+        default_factory=lambda: datetime.now(UTC).isoformat(timespec="seconds")
+    )
+
+    def validate(self) -> None:
+        missing = REQUIRED_CONFIG_KEYS - self.config.keys()
+        if missing:
+            raise ProvenanceError(
+                f"result for {self.system}/{self.split} lacks config keys: {sorted(missing)}"
+            )
+
+    def save(self, directory: Path) -> Path:
+        """Write the result without ever overwriting an existing one."""
+        self.validate()
+        directory = Path(directory)
+        directory.mkdir(parents=True, exist_ok=True)
+
+        stamp = self.created_at.replace(":", "").replace("-", "")
+        base = f"run-{self.system}-{self.split}-{stamp}"
+        path = directory / f"{base}.json"
+        suffix = 2
+        while path.exists():
+            path = directory / f"{base}-{suffix}.json"
+            suffix += 1
+
+        path.write_text(json.dumps(asdict(self), indent=2, sort_keys=True), encoding="utf-8")
+        return path
+
+
+def evaluate_retriever(
+    retriever: Retriever,
+    questions: Sequence[Question],
+    token_counts: Mapping[str, int],
+    budgets: Sequence[int],
+    ks: Sequence[int],
+    top_k: int,
+    config: dict,
+    split: str | None = None,
+) -> RunResult:
+    """Measure one retriever over one split, at every requested budget."""
+    per_budget: dict[int, dict[str, list[float]]] = {
+        budget: {"gold_recall": [], "full_support": [], "precision": []} for budget in budgets
+    }
+    per_k: dict[int, list[float]] = {k: [] for k in ks}
+    latencies: list[float] = []
+    units_included: list[int] = []
+
+    for question in questions:
+        started = time.perf_counter()
+        hits = retriever.retrieve(question.question, top_k=top_k)
+        latencies.append((time.perf_counter() - started) * 1000.0)
+
+        ranked_ids = [unit_id for unit_id, _score in hits]
+
+        for k in ks:
+            per_k[k].append(recall_at_k(ranked_ids, question.gold_unit_ids, k))
+
+        for budget in budgets:
+            context = fill_context(ranked_ids, token_counts, budget)
+            per_budget[budget]["gold_recall"].append(gold_recall(context, question.gold_unit_ids))
+            per_budget[budget]["full_support"].append(
+                float(full_support(context, question.gold_unit_ids))
+            )
+            per_budget[budget]["precision"].append(
+                context_precision(context, question.gold_unit_ids)
+            )
+            if budget == budgets[-1]:
+                units_included.append(len(context))
+
+    metrics: dict = {}
+    for budget in budgets:
+        metrics[f"budget_{budget}"] = {
+            name: _mean(values) for name, values in per_budget[budget].items()
+        }
+    for k in ks:
+        metrics[f"recall_at_{k}"] = _mean(per_k[k])
+
+    cost = {
+        "mean_latency_ms": _mean(latencies),
+        "mean_units_included": _mean([float(n) for n in units_included]),
+        "n_questions": len(questions),
+    }
+
+    resolved_split = split or (questions[0].split if questions else "unknown")
+    return RunResult(
+        system=retriever.name,
+        split=resolved_split,
+        config=dict(config),
+        metrics=metrics,
+        cost=cost,
+    )
+
+
+def _mean(values: Sequence[float]) -> float:
+    return float(sum(values) / len(values)) if values else 0.0

@@ -39,7 +39,7 @@ docs/plans/
 
 | Phase | Name | Spec | Status |
 |------|--------|------|--------|
-| 1 | Corpus, indexing units and dense baseline | Pending | Pending |
+| 1 | Corpus, indexing units and dense baseline | Available | Implemented — pending /7-verificar |
 | 2 | Concept space: dictionary + matrix X | Pending | Pending |
 | 3 | Hybrid conceptual retrieval (System B) | Pending | Pending |
 | 4 | Query-aware iterative expansion (System C) | Pending | Pending |
@@ -53,7 +53,7 @@ docs/plans/
 Delivers **System A** of §70 and, above all, the measurement harness everything else will be compared against. Without this phase there is no baseline and no way to know whether the rest contributes anything.
 
 - [ ] Benchmark subset downloaded and frozen in `data/` (version and hash recorded)
-- [ ] **Unified pool**: every paragraph of the subset forms a single corpus (~10,000 units), not the 10 candidates per question. With no space to traverse there is no hypothesis to test
+- [ ] **Unified pool**: every paragraph of the subset forms a single corpus (**19,366 units**, measured), not the 10 candidates per question. With no space to traverse there is no hypothesis to test
 - [ ] Indexing units by **complete meaning, never by fixed length**: the article paragraph is the unit and is never split. Stable IDs mapping unit ↔ annotated benchmark sentence
 - [ ] Swappable embedding backend, with an on-disk cache versioned by (model, indexing unit)
 - [ ] Reproducible vector index and top-K retrieval (fixed seed)

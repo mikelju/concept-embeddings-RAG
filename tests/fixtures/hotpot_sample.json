@@ -1,0 +1,54 @@
+[
+  {
+    "_id": "q0001",
+    "question": "Which lighthouse was built first, Torre Vieja or Cabo Norte?",
+    "answer": "Torre Vieja",
+    "type": "comparison",
+    "level": "hard",
+    "supporting_facts": [["Torre Vieja", 0], ["Cabo Norte", 1]],
+    "context": [
+      ["Torre Vieja", ["Torre Vieja is a lighthouse.", "It was built in 1852."]],
+      ["Cabo Norte", ["Cabo Norte is a lighthouse.", "It was built in 1901."]],
+      ["Coastal navigation", ["Lighthouses guide ships.", "They use rotating lamps."]]
+    ]
+  },
+  {
+    "_id": "q0002",
+    "question": "In which region is the lighthouse designed by Elena Ruiz located?",
+    "answer": "Galicia",
+    "type": "bridge",
+    "level": "medium",
+    "supporting_facts": [["Elena Ruiz", 1], ["Faro de Silva", 0]],
+    "context": [
+      ["Elena Ruiz", ["Elena Ruiz was an engineer.", "She designed the Faro de Silva."]],
+      ["Faro de Silva", ["Faro de Silva stands in Galicia.", "It is open to visitors."]],
+      ["Coastal navigation", ["Lighthouses guide ships.", "They use rotating lamps."]]
+    ]
+  },
+  {
+    "_id": "q0003",
+    "question": "What material was used in the tower restored by the Ferrol workshop?",
+    "answer": "granite",
+    "type": "bridge",
+    "level": "easy",
+    "supporting_facts": [["Ferrol workshop", 0], ["Torre Vieja", 1]],
+    "context": [
+      ["Ferrol workshop", ["The Ferrol workshop restored Torre Vieja.", "It closed in 1990."]],
+      ["Torre Vieja", ["Torre Vieja is a lighthouse.", "It was built in 1852."]],
+      ["Stone masonry", ["Granite is a durable stone.", "It resists salt corrosion."]]
+    ]
+  },
+  {
+    "_id": "q0004",
+    "question": "Who founded the museum that exhibits the Cabo Norte lamp?",
+    "answer": "Marta Iglesias",
+    "type": "bridge",
+    "level": "hard",
+    "supporting_facts": [["Museo del Mar", 1], ["Cabo Norte", 0]],
+    "context": [
+      ["Museo del Mar", ["Museo del Mar exhibits the Cabo Norte lamp.", "Marta Iglesias founded it."]],
+      ["Cabo Norte", ["Cabo Norte is a lighthouse.", "It was built in 1901."]],
+      ["Stone masonry", ["Granite is a durable stone.", "It resists salt corrosion."]]
+    ]
+  }
+]
