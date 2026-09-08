@@ -70,21 +70,22 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install pip-audit
-        run: pip install pip-audit
       - name: Run pip-audit
-        # Modo "require" falla con cualquier CVE en dependencias declaradas.
-        # Ajustar a --no-deps o --strict según necesidad del proyecto.
+        # Audit the environment uv actually builds, not a requirements file.
+        # `pip-audit -r` resolves every pin against PyPI, and this project pins
+        # torch==2.13.0+cpu from the PyTorch index - a version PyPI has never
+        # heard of, so the resolve fails before a single CVE is checked.
+        # Verified locally on 2026-09-08: -r fails, auditing the environment works.
         run: |
-          # Audit the locked tree, not a fresh resolve: uv.lock is what actually
-          # gets installed, and `pip install -e .` needs the project's own Python.
           if [ -f uv.lock ]; then
             pip install uv
-            uv export --no-hashes --format requirements-txt > /tmp/reqs.txt
-            pip-audit -r /tmp/reqs.txt --desc
+            uv sync --group security
+            uv run pip-audit --desc
           elif [ -f requirements.txt ]; then
+            pip install pip-audit
             pip-audit -r requirements.txt --desc
           else
+            pip install pip-audit
             pip install -e . && pip-audit --desc
           fi
 

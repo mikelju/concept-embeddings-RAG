@@ -27,17 +27,29 @@ Phase 1 has no blocking security work outstanding.
 | SEC-008 | Low | `CorpusManifest` validated field names but not types | Fixed (fix-1) |
 | SEC-009 | Low | The SEC-001 fix covered one branch of `cmd_fetch` and not the other | Fixed in the re-audit |
 | SEC-010 | Low | `load_pool` verified units but not that gold ids resolved | Fixed in the re-audit |
+| SEC-011 | Low | The SEC-007 fix pointed CI at a `pip-audit` command that cannot resolve this project's pinned torch | Fixed in the re-audit |
 
 Accepted by design, not fixed: OBS-002 (trust-on-first-use), OBS-003 (`resolved_revision` proves
 less than its name suggests), OBS-004 (`_check_pool_against_manifest` fails open without a
 manifest), OBS-005 (superseded embedding cache kept on disk). Each is argued in its report.
 
-## Standing gaps
+## Dependency scanning
 
-- **No dependency CVE scan has ever run on this project.** `pip-audit` is not installed locally
-  (CLAUDE.md gotcha 7). The CI job is now capable of running it — SEC-007 fixed the Python version
-  and pointed it at the `uv.lock` export — but it has not yet run. Until it does, no audit here
-  can claim dependencies were checked against a vulnerability database.
+`pip-audit` 2.10.1 is installed in the `security` dependency group. Run it with:
+
+```bash
+uv run pip-audit --desc
+```
+
+**Last run: 2026-09-08 — 0 known vulnerabilities.**
+
+One caveat worth knowing before reading a future clean result: `pip-audit` **skips `torch`**,
+because the pinned `2.13.0+cpu` carries a local version identifier PyPI does not recognise. It
+prints the skip in a separate table under "No known vulnerabilities found", which is easy to read
+as coverage it does not have. The upstream release was checked separately against OSV and is
+clean. Any future scan needs the same second step for `torch`.
+
+A clean scan is a statement about the day it ran, not a property of the code.
 
 ## Conventions
 
@@ -46,4 +58,4 @@ manifest), OBS-005 (superseded embedding cache kept on disk). Each is argued in 
 - Every Critical or High finding is resolved with a `fix-N` in `docs/plans/fixes/` before the
   phase closes, or the decision to defer it is recorded in the master plan with its reason.
 - Finding ids are unique per project: continue the `SEC-NNN` sequence in the next report rather
-  than restarting it. Next free id: **SEC-011**.
+  than restarting it. Next free id: **SEC-012**.

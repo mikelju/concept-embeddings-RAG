@@ -181,7 +181,7 @@ Secrets live only in `.env`, are loaded at runtime, and are never printed or quo
 
 6. **ruff excludes `.claude/`**: it holds third-party skill scripts with 10 warnings that are not project code and are not to be touched.
 
-7. **Security tooling is partly local.** `ruff --select=S` (the bandit port) runs locally and is in the project's lint selection. `pip-audit` and `detect-secrets` are still not installed; `.github/workflows/security.yml` runs them in CI, and the Phase 1 audit found that workflow broken in two ways (Python 3.11 against a 3.12-only project, and a secret scan that exited 0 whatever it found) — both fixed in `fix-1`, but **no dependency CVE scan has actually run yet**. That gap is declared in `docs/security/README.md`; close it before the next release gate.
+7. **Security tooling.** `ruff --select=S` (the bandit port) is in the project's lint selection, and `pip-audit` lives in the `security` dependency group: `uv run pip-audit --desc`. `detect-secrets` is still CI-only. **`pip-audit` skips `torch`** because the pinned `2.13.0+cpu` carries a local version identifier PyPI does not know, and it prints that skip beside "No known vulnerabilities found" — so check the upstream version against OSV separately rather than reading the clean line as full coverage. For the same reason `pip-audit -r <requirements>` cannot work here at all: it resolves every pin against PyPI and dies on torch. Audit the environment (`uv sync --group security && uv run pip-audit`), which is what CI does.
 
 8. **The first `pytest` of a session takes ~35 s** because of torch startup. Not a hang.
 

@@ -27,6 +27,9 @@ dev = [
     "ruff>=0.6",
     "mypy>=1.11",
 ]
+security = [
+    "pip-audit>=2.10.1",
+]
 
 # torch publishes no win_arm64 wheels on PyPI; the official PyTorch index does.
 # Read the gotchas section of CLAUDE.md before touching this.
