@@ -10,7 +10,7 @@ A **research experiment** on retrieval over a corpus-induced concept space: ever
 
 **The deliverable is measured evidence, not an application**: four comparable systems (BM25, dense, conceptual, iterative) over a multi-hop benchmark with annotated ground truth, and an explicit verdict on the hypothesis. A well-documented negative result closes the project just as well as a positive one.
 
-**Current state: scaffold.** The manifest, the verified environment and the smoke tests exist. There is no pipeline code yet — that is built in Phase 1. The full hypothesis and the surveyed prior art live in `docs/refs/descripcion-proyecto.md` and `docs/refs/bibliografia.md` (both in Spanish, they are source material); the roadmap lives in `docs/plans/0_master_plan.md`.
+**Current state: Phase 1 complete.** The frozen corpus, both baselines and the evaluation harness are built, audited and measured; the numbers live in `docs/plans/phase_1/1.results.md` and are what every later phase is judged against. Phase 2 (the concept space) has not started. The full hypothesis and the surveyed prior art live in `docs/refs/descripcion-proyecto.md` and `docs/refs/bibliografia.md` (both in Spanish, they are source material); the roadmap lives in `docs/plans/0_master_plan.md`, and `docs/USER_GUIDE.md` explains how to run the pipeline.
 
 ---
 
@@ -34,16 +34,27 @@ There is no server or UI to start: entry points are experiment scripts run throu
 ### File structure
 
 ```
-src/concept_embeddings_rag/   # Main package (today only __init__.py; populated in Phase 1)
-tests/                        # Tests. test_scaffold.py verifies the stack works on ARM64
-data/                         # Downloaded, frozen corpus. Git-ignored except .gitkeep
+src/concept_embeddings_rag/
+├── cli.py                    # The four pipeline stages: fetch, build, embed, evaluate
+├── config.py                 # Every constant that decides what an experiment measures
+├── corpus/                   # download (hash-verified), hf_source, split, pool, manifest
+├── embeddings/               # Swappable backend + .npz cache keyed by configuration
+├── retrieval/                # Retriever protocol, dense and BM25 behind it
+└── evaluation/               # Budget filling, the four metrics, the harness
+tests/                        # Mirrors the source layout. test_scaffold.py checks ARM64
+data/                         # Corpus, pool and caches: git-ignored. Manifest and results: versioned
 docs/
-├── plans/                    # SDD: master plan, phase specs and phase plans
+├── plans/                    # SDD: master plan, phase specs, phase plans and fixes
 ├── refs/                     # Immutable reference material (hypothesis, bibliography)
-├── security/                 # /8-auditar reports
-└── templates/                # Framework document templates
+├── security/                 # /8-auditar reports, indexed by security/README.md
+├── templates/                # Framework document templates
+└── USER_GUIDE.md             # How to run the pipeline
 .claude/commands/             # The 10 commands of the SDD-WAT workflow
 ```
+
+Entry point: `uv run cer <stage>`. Each stage refuses to run if its input is missing and names the
+stage to run first. `embed` is the expensive one (~36 min on this machine); everything else is
+seconds to minutes.
 
 ### Main pattern: staged pipeline with on-disk artifacts
 
@@ -83,6 +94,7 @@ The reasoning lives in the decisions table of `docs/plans/0_master_plan.md`. Ope
 | Embeddings | sentence-transformers / torch | 6.0.1 / 2.13.0+cpu |
 | Transformers | transformers | 5.16.1 |
 | HTTP and progress | httpx / tqdm | 0.28.1 / 4.70.0 |
+| Retrieval (lexical) | bm25s | 0.3.11 |
 | Tests | pytest | 9.1.1 |
 | Lint and types | ruff / mypy | 0.16.5 / 2.3.1 |
 | Deployment | — (local experiment) | — |
@@ -109,7 +121,12 @@ Secrets live only in `.env`, are loaded at runtime, and are never printed or quo
 - **Explicit seed** for anything stochastic. Without `random_state` a result is not a result.
 - **Artifacts versioned by configuration**: the cached file name derives from the parameters that generated it.
 - Tests in `tests/`, named after the criterion they verify.
-- 100-character lines; ruff with `E, F, I, UP, B, SIM`.
+- 100-character lines; ruff with `E, F, I, UP, B, SIM, S`. The `S` rules are the bandit port:
+  a non-cryptographic hash must say so with `usedforsecurity=False`. `S101` is ignored under
+  `tests/`, where asserts are the point.
+- **Verify artifacts on load, do not merely record them.** Every on-disk artifact carries a hash;
+  the code that reads it compares. This was the whole content of the Phase 1 audit — see
+  `docs/security/` and `docs/plans/fixes/fix-1_audit_phase_1_findings.md`.
 
 ---
 
@@ -164,7 +181,7 @@ Secrets live only in `.env`, are loaded at runtime, and are never printed or quo
 
 6. **ruff excludes `.claude/`**: it holds third-party skill scripts with 10 warnings that are not project code and are not to be touched.
 
-7. **Security tooling postponed.** `bandit`, `pip-audit` and `detect-secrets` are not installed locally; the `.github/workflows/security.yml` workflow already runs them in CI. When `/8-auditar` needs its Phase 2 automated scan, add the `security` group to the pyproject.
+7. **Security tooling is partly local.** `ruff --select=S` (the bandit port) runs locally and is in the project's lint selection. `pip-audit` and `detect-secrets` are still not installed; `.github/workflows/security.yml` runs them in CI, and the Phase 1 audit found that workflow broken in two ways (Python 3.11 against a 3.12-only project, and a secret scan that exited 0 whatever it found) — both fixed in `fix-1`, but **no dependency CVE scan has actually run yet**. That gap is declared in `docs/security/README.md`; close it before the next release gate.
 
 8. **The first `pytest` of a session takes ~35 s** because of torch startup. Not a hang.
 
