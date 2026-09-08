@@ -28,6 +28,7 @@ dev = [
     "mypy>=1.11",
 ]
 security = [
+    "detect-secrets>=1.5.0",
     "pip-audit>=2.10.1",
 ]
 

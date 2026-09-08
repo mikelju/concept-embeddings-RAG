@@ -104,24 +104,27 @@ jobs:
       - name: Install detect-secrets
         run: pip install detect-secrets
       - name: Scan for secrets
-        # Si el repo tiene baseline (.secrets.baseline), usarla; si no, escanear todo.
+        # `detect-secrets scan` exits 0 whatever it finds, so it cannot gate anything.
+        # `detect-secrets-hook` does exit non-zero, and honours the baseline: the 23
+        # audited findings (corpus hashes, the resolved model commit, a HotpotQA id)
+        # stay quiet, while anything new fails the job.
+        #
+        # .claude/skills/audit-code/ is excluded rather than baselined. It is a
+        # catalogue of secret *patterns*, so a scanner will always fire on it, and its
+        # findings are `Secret Keyword` - a detector that hashes the captured value
+        # including the line ending, which makes a baseline built on Windows fail to
+        # match on Linux. Excluding it is deterministic; baselining it is not. The
+        # project already excludes .claude/ from ruff for the same reason: not our code.
+        #
+        # Regenerate the baseline deliberately, never to silence a failure:
+        #   uv run detect-secrets scan         #     $(git ls-files | grep -v '^\.claude/skills/audit-code/') > .secrets.baseline
+        # then read every entry before committing it.
         run: |
-          # `detect-secrets scan` exits 0 whatever it finds, so the job has to read
-          # its output and decide. Without this the gate is decorative.
           if [ -f .secrets.baseline ]; then
-            detect-secrets scan --baseline .secrets.baseline
+            detect-secrets-hook --baseline .secrets.baseline               $(git ls-files | grep -v '^\.claude/skills/audit-code/')
           else
-            detect-secrets scan --all-files > .secrets.new
-            python - <<'PY'
-          import json, sys
-          results = json.load(open(".secrets.new"))["results"]
-          if results:
-              print("[ERROR] potential secrets found:")
-              for path, findings in results.items():
-                  print(f"  {path}: {len(findings)} finding(s)")
-              sys.exit(1)
-          print("[OK] no secrets detected")
-          PY
+            echo "[ERROR] no .secrets.baseline: create one and audit it" >&2
+            exit 1
           fi
 
   node-deps:
