@@ -27,7 +27,9 @@ from googleapiclient.errors import HttpError
 sys.path.insert(0, str(Path(__file__).parent))
 from md_to_docx import convert_md_to_docx
 
-DEFAULT_SHARE_EMAIL = "${GDOC_SHARE_EMAIL}"
+# Configure with the GDOC_SHARE_EMAIL environment variable. Deliberately not a
+# hardcoded address: this repository is public.
+DEFAULT_SHARE_EMAIL = os.environ.get("GDOC_SHARE_EMAIL", "")
 SCOPES = ["https://www.googleapis.com/auth/drive"]
 
 

@@ -51,3 +51,7 @@ output/
 
 # Saved-webpage asset folders (js/css/images), not worth versioning
 *_files/
+
+# Reference material that is not part of the experiment: official PDFs and saved
+# articles by third parties. Kept locally, never published.
+docs/bases legales/
