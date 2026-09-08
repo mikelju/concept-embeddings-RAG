@@ -11,6 +11,7 @@ include a unit if it fits whole, skip it if it does not, and carry on.
 from collections.abc import Mapping, Sequence
 
 from concept_embeddings_rag import config
+from concept_embeddings_rag.corpus.pool import IndexingUnit
 
 
 def fill_context(
@@ -46,8 +47,13 @@ class TokenCounter:
     between systems: the budget is a shared ruler, not an absolute truth.
     """
 
-    def __init__(self, tokenizer_id: str = config.TOKENIZER_ID) -> None:
+    def __init__(
+        self,
+        tokenizer_id: str = config.TOKENIZER_ID,
+        revision: str = config.EMBEDDING_REVISION,
+    ) -> None:
         self.tokenizer_id = tokenizer_id
+        self.revision = revision
         self._tokenizer = None
 
     def _load(self):
@@ -55,14 +61,16 @@ class TokenCounter:
             from transformers import AutoTokenizer
 
             print(f"[INFO] loading tokenizer {self.tokenizer_id}")
-            self._tokenizer = AutoTokenizer.from_pretrained(self.tokenizer_id)
+            self._tokenizer = AutoTokenizer.from_pretrained(
+                self.tokenizer_id, revision=self.revision
+            )
         return self._tokenizer
 
     def count(self, text: str) -> int:
         tokenizer = self._load()
         return len(tokenizer.encode(text, add_special_tokens=False))
 
-    def count_units(self, units) -> dict[str, int]:
+    def count_units(self, units: Sequence[IndexingUnit]) -> dict[str, int]:
         """Token count per unit id, over the same text the retrievers index."""
         tokenizer = self._load()
         texts = [unit.indexable_text for unit in units]

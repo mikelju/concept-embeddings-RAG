@@ -52,7 +52,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
       - name: Install bandit
         run: pip install bandit[toml]
       - name: Run bandit
@@ -69,16 +69,23 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-      - name: Install pip-audit
-        run: pip install pip-audit
+          python-version: "3.12"
       - name: Run pip-audit
-        # Modo "require" falla con cualquier CVE en dependencias declaradas.
-        # Ajustar a --no-deps o --strict según necesidad del proyecto.
+        # Audit the environment uv actually builds, not a requirements file.
+        # `pip-audit -r` resolves every pin against PyPI, and this project pins
+        # torch==2.13.0+cpu from the PyTorch index - a version PyPI has never
+        # heard of, so the resolve fails before a single CVE is checked.
+        # Verified locally on 2026-09-08: -r fails, auditing the environment works.
         run: |
-          if [ -f requirements.txt ]; then
+          if [ -f uv.lock ]; then
+            pip install uv
+            uv sync --group security
+            uv run pip-audit --desc
+          elif [ -f requirements.txt ]; then
+            pip install pip-audit
             pip-audit -r requirements.txt --desc
           else
+            pip install pip-audit
             pip install -e . && pip-audit --desc
           fi
 
@@ -93,16 +100,28 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
       - name: Install detect-secrets
         run: pip install detect-secrets
       - name: Scan for secrets
         # Si el repo tiene baseline (.secrets.baseline), usarla; si no, escanear todo.
         run: |
+          # `detect-secrets scan` exits 0 whatever it finds, so the job has to read
+          # its output and decide. Without this the gate is decorative.
           if [ -f .secrets.baseline ]; then
-            detect-secrets audit .secrets.baseline
+            detect-secrets scan --baseline .secrets.baseline
           else
-            detect-secrets scan --all-files
+            detect-secrets scan --all-files > .secrets.new
+            python - <<'PY'
+          import json, sys
+          results = json.load(open(".secrets.new"))["results"]
+          if results:
+              print("[ERROR] potential secrets found:")
+              for path, findings in results.items():
+                  print(f"  {path}: {len(findings)} finding(s)")
+              sys.exit(1)
+          print("[OK] no secrets detected")
+          PY
           fi
 
   node-deps:

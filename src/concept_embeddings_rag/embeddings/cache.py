@@ -28,12 +28,12 @@ class CacheAlignmentError(Exception):
 def unit_set_hash(unit_ids: Sequence[str]) -> str:
     """Identify a corpus by its set of unit ids, independent of ordering."""
     joined = "\n".join(sorted(unit_ids))
-    return hashlib.sha1(joined.encode("utf-8")).hexdigest()[:16]
+    return hashlib.sha1(joined.encode("utf-8"), usedforsecurity=False).hexdigest()[:16]
 
 
 def cache_key(model: str, revision: str, corpus_hash: str, normalized: bool) -> str:
     payload = f"{model}|{revision}|{corpus_hash}|{int(normalized)}"
-    return hashlib.sha1(payload.encode("utf-8")).hexdigest()[:16]
+    return hashlib.sha1(payload.encode("utf-8"), usedforsecurity=False).hexdigest()[:16]
 
 
 class EmbeddingCache:
@@ -55,9 +55,7 @@ class EmbeddingCache:
         metadata: dict,
     ) -> Path:
         if vectors.shape[0] != len(unit_ids):
-            raise CacheAlignmentError(
-                f"{vectors.shape[0]} vectors for {len(unit_ids)} unit ids"
-            )
+            raise CacheAlignmentError(f"{vectors.shape[0]} vectors for {len(unit_ids)} unit ids")
         path = self.path_for(key)
         np.savez_compressed(
             path,
@@ -96,6 +94,16 @@ class EmbeddingCache:
         return vectors, unit_ids
 
 
+def _resolved_revision(backend: EmbeddingBackend) -> str:
+    """The commit the backend actually loaded, or the requested revision.
+
+    Recorded next to every cached artifact so a rerun can be checked against
+    the pin instead of trusting it.
+    """
+    resolver = getattr(backend, "resolved_revision", None)
+    return resolver() if callable(resolver) else backend.revision
+
+
 def embed_units(
     units: Sequence[IndexingUnit],
     backend: EmbeddingBackend,
@@ -124,6 +132,7 @@ def embed_units(
         metadata={
             "model": backend.name,
             "revision": backend.revision,
+            "resolved_revision": _resolved_revision(backend),
             "dim": int(vectors.shape[1]),
             "normalized": bool(getattr(backend, "normalize", True)),
         },

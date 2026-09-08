@@ -68,3 +68,54 @@ def test_ids_are_stable_across_builds():
     first, _ = build_pool({"dev": raw_questions()})
     second, _ = build_pool({"dev": raw_questions()})
     assert [u.unit_id for u in first] == [u.unit_id for u in second]
+
+
+def test_loading_a_pool_whose_content_was_edited_under_its_id_is_refused(tmp_path):
+    """SEC-003: unit ids are a pure function of content, so re-deriving them costs
+    one hash each and catches the edit that would otherwise move every metric."""
+    import pytest
+
+    from concept_embeddings_rag.corpus.pool import PoolIntegrityError, load_pool, save_pool
+
+    units, questions = build_pool({"dev": raw_questions()})
+    path = tmp_path / "pool.json"
+    save_pool(units, questions, path)
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["units"][0]["sentences"] = ["Something else entirely."]
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(PoolIntegrityError, match="does not hash to its content"):
+        load_pool(path)
+
+
+def test_an_untouched_pool_round_trips(tmp_path):
+    """The integrity check must not reject what the pipeline itself produced."""
+    from concept_embeddings_rag.corpus.pool import load_pool, save_pool
+
+    units, questions = build_pool({"dev": raw_questions()})
+    path = tmp_path / "pool.json"
+    save_pool(units, questions, path)
+
+    loaded_units, loaded_questions = load_pool(path)
+    assert [u.unit_id for u in loaded_units] == [u.unit_id for u in units]
+    assert [q.qid for q in loaded_questions] == [q.qid for q in questions]
+
+
+def test_loading_a_pool_whose_gold_points_at_nothing_is_refused(tmp_path):
+    """SEC-010: a gold id resolving to no unit is not a retrieval failure, but every
+    metric would score it as one. build_pool guarantees this; loading must too."""
+    import pytest
+
+    from concept_embeddings_rag.corpus.pool import GoldResolutionError, load_pool, save_pool
+
+    units, questions = build_pool({"dev": raw_questions()})
+    path = tmp_path / "pool.json"
+    save_pool(units, questions, path)
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["questions"][0]["gold_unit_ids"] = ["0" * 16]
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(GoldResolutionError, match="not in the pool"):
+        load_pool(path)

@@ -12,17 +12,26 @@ stage to run first rather than failing somewhere deep inside numpy.
 import argparse
 import json
 import sys
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import NoReturn
 
 from concept_embeddings_rag import __version__, config
 from concept_embeddings_rag.corpus import hf_source
-from concept_embeddings_rag.corpus.download import sha256_of_file
+from concept_embeddings_rag.corpus.download import CorpusIntegrityError, sha256_of_file
 from concept_embeddings_rag.corpus.manifest import CorpusManifest
-from concept_embeddings_rag.corpus.pool import build_pool, load_pool, save_pool
+from concept_embeddings_rag.corpus.pool import (
+    IndexingUnit,
+    build_pool,
+    load_pool,
+    save_pool,
+)
 from concept_embeddings_rag.corpus.split import select_subset, split_questions
-from concept_embeddings_rag.embeddings.backend import SentenceTransformerBackend
+from concept_embeddings_rag.embeddings.backend import (
+    EmbeddingBackend,
+    SentenceTransformerBackend,
+)
 from concept_embeddings_rag.embeddings.cache import EmbeddingCache, embed_units, unit_set_hash
 from concept_embeddings_rag.evaluation.budget import TokenCounter
 from concept_embeddings_rag.evaluation.harness import evaluate_retriever
@@ -45,15 +54,38 @@ def cmd_fetch(data_dir: Path = config.DATA_DIR, seed: int = config.DEFAULT_SEED)
     data_dir = Path(data_dir)
     data_dir.mkdir(parents=True, exist_ok=True)
     raw_path = data_dir / RAW_NAME
+    manifest_path = data_dir / MANIFEST_NAME
+
+    # A manifest from an earlier run is what turns this into a verification instead of
+    # a description: with nothing to compare against, hashing the file only ever
+    # confirms itself. Absent a manifest, this run is the one that establishes the hash.
+    expected = CorpusManifest.load(manifest_path).sha256 if manifest_path.exists() else None
 
     if raw_path.exists():
-        print(f"[INFO] corpus already present at {raw_path}")
+        actual = sha256_of_file(raw_path)
+        if expected is not None and actual != expected:
+            raise CorpusIntegrityError(
+                f"{raw_path} has hash {actual}, manifest expects {expected}; "
+                "delete the file to re-fetch it deliberately"
+            )
+        state = "verified" if expected is not None else "unverified, first run"
+        print(f"[INFO] corpus already present at {raw_path} ({state})")
     else:
         print(f"[INFO] assembling {hf_source.DATASET} ({hf_source.CONFIG}/{hf_source.SPLIT})")
         rows = hf_source.fetch_split(pause=0.5)
         raw_path.write_text(json.dumps(rows, sort_keys=True), encoding="utf-8")
         print(f"[OK] assembled {len(rows)} questions")
+
     digest = sha256_of_file(raw_path)
+    # Both branches end here, and both must be checked. A corpus deleted while its
+    # manifest survives comes back through the branch above, and accepting whatever
+    # the API returns at that point would reopen exactly the hole this closes.
+    if expected is not None and digest != expected:
+        raise CorpusIntegrityError(
+            f"assembled corpus has hash {digest}, manifest expects {expected}; "
+            "the upstream dataset has changed - delete the manifest to refreeze it "
+            "deliberately, and treat every recorded number as belonging to the old corpus"
+        )
 
     manifest = CorpusManifest(
         dataset=config.DATASET_NAME,
@@ -64,7 +96,7 @@ def cmd_fetch(data_dir: Path = config.DATA_DIR, seed: int = config.DEFAULT_SEED)
         n_questions=config.N_QUESTIONS,
         split_sizes={"dev": config.N_DEV, "test": config.N_TEST},
     )
-    manifest.save(data_dir / MANIFEST_NAME)
+    manifest.save(manifest_path)
     print(f"[OK] corpus frozen at {raw_path} (sha256 {digest[:16]}...)")
     return raw_path
 
@@ -83,6 +115,12 @@ def cmd_build(
         _die("no frozen corpus found: run 'fetch' first")
 
     manifest = CorpusManifest.load(manifest_path)
+    actual = sha256_of_file(raw_path)
+    if actual != manifest.sha256:
+        _die(
+            f"corpus at {raw_path} has hash {actual} but the manifest expects "
+            f"{manifest.sha256}; re-run 'fetch'"
+        )
     raw_questions = json.loads(raw_path.read_text(encoding="utf-8"))
     print(f"[INFO] benchmark holds {len(raw_questions)} questions")
 
@@ -117,6 +155,7 @@ def cmd_embed(data_dir: Path = config.DATA_DIR, cache_dir: Path = config.CACHE_D
         _die("no pool found: run 'build' first")
 
     units, _ = load_pool(pool_path)
+    _check_pool_against_manifest(units, data_dir / MANIFEST_NAME)
     backend = SentenceTransformerBackend()
     cache = EmbeddingCache(Path(cache_dir))
     vectors, _ = embed_units(units, backend, cache)
@@ -145,6 +184,7 @@ def cmd_evaluate(
         _die("no embeddings or token counts found: run 'embed' first")
 
     units, questions = load_pool(pool_path)
+    _check_pool_against_manifest(units, data_dir / MANIFEST_NAME)
     token_counts = json.loads(tokens_path.read_text(encoding="utf-8"))
 
     backend = SentenceTransformerBackend()
@@ -163,6 +203,7 @@ def cmd_evaluate(
     run_config = {
         "model": backend.name,
         "revision": backend.revision,
+        "resolved_revision": backend.resolved_revision(),
         "unit_set_hash": unit_set_hash([u.unit_id for u in units]),
         "seed": config.DEFAULT_SEED,
         "tokenizer": config.TOKENIZER_ID,
@@ -194,7 +235,28 @@ def cmd_evaluate(
     return written
 
 
-def _cache_key_for(backend, units) -> str:
+def _check_pool_against_manifest(units: Sequence[IndexingUnit], manifest_path: Path) -> None:
+    """Refuse to run on a pool the manifest does not recognise.
+
+    `load_pool` already proves each unit hashes to its own content; this proves the
+    set as a whole is the one the recorded numbers were produced from. The manifest
+    has carried `unit_set_hash` since the corpus was frozen - it was simply never
+    read back.
+    """
+    if not manifest_path.exists():
+        return
+    manifest = CorpusManifest.load(manifest_path)
+    if manifest.unit_set_hash is None:
+        return
+    actual = unit_set_hash([u.unit_id for u in units])
+    if actual != manifest.unit_set_hash:
+        _die(
+            f"pool hashes to {actual} but the manifest expects {manifest.unit_set_hash}; "
+            "re-run 'build' so the corpus and the pool agree"
+        )
+
+
+def _cache_key_for(backend: EmbeddingBackend, units: Sequence[IndexingUnit]) -> str:
     from concept_embeddings_rag.embeddings.cache import cache_key
 
     return cache_key(

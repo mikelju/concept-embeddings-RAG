@@ -6,6 +6,7 @@ selected the subset, so that any number can be traced back to its inputs.
 """
 
 import json
+import re
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 
@@ -30,6 +31,15 @@ class CorpusManifest:
     tool_version: str = field(default=__version__)
 
     def __post_init__(self) -> None:
+        # A manifest is JSON from disk, so the dataclass annotations guarantee nothing
+        # at runtime. sha256 matters most: once it is actually compared, a field holding
+        # something that is not a digest would make the comparison meaningless.
+        if not re.fullmatch(r"[0-9a-f]{64}", str(self.sha256)):
+            raise ManifestError(f"sha256 {self.sha256!r} is not a 64-character hex digest")
+        if not isinstance(self.seed, int) or isinstance(self.seed, bool):
+            raise ManifestError(f"seed must be an int, got {type(self.seed).__name__}")
+        if not all(isinstance(size, int) for size in self.split_sizes.values()):
+            raise ManifestError(f"split sizes must all be ints: {self.split_sizes!r}")
         total = sum(self.split_sizes.values())
         if total != self.n_questions:
             raise ManifestError(

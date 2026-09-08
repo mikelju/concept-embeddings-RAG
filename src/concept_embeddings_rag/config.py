@@ -38,9 +38,11 @@ DEFAULT_SEED: Final[int] = 42
 
 # --- Embeddings ------------------------------------------------------------
 EMBEDDING_MODEL: Final[str] = "BAAI/bge-small-en-v1.5"
-# Pinned loosely for now; the exact commit hash is recorded in the cache sidecar
-# the first time the model is downloaded, which is what makes a run reproducible.
-EMBEDDING_REVISION: Final[str] = "main"
+# Pinned to a commit, never to a branch. A moving revision silently redefines every
+# vector in the project and every number derived from them, while every artifact on
+# disk keeps claiming the same configuration. The resolved commit is recorded again
+# at embedding time, so a run can be checked against the pin rather than trusting it.
+EMBEDDING_REVISION: Final[str] = "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a"
 EMBEDDING_DIM: Final[int] = 384
 NORMALIZE_EMBEDDINGS: Final[bool] = True
 

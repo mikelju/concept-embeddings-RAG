@@ -39,7 +39,7 @@ docs/plans/
 
 | Phase | Name | Spec | Status |
 |------|--------|------|--------|
-| 1 | Corpus, indexing units and dense baseline | Available | Implemented — pending /7-verificar |
+| 1 | Corpus, indexing units and dense baseline | Available | **Complete** |
 | 2 | Concept space: dictionary + matrix X | Pending | Pending |
 | 3 | Hybrid conceptual retrieval (System B) | Pending | Pending |
 | 4 | Query-aware iterative expansion (System C) | Pending | Pending |
@@ -52,13 +52,13 @@ docs/plans/
 
 Delivers **System A** of §70 and, above all, the measurement harness everything else will be compared against. Without this phase there is no baseline and no way to know whether the rest contributes anything.
 
-- [ ] Benchmark subset downloaded and frozen in `data/` (version and hash recorded)
-- [ ] **Unified pool**: every paragraph of the subset forms a single corpus (**19,366 units**, measured), not the 10 candidates per question. With no space to traverse there is no hypothesis to test
-- [ ] Indexing units by **complete meaning, never by fixed length**: the article paragraph is the unit and is never split. Stable IDs mapping unit ↔ annotated benchmark sentence
-- [ ] Swappable embedding backend, with an on-disk cache versioned by (model, indexing unit)
-- [ ] Reproducible vector index and top-K retrieval (fixed seed)
-- [ ] Evaluation harness: supporting-fact Recall and Context Precision measured **at a fixed context budget** — same tokens for every system, not same K
-- [ ] System A (dense) and the **BM25** baseline measured, their numbers recorded as the baseline
+- [x] Benchmark subset downloaded and frozen in `data/` (version and hash recorded)
+- [x] **Unified pool**: every paragraph of the subset forms a single corpus (**19,366 units**, measured), not the 10 candidates per question. With no space to traverse there is no hypothesis to test
+- [x] Indexing units by **complete meaning, never by fixed length**: the article paragraph is the unit and is never split. Stable IDs mapping unit ↔ annotated benchmark sentence
+- [x] Swappable embedding backend, with an on-disk cache versioned by (model, indexing unit)
+- [x] Reproducible vector index and top-K retrieval (fixed seed)
+- [x] Evaluation harness: supporting-fact Recall and Context Precision measured **at a fixed context budget** — same tokens for every system, not same K
+- [x] System A (dense) and the **BM25** baseline measured, their numbers recorded as the baseline
 
 ## Phase 2: Concept space — dictionary + matrix X
 
@@ -160,4 +160,7 @@ The project succeeds if, at the end of Phase 5, there exists a **defensible and 
 
 ## Corrective fixes
 
-[References to fix-N entries for functionality without a phase plan of its own]
+- **[fix-1](fixes/fix-1_audit_phase_1_findings.md)** — the ten findings of the Phase 1 security
+  audit, all of them integrity controls that existed in the code and were never exercised by the
+  pipeline. Closed with 15 regression tests; the full evaluation was re-run and all 60 recorded
+  metrics reproduce exactly, so the Phase 1 numbers are unaffected.

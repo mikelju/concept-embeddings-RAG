@@ -132,9 +132,9 @@ def test_a_new_run_never_overwrites_a_previous_one(tmp_path):
 
 
 def test_saved_result_is_readable_json_carrying_its_config(tmp_path):
-    path = RunResult(
-        system="scripted", split="dev", config=a_config(), metrics={}, cost={}
-    ).save(tmp_path)
+    path = RunResult(system="scripted", split="dev", config=a_config(), metrics={}, cost={}).save(
+        tmp_path
+    )
     payload = json.loads(path.read_text(encoding="utf-8"))
 
     assert payload["config"]["seed"] == 42
@@ -159,3 +159,29 @@ def test_splits_are_evaluated_separately():
 
     assert dev.split == "dev"
     assert dev.cost["n_questions"] == 1
+
+
+def test_a_split_that_is_not_filename_safe_is_refused(tmp_path):
+    """SEC-006: `split` can reach the harness from pool.json, and it lands in a
+    path. A traversal sequence there would write the result outside results/."""
+    result = RunResult(
+        system="dense",
+        split="../../escaped",
+        config=a_config(),
+        metrics={},
+        cost={},
+    )
+    with pytest.raises(ProvenanceError, match="not usable in a filename"):
+        result.save(tmp_path)
+
+
+def test_a_system_name_that_is_not_filename_safe_is_refused(tmp_path):
+    result = RunResult(
+        system="dense/../evil",
+        split="dev",
+        config=a_config(),
+        metrics={},
+        cost={},
+    )
+    with pytest.raises(ProvenanceError):
+        result.save(tmp_path)

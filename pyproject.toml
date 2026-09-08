@@ -27,6 +27,9 @@ dev = [
     "ruff>=0.6",
     "mypy>=1.11",
 ]
+security = [
+    "pip-audit>=2.10.1",
+]
 
 # torch publishes no win_arm64 wheels on PyPI; the official PyTorch index does.
 # Read the gotchas section of CLAUDE.md before touching this.
@@ -49,7 +52,12 @@ target-version = "py312"
 exclude = [".claude", ".tmp", "data", ".venv"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM"]
+# S is the flake8-bandit port: SAST in the local loop, not only in CI.
+select = ["E", "F", "I", "UP", "B", "SIM", "S"]
+
+[tool.ruff.lint.per-file-ignores]
+# Asserts are how pytest expresses every expectation; S101 there is pure noise.
+"tests/**" = ["S101"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

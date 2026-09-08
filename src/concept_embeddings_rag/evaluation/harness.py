@@ -7,6 +7,7 @@ reproduce - or that a later run silently replaced - is not evidence.
 """
 
 import json
+import re
 import time
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field
@@ -28,6 +29,11 @@ REQUIRED_CONFIG_KEYS: frozenset[str] = frozenset(
 )
 
 
+# Both halves of a result's identity end up in a filename, and `split` can reach here
+# from pool.json, which is not the pipeline's own output to trust blindly.
+SAFE_NAME = re.compile(r"^[A-Za-z0-9_-]+$")
+
+
 class ProvenanceError(Exception):
     """A result is missing the configuration needed to reproduce it."""
 
@@ -39,9 +45,7 @@ class RunResult:
     config: dict
     metrics: dict
     cost: dict
-    created_at: str = field(
-        default_factory=lambda: datetime.now(UTC).isoformat(timespec="seconds")
-    )
+    created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat(timespec="seconds"))
 
     def validate(self) -> None:
         missing = REQUIRED_CONFIG_KEYS - self.config.keys()
@@ -49,6 +53,9 @@ class RunResult:
             raise ProvenanceError(
                 f"result for {self.system}/{self.split} lacks config keys: {sorted(missing)}"
             )
+        for label, value in (("system", self.system), ("split", self.split)):
+            if not SAFE_NAME.match(value):
+                raise ProvenanceError(f"{label} {value!r} is not usable in a filename")
 
     def save(self, directory: Path) -> Path:
         """Write the result without ever overwriting an existing one."""

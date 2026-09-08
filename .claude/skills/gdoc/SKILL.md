@@ -37,7 +37,7 @@ python .claude/skills/gdoc/references/md_to_gdoc.py <ruta-al-archivo.md> [opcion
 |--------|-------------|
 | `--title "Titulo"` | Titulo del Google Doc (default: nombre del archivo) |
 | `--folder-id <id>` | Carpeta destino en Google Drive |
-| `--share <email>` | Email para compartir (default: ${GDOC_SHARE_EMAIL}) |
+| `--share <email>` | Email para compartir (default: variable de entorno `GDOC_SHARE_EMAIL`) |
 | `--no-share` | No compartir automaticamente |
 | `--keep-docx` | Mantener el .docx intermedio |
 | `--credentials <ruta>` | Ruta a credentials.json (si no esta en la raiz) |
