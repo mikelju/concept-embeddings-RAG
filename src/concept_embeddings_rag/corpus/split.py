@@ -10,7 +10,8 @@ import hashlib
 
 
 def _sort_key(seed: int, qid: str) -> str:
-    return hashlib.sha1(f"{seed}:{qid}".encode()).hexdigest()
+    # Bucketing, not integrity: the flag says so to hashlib and to the SAST gate alike.
+    return hashlib.sha1(f"{seed}:{qid}".encode(), usedforsecurity=False).hexdigest()
 
 
 def select_subset(questions: list[dict], n: int, seed: int) -> list[dict]:

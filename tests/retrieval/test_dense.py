@@ -60,3 +60,21 @@ def test_ranking_is_reproducible_including_ties():
 def test_it_satisfies_the_retriever_interface():
     retriever: Retriever = a_retriever()
     assert retriever.name == "dense"
+
+
+def test_retrieval_searches_the_whole_pool_not_a_per_question_candidate_list():
+    """HU-4: the benchmark attaches 10 candidates to each question; we ignore them.
+
+    Ranking against those candidates would make the task trivially easier and the
+    numbers incomparable with anything. The interface enforces it: `retrieve` takes
+    a query and a top_k, and has nowhere to receive a candidate list.
+    """
+    import inspect
+
+    retriever = a_retriever()
+    parameters = set(inspect.signature(retriever.retrieve).parameters)
+    assert parameters == {"query", "top_k"}
+
+    # Every unit in the pool is reachable, including ones no question points at.
+    returned = {unit_id for unit_id, _ in retriever.retrieve("0,1", top_k=3)}
+    assert returned == {"east", "north", "ne"}

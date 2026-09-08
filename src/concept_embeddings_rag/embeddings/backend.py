@@ -54,6 +54,22 @@ class SentenceTransformerBackend:
         self.batch_size = batch_size
         self._model = None
 
+    def resolved_revision(self) -> str:
+        """The commit the Hub actually served, or the requested revision if offline.
+
+        A pin is only worth as much as the ability to check it was honoured, and
+        `revision` alone records an intention rather than an outcome.
+        """
+        try:
+            from huggingface_hub import snapshot_download
+
+            path = snapshot_download(self.name, revision=self.revision)
+        except Exception:  # offline, or a local path: the pin is all we can report
+            return self.revision
+        from pathlib import Path as _Path
+
+        return _Path(path).name
+
     def _load(self):
         if self._model is None:
             from sentence_transformers import SentenceTransformer

@@ -49,3 +49,33 @@ def test_split_sizes_must_add_up_to_n_questions():
 
 def test_manifest_records_the_tool_version():
     assert a_manifest().tool_version
+
+
+def test_a_manifest_whose_sha256_is_not_a_digest_is_refused():
+    """SEC-008: the field is about to be compared against a real hash, so a value
+    that cannot be one makes the comparison meaningless."""
+    with pytest.raises(ManifestError):
+        CorpusManifest(
+            dataset="d",
+            source_url="u",
+            sha256="not-a-hash",
+            downloaded_at="2026-09-08T00:00:00",
+            seed=42,
+            n_questions=2,
+            split_sizes={"dev": 1, "test": 1},
+        )
+
+
+def test_a_manifest_with_a_non_integer_seed_is_refused():
+    """SEC-008: dataclass annotations are not runtime validation, and this one
+    arrives from JSON on disk."""
+    with pytest.raises(ManifestError):
+        CorpusManifest(
+            dataset="d",
+            source_url="u",
+            sha256="a" * 64,
+            downloaded_at="2026-09-08T00:00:00",
+            seed="forty-two",
+            n_questions=2,
+            split_sizes={"dev": 1, "test": 1},
+        )

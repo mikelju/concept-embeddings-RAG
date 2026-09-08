@@ -21,6 +21,11 @@ SPLIT = "validation"
 
 PageFetcher = Callable[[int, int], dict]
 
+# The distractor validation split holds 7,405 questions. This ceiling is well
+# clear of that and, unlike the loop below, finite: if the API stops reporting
+# num_rows_total, an empty page is otherwise the only thing that ends paging.
+MAX_ROWS = 20_000
+
 
 class RateLimitError(Exception):
     """The API asked us to slow down (HTTP 429) or hiccuped server-side."""
@@ -91,6 +96,7 @@ def fetch_split(
     page_size: int = 100,
     pause: float = 0.0,
     sleep_fn: Callable[[float], None] = time.sleep,
+    max_rows: int = MAX_ROWS,
 ) -> list[dict]:
     """Page through the split and return every question, normalized."""
     page_fetcher = page_fetcher or _http_page_fetcher
@@ -111,6 +117,11 @@ def fetch_split(
 
         rows.extend(normalize_row(entry["row"]) for entry in page)
         offset += len(page)
+        if len(rows) > max_rows:
+            raise RuntimeError(
+                f"fetched {len(rows)} rows, past the {max_rows} ceiling; "
+                "the API shape has probably changed"
+            )
         if offset % 1000 == 0:
             print(f"[INFO] fetched {offset}/{total}")
 

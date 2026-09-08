@@ -61,8 +61,7 @@ def test_fetch_split_pages_until_every_row_is_collected():
         pages.append((offset, length))
         total = 250
         rows = [
-            {"row": dict(HF_ROW, id=f"q{i}")}
-            for i in range(offset, min(offset + length, total))
+            {"row": dict(HF_ROW, id=f"q{i}")} for i in range(offset, min(offset + length, total))
         ]
         return {"num_rows_total": total, "rows": rows}
 
@@ -118,3 +117,18 @@ def test_fetch_split_pauses_between_pages_to_stay_under_the_rate_limit():
     fetch_split(page_fetcher=fake_get, page_size=100, pause=0.4, sleep_fn=slept.append)
     # Three pages, two pauses: there is nothing to be polite about after the last one.
     assert slept == [0.4, 0.4]
+
+
+def test_paging_stops_at_the_row_ceiling_instead_of_looping_forever():
+    """SEC-004: when the API stops reporting num_rows_total, an empty page was the
+    only thing that ended the loop. A peer that never sends one exhausted memory."""
+    import pytest
+
+    from concept_embeddings_rag.corpus.hf_source import fetch_split
+
+    def endless_pages(offset: int, length: int) -> dict:
+        # No num_rows_total, and never an empty page: the shape that used to hang.
+        return {"rows": [{"row": dict(HF_ROW, id=f"q{offset + i}")} for i in range(length)]}
+
+    with pytest.raises(RuntimeError, match="ceiling"):
+        fetch_split(page_fetcher=endless_pages, page_size=100, max_rows=500)

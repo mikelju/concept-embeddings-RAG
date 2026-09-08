@@ -49,7 +49,12 @@ target-version = "py312"
 exclude = [".claude", ".tmp", "data", ".venv"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM"]
+# S is the flake8-bandit port: SAST in the local loop, not only in CI.
+select = ["E", "F", "I", "UP", "B", "SIM", "S"]
+
+[tool.ruff.lint.per-file-ignores]
+# Asserts are how pytest expresses every expectation; S101 there is pure noise.
+"tests/**" = ["S101"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

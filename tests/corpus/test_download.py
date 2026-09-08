@@ -68,3 +68,60 @@ def test_hash_of_file_matches_hash_of_bytes(tmp_path):
     path = tmp_path / "f.bin"
     path.write_bytes(PAYLOAD)
     assert sha256_of_file(path) == PAYLOAD_SHA
+
+
+def test_a_mismatch_now_fails_instead_of_silently_redownloading(tmp_path):
+    """SEC-001 / DEF-004: overwriting a file that failed verification destroys the
+    only evidence of what went wrong. Failing closed is the default."""
+    destination = tmp_path / "hotpot.json"
+    destination.write_bytes(b"truncated garbage")
+
+    with pytest.raises(CorpusIntegrityError):
+        ensure_corpus(
+            "http://example.invalid/x.json",
+            destination,
+            expected_sha256=PAYLOAD_SHA,
+            fetcher=lambda url: PAYLOAD,
+        )
+    assert destination.read_bytes() == b"truncated garbage"
+
+
+def test_a_download_past_the_byte_ceiling_is_refused(tmp_path):
+    """SEC-004: a timeout bounds how long a response may take, not how large it is."""
+    from concept_embeddings_rag.corpus import download
+
+    class _Response:
+        def raise_for_status(self):
+            return None
+
+        def iter_bytes(self):
+            for _ in range(4):
+                yield b"x" * 1024
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    class _Client:
+        def stream(self, method, url):
+            return _Response()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    import sys
+    import types
+
+    fake_httpx = types.ModuleType("httpx")
+    fake_httpx.Client = lambda **kwargs: _Client()
+    sys.modules["httpx"] = fake_httpx
+    try:
+        with pytest.raises(CorpusIntegrityError):
+            download._http_fetcher("http://example.invalid/big.json", max_bytes=2048)
+    finally:
+        del sys.modules["httpx"]

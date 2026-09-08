@@ -7,11 +7,17 @@ rebuilt from the manifest is identical to the original.
 """
 
 import hashlib
+import json
 from dataclasses import dataclass
+from pathlib import Path
 
 
 class GoldResolutionError(Exception):
     """A question's gold paragraphs could not be resolved against the pool."""
+
+
+class PoolIntegrityError(Exception):
+    """A stored unit id does not match the content stored beside it."""
 
 
 @dataclass(frozen=True)
@@ -48,7 +54,9 @@ class Question:
 def unit_id_for(title: str, sentences: tuple[str, ...]) -> str:
     """Content-derived identifier: same paragraph, same id, always."""
     payload = title + "\n" + " ".join(sentences)
-    return hashlib.sha1(payload.encode("utf-8")).hexdigest()[:16]
+    # Content addressing, not integrity: collisions are a correctness concern here,
+    # not a security one, and the flag says so to hashlib and to the SAST gate alike.
+    return hashlib.sha1(payload.encode("utf-8"), usedforsecurity=False).hexdigest()[:16]
 
 
 def build_pool(
@@ -120,15 +128,11 @@ def _resolve_gold(
     return tuple(resolved)
 
 
-def save_pool(units: list[IndexingUnit], questions: list[Question], path) -> None:
+def save_pool(units: list[IndexingUnit], questions: list[Question], path: Path | str) -> None:
     """Persist the pool as JSON, so later stages never re-derive it."""
-    import json
-    from pathlib import Path
-
     payload = {
         "units": [
-            {"unit_id": u.unit_id, "title": u.title, "sentences": list(u.sentences)}
-            for u in units
+            {"unit_id": u.unit_id, "title": u.title, "sentences": list(u.sentences)} for u in units
         ],
         "questions": [
             {
@@ -145,15 +149,28 @@ def save_pool(units: list[IndexingUnit], questions: list[Question], path) -> Non
     Path(path).write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
 
 
-def load_pool(path) -> tuple[list[IndexingUnit], list[Question]]:
-    import json
-    from pathlib import Path
+def load_pool(path: Path | str) -> tuple[list[IndexingUnit], list[Question]]:
+    """Load the pool, re-deriving every id so a modified file cannot pass as intact.
 
+    Unit ids are a pure function of content, so checking them costs one hash each and
+    catches exactly what would otherwise be invisible: a paragraph edited under an id
+    that every later stage keeps trusting. Gold ids are scored against these, so a
+    silent mismatch here moves every metric in the project.
+    """
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
-    units = [
-        IndexingUnit(unit_id=u["unit_id"], title=u["title"], sentences=tuple(u["sentences"]))
-        for u in payload["units"]
-    ]
+
+    units: list[IndexingUnit] = []
+    for entry in payload["units"]:
+        sentences = tuple(entry["sentences"])
+        expected = unit_id_for(entry["title"], sentences)
+        if expected != entry["unit_id"]:
+            raise PoolIntegrityError(
+                f"unit {entry['unit_id']} does not hash to its content (got {expected}); "
+                f"{path} has been modified - rebuild it with 'build'"
+            )
+        units.append(
+            IndexingUnit(unit_id=entry["unit_id"], title=entry["title"], sentences=sentences)
+        )
     questions = [
         Question(
             qid=q["qid"],
@@ -165,4 +182,16 @@ def load_pool(path) -> tuple[list[IndexingUnit], list[Question]]:
         )
         for q in payload["questions"]
     ]
+
+    # build_pool guarantees this when it constructs the pool; loading has to prove it
+    # again, because gold ids are what every metric is scored against. A gold pointing
+    # at nothing is not a retrieval failure, but it would be counted as one.
+    known = {unit.unit_id for unit in units}
+    for question in questions:
+        missing = [uid for uid in question.gold_unit_ids if uid not in known]
+        if missing:
+            raise GoldResolutionError(
+                f"question {question.qid}: gold {missing} is not in the pool; "
+                f"{path} is inconsistent - rebuild it with 'build'"
+            )
     return units, questions
