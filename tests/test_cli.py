@@ -549,3 +549,44 @@ def test_the_labels_are_built_from_the_units_that_activate_each_concept(tmp_path
     assert client.prompts
     for prompt in client.prompts:
         assert any(text in prompt for text in known)
+
+
+def test_diagnostics_that_do_not_say_which_pool_they_describe_are_recomputed(tmp_path):
+    """SEC-012: an artifact written before the field existed cannot be checked against
+
+    the pool, and something that cannot be checked is not reused as if it had been.
+    Recomputing costs seconds; citing evidence from another pool costs the report.
+    """
+    from concept_embeddings_rag.concepts.diagnostics import load_diagnostics
+
+    data_dir, cache_dir, _ = an_induction_workspace(tmp_path)
+    key = induce(tmp_path, data_dir, cache_dir)[0]
+    path = tmp_path / "concepts" / f"diagnostics-{key}.json"
+    legacy = json.loads(path.read_text(encoding="utf-8"))
+    for field in ("unit_set_hash", "digest"):
+        legacy.pop(field, None)
+    path.write_text(json.dumps(legacy, indent=2, sort_keys=True), encoding="utf-8")
+
+    induce(tmp_path, data_dir, cache_dir)
+
+    assert load_diagnostics(key, tmp_path / "concepts").unit_set_hash
+
+
+def test_stale_diagnostics_name_the_artifact_instead_of_raising_a_bare_key_error():
+    """SEC-012: the evidence ids come from an artifact and the texts from the pool.
+
+    When the two disagree the raw lookup raises `KeyError('unit9999')`, which reads
+    like a bug in the labelling stage rather than what it is - an artifact
+    describing a pool that is no longer on disk.
+    """
+    from concept_embeddings_rag.cli import _text_of
+
+    text_by_id = {"unit0001": "The Douro flows through northern Portugal."}
+    assert _text_of("unit0001", text_by_id, "abc123") == text_by_id["unit0001"]
+
+    with pytest.raises(SystemExit) as excinfo:
+        _text_of("unit9999", text_by_id, "abc123")
+
+    message = str(excinfo.value)
+    assert "unit9999" in message
+    assert "induce" in message

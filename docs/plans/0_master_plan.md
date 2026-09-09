@@ -40,7 +40,7 @@ docs/plans/
 | Phase | Name | Spec | Status |
 |------|--------|------|--------|
 | 1 | Corpus, indexing units and dense baseline | Available | **Complete** |
-| 2 | Concept space: dictionary + matrix X | Available | Pending |
+| 2 | Concept space: dictionary + matrix X | Available | Audited, `/9-documentar` pending |
 | 3 | Hybrid conceptual retrieval (System B) | Pending | Pending |
 | 4 | Query-aware iterative expansion (System C) | Pending | Pending |
 | 5 | Comparative evaluation and verdict | Pending | Pending |
@@ -64,14 +64,16 @@ Delivers **System A** of §70 and, above all, the measurement harness everything
 
 Builds the corpus's own semantic space. It stands on its own even before retrieval uses it: it produces a concept map of the corpus that can be inspected and criticized.
 
-- [ ] Dictionary induced by **non-negative sparse coding** over the embeddings (`MiniBatchDictionaryLearning` with `positive_code=True` and `positive_dict=False`), fixed seed. The dictionary constraint was dropped on measured evidence, see decision D1 of [`phase_2/2.0_concept_space.md`](phase_2/2.0_concept_space.md): half the energy of the embeddings is negative, so a non-negative dictionary drives the space to one activation per unit - the very regime that disqualified clustering
-- [ ] Matrix `X = chunks × concepts` as the direct output of that coding: multi-activation with continuous, non-negative weights, **with the score semantics written down** (§3: what exactly 0.73 means)
-- [ ] Each concept's embedding taken from its own dictionary atom: it already lives in the query's space, with no detour through a generated name
-- [ ] Concept labelling via LLM **for interpretability and reporting only**, outside the retrieval critical path
-- [ ] Dictionary normalization and deduplication (§47), with an explicit, auditable merge criterion
-- [ ] Structural inspection of the space: activations per chunk, chunks per concept, orphan
+Four spaces were induced (K = 512, 1,024, 2,048, 4,096) and **none of them is chosen here**: the choice of K belongs to Phase 3 and is made against dev recall. The numbers, read from the artifacts rather than recomputed for the report, live in [`phase_2/2.results.md`](phase_2/2.results.md). The security audit closed with no Critical and no High finding; its eight findings and one observation are catalogued in [`docs/security/README.md`](../security/README.md).
+
+- [x] Dictionary induced by **non-negative sparse coding** over the embeddings (`MiniBatchDictionaryLearning` with `positive_code=True` and `positive_dict=False`), fixed seed. The dictionary constraint was dropped on measured evidence, see decision D1 of [`phase_2/2.0_concept_space.md`](phase_2/2.0_concept_space.md): half the energy of the embeddings is negative, so a non-negative dictionary drives the space to one activation per unit - the very regime that disqualified clustering
+- [x] Matrix `X = chunks × concepts` as the direct output of that coding: multi-activation with continuous, non-negative weights, **with the score semantics written down** (§3: what exactly 0.73 means)
+- [x] Each concept's embedding taken from its own dictionary atom: it already lives in the query's space, with no detour through a generated name
+- [x] Concept labelling via LLM **for interpretability and reporting only**, outside the retrieval critical path
+- [x] Dictionary normalization and deduplication (§47), with an explicit, auditable merge criterion
+- [x] Structural inspection of the space: activations per chunk, chunks per concept, orphan
       concepts, dead atoms, co-activation
-- [ ] **Dictionary quality measured, not assumed**: per-concept semantic coherence over the units
+- [x] **Dictionary quality measured, not assumed**: per-concept semantic coherence over the units
       that activate it most, read against a random-unit null baseline measured on this same pool -
       the absolute cosine means nothing in an anisotropic embedding space - plus the alignment of a
       concept with its own evidence and the concentration of its activation mass. Concepts are

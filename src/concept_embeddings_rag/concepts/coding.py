@@ -25,6 +25,7 @@ import numpy as np
 from scipy import sparse
 
 from concept_embeddings_rag import config
+from concept_embeddings_rag.artifacts import digest_of, savez_compressed_atomic, write_text_atomic
 from concept_embeddings_rag.concepts.dictionary import ConceptArtifactError, ConceptDictionary
 
 WEIGHT_SEMANTICS: str = (
@@ -36,6 +37,12 @@ WEIGHT_SEMANTICS: str = (
     "for that. Within one unit, a larger weight means the concept explains more of that "
     "unit's embedding. A zero means the concept took no part in the reconstruction at all."
 )
+
+
+# The sidecar's `mean_active_per_unit` is recomputed from the matrix on load. Both
+# sides count the same stored non-zeros, so the difference is float round-trip noise
+# through JSON rather than a real margin; anything above this is a disagreement.
+_MEAN_ACTIVE_TOLERANCE: float = 1e-6
 
 
 class CalibrationError(Exception):
@@ -202,6 +209,34 @@ def _sidecar_for(directory: Path, dictionary_key: str, view: str) -> Path:
     return Path(directory) / f"matrix-{dictionary_key}-{view}.json"
 
 
+def _components_of(X: sparse.csr_matrix, unit_ids: Sequence[str]) -> dict[str, np.ndarray]:
+    """The exact arrays that go into the `.npz`, and that a reader gets back.
+
+    The casts are here rather than at the call site so that the digest is computed
+    over the same bytes on both sides: scipy is free to narrow `indptr` to int32
+    when it rebuilds the matrix, and a digest taken before that cast would differ
+    from one taken after it.
+    """
+    return {
+        "data": X.data.astype(np.float32),
+        "indices": X.indices.astype(np.int32),
+        "indptr": X.indptr.astype(np.int64),
+        "shape": np.array(X.shape, dtype=np.int64),
+        "unit_ids": np.array(list(unit_ids), dtype=np.str_),
+    }
+
+
+def _matrix_digest(components: dict[str, np.ndarray]) -> str:
+    """Bind `X` to its sidecar, the way the dictionary artifact already binds its atoms."""
+    return digest_of(
+        components["data"],
+        components["indices"],
+        components["indptr"],
+        components["shape"],
+        "\n".join(str(unit_id) for unit_id in components["unit_ids"]),
+    )
+
+
 def save_matrix(matrix: ConceptMatrix, directory: Path | str) -> Path:
     """Persist `X` as CSR components plus a sidecar, refusing a one-hot fit.
 
@@ -226,15 +261,10 @@ def save_matrix(matrix: ConceptMatrix, directory: Path | str) -> Path:
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     path = _path_for(directory, matrix.dictionary_key, matrix.view)
-    np.savez_compressed(
-        path,
-        data=X.data.astype(np.float32),
-        indices=X.indices.astype(np.int32),
-        indptr=X.indptr.astype(np.int64),
-        shape=np.array(X.shape, dtype=np.int64),
-        unit_ids=np.array(matrix.unit_ids, dtype=np.str_),
-    )
-    _sidecar_for(directory, matrix.dictionary_key, matrix.view).write_text(
+    components = _components_of(X, matrix.unit_ids)
+    savez_compressed_atomic(path, **components)
+    write_text_atomic(
+        _sidecar_for(directory, matrix.dictionary_key, matrix.view),
         json.dumps(
             {
                 "dictionary_key": matrix.dictionary_key,
@@ -247,11 +277,11 @@ def save_matrix(matrix: ConceptMatrix, directory: Path | str) -> Path:
                 "reconstruction_error": matrix.reconstruction_error,
                 "weight_semantics": WEIGHT_SEMANTICS,
                 "sparsity_floor": config.SPARSITY_FLOOR,
+                "digest": _matrix_digest(components),
             },
             indent=2,
             sort_keys=True,
         ),
-        encoding="utf-8",
     )
     return path
 
@@ -280,12 +310,28 @@ def load_matrix(
         )
         unit_ids = [str(uid) for uid in payload["unit_ids"]]
 
+    # The constructor only runs `check_format(full_check=False)`: it agrees the
+    # component lengths and dtypes are consistent, and never looks at the values.
+    # A column index past `n_concepts`, or an `indptr` that decreases, therefore
+    # survives construction and is dereferenced later inside scipy's C routines,
+    # outside the buffer that was allocated for it. This is the first thing done
+    # with the matrix, before anything indexes into it.
+    try:
+        X.check_format(full_check=True)
+    except (ValueError, IndexError) as error:
+        raise ConceptArtifactError(
+            f"matrix {path.name} is not a well-formed CSR matrix: {error}"
+        ) from error
+
     if X.shape[0] != len(unit_ids):
         raise ConceptArtifactError(f"matrix {path.name}: {X.shape[0]} rows for {len(unit_ids)} ids")
     if expected_unit_ids is not None and unit_ids != list(expected_unit_ids):
         raise ConceptArtifactError(
             f"matrix {path.name} does not describe the expected pool; refusing to use it"
         )
+
+    _verify_sidecar(sidecar, X, unit_ids, path, dictionary_key=dictionary_key, view=view)
+
     return ConceptMatrix(
         X=X,
         unit_ids=unit_ids,
@@ -295,3 +341,60 @@ def load_matrix(
         mean_active_per_unit=float(sidecar["mean_active_per_unit"]),
         reconstruction_error=float(sidecar["reconstruction_error"]),
     )
+
+
+def _verify_sidecar(
+    sidecar: dict[str, object],
+    X: sparse.csr_matrix,
+    unit_ids: list[str],
+    path: Path,
+    *,
+    dictionary_key: str,
+    view: str,
+) -> None:
+    """Hold the sidecar against the matrix it claims to describe.
+
+    Everything a caller reads off a loaded matrix - which dictionary coded it, at
+    what `alpha`, how sparse the fit came out - comes from the sidecar, so an
+    unchecked sidecar decides what the numbers of the next phase mean. The
+    one-hot rejection of `save_matrix` is re-applied here for the same reason: on
+    the write path alone it is a rule the read path can simply walk around.
+    """
+    if str(sidecar["dictionary_key"]) != dictionary_key or str(sidecar["view"]) != view:
+        raise ConceptArtifactError(
+            f"matrix {path.name} carries a sidecar for "
+            f"{sidecar['dictionary_key']}/{sidecar['view']}; refusing to use it"
+        )
+    for field, actual in (
+        ("n_units", len(unit_ids)),
+        ("n_concepts", int(X.shape[1])),
+        ("nnz", int(X.nnz)),
+    ):
+        if int(sidecar[field]) != actual:  # type: ignore[call-overload]
+            raise ConceptArtifactError(
+                f"matrix {path.name} holds {actual} {field} but its sidecar declares "
+                f"{sidecar[field]}; the artifact and its sidecar disagree"
+            )
+
+    recorded = sidecar.get("digest")
+    if recorded is not None:
+        actual_digest = _matrix_digest(_components_of(X, unit_ids))
+        if actual_digest != recorded:
+            raise ConceptArtifactError(
+                f"matrix {path.name} hashes to {actual_digest[:16]} but its sidecar records "
+                f"{str(recorded)[:16]}; the artifact has been modified"
+            )
+
+    measured = float(_active_per_unit(X).mean()) if X.shape[0] else 0.0
+    declared = float(sidecar["mean_active_per_unit"])  # type: ignore[arg-type]
+    if abs(measured - declared) > _MEAN_ACTIVE_TOLERANCE:
+        raise ConceptArtifactError(
+            f"matrix {path.name} holds {measured:.4f} mean active concepts per unit but its "
+            f"sidecar declares {declared:.4f}; the artifact and its sidecar disagree"
+        )
+    if view == "raw" and measured < config.SPARSITY_FLOOR:
+        raise ConceptArtifactError(
+            f"matrix {path.name} holds {measured:.2f} mean active concepts per unit, below "
+            f"the floor of {config.SPARSITY_FLOOR}. That is the one-hot regime; it was "
+            "rejected when written and is rejected again when read"
+        )

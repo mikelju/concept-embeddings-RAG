@@ -32,6 +32,7 @@ from sklearn.decomposition import MiniBatchDictionaryLearning, SparseCoder
 from sklearn.exceptions import ConvergenceWarning
 
 from concept_embeddings_rag import __version__, config
+from concept_embeddings_rag.artifacts import savez_compressed_atomic, write_text_atomic
 from concept_embeddings_rag.embeddings.backend import l2_normalize
 
 
@@ -215,7 +216,7 @@ def save_dictionary(dictionary: ConceptDictionary, directory: Path | str) -> Pat
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     path = _path_for(directory, dictionary.key)
-    np.savez_compressed(path, atoms=dictionary.atoms.astype(np.float32))
+    savez_compressed_atomic(path, atoms=dictionary.atoms.astype(np.float32))
 
     sidecar = {
         "key": dictionary.key,
@@ -234,8 +235,8 @@ def save_dictionary(dictionary: ConceptDictionary, directory: Path | str) -> Pat
         "positive_code": True,
         "positive_dict": False,
     }
-    _sidecar_for(directory, dictionary.key).write_text(
-        json.dumps(sidecar, indent=2, sort_keys=True), encoding="utf-8"
+    write_text_atomic(
+        _sidecar_for(directory, dictionary.key), json.dumps(sidecar, indent=2, sort_keys=True)
     )
     return path
 
@@ -259,6 +260,11 @@ def load_dictionary(
     with np.load(path, allow_pickle=False) as payload:
         atoms = np.asarray(payload["atoms"], dtype=np.float32)
 
+    if str(sidecar["key"]) != key:
+        raise ConceptArtifactError(
+            f"dictionary artifact {path.name} carries a sidecar for {sidecar['key']}; "
+            "refusing to use it"
+        )
     if atoms.shape[0] != sidecar["k"]:
         raise ConceptArtifactError(
             f"dictionary {key}: {atoms.shape[0]} atoms but the sidecar declares k={sidecar['k']}"

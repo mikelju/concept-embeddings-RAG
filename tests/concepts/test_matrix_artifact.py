@@ -127,3 +127,102 @@ def test_the_two_views_are_separate_artifacts(tmp_path):
 def test_a_missing_artifact_names_the_key(tmp_path):
     with pytest.raises(ConceptArtifactError, match="deadbeef"):
         load_matrix("deadbeef", tmp_path)
+
+
+def rewrite_sidecar(tmp_path, matrix: ConceptMatrix, **changes) -> None:
+    """Edit the sidecar in place, the way anything that is not `save_matrix` would."""
+    path = tmp_path / f"matrix-{matrix.dictionary_key}-{matrix.view}.json"
+    sidecar = json.loads(path.read_text(encoding="utf-8"))
+    sidecar.update(changes)
+    path.write_text(json.dumps(sidecar, indent=2, sort_keys=True), encoding="utf-8")
+
+
+def test_a_matrix_that_is_not_well_formed_csr_is_refused_before_it_is_indexed(tmp_path):
+    """SEC-013: the constructor runs `check_format(full_check=False)` and never looks
+
+    at the values, so a column index past `n_concepts` survives it and is later
+    dereferenced inside scipy's C routines, outside the allocated buffer.
+    """
+    saved = a_matrix()
+    path = save_matrix(saved, tmp_path)
+    with np.load(path, allow_pickle=False) as payload:
+        components = {name: payload[name].copy() for name in payload.files}
+    components["indices"][0] = 999  # past the last column, and past the buffer
+    np.savez_compressed(path, **components)
+    rewrite_sidecar(tmp_path, saved, digest=None)
+
+    with pytest.raises(ConceptArtifactError, match="well-formed"):
+        load_matrix(saved.dictionary_key, tmp_path)
+
+
+def test_a_sidecar_filed_under_another_key_is_refused(tmp_path):
+    """SEC-013: every number a caller reads off a loaded matrix comes from the sidecar."""
+    saved = a_matrix()
+    save_matrix(saved, tmp_path)
+    rewrite_sidecar(tmp_path, saved, dictionary_key="somebody-elses-space")
+
+    with pytest.raises(ConceptArtifactError, match="refusing to use it"):
+        load_matrix(saved.dictionary_key, tmp_path)
+
+
+def test_a_sidecar_that_disagrees_with_the_matrix_is_refused(tmp_path):
+    """SEC-013: `n_units`, `n_concepts` and `nnz` describe the file beside them."""
+    saved = a_matrix()
+    save_matrix(saved, tmp_path)
+    rewrite_sidecar(tmp_path, saved, nnz=1)
+
+    with pytest.raises(ConceptArtifactError, match="disagree"):
+        load_matrix(saved.dictionary_key, tmp_path)
+
+
+def test_a_modified_matrix_is_caught_by_its_digest(tmp_path):
+    """SEC-013: the dictionary artifact has been bound to its sidecar by a hash
+
+    since Phase 1; `X` carried the same fields with nothing binding them.
+    """
+    saved = a_matrix()
+    path = save_matrix(saved, tmp_path)
+    with np.load(path, allow_pickle=False) as payload:
+        components = {name: payload[name].copy() for name in payload.files}
+    components["data"][0] = 99.0
+    np.savez_compressed(path, **components)
+
+    with pytest.raises(ConceptArtifactError, match="has been modified"):
+        load_matrix(saved.dictionary_key, tmp_path)
+
+
+def test_a_declared_sparsity_that_the_matrix_does_not_support_is_refused(tmp_path):
+    """SEC-013: `mean_active_per_unit` is recomputed, not believed."""
+    saved = a_matrix()
+    save_matrix(saved, tmp_path)
+    rewrite_sidecar(tmp_path, saved, mean_active_per_unit=12.0)
+
+    with pytest.raises(ConceptArtifactError, match="mean active"):
+        load_matrix(saved.dictionary_key, tmp_path)
+
+
+def test_a_one_hot_fit_is_refused_on_load_as_well_as_on_save(tmp_path):
+    """SEC-013: on the write path alone, the floor is a rule the read path walks around."""
+    one_hot = a_matrix(active=1, mean_active_per_unit=1.0, view="row_normalized")
+    save_matrix(one_hot, tmp_path)  # accepted: the floor applies to the raw view
+    rewrite_sidecar(tmp_path, one_hot, view="raw")
+    for suffix in (".npz", ".json"):
+        source = tmp_path / f"matrix-{one_hot.dictionary_key}-row_normalized{suffix}"
+        source.rename(tmp_path / f"matrix-{one_hot.dictionary_key}-raw{suffix}")
+
+    with pytest.raises(ConceptArtifactError, match="one-hot"):
+        load_matrix(one_hot.dictionary_key, tmp_path, view="raw")
+
+
+def test_the_artifacts_this_phase_already_wrote_still_load(tmp_path):
+    """SEC-013: a sidecar with no `digest` predates the field and is not rejected for it."""
+    saved = a_matrix()
+    save_matrix(saved, tmp_path)
+    sidecar_path = tmp_path / f"matrix-{saved.dictionary_key}-raw.json"
+    sidecar = json.loads(sidecar_path.read_text(encoding="utf-8"))
+    del sidecar["digest"]
+    sidecar_path.write_text(json.dumps(sidecar, indent=2, sort_keys=True), encoding="utf-8")
+
+    loaded = load_matrix(saved.dictionary_key, tmp_path)
+
+    assert np.array_equal(loaded.X.toarray(), saved.X.toarray())

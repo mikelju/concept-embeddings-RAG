@@ -24,6 +24,7 @@ from pathlib import Path
 import numpy as np
 
 from concept_embeddings_rag import config
+from concept_embeddings_rag.artifacts import write_text_atomic
 from concept_embeddings_rag.concepts.coding import ConceptMatrix, code_corpus
 from concept_embeddings_rag.concepts.dictionary import ConceptArtifactError, ConceptDictionary
 from concept_embeddings_rag.embeddings.backend import l2_normalize
@@ -210,7 +211,8 @@ def save_merge_log(log: MergeLog, directory: Path | str) -> Path:
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     path = _path_for(directory, log.merged_key)
-    path.write_text(
+    write_text_atomic(
+        path,
         json.dumps(
             {
                 "source_key": log.source_key,
@@ -234,7 +236,6 @@ def save_merge_log(log: MergeLog, directory: Path | str) -> Path:
             indent=2,
             sort_keys=True,
         ),
-        encoding="utf-8",
     )
     return path
 
@@ -246,6 +247,11 @@ def load_merge_log(merged_key: str, directory: Path | str) -> MergeLog:
         raise ConceptArtifactError(f"no merge log for dictionary {merged_key} in {directory}")
 
     payload = json.loads(path.read_text(encoding="utf-8"))
+    if str(payload["merged_key"]) != merged_key:
+        raise ConceptArtifactError(
+            f"merge log {path.name} declares dictionary {payload['merged_key']}, "
+            f"not {merged_key}; refusing to use it"
+        )
     return MergeLog(
         source_key=str(payload["source_key"]),
         merged_key=str(payload["merged_key"]),

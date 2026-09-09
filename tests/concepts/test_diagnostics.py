@@ -25,6 +25,7 @@ from concept_embeddings_rag.concepts.diagnostics import (
     load_diagnostics,
     save_diagnostics,
 )
+from concept_embeddings_rag.concepts.dictionary import ConceptArtifactError
 
 
 def a_matrix(rows: list[list[float]], **overrides) -> ConceptMatrix:
@@ -335,3 +336,76 @@ def test_the_quality_block_is_written_into_the_artifact(tmp_path):
     assert quality["null_mean"] > 0.0
     assert quality["seed"] == diagnostics.quality.seed
     assert set(quality["coherence"]) == {"0", "1"}
+
+
+def test_the_diagnostics_record_the_pool_they_were_computed_over(tmp_path):
+    """SEC-012: `top_units_per_concept` is what the paid prompts are built from."""
+    diagnostics = compute_diagnostics(a_matrix(SAMPLE))
+    path = save_diagnostics(diagnostics, tmp_path)
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+
+    assert payload["unit_set_hash"] == diagnostics.unit_set_hash
+    assert diagnostics.unit_set_hash != ""
+
+
+def test_diagnostics_computed_over_another_pool_are_refused(tmp_path):
+    """SEC-012: the dictionary and the matrix are held against the pool; this was not."""
+    diagnostics = compute_diagnostics(a_matrix(SAMPLE))
+    save_diagnostics(diagnostics, tmp_path)
+
+    with pytest.raises(ConceptArtifactError, match="pool"):
+        load_diagnostics(
+            diagnostics.dictionary_key, tmp_path, expected_unit_set_hash="a-different-pool"
+        )
+
+
+def test_the_pool_they_were_computed_over_is_accepted(tmp_path):
+    diagnostics = compute_diagnostics(a_matrix(SAMPLE))
+    save_diagnostics(diagnostics, tmp_path)
+
+    loaded = load_diagnostics(
+        diagnostics.dictionary_key, tmp_path, expected_unit_set_hash=diagnostics.unit_set_hash
+    )
+
+    assert loaded.top_units_per_concept == diagnostics.top_units_per_concept
+
+
+def test_edited_diagnostics_are_caught_by_their_digest(tmp_path):
+    """SEC-012: editing the evidence changes what the labelling stage pays to ask about."""
+    diagnostics = compute_diagnostics(a_matrix(SAMPLE))
+    path = save_diagnostics(diagnostics, tmp_path)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["top_units_per_concept"]["0"] = ["unit9999"]
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+
+    with pytest.raises(ConceptArtifactError, match="has been modified"):
+        load_diagnostics(diagnostics.dictionary_key, tmp_path)
+
+
+def test_diagnostics_filed_under_another_dictionary_are_refused(tmp_path):
+    diagnostics = compute_diagnostics(a_matrix(SAMPLE))
+    path = save_diagnostics(diagnostics, tmp_path)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["dictionary_key"] = "somebody-elses-space"
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+
+    with pytest.raises(ConceptArtifactError, match="refusing to use them"):
+        load_diagnostics(diagnostics.dictionary_key, tmp_path)
+
+
+def test_an_artifact_written_before_these_fields_existed_still_loads(tmp_path):
+    """SEC-012: the four spaces already on disk have their numbers in 2.results.md."""
+    diagnostics = compute_diagnostics(a_matrix(SAMPLE))
+    path = save_diagnostics(diagnostics, tmp_path)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    del payload["digest"]
+    del payload["unit_set_hash"]
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+
+    loaded = load_diagnostics(
+        diagnostics.dictionary_key, tmp_path, expected_unit_set_hash="whatever-the-pool-is"
+    )
+
+    assert loaded.unit_set_hash == ""
+    assert loaded.n_units == diagnostics.n_units

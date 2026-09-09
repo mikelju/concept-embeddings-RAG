@@ -41,8 +41,10 @@ import numpy as np
 from scipy import sparse
 
 from concept_embeddings_rag import config
+from concept_embeddings_rag.artifacts import digest_of, write_text_atomic
 from concept_embeddings_rag.concepts.coding import ConceptMatrix
 from concept_embeddings_rag.concepts.dictionary import ConceptArtifactError
+from concept_embeddings_rag.embeddings.cache import unit_set_hash
 
 STAT_KEYS: tuple[str, ...] = ("mean", "median", "p5", "p95", "max")
 
@@ -98,6 +100,9 @@ class SpaceDiagnostics:
     top_units_per_concept: dict[str, list[str]]
     top_coactivations: dict[str, list[list[int]]]
     quality: DictionaryQuality | None = None
+    # Which pool the inspected space describes. Empty on an artifact written
+    # before this field existed, which is what makes the check on load optional.
+    unit_set_hash: str = ""
 
 
 def _distribution(values: np.ndarray) -> dict[str, float]:
@@ -352,6 +357,7 @@ def compute_diagnostics(
         top_units_per_concept=_top_units(X, list(matrix.unit_ids), top_units),
         top_coactivations=_top_coactivations(coactivation_counts(X), top_coactivations),
         quality=quality,
+        unit_set_hash=unit_set_hash(list(matrix.unit_ids)),
     )
 
 
@@ -404,42 +410,91 @@ def _path_for(directory: Path, dictionary_key: str) -> Path:
     return Path(directory) / f"diagnostics-{dictionary_key}.json"
 
 
+def _payload_of(diagnostics: SpaceDiagnostics) -> dict[str, Any]:
+    return {
+        "dictionary_key": diagnostics.dictionary_key,
+        "view": diagnostics.view,
+        "n_units": diagnostics.n_units,
+        "n_concepts": diagnostics.n_concepts,
+        "unit_set_hash": diagnostics.unit_set_hash,
+        "active_per_unit": diagnostics.active_per_unit,
+        "units_per_concept": diagnostics.units_per_concept,
+        "dead_atoms": diagnostics.dead_atoms,
+        "dead_atom_min_units": diagnostics.dead_atom_min_units,
+        "orphan_units": diagnostics.orphan_units,
+        "top_units_per_concept": diagnostics.top_units_per_concept,
+        "top_coactivations": diagnostics.top_coactivations,
+        "quality": _quality_payload(diagnostics.quality),
+    }
+
+
+def _serialize(payload: dict[str, Any]) -> str:
+    return json.dumps(payload, indent=2, sort_keys=True)
+
+
+def _digest_of_payload(payload: dict[str, Any]) -> str:
+    """The digest is taken over the serialization, minus the digest field itself."""
+    return digest_of(_serialize({key: value for key, value in payload.items() if key != "digest"}))
+
+
 def save_diagnostics(diagnostics: SpaceDiagnostics, directory: Path | str) -> Path:
     """Write the diagnostics as an artifact, so the four spaces stay comparable."""
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     path = _path_for(directory, diagnostics.dictionary_key)
-    path.write_text(
-        json.dumps(
-            {
-                "dictionary_key": diagnostics.dictionary_key,
-                "view": diagnostics.view,
-                "n_units": diagnostics.n_units,
-                "n_concepts": diagnostics.n_concepts,
-                "active_per_unit": diagnostics.active_per_unit,
-                "units_per_concept": diagnostics.units_per_concept,
-                "dead_atoms": diagnostics.dead_atoms,
-                "dead_atom_min_units": diagnostics.dead_atom_min_units,
-                "orphan_units": diagnostics.orphan_units,
-                "top_units_per_concept": diagnostics.top_units_per_concept,
-                "top_coactivations": diagnostics.top_coactivations,
-                "quality": _quality_payload(diagnostics.quality),
-            },
-            indent=2,
-            sort_keys=True,
-        ),
-        encoding="utf-8",
-    )
+    payload = _payload_of(diagnostics)
+    payload["digest"] = _digest_of_payload(payload)
+    write_text_atomic(path, _serialize(payload))
     return path
 
 
-def load_diagnostics(dictionary_key: str, directory: Path | str) -> SpaceDiagnostics:
-    """Read back the diagnostics of one space."""
+def load_diagnostics(
+    dictionary_key: str, directory: Path | str, expected_unit_set_hash: str | None = None
+) -> SpaceDiagnostics:
+    """Read back the diagnostics of one space, proving it is the one asked for.
+
+    This artifact is not only descriptive. `top_units_per_concept` is what the
+    labelling stage turns into the prompts it pays for, so whatever this file says
+    decides what evidence reaches the API and what the report claims a concept
+    means. It is verified the way the dictionary and the matrix beside it are:
+    the file is bound to its own contents by a digest, to the key it is filed
+    under, and to the pool it was computed over.
+
+    `unit_set_hash` and `digest` are checked when present rather than required, so
+    the artifacts written before those fields existed still load - and every
+    artifact written from here on carries both.
+    """
     path = _path_for(Path(directory), dictionary_key)
     if not path.exists():
         raise ConceptArtifactError(f"no diagnostics for dictionary {dictionary_key} in {directory}")
 
     payload = json.loads(path.read_text(encoding="utf-8"))
+    if str(payload["dictionary_key"]) != dictionary_key:
+        raise ConceptArtifactError(
+            f"diagnostics {path.name} declare dictionary {payload['dictionary_key']}, "
+            f"not {dictionary_key}; refusing to use them"
+        )
+
+    recorded = payload.get("digest")
+    if recorded is not None:
+        actual = _digest_of_payload(payload)
+        if actual != recorded:
+            raise ConceptArtifactError(
+                f"diagnostics {path.name} hash to {actual[:16]} but the artifact records "
+                f"{str(recorded)[:16]}; it has been modified"
+            )
+
+    recorded_pool = str(payload.get("unit_set_hash", ""))
+    if (
+        expected_unit_set_hash is not None
+        and recorded_pool
+        and recorded_pool != expected_unit_set_hash
+    ):
+        raise ConceptArtifactError(
+            f"diagnostics {path.name} were computed over pool {recorded_pool}, "
+            f"not {expected_unit_set_hash}; refusing to use them"
+        )
+
     return SpaceDiagnostics(
         dictionary_key=str(payload["dictionary_key"]),
         view=str(payload["view"]),
@@ -461,4 +516,5 @@ def load_diagnostics(dictionary_key: str, directory: Path | str) -> SpaceDiagnos
             for key, value in payload["top_coactivations"].items()
         },
         quality=_quality_from_payload(payload.get("quality")),
+        unit_set_hash=recorded_pool,
     )

@@ -11,6 +11,8 @@ old one. A column sum is not the output of any coding, so the weight semantics o
 HU-2 would stop holding the moment it were used.
 """
 
+import json
+
 import numpy as np
 import pytest
 
@@ -195,3 +197,21 @@ def test_the_recomputed_x_is_not_the_column_sum_of_the_old_one():
     column_sum = np.asarray(before.X.toarray()[:, group.members].sum(axis=1)).ravel()
     merged_column = np.asarray(recomputed.X.toarray()[:, group.resulting_index]).ravel()
     assert not np.allclose(column_sum, merged_column, atol=1e-3)
+
+
+def test_a_merge_log_that_describes_another_dictionary_is_refused(tmp_path):
+    """SEC-017: the log is read to say which atoms a merged concept came from, so a
+
+    log filed under the wrong key attributes the merge history of one dictionary
+    to another - and the report would cite it without anything disagreeing.
+    """
+    from concept_embeddings_rag.concepts.dictionary import ConceptArtifactError
+
+    _, log = deduplicate_dictionary(near_duplicate_pair(), threshold=0.90)
+    path = save_merge_log(log, tmp_path)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["merged_key"] = "0000000000000000"
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+
+    with pytest.raises(ConceptArtifactError, match="refusing to use it"):
+        load_merge_log(log.merged_key, tmp_path)

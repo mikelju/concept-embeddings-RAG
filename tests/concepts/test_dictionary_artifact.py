@@ -147,3 +147,21 @@ def test_a_dictionary_without_a_merge_history_round_trips_as_none(tmp_path):
     save_dictionary(saved, tmp_path)
 
     assert load_dictionary(saved.key, tmp_path).merged_from is None
+
+
+def test_a_sidecar_filed_under_another_key_is_refused(tmp_path):
+    """SEC-017: the key is what identifies the configuration, and every field the
+
+    loader returns - k, seed, alpha, the pool - comes from the sidecar. A sidecar
+    swapped for another one describes the wrong experiment with the right atoms,
+    and the digest cannot catch it: it is taken over the atoms, which are intact.
+    """
+    saved = some_dictionary()
+    save_dictionary(saved, tmp_path)
+    sidecar_path = tmp_path / f"dictionary-{saved.key}.json"
+    sidecar = json.loads(sidecar_path.read_text(encoding="utf-8"))
+    sidecar["key"] = "0000000000000000"
+    sidecar_path.write_text(json.dumps(sidecar, indent=2, sort_keys=True), encoding="utf-8")
+
+    with pytest.raises(ConceptArtifactError, match="refusing to use it"):
+        load_dictionary(saved.key, tmp_path)

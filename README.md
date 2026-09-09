@@ -18,19 +18,40 @@ ground truth, and an explicit verdict on the hypothesis.
 
 ## Status
 
-**Phase 1 of 6 — complete.** The measuring instrument exists: a frozen corpus of 19,366 paragraphs,
-dense and BM25 baselines, and an evaluation harness that compares systems at a fixed context budget
-rather than at a fixed number of chunks.
+**Phase 2 of 6 — built, verified and audited.** Two things exist: the measuring instrument, and the
+concept space it will judge.
 
-The baseline numbers, and an honest reading of them, are in
+**Phase 1 — the instrument.** A frozen corpus of 19,366 paragraphs, dense and BM25 baselines, and an
+evaluation harness that compares systems at a fixed context budget rather than at a fixed number of
+chunks. The numbers, and an honest reading of them, are in
 [`docs/plans/phase_1/1.results.md`](docs/plans/phase_1/1.results.md). In one line: dense beats BM25
 at every budget (0.871 vs 0.822 Full Support at 4,096 tokens on test), and **12% of questions
 defeat both** — the system finds the entity the question names and misses the bridge entity it does
 not. That failure mode is exactly what Phase 4 proposes to fix, and whether it does is the
 experiment.
 
-Phase 2 (the concept space) has not started. Roadmap:
-[`docs/plans/0_master_plan.md`](docs/plans/0_master_plan.md).
+**Phase 2 — the concept space.** Four spaces were induced over that same pool by non-negative sparse
+coding (K = 512, 1,024, 2,048, 4,096) and **none of them is chosen here**: the choice of K belongs to
+Phase 3 and is made against development recall, never against a number on the results page. All four
+land inside the 8-16 active-concepts-per-unit band, so the one-hot regime that disqualified
+clustering never appears, and per-concept coherence sits far above the random-unit null measured on
+this same pool (0.4292 ± 0.0073) — the worst concept at K = 512 is still 3 standard deviations above
+chance.
+
+The finding that matters is one no coherence score catches. From K = 2,048 a single atom activates
+66.7% of the corpus, and at K = 4,096 it reaches 99.4% while passing every coherence check with a
+score above its own dictionary's mean. Only the over-generality diagnostic sees it. Diffusion travels
+along shared concepts, so an atom shared by essentially every unit is an edge from everything to
+everything — a warning Phase 3 has to carry into its choice of K rather than discover afterwards.
+The full reading, including what these numbers are *not*, is in
+[`docs/plans/phase_2/2.results.md`](docs/plans/phase_2/2.results.md).
+
+Concept labelling (interpretability only — retrieval never reads a name) cost **11.73 USD**, 45%
+above the forecast, and the discrepancy is argued rather than rounded away. The phase's security
+audit closed with no Critical and no High finding; every finding is catalogued in
+[`docs/security/README.md`](docs/security/README.md).
+
+Roadmap: [`docs/plans/0_master_plan.md`](docs/plans/0_master_plan.md).
 
 ## Requirements
 
@@ -52,7 +73,12 @@ uv run cer fetch      # download and freeze the benchmark   (~4 min)
 uv run cer build      # select the subset, build the pool   (~9 s)
 uv run cer embed      # embed the corpus, cached on disk    (~36 min, once)
 uv run cer evaluate   # measure dense and BM25              (~1 min)
+uv run cer induce     # induce one concept space per K      (~3.7 h for the sweep)
+uv run cer label      # name the concepts, for the report   (needs ANTHROPIC_API_KEY)
 ```
+
+`induce` and `label` are Phase 2 and are not needed to reproduce the baselines. `label` is the only
+stage that calls a paid API, is cached per concept, and produces nothing retrieval depends on.
 
 Each stage refuses to run if the previous one has not, and says which to run first.
 [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md) covers the stages, the results and what to do when

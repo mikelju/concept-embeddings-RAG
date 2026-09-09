@@ -16,8 +16,12 @@ import os
 import pytest
 
 from concept_embeddings_rag import config
+from concept_embeddings_rag.concepts.dictionary import ConceptArtifactError
 from concept_embeddings_rag.concepts.labeling import (
+    MAX_GLOSS_CHARS,
+    MAX_NAME_CHARS,
     PROMPT_TEMPLATE_HASH,
+    LabelingError,
     LabelResponse,
     build_prompt,
     label_concepts,
@@ -289,3 +293,168 @@ def test_the_request_disables_thinking_and_asks_for_a_structured_answer():
     assert REQUEST_SHAPE["output_config"]["format"]["type"] == "json_schema"
     assert "temperature" not in REQUEST_SHAPE
     assert set(LABEL_SCHEMA["required"]) == {"name", "gloss"}
+
+
+# --- SEC-014: the cache is the record, so it is verified rather than trusted ---
+
+
+def cache_entry(cache_dir, concept: int, model: str = "fake-model"):
+    """The file one answer was cached in, addressed exactly as the stage addresses it."""
+    key = prompt_cache_key(model, build_prompt(concept, EVIDENCE[concept]))
+    return cache_dir / "label-cache" / f"{key}.json"
+
+
+def test_a_cached_answer_records_the_model_and_prompt_it_answers(tmp_path):
+    """SEC-014: the entry is addressed by a key derived from the model and the prompt,
+
+    and nothing inside it used to say so. Because this cache is not an optimization
+    but the thing that fixes a non-reproducible result, an entry edited or dropped
+    in from elsewhere rewrites what the report says a concept means, and nothing
+    disagreed with it.
+    """
+    label_concepts(
+        dictionary_key="abc123", evidence=EVIDENCE, client=FakeClient(), cache_dir=tmp_path
+    )
+
+    payload = json.loads(cache_entry(tmp_path, 0).read_text(encoding="utf-8"))
+
+    assert payload["model"] == "fake-model"
+    assert payload["prompt_sha256"]
+    assert payload["prompt_template_hash"] == PROMPT_TEMPLATE_HASH
+
+
+def test_an_entry_answering_a_different_question_is_refused(tmp_path):
+    """SEC-014: a hit is a hit only if the model and the prompt match what is asked now."""
+    label_concepts(
+        dictionary_key="abc123", evidence=EVIDENCE, client=FakeClient(), cache_dir=tmp_path
+    )
+    path = cache_entry(tmp_path, 0)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["prompt_sha256"] = "0" * 32
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+
+    with pytest.raises(ConceptArtifactError, match="different model or prompt"):
+        label_concepts(
+            dictionary_key="abc123", evidence=EVIDENCE, client=FakeClient(), cache_dir=tmp_path
+        )
+
+
+def test_a_cache_entry_that_is_not_readable_json_names_the_file(tmp_path):
+    """SEC-014: `json.loads` over a file the pipeline did not necessarily write."""
+    label_concepts(
+        dictionary_key="abc123", evidence=EVIDENCE, client=FakeClient(), cache_dir=tmp_path
+    )
+    cache_entry(tmp_path, 0).write_text("{ truncated mid-write", encoding="utf-8")
+
+    with pytest.raises(ConceptArtifactError, match="delete that file"):
+        label_concepts(
+            dictionary_key="abc123", evidence=EVIDENCE, client=FakeClient(), cache_dir=tmp_path
+        )
+
+
+def test_a_cache_entry_that_is_not_a_label_entry_is_refused(tmp_path):
+    """SEC-014: valid JSON is not the same thing as the shape the reader subscripts."""
+    label_concepts(
+        dictionary_key="abc123", evidence=EVIDENCE, client=FakeClient(), cache_dir=tmp_path
+    )
+    cache_entry(tmp_path, 0).write_text(json.dumps([1, 2, 3]), encoding="utf-8")
+
+    with pytest.raises(ConceptArtifactError, match="not a label entry"):
+        label_concepts(
+            dictionary_key="abc123", evidence=EVIDENCE, client=FakeClient(), cache_dir=tmp_path
+        )
+
+
+def test_an_entry_written_before_these_fields_existed_is_honoured_and_upgraded(tmp_path):
+    """SEC-014: the cache of the run already paid for must not be invalidated by the fix.
+
+    The key of a legacy entry is still derived from this exact model and prompt, so
+    the entry is used and rewritten in bound form. Rejecting it would mean paying
+    for 2,048 answers again to gain a field.
+    """
+    label_concepts(
+        dictionary_key="abc123", evidence=EVIDENCE, client=FakeClient(), cache_dir=tmp_path
+    )
+    path = cache_entry(tmp_path, 0)
+    legacy = json.loads(path.read_text(encoding="utf-8"))
+    for field in ("model", "prompt_sha256", "prompt_template_hash"):
+        del legacy[field]
+    path.write_text(json.dumps(legacy, indent=2, sort_keys=True), encoding="utf-8")
+
+    client = FakeClient()
+    again = label_concepts(
+        dictionary_key="abc123", evidence=EVIDENCE, client=client, cache_dir=tmp_path
+    )
+
+    assert client.prompts == []
+    assert again.labels["0"]["name"] == legacy["name"]
+    upgraded = json.loads(path.read_text(encoding="utf-8"))
+    assert upgraded["model"] == "fake-model"
+    assert upgraded["prompt_sha256"]
+
+
+# --- SEC-015: the model's answer is external input ----------------------------
+
+
+def test_an_answer_that_is_not_an_object_is_refused_before_it_reaches_an_artifact():
+    """SEC-015: decoding proves the response is JSON, not that it is the object the
+
+    schema asked for - the schema is enforced on the far side of a network
+    boundary. A list decodes cleanly and then raises raw on subscript, after the
+    call has been billed.
+    """
+    from concept_embeddings_rag.concepts.labeling import _validated_answer
+
+    with pytest.raises(LabelingError, match="rather than the object"):
+        _validated_answer(["a name", "a gloss"])
+
+
+def test_an_answer_missing_a_field_is_named_rather_than_raising_on_subscript():
+    from concept_embeddings_rag.concepts.labeling import _validated_answer
+
+    with pytest.raises(LabelingError, match="gloss"):
+        _validated_answer({"name": "Rivers of northern Portugal"})
+
+
+def test_a_non_string_name_or_gloss_is_refused():
+    from concept_embeddings_rag.concepts.labeling import _validated_answer
+
+    with pytest.raises(LabelingError, match="non-string"):
+        _validated_answer({"name": 7, "gloss": "What the units shown have in common."})
+
+
+def test_an_overlong_answer_is_capped_rather_than_written_whole():
+    """SEC-015: truncated, not rejected - one odd concept must not kill a paid run."""
+    from concept_embeddings_rag.concepts.labeling import _validated_answer
+
+    name, gloss = _validated_answer({"name": "x" * 10_000, "gloss": "y" * 10_000})
+
+    assert len(name) == MAX_NAME_CHARS
+    assert len(gloss) == MAX_GLOSS_CHARS
+
+
+# --- SEC-016: the key comes from this project's .env, not from a parent --------
+
+
+def test_the_key_is_read_from_this_project_dotenv_and_not_from_a_parent(monkeypatch):
+    """SEC-016: left to itself `load_dotenv` walks parent directories until it finds
+
+    a file or reaches the root of the drive. This project sits one level under a
+    tree whose top-level rule is that a secret belongs to exactly one project, so
+    an unpinned search could bill calls against a key that is not this project's.
+    """
+    dotenv = pytest.importorskip("dotenv")
+
+    from concept_embeddings_rag.concepts.labeling import API_KEY_VARIABLE, read_api_key
+
+    seen: dict = {}
+
+    def record(*args, **kwargs):
+        seen.update(kwargs)
+        return False
+
+    monkeypatch.setattr(dotenv, "load_dotenv", record)
+    monkeypatch.setenv(API_KEY_VARIABLE, "placeholder-never-sent-no-call-is-made")
+
+    assert read_api_key() == "placeholder-never-sent-no-call-is-made"
+    assert seen["dotenv_path"] == config.PROJECT_ROOT / ".env"

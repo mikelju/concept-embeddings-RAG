@@ -294,11 +294,16 @@ def _diagnostics_for(
 
     An artifact written before the quality block existed is recomputed rather than
     reused. It costs seconds - unlike the dictionary and `X` above it - and a
-    diagnostics file without quality would read as a space nobody scored.
+    diagnostics file without quality would read as a space nobody scored. The same
+    goes for one written before it recorded the pool it was computed over: an
+    artifact that cannot be checked against the pool is not reused as if it had
+    been checked.
     """
     try:
-        existing = load_diagnostics(dictionary.key, concepts_dir)
-        if existing.quality is not None:
+        existing = load_diagnostics(
+            dictionary.key, concepts_dir, expected_unit_set_hash=dictionary.unit_set_hash
+        )
+        if existing.quality is not None and existing.unit_set_hash:
             return existing
     except (ConceptArtifactError, OSError, ValueError, KeyError):
         pass
@@ -460,6 +465,23 @@ def cmd_induce(
     return produced
 
 
+def _text_of(unit_id: str, text_by_id: dict[str, str], dictionary_key: str) -> str:
+    """The text of an evidence unit, or an error that says which artifact is stale.
+
+    The evidence ids come from a diagnostics artifact and the texts from the pool
+    just loaded. When the two disagree the raw lookup raises a bare KeyError with
+    an opaque id in it, which reads like a bug in the labelling stage rather than
+    what it is: an artifact describing a pool that is no longer on disk.
+    """
+    try:
+        return text_by_id[unit_id]
+    except KeyError:
+        _die(
+            f"the diagnostics of {dictionary_key} cite unit {unit_id}, which is not in the "
+            "current pool: the artifact is stale, re-run 'induce'"
+        )
+
+
 def cmd_label(
     data_dir: Path = config.DATA_DIR,
     concepts_dir: Path = config.CONCEPTS_DIR,
@@ -499,13 +521,16 @@ def cmd_label(
         merge_threshold=merge_threshold,
     )
     try:
-        diagnostics = load_diagnostics(merged_key, concepts_dir)
+        diagnostics = load_diagnostics(merged_key, concepts_dir, expected_unit_set_hash=pool_hash)
     except ConceptArtifactError:
         _die(f"no concept space for k={k} in {concepts_dir}: run 'induce' first")
 
     text_by_id = {unit.unit_id: unit.indexable_text for unit in units}
     evidence = {
-        int(concept): [(unit_id, text_by_id[unit_id]) for unit_id in unit_ids[:n_units_shown]]
+        int(concept): [
+            (unit_id, _text_of(unit_id, text_by_id, merged_key))
+            for unit_id in unit_ids[:n_units_shown]
+        ]
         for concept, unit_ids in diagnostics.top_units_per_concept.items()
     }
     prompts = [build_prompt(concept, shown) for concept, shown in sorted(evidence.items()) if shown]

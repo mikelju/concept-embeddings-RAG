@@ -33,9 +33,18 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from concept_embeddings_rag import config
+from concept_embeddings_rag.artifacts import write_text_atomic
 from concept_embeddings_rag.concepts.dictionary import ConceptArtifactError
 
 API_KEY_VARIABLE = "ANTHROPIC_API_KEY"
+
+# Ceilings on what is accepted from the model and written into the artifact. The
+# prompt asks for a short noun phrase and one sentence, and `max_tokens` already
+# bounds the response, so these are not a limit the stage is expected to reach:
+# they exist because the answer is external input that lands verbatim in the
+# report, and unbounded external input has no place in an artifact.
+MAX_NAME_CHARS = 120
+MAX_GLOSS_CHARS = 800
 
 PROMPT_TEMPLATE = """You are reading paragraphs that all activate the same latent \
 dimension of a concept space induced from a document corpus. The dimension has no \
@@ -172,34 +181,81 @@ def _cached_path(cache_dir: Path, key: str) -> Path:
     return Path(cache_dir) / "label-cache" / f"{key}.json"
 
 
-def _read_cached(cache_dir: Path, key: str) -> LabelResponse | None:
+def _prompt_digest(prompt: str) -> str:
+    """The prompt, recorded in the cache entry without storing the corpus text itself."""
+    return hashlib.sha256(prompt.encode("utf-8")).hexdigest()[:32]
+
+
+def _read_cached(cache_dir: Path, key: str, *, model: str, prompt: str) -> LabelResponse | None:
+    """Read one cached answer, refusing an entry that is not the answer to this question.
+
+    The filename is the key, and the key is derived from the model and the prompt -
+    but nothing in the entry used to say so, which left the file addressed by a
+    question whose answer it merely claimed to be. Since this cache is not an
+    optimization but the thing that fixes a non-reproducible result, an edited
+    entry silently rewrites what the report says a concept means. The entry now
+    carries the model and the prompt digest it was produced from, and a hit is only
+    a hit if both match what is being asked now.
+
+    An entry written before those fields existed is honoured - the key is still
+    derived from this exact model and prompt - and rewritten in bound form, so the
+    cache upgrades itself without a paid re-run.
+    """
     path = _cached_path(cache_dir, key)
     if not path.exists():
         return None
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    return LabelResponse(
-        name=str(payload["name"]),
-        gloss=str(payload["gloss"]),
-        input_tokens=int(payload["input_tokens"]),
-        output_tokens=int(payload["output_tokens"]),
+
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as error:
+        raise ConceptArtifactError(
+            f"the cached answer in {path} is not readable JSON; delete that file to re-request it"
+        ) from error
+    if not isinstance(payload, dict) or not {"name", "gloss"} <= payload.keys():
+        raise ConceptArtifactError(
+            f"the cached answer in {path} is not a label entry; delete that file to re-request it"
+        )
+
+    recorded_model = payload.get("model")
+    recorded_prompt = payload.get("prompt_sha256")
+    bound = recorded_model is not None or recorded_prompt is not None
+    if bound and (recorded_model != model or recorded_prompt != _prompt_digest(prompt)):
+        raise ConceptArtifactError(
+            f"the cached answer in {path} was produced from a different model or prompt "
+            "than the one it is filed under; delete that file to re-request it"
+        )
+
+    response = LabelResponse(
+        name=str(payload["name"])[:MAX_NAME_CHARS],
+        gloss=str(payload["gloss"])[:MAX_GLOSS_CHARS],
+        input_tokens=int(payload.get("input_tokens", 0)),
+        output_tokens=int(payload.get("output_tokens", 0)),
     )
+    if recorded_model is None or recorded_prompt is None:
+        _write_cached(cache_dir, key, response, model=model, prompt=prompt)
+    return response
 
 
-def _write_cached(cache_dir: Path, key: str, response: LabelResponse) -> None:
+def _write_cached(
+    cache_dir: Path, key: str, response: LabelResponse, *, model: str, prompt: str
+) -> None:
     path = _cached_path(cache_dir, key)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
+    write_text_atomic(
+        path,
         json.dumps(
             {
                 "name": response.name,
                 "gloss": response.gloss,
                 "input_tokens": response.input_tokens,
                 "output_tokens": response.output_tokens,
+                "model": model,
+                "prompt_sha256": _prompt_digest(prompt),
+                "prompt_template_hash": PROMPT_TEMPLATE_HASH,
             },
             indent=2,
             sort_keys=True,
         ),
-        encoding="utf-8",
     )
 
 
@@ -248,10 +304,10 @@ def label_concepts(
         prompts.append(prompt)
         key = prompt_cache_key(client.model, prompt)
 
-        response = _read_cached(cache_dir, key)
+        response = _read_cached(cache_dir, key, model=client.model, prompt=prompt)
         if response is None:
             response = client.label(prompt)
-            _write_cached(cache_dir, key, response)
+            _write_cached(cache_dir, key, response, model=client.model, prompt=prompt)
             calls += 1
             input_tokens += response.input_tokens
             output_tokens += response.output_tokens
@@ -294,7 +350,8 @@ def save_labels(labels: ConceptLabels, directory: Path | str) -> Path:
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     path = _path_for(directory, labels.dictionary_key)
-    path.write_text(
+    write_text_atomic(
+        path,
         json.dumps(
             {
                 "dictionary_key": labels.dictionary_key,
@@ -309,7 +366,6 @@ def save_labels(labels: ConceptLabels, directory: Path | str) -> Path:
             indent=2,
             sort_keys=True,
         ),
-        encoding="utf-8",
     )
     return path
 
@@ -321,6 +377,11 @@ def load_labels(dictionary_key: str, directory: Path | str) -> ConceptLabels:
         raise ConceptArtifactError(f"no labels for dictionary {dictionary_key} in {directory}")
 
     payload = json.loads(path.read_text(encoding="utf-8"))
+    if str(payload["dictionary_key"]) != dictionary_key:
+        raise ConceptArtifactError(
+            f"labels {path.name} declare dictionary {payload['dictionary_key']}, "
+            f"not {dictionary_key}; refusing to use them"
+        )
     return ConceptLabels(
         dictionary_key=str(payload["dictionary_key"]),
         labels=dict(payload["labels"]),
@@ -350,12 +411,18 @@ def read_api_key(env: Mapping[str, str] | None = None) -> str:
 
     `python-dotenv` is optional like the SDK: absent it, the environment alone is
     consulted. The value is returned and never printed, logged or stored.
+
+    The path is pinned to this project's own `.env`. Left to itself `load_dotenv`
+    walks parent directories until it finds one or reaches the root of the drive,
+    so a `.env` sitting anywhere above the repository would quietly supply the key
+    that calls are billed against - and this project lives one level under a tree
+    whose top-level rule is that a secret belongs to exactly one project.
     """
     if env is None:
         try:
             from dotenv import load_dotenv
 
-            load_dotenv(override=False)
+            load_dotenv(dotenv_path=config.PROJECT_ROOT / ".env", override=False)
         except ImportError:
             pass
         env = os.environ
@@ -406,9 +473,35 @@ class AnthropicLabelingClient:
                 "the model did not return the structured answer the schema asked for"
             ) from error
 
+        name, gloss = _validated_answer(answer)
         return LabelResponse(
-            name=str(answer["name"]),
-            gloss=str(answer["gloss"]),
+            name=name,
+            gloss=gloss,
             input_tokens=int(message.usage.input_tokens),
             output_tokens=int(message.usage.output_tokens),
         )
+
+
+def _validated_answer(answer: Any) -> tuple[str, str]:
+    """Check the decoded answer before any of it reaches an artifact.
+
+    Parsing as JSON proves only that the response is JSON. A schema is requested,
+    but the schema is enforced on the far side of a network boundary, so what comes
+    back is external input: a list, a number, or an object missing `gloss` all
+    decode cleanly and then raise raw on subscript - after the call has been billed.
+    The two fields are capped as well, because they are written verbatim into the
+    labels artifact and from there into the report, and the evidence that produced
+    them is corpus text this project did not write.
+    """
+    if not isinstance(answer, dict):
+        raise LabelingError(
+            f"the model returned a JSON {type(answer).__name__} rather than the object "
+            "the schema asked for"
+        )
+    missing = {"name", "gloss"} - answer.keys()
+    if missing:
+        raise LabelingError(f"the model's answer is missing {', '.join(sorted(missing))}")
+    name, gloss = answer["name"], answer["gloss"]
+    if not isinstance(name, str) or not isinstance(gloss, str):
+        raise LabelingError("the model returned a non-string name or gloss")
+    return name[:MAX_NAME_CHARS], gloss[:MAX_GLOSS_CHARS]
