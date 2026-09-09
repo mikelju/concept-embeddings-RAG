@@ -40,7 +40,7 @@ docs/plans/
 | Phase | Name | Spec | Status |
 |------|--------|------|--------|
 | 1 | Corpus, indexing units and dense baseline | Available | **Complete** |
-| 2 | Concept space: dictionary + matrix X | Available | Audited, `/9-documentar` pending |
+| 2 | Concept space: dictionary + matrix X | Available | **Complete** |
 | 3 | Hybrid conceptual retrieval (System B) | Pending | Pending |
 | 4 | Query-aware iterative expansion (System C) | Pending | Pending |
 | 5 | Comparative evaluation and verdict | Pending | Pending |

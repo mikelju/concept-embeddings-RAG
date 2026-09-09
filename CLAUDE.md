@@ -10,7 +10,7 @@ A **research experiment** on retrieval over a corpus-induced concept space: ever
 
 **The deliverable is measured evidence, not an application**: four comparable systems (BM25, dense, conceptual, iterative) over a multi-hop benchmark with annotated ground truth, and an explicit verdict on the hypothesis. A well-documented negative result closes the project just as well as a positive one.
 
-**Current state: Phase 1 complete.** The frozen corpus, both baselines and the evaluation harness are built, audited and measured; the numbers live in `docs/plans/phase_1/1.results.md` and are what every later phase is judged against. Phase 2 (the concept space) has not started. The full hypothesis and the surveyed prior art live in `docs/refs/descripcion-proyecto.md` and `docs/refs/bibliografia.md` (both in Spanish, they are source material); the roadmap lives in `docs/plans/0_master_plan.md`, and `docs/USER_GUIDE.md` explains how to run the pipeline.
+**Current state: Phases 1 and 2 complete.** The frozen corpus, both baselines and the evaluation harness are built, audited and measured; the numbers live in `docs/plans/phase_1/1.results.md` and are what every later phase is judged against. Phase 2 induced four concept spaces (K = 512, 1,024, 2,048, 4,096) and **chose none of them**: the choice of K belongs to Phase 3 and is made against dev recall. Its numbers, and the one concept that activates on 99.4% of the corpus at K = 4,096, are in `docs/plans/phase_2/2.results.md`. The full hypothesis and the surveyed prior art live in `docs/refs/descripcion-proyecto.md` and `docs/refs/bibliografia.md` (both in Spanish, they are source material); the roadmap lives in `docs/plans/0_master_plan.md`, and `docs/USER_GUIDE.md` explains how to run the pipeline.
 
 ---
 
@@ -35,12 +35,14 @@ There is no server or UI to start: entry points are experiment scripts run throu
 
 ```
 src/concept_embeddings_rag/
-├── cli.py                    # The four pipeline stages: fetch, build, embed, evaluate
+├── cli.py                    # The six stages: fetch, build, embed, evaluate, induce, label
 ├── config.py                 # Every constant that decides what an experiment measures
 ├── corpus/                   # download (hash-verified), hf_source, split, pool, manifest
 ├── embeddings/               # Swappable backend + .npz cache keyed by configuration
 ├── retrieval/                # Retriever protocol, dense and BM25 behind it
-└── evaluation/               # Budget filling, the four metrics, the harness
+├── evaluation/               # Budget filling, the four metrics, the harness
+├── concepts/                 # dictionary, coding, dedup, diagnostics, labeling
+└── artifacts.py              # Atomic writes: every artifact lands whole or not at all
 tests/                        # Mirrors the source layout. test_scaffold.py checks ARM64
 data/                         # Corpus, pool and caches: git-ignored. Manifest and results: versioned
 docs/
@@ -53,8 +55,8 @@ docs/
 ```
 
 Entry point: `uv run cer <stage>`. Each stage refuses to run if its input is missing and names the
-stage to run first. `embed` is the expensive one (~36 min on this machine); everything else is
-seconds to minutes.
+stage to run first. `embed` (~36 min on this machine) and `induce` (hours for the sweep) are the
+expensive ones; `label` is the only one that spends money, and nothing depends on it.
 
 ### Main pattern: staged pipeline with on-disk artifacts
 
@@ -103,10 +105,10 @@ The reasoning lives in the decisions table of `docs/plans/0_master_plan.md`. Ope
 
 ## Environment variables
 
-None yet. Phase 2 will need `ANTHROPIC_API_KEY` to label concepts with an LLM (one cached call per concept, and purely for interpretability: retrieval does not depend on it).
+One, and only the `label` stage reads it. Every other stage runs with no key and no account.
 
 ```env
-ANTHROPIC_API_KEY=       # Phase 2 only: naming concepts for the report. Pending.
+ANTHROPIC_API_KEY=       # `cer label` only: naming concepts for the report
 ```
 
 Secrets live only in `.env`, are loaded at runtime, and are never printed or quoted.
