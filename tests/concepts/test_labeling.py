@@ -240,6 +240,11 @@ def test_the_client_refuses_to_be_built_without_a_key(monkeypatch):
     )
 
     monkeypatch.delenv(API_KEY_VARIABLE, raising=False)
+    # `read_api_key` consults `.env` after the environment, so on a machine that has
+    # a real key configured the variable comes straight back and the guard never
+    # fires. The subject here is the absence of a key, not the absence of a file.
+    dotenv = pytest.importorskip("dotenv")
+    monkeypatch.setattr(dotenv, "load_dotenv", lambda *args, **kwargs: False)
 
     with pytest.raises(MissingAPIKey, match=API_KEY_VARIABLE):
         AnthropicLabelingClient()
@@ -255,6 +260,23 @@ def test_the_typed_exception_chain_is_most_specific_first():
     assert names.index("AuthenticationError") < names.index("APIStatusError")
     assert names.index("RateLimitError") < names.index("APIStatusError")
     assert "APIConnectionError" in names
+
+
+def test_the_client_rides_out_an_overload_window_rather_than_dying_on_it():
+    """D9 amendment: two retries do not survive a sustained 529, eight are asked for.
+
+    Measured on 2026-09-09: a run died on a 529 at 684 of 2,048 concepts and the
+    relaunch died on its first uncached call, so the SDK default was not enough to
+    cross the overload window.
+    """
+    pytest.importorskip("anthropic")
+
+    from concept_embeddings_rag.concepts.labeling import MAX_RETRIES, AnthropicLabelingClient
+
+    assert MAX_RETRIES > 2, "the whole point of the amendment is exceeding the SDK default"
+
+    client = AnthropicLabelingClient(api_key="placeholder-never-sent-no-call-is-made")
+    assert client._client.max_retries == MAX_RETRIES
 
 
 def test_the_request_disables_thinking_and_asks_for_a_structured_answer():

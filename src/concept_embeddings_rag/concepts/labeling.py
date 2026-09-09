@@ -73,9 +73,17 @@ REQUEST_SHAPE: dict[str, Any] = {
     "max_tokens": 300,
 }
 
+# How many times the SDK retries a 429 or a 5xx before giving up, with its own
+# exponential backoff. Raised from the SDK default of 2 by the D9 amendment: two
+# retries assume failures arrive isolated, and a sustained 529 overload window
+# breaks that assumption - the run then dies on its first uncached call and
+# re-running resumes only to die again. Retrying does not re-spend: a call that
+# never returned was never billed, and an answered one is on disk.
+MAX_RETRIES = 8
+
 # Most specific first, per decision D9. A bad key must abort rather than retry; a
-# rate limit and a 5xx are already retried twice with backoff by the SDK, and the
-# disk cache means an aborted run resumes where it stopped instead of re-spending.
+# rate limit and a 5xx are retried with backoff by the SDK up to `MAX_RETRIES`, and
+# the disk cache means an aborted run resumes where it stopped instead of re-spending.
 EXCEPTION_ORDER: tuple[tuple[str, str], ...] = (
     ("AuthenticationError", "the API key was rejected; fix the key rather than retrying"),
     ("RateLimitError", "rate limited after the SDK's own retries; re-run to resume from the cache"),
@@ -370,7 +378,9 @@ class AnthropicLabelingClient:
         self.model = model
         # `read_api_key` raises before any HTTP client is built, so an absent key
         # never fails deep inside a connection attempt.
-        self._client = anthropic.Anthropic(api_key=api_key or read_api_key())
+        self._client = anthropic.Anthropic(
+            api_key=api_key or read_api_key(), max_retries=MAX_RETRIES
+        )
 
     def label(self, prompt: str) -> LabelResponse:
         anthropic = _sdk()
