@@ -109,19 +109,12 @@ jobs:
         # audited findings (corpus hashes, the resolved model commit, a HotpotQA id)
         # stay quiet, while anything new fails the job.
         #
-        # .claude/skills/audit-code/ is excluded rather than baselined. It is a
-        # catalogue of secret *patterns*, so a scanner will always fire on it, and its
-        # findings are `Secret Keyword` - a detector that hashes the captured value
-        # including the line ending, which makes a baseline built on Windows fail to
-        # match on Linux. Excluding it is deterministic; baselining it is not. The
-        # project already excludes .claude/ from ruff for the same reason: not our code.
-        #
         # Regenerate the baseline deliberately, never to silence a failure:
-        #   uv run detect-secrets scan         #     $(git ls-files | grep -v '^\.claude/skills/audit-code/') > .secrets.baseline
+        #   uv run detect-secrets scan $(git ls-files) > .secrets.baseline
         # then read every entry before committing it.
         run: |
           if [ -f .secrets.baseline ]; then
-            detect-secrets-hook --baseline .secrets.baseline               $(git ls-files | grep -v '^\.claude/skills/audit-code/')
+            detect-secrets-hook --baseline .secrets.baseline $(git ls-files)
           else
             echo "[ERROR] no .secrets.baseline: create one and audit it" >&2
             exit 1

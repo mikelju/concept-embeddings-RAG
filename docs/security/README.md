@@ -1,9 +1,13 @@
 # Security audits
 
-Consolidated catalogue of the audits run with `/8-auditar` (skill `audit-code`). One row per
-report; findings stay in the report, not here.
+Consolidated catalogue of the audits run with `/8-auditar`, and the only persistent record they
+leave: one row per finding. The audit presents its findings in chat and fixes them in the same
+session — it writes no report.
 
-## Reports
+## Reports (historical)
+
+The two Phase 1 passes predate that change and left a full report each. They are kept as they were
+written; later audits add rows below, not documents.
 
 | Date | Mode | Scope | Critical | High | Medium | Low | Info |
 |---|---|---|---:|---:|---:|---:|---:|
@@ -53,9 +57,11 @@ A clean scan is a statement about the day it ran, not a property of the code.
 
 ## Conventions
 
-- Report path: `docs/security/audit-YYYY-MM-DD-<mode>.md`; a second pass on the same day and mode
-  takes the `-2` suffix.
+- This file is the whole paperwork of an audit: one row per finding, with id, severity, title and
+  status. Findings are presented and argued in chat, not written up here.
 - Every Critical or High finding is resolved with a `fix-N` in `docs/plans/fixes/` before the
   phase closes, or the decision to defer it is recorded in the master plan with its reason.
-- Finding ids are unique per project: continue the `SEC-NNN` sequence in the next report rather
-  than restarting it. Next free id: **SEC-012**.
+- Finding ids are unique per project: continue the `SEC-NNN` sequence rather than restarting it
+  per audit. Next free id: **SEC-012**.
+- A phase exempted from the audit (the command's escape hatch) is recorded here too, with its
+  reason: an exempt phase is a decision on record, not a phase nobody looked at.

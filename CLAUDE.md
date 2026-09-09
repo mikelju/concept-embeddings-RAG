@@ -46,7 +46,7 @@ data/                         # Corpus, pool and caches: git-ignored. Manifest a
 docs/
 ├── plans/                    # SDD: master plan, phase specs, phase plans and fixes
 ├── refs/                     # Immutable reference material (hypothesis, bibliography)
-├── security/                 # /8-auditar reports, indexed by security/README.md
+├── security/                 # /8-auditar findings catalogue (security/README.md)
 ├── templates/                # Framework document templates
 └── USER_GUIDE.md             # How to run the pipeline
 .claude/commands/             # The 10 commands of the SDD-WAT workflow
@@ -214,7 +214,7 @@ Run `/prime` at the start of every session to load context.
 
 ## Security audit
 
-The `/8-auditar` command (skill `audit-code` in `.claude/skills/`) runs a professional security audit before `/9-documentar`. It is a **mandatory** step of the phase workflow whenever the code touches:
+The `/8-auditar` command runs a security review before `/9-documentar`. It is self-contained — the whole protocol lives in `.claude/commands/8-auditar.md` and depends on no skill. It is a **mandatory** step of the phase workflow whenever the code touches:
 
 - Authentication / authorization
 - Cryptography or credential storage
@@ -225,6 +225,6 @@ The `/8-auditar` command (skill `audit-code` in `.claude/skills/`) runs a profes
 
 In this project the relevant surface will mainly be **the corpus download** (external input: verify the hash, do not trust the downloaded JSON) and **deserialization of cached artifacts** (never `pickle` over files not produced by the pipeline itself; prefer non-executing formats such as `.npz` or JSON).
 
-The audit produces a report in `docs/security/audit-YYYY-MM-DD-<mode>.md` with severity, CWE, OWASP, file:line and proposed fix. Every blocking finding (Critical/High) is resolved with a `fix-N` before closing the phase. The consolidated catalogue lives in `docs/security/README.md`.
+The audit presents its findings in chat — severity, CWE, `file:line`, what an attacker gains, and the fix — and then fixes them in the same session, each fix with its regression test. It writes no report: the only persistent record is one row per finding in `docs/security/README.md`. Every blocking finding (Critical/High) is closed before the phase closes; a non-trivial fix follows the project's fix protocol (`fix-N` in `docs/plans/fixes/`).
 
 See `CLAUDE_GLOBAL.md` → "Auditoría de seguridad" section for the detailed rules.
