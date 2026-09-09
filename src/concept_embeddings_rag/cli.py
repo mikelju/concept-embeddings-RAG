@@ -4,6 +4,8 @@
     build     select the subset, split it, and build the unified pool
     embed     compute and cache embeddings for the pool
     evaluate  measure dense and BM25 at every context budget
+    induce    build one concept space per dictionary size (Phase 2)
+    label     name the concepts of one space, for the report only (Phase 2)
 
 Each stage is idempotent and refuses to run if its input is missing, saying which
 stage to run first rather than failing somewhere deep inside numpy.
@@ -12,12 +14,53 @@ stage to run first rather than failing somewhere deep inside numpy.
 import argparse
 import json
 import sys
+import time
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import NoReturn
 
+import numpy as np
+
 from concept_embeddings_rag import __version__, config
+from concept_embeddings_rag.concepts.coding import (
+    ConceptMatrix,
+    calibrate_coding_alpha,
+    code_corpus,
+    load_matrix,
+    save_matrix,
+)
+from concept_embeddings_rag.concepts.dedup import (
+    deduplicate_dictionary,
+    load_merge_log,
+    recode_after_merge,
+    save_merge_log,
+)
+from concept_embeddings_rag.concepts.diagnostics import (
+    SpaceDiagnostics,
+    compute_diagnostics,
+    load_diagnostics,
+    save_diagnostics,
+)
+from concept_embeddings_rag.concepts.dictionary import (
+    ConceptArtifactError,
+    ConceptDictionary,
+    dictionary_key,
+    induce_dictionary,
+    load_dictionary,
+    save_dictionary,
+)
+from concept_embeddings_rag.concepts.labeling import (
+    REQUEST_SHAPE,
+    AnthropicLabelingClient,
+    LabelingClient,
+    MissingAPIKey,
+    build_prompt,
+    estimate_cost_usd,
+    label_concepts,
+    read_api_key,
+    save_labels,
+)
 from concept_embeddings_rag.corpus import hf_source
 from concept_embeddings_rag.corpus.download import CorpusIntegrityError, sha256_of_file
 from concept_embeddings_rag.corpus.manifest import CorpusManifest
@@ -32,7 +75,12 @@ from concept_embeddings_rag.embeddings.backend import (
     EmbeddingBackend,
     SentenceTransformerBackend,
 )
-from concept_embeddings_rag.embeddings.cache import EmbeddingCache, embed_units, unit_set_hash
+from concept_embeddings_rag.embeddings.cache import (
+    EmbeddingCache,
+    cache_key,
+    embed_units,
+    unit_set_hash,
+)
 from concept_embeddings_rag.evaluation.budget import TokenCounter
 from concept_embeddings_rag.evaluation.harness import evaluate_retriever
 from concept_embeddings_rag.retrieval.base import Retriever
@@ -235,6 +283,262 @@ def cmd_evaluate(
     return written
 
 
+def _diagnostics_for(
+    dictionary: ConceptDictionary,
+    matrix: ConceptMatrix,
+    vectors: np.ndarray,
+    concepts_dir: Path,
+    seed: int,
+) -> SpaceDiagnostics:
+    """The diagnostics of one space, computed only if they are not already on disk.
+
+    An artifact written before the quality block existed is recomputed rather than
+    reused. It costs seconds - unlike the dictionary and `X` above it - and a
+    diagnostics file without quality would read as a space nobody scored.
+    """
+    try:
+        existing = load_diagnostics(dictionary.key, concepts_dir)
+        if existing.quality is not None:
+            return existing
+    except (ConceptArtifactError, OSError, ValueError, KeyError):
+        pass
+
+    diagnostics = compute_diagnostics(matrix, vectors=vectors, atoms=dictionary.atoms, seed=seed)
+    save_diagnostics(diagnostics, concepts_dir)
+    return diagnostics
+
+
+def cmd_induce(
+    data_dir: Path = config.DATA_DIR,
+    cache_dir: Path = config.CACHE_DIR,
+    concepts_dir: Path = config.CONCEPTS_DIR,
+    k_sweep: Sequence[int] = config.CONCEPT_K_SWEEP,
+    seed: int = config.CONCEPT_SEED,
+    induction_alpha: float = config.INDUCTION_ALPHA,
+    target_band: tuple[int, int] = config.SPARSITY_TARGET_BAND,
+    merge_threshold: float = config.MERGE_COSINE_THRESHOLD,
+    max_merged_fraction: float = config.MAX_MERGED_FRACTION,
+    budget_seconds: float = config.CONCEPT_SWEEP_BUDGET_SECONDS,
+) -> list[str]:
+    """Build one concept space per K: induce, calibrate, code, deduplicate, diagnose.
+
+    Nothing is embedded here. The stage reads the vectors Phase 1 cached and
+    refuses to run without them, because re-embedding the corpus is the expensive
+    operation of this project and is not something a later stage may trigger by
+    accident.
+
+    Nothing already on disk is recomputed either. Every artifact is addressed by
+    the configuration that produced it, so a re-run finds its own output and skips
+    straight past it - which is what makes iterating on this phase affordable.
+
+    Returns the key of each deduplicated dictionary, in sweep order. **No K is
+    chosen here**: that decision belongs to Phase 3, made against dev recall.
+    """
+    data_dir = Path(data_dir)
+    concepts_dir = Path(concepts_dir)
+    pool_path = data_dir / POOL_NAME
+    if not pool_path.exists():
+        _die("no pool found: run 'build' first")
+
+    units, _ = load_pool(pool_path)
+    _check_pool_against_manifest(units, data_dir / MANIFEST_NAME)
+    unit_ids = [unit.unit_id for unit in units]
+    pool_hash = unit_set_hash(unit_ids)
+
+    cached = EmbeddingCache(Path(cache_dir)).load(
+        cache_key(
+            config.EMBEDDING_MODEL,
+            config.EMBEDDING_REVISION,
+            pool_hash,
+            normalized=config.NORMALIZE_EMBEDDINGS,
+        ),
+        expected_unit_ids=unit_ids,
+    )
+    if cached is None:
+        _die("embeddings are not cached for this pool: run 'embed' first")
+    vectors, _ = cached
+
+    print(f"[INFO] inducing concept spaces over {len(unit_ids)} units, k in {tuple(k_sweep)}")
+    concepts_dir.mkdir(parents=True, exist_ok=True)
+
+    def matrix_for(dictionary: ConceptDictionary) -> ConceptMatrix:
+        """The raw `X` of a dictionary, coded only if it is not already on disk."""
+        try:
+            return load_matrix(dictionary.key, concepts_dir, expected_unit_ids=unit_ids)
+        except ConceptArtifactError:
+            pass
+        alpha, achieved = calibrate_coding_alpha(
+            dictionary, vectors, target_band=target_band, seed=seed
+        )
+        print(f"[INFO]   coding alpha {alpha:.5f} -> {achieved:.2f} active concepts per unit")
+        matrix = (
+            recode_after_merge(dictionary, vectors, unit_ids, alpha=alpha)
+            if dictionary.merge_threshold is not None
+            else code_corpus(dictionary, vectors, unit_ids, alpha=alpha)
+        )
+        save_matrix(matrix, concepts_dir)
+        return matrix
+
+    produced: list[str] = []
+    elapsed_total = 0.0
+    for k in k_sweep:
+        started = time.perf_counter()
+        key = dictionary_key(
+            k=k,
+            seed=seed,
+            alpha=induction_alpha,
+            unit_set_hash=pool_hash,
+            model=config.EMBEDDING_MODEL,
+            revision=config.EMBEDDING_REVISION,
+        )
+        try:
+            dictionary = load_dictionary(key, concepts_dir, expected_unit_set_hash=pool_hash)
+            print(f"[INFO] k={k}: dictionary {key} already induced")
+        except ConceptArtifactError:
+            print(f"[INFO] k={k}: inducing {k} concepts (alpha {induction_alpha})")
+            dictionary = induce_dictionary(
+                vectors,
+                k=k,
+                seed=seed,
+                alpha=induction_alpha,
+                unit_set_hash=pool_hash,
+                model=config.EMBEDDING_MODEL,
+                revision=config.EMBEDDING_REVISION,
+            )
+            save_dictionary(dictionary, concepts_dir)
+
+        matrix_for(dictionary)
+
+        merged_key = dictionary_key(
+            k=k,
+            seed=seed,
+            alpha=induction_alpha,
+            unit_set_hash=pool_hash,
+            model=config.EMBEDDING_MODEL,
+            revision=config.EMBEDDING_REVISION,
+            merge_threshold=merge_threshold,
+        )
+        try:
+            merged = load_dictionary(merged_key, concepts_dir, expected_unit_set_hash=pool_hash)
+            log = load_merge_log(merged_key, concepts_dir)
+        except ConceptArtifactError:
+            merged, log = deduplicate_dictionary(
+                dictionary,
+                threshold=merge_threshold,
+                max_merged_fraction=max_merged_fraction,
+            )
+            save_dictionary(merged, concepts_dir)
+            save_merge_log(log, concepts_dir)
+        print(f"[INFO] k={k}: {log.k_before} atoms -> {log.k_after} after deduplication")
+        if log.finding is not None:
+            print(f"[WARN] {log.finding}")
+
+        merged_matrix = matrix_for(merged)
+
+        quality = _diagnostics_for(merged, merged_matrix, vectors, concepts_dir, seed).quality
+        if quality is not None:
+            print(
+                f"[INFO] k={k}: coherence {quality.coherence_stats['mean']:.3f} "
+                f"against a null of {quality.null_mean:.3f}, "
+                f"{len(quality.below_null_concepts)} concepts below it"
+            )
+
+        produced.append(merged.key)
+        took = time.perf_counter() - started
+        elapsed_total += took
+        print(f"[OK] k={k}: space ready as {merged.key} in {took:.1f} s")
+
+        if elapsed_total > budget_seconds:
+            print(
+                f"[WARN] the sweep has used {elapsed_total:.1f} s of its "
+                f"{budget_seconds:.0f} s budget; stopping before the remaining k. "
+                "Revisit the parameters rather than leaving it to run overnight"
+            )
+            break
+
+    print(f"[OK] {len(produced)} concept spaces in {concepts_dir} ({elapsed_total:.1f} s total)")
+    return produced
+
+
+def cmd_label(
+    data_dir: Path = config.DATA_DIR,
+    concepts_dir: Path = config.CONCEPTS_DIR,
+    k: int = config.LABELED_K,
+    seed: int = config.CONCEPT_SEED,
+    induction_alpha: float = config.INDUCTION_ALPHA,
+    merge_threshold: float = config.MERGE_COSINE_THRESHOLD,
+    n_units_shown: int = config.LABEL_EVIDENCE_UNITS,
+    client: LabelingClient | None = None,
+) -> Path:
+    """Name the concepts of one dictionary, for the report and for nothing else.
+
+    Only one space of the sweep is labelled - `LABELED_K` - because the other
+    three are inspected through `top_units_per_concept`, which reads the same
+    evidence and costs nothing. If Phase 3 selects a different K, labelling that
+    dictionary is Phase 3's business, not a reason to relabel everything here.
+
+    Nothing downstream depends on this stage: a concept's embedding is its atom.
+    """
+    data_dir = Path(data_dir)
+    concepts_dir = Path(concepts_dir)
+    pool_path = data_dir / POOL_NAME
+    if not pool_path.exists():
+        _die("no pool found: run 'build' first")
+
+    units, _ = load_pool(pool_path)
+    _check_pool_against_manifest(units, data_dir / MANIFEST_NAME)
+    pool_hash = unit_set_hash([unit.unit_id for unit in units])
+
+    merged_key = dictionary_key(
+        k=k,
+        seed=seed,
+        alpha=induction_alpha,
+        unit_set_hash=pool_hash,
+        model=config.EMBEDDING_MODEL,
+        revision=config.EMBEDDING_REVISION,
+        merge_threshold=merge_threshold,
+    )
+    try:
+        diagnostics = load_diagnostics(merged_key, concepts_dir)
+    except ConceptArtifactError:
+        _die(f"no concept space for k={k} in {concepts_dir}: run 'induce' first")
+
+    text_by_id = {unit.unit_id: unit.indexable_text for unit in units}
+    evidence = {
+        int(concept): [(unit_id, text_by_id[unit_id]) for unit_id in unit_ids[:n_units_shown]]
+        for concept, unit_ids in diagnostics.top_units_per_concept.items()
+    }
+    prompts = [build_prompt(concept, shown) for concept, shown in sorted(evidence.items()) if shown]
+    estimate = estimate_cost_usd(prompts, int(REQUEST_SHAPE["max_tokens"]))
+    print(f"[INFO] labelling {len(prompts)} concepts of k={k} with {config.LABELING_MODEL}")
+    print(f"[INFO] estimated cost {estimate:.2f} USD, before the on-disk cache is consulted")
+
+    if client is None:
+        try:
+            # Reads the key and nothing else. No HTTP client is constructed until
+            # this returns, so an absent key is a one-line message rather than a
+            # failure deep inside a connection attempt.
+            read_api_key()
+        except MissingAPIKey as error:
+            _die(str(error))
+        client = AnthropicLabelingClient()
+
+    labels = label_concepts(
+        dictionary_key=merged_key,
+        evidence=evidence,
+        client=client,
+        cache_dir=concepts_dir,
+        n_units_shown=n_units_shown,
+    )
+    path = save_labels(labels, concepts_dir)
+    print(
+        f"[OK] {len(labels.labels)} concepts labelled "
+        f"({labels.cost['calls']} calls, {labels.cost['cached']} from cache, "
+        f"{labels.cost['actual_usd']:.2f} USD spent) -> {path}"
+    )
+    return path
+
+
 def _check_pool_against_manifest(units: Sequence[IndexingUnit], manifest_path: Path) -> None:
     """Refuse to run on a pool the manifest does not recognise.
 
@@ -257,8 +561,6 @@ def _check_pool_against_manifest(units: Sequence[IndexingUnit], manifest_path: P
 
 
 def _cache_key_for(backend: EmbeddingBackend, units: Sequence[IndexingUnit]) -> str:
-    from concept_embeddings_rag.embeddings.cache import cache_key
-
     return cache_key(
         backend.name,
         backend.revision,
@@ -278,6 +580,8 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("build", help="select the subset, split it, build the unified pool")
     subparsers.add_parser("embed", help="compute and cache embeddings and token counts")
     subparsers.add_parser("evaluate", help="measure dense and BM25 at every context budget")
+    subparsers.add_parser("induce", help="build one concept space per dictionary size")
+    subparsers.add_parser("label", help="name the concepts of one space, for the report only")
     return parser
 
 
@@ -293,6 +597,10 @@ def main(argv: list[str] | None = None) -> int:
         cmd_embed()
     elif args.command == "evaluate":
         cmd_evaluate()
+    elif args.command == "induce":
+        cmd_induce()
+    elif args.command == "label":
+        cmd_label()
     return 0
 
 
