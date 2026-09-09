@@ -6,7 +6,7 @@
 Qué parte del producto tiene el bug y a qué fase del plan pertenece.
 
 <!-- Si este fix cierra un hallazgo de seguridad, añadir aquí la referencia:
-Referencia al hallazgo: [docs/security/audit-YYYY-MM-DD-fase-X.md §3.N SEC-NNN](../security/audit-YYYY-MM-DD-fase-X.md)
+Referencia al hallazgo: SEC-NNN en el [catálogo de seguridad](../security/README.md)
 -->
 
 ## Síntoma

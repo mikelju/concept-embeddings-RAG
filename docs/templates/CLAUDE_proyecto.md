@@ -134,7 +134,7 @@ Invocar `/prime` al inicio de cada sesión para cargar el contexto.
 
 ## Auditoría de seguridad
 
-El comando `/8-auditar` (skill `audit-code` en `.claude/skills/`) ejecuta una auditoría de seguridad profesional antes de `/9-documentar`. Es un paso **obligatorio** del flujo de fase cuando el código toca:
+El comando `/8-auditar` ejecuta una revisión de seguridad antes de `/9-documentar`. Es autocontenido — todo el protocolo vive en `.claude/commands/8-auditar.md` y no depende de ninguna skill. Es un paso **obligatorio** del flujo de fase cuando el código toca:
 
 - Autenticación / autorización
 - Criptografía o almacenamiento de credenciales
@@ -143,6 +143,6 @@ El comando `/8-auditar` (skill `audit-code` en `.claude/skills/`) ejecuta una au
 - Deserialización (pickle, yaml.load, json.loads sobre input no validado)
 - Dependencias nuevas o actualizadas
 
-La auditoría produce un informe en `docs/security/audit-YYYY-MM-DD-<modo>.md` con severidad, CWE, OWASP, file:line y fix propuesto. Cada hallazgo bloqueante (Critical/High) se resuelve con un `fix-N` antes de cerrar la fase. El catálogo consolidado vive en `docs/security/README.md`.
+La auditoría presenta los hallazgos en chat — severidad, CWE, `file:line`, qué gana un atacante y el fix — y los arregla en la misma sesión, cada uno con su test de regresión. No escribe informe: el único registro persistente es una línea por hallazgo en `docs/security/README.md`. Cada hallazgo bloqueante (Critical/High) se cierra antes que la fase; los fixes no triviales siguen el protocolo de fixes del proyecto (`fix-N` en `docs/plans/fixes/`).
 
 Ver `CLAUDE_GLOBAL.md` → sección "Auditoría de seguridad" para las reglas detalladas.

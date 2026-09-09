@@ -25,8 +25,7 @@ mi-proyecto/
 │   │   ├── 7-verificar.md
 │   │   ├── 8-auditar.md
 │   │   └── 9-documentar.md
-│   ├── skills/                        # Skills reutilizables (SKILL.md + references/)
-│   │   └── audit-code/                # Auditoría de seguridad profesional (Python + React)
+│   ├── skills/                        # (Opcional) Skills propias del proyecto (SKILL.md + references/)
 │   ├── settings.local.json
 │   └── README.md
 ├── src/                               # Código fuente de la aplicación
@@ -42,9 +41,8 @@ mi-proyecto/
 │   │   │   └── 1.Y_desviacion.md     # Desviación o ajuste fuera del plan (correlativo)
 │   │   └── fixes/
 │   │       └── fix-N_nombre.md       # Bug fix puntual (correlativo global)
-│   ├── security/                      # Informes de auditoría de seguridad (/8-auditar)
-│   │   ├── README.md                  # Catálogo de hallazgos SEC/DEF/OBS
-│   │   └── audit-YYYY-MM-DD-*.md      # Informes por fase / release gate
+│   ├── security/                      # Registro de las auditorías (/8-auditar)
+│   │   └── README.md                  # Catálogo de hallazgos SEC — id, severidad, estado
 │   ├── templates/                     # Plantillas de documentos (spec, plan, tasks, CLAUDE.md...)
 │   ├── refs/                          # Documentación de referencia inmutable (PDFs, manuales, etc.)
 │   └── learnings/                     # (Solo con WAT) Lecciones por workflow
@@ -72,7 +70,7 @@ Los comandos transversales son herramientas reutilizables que funcionan en todos
 | `/5-planear` | Después de la spec, antes de codificar | `docs/plans/fase_X/X.0_nombre.md` |
 | `/6-implementar` | Después del plan, para ejecutar los pasos | Código + tests (ciclo test-first) |
 | `/7-verificar` | Al terminar una fase (o a mitad para comprobar) | Informe de alineación spec ↔ código |
-| `/8-auditar` | Antes de cerrar una fase, antes de release, tras un fix crítico | `docs/security/audit-YYYY-MM-DD-<modo>.md` |
+| `/8-auditar` | Antes de cerrar una fase, antes de release, tras un fix crítico | Hallazgos en chat + código corregido + línea en `docs/security/README.md` |
 | `/9-documentar` | Al terminar una fase o el proyecto | `docs/GUIA_USUARIO.md` |
 
 ### Flujo de un proyecto nuevo
@@ -204,7 +202,7 @@ El framework de testing concreto (Jest, Vitest, Pytest, etc.) se define en el `C
 
 ## Auditoría de seguridad
 
-Todo proyecto integra una auditoría de seguridad estructurada como paso del flujo de fase. Se apoya en la skill `audit-code` (`.claude/skills/audit-code/`) que contiene el protocolo, el catálogo de vulnerabilidades (Python, React, OWASP Top 10, patrones de secretos) y la plantilla de informe.
+Todo proyecto integra una auditoría de seguridad como paso del flujo de fase. El protocolo completo vive en el propio comando `/8-auditar` (`.claude/commands/8-auditar.md`): es autocontenido, no depende de ninguna skill. Su entregable no es un informe, sino los hallazgos presentados en chat y el código ya corregido en la misma sesión.
 
 ### Cuándo se audita
 
@@ -215,11 +213,11 @@ Todo proyecto integra una auditoría de seguridad estructurada como paso del flu
 
 ### Escape hatch
 
-Si la fase activa no toca código de seguridad relevante (solo docs, assets o refactor puro sin cambio de comportamiento), `/8-auditar` pregunta si saltar la auditoría y registra la exención en `docs/security/` para trazabilidad. Nunca saltar fases que toquen auth, crypto, input externo, subprocess o deserialización.
+Si la fase activa no toca código de seguridad relevante (solo docs, assets o refactor puro sin cambio de comportamiento), `/8-auditar` pregunta si saltar la auditoría y registra la exención, con su motivo, en `docs/security/README.md` para trazabilidad. Nunca saltar fases que toquen auth, crypto, input externo, subprocess o deserialización.
 
 ### Rúbrica de severidad
 
-Cinco niveles consistentes con el catálogo de la skill:
+Cinco niveles:
 
 | Severidad | Qué significa en la práctica |
 |-----------|------------------------------|
@@ -229,17 +227,17 @@ Cinco niveles consistentes con el catálogo de la skill:
 | Low | Defensa en profundidad, no explotable por sí solo. Backlog. |
 | Info | Observación, no hay riesgo directo. |
 
-Cada hallazgo recibe un ID `SEC-NNN` (la centena indica la fase: `1xx`=Fase 1, `3xx`=Fase 3, etc.), un tag CWE y una categoría OWASP.
+Cada hallazgo recibe un ID `SEC-NNN` de una secuencia única por proyecto — el catálogo de `docs/security/README.md` dice cuál es el siguiente id libre — y un tag CWE cuando la clase de fallo es clara.
 
 ### Cierre de fase tras auditoría
 
 - Si no hay hallazgos **Critical ni High** → la fase puede cerrarse. Pasar a `/9-documentar`.
 - Si hay Critical o High → la fase **no se cierra** hasta resolverlos o registrar decisión explícita de aplazar con justificación en el plan maestro.
-- Cada SEC cerrado se resuelve con un `fix-N` en `docs/plans/fixes/` siguiendo el protocolo del proyecto.
+- Los fixes triviales se aplican durante la propia auditoría, cada uno con su test de regresión. Los no triviales siguen el protocolo de fixes del proyecto (`fix-N` en `docs/plans/fixes/`).
 
 ### Catálogo centralizado
 
-Cada proyecto mantiene `docs/security/README.md` como índice único de hallazgos (pendientes, cerrados, aplazados por decisión de negocio). Este archivo es el punto de entrada para revisar el estado de seguridad sin tener que abrir los 6 informes por fase.
+Cada proyecto mantiene `docs/security/README.md` como índice único de hallazgos (pendientes, cerrados, aplazados por decisión de negocio). Es el **único registro persistente** de la auditoría: los hallazgos se presentan y se arreglan en la sesión, y de cada uno queda aquí una línea con id, severidad, título y estado.
 
 ### Automatización en CI
 
@@ -247,16 +245,16 @@ La plantilla incluye `.github/workflows/security.yml`. Detecta automáticamente 
 
 Funciona como **red de seguridad complementaria a `/8-auditar`**: si un desarrollador olvida ejecutar la auditoría manual, el CI cazará como mínimo las vulnerabilidades que los escáneres automáticos detectan (SAST + dependencias + secretos). `/8-auditar` sigue siendo necesario para la revisión manual y el razonamiento de explotabilidad — el CI no sustituye el análisis humano, lo refuerza.
 
-Si un hallazgo del CI es falso positivo, documentar la excepción en `docs/security/` en lugar de suprimirla silenciosamente.
+Si un hallazgo del CI es falso positivo, documentar la excepción en `docs/security/README.md` en lugar de suprimirla silenciosamente.
 
 ### Reglas no negociables durante la auditoría
 
 1. Nunca instalar herramientas (`pip install`, `npm install`) sin autorización explícita.
 2. Nunca ejecutar payloads contra el propio código ni sistemas externos — el PoC es descriptivo.
-3. Nunca volcar secretos completos en el informe — redactar siempre (`sk-abcd•••`).
+3. Nunca volcar secretos completos en la lista de hallazgos — redactar siempre (`sk-abcd•••`).
 4. Nunca decir "el código es seguro" — usar "sin hallazgos críticos bajo el alcance revisado".
 5. Falsos positivos > falsos negativos. Ante la duda, reportar como HIGH y dejar al humano degradar.
-6. No modificar código durante la auditoría — solo tras el informe y con luz verde explícita.
+6. No arreglar mientras se busca: primero la lista completa de hallazgos, después los fixes y con luz verde explícita.
 
 ---
 
@@ -272,11 +270,7 @@ Estructura de una skill:
 └── references/           # (Opcional) archivos auxiliares cargados bajo demanda
 ```
 
-Skills incluidas por defecto en la plantilla:
-
-| Skill | Para qué |
-|-------|----------|
-| `audit-code` | Auditoría de seguridad profesional (ver sección anterior) |
+La plantilla no incluye ninguna skill por defecto: los comandos del flujo de fase son autocontenidos y no delegan en skills. `.claude/skills/` existe para las que cada proyecto añada por su cuenta.
 
 Cuando una skill crece, mantener el SKILL.md corto y mover los catálogos a `references/*.md` cargados solo cuando el flujo los necesita.
 

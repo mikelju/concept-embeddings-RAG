@@ -40,7 +40,7 @@ docs/plans/
 | Phase | Name | Spec | Status |
 |------|--------|------|--------|
 | 1 | Corpus, indexing units and dense baseline | Available | **Complete** |
-| 2 | Concept space: dictionary + matrix X | Pending | Pending |
+| 2 | Concept space: dictionary + matrix X | Available | **Complete** |
 | 3 | Hybrid conceptual retrieval (System B) | Pending | Pending |
 | 4 | Query-aware iterative expansion (System C) | Pending | Pending |
 | 5 | Comparative evaluation and verdict | Pending | Pending |
@@ -64,12 +64,21 @@ Delivers **System A** of §70 and, above all, the measurement harness everything
 
 Builds the corpus's own semantic space. It stands on its own even before retrieval uses it: it produces a concept map of the corpus that can be inspected and criticized.
 
-- [ ] Dictionary induced by **non-negative sparse coding** over the embeddings (`MiniBatchDictionaryLearning` with `positive_code=True` and `positive_dict=True`), fixed seed
-- [ ] Matrix `X = chunks × concepts` as the direct output of that coding: multi-activation with continuous, non-negative weights, **with the score semantics written down** (§3: what exactly 0.73 means)
-- [ ] Each concept's embedding taken from its own dictionary atom: it already lives in the query's space, with no detour through a generated name
-- [ ] Concept labelling via LLM **for interpretability and reporting only**, outside the retrieval critical path
-- [ ] Dictionary normalization and deduplication (§47), with an explicit, auditable merge criterion
-- [ ] Space inspection: activations per chunk, chunks per concept, orphan concepts, junk concepts
+Four spaces were induced (K = 512, 1,024, 2,048, 4,096) and **none of them is chosen here**: the choice of K belongs to Phase 3 and is made against dev recall. The numbers, read from the artifacts rather than recomputed for the report, live in [`phase_2/2.results.md`](phase_2/2.results.md). The security audit closed with no Critical and no High finding; its eight findings and one observation are catalogued in [`docs/security/README.md`](../security/README.md).
+
+- [x] Dictionary induced by **non-negative sparse coding** over the embeddings (`MiniBatchDictionaryLearning` with `positive_code=True` and `positive_dict=False`), fixed seed. The dictionary constraint was dropped on measured evidence, see decision D1 of [`phase_2/2.0_concept_space.md`](phase_2/2.0_concept_space.md): half the energy of the embeddings is negative, so a non-negative dictionary drives the space to one activation per unit - the very regime that disqualified clustering
+- [x] Matrix `X = chunks × concepts` as the direct output of that coding: multi-activation with continuous, non-negative weights, **with the score semantics written down** (§3: what exactly 0.73 means)
+- [x] Each concept's embedding taken from its own dictionary atom: it already lives in the query's space, with no detour through a generated name
+- [x] Concept labelling via LLM **for interpretability and reporting only**, outside the retrieval critical path
+- [x] Dictionary normalization and deduplication (§47), with an explicit, auditable merge criterion
+- [x] Structural inspection of the space: activations per chunk, chunks per concept, orphan
+      concepts, dead atoms, co-activation
+- [x] **Dictionary quality measured, not assumed**: per-concept semantic coherence over the units
+      that activate it most, read against a random-unit null baseline measured on this same pool -
+      the absolute cosine means nothing in an anisotropic embedding space - plus the alignment of a
+      concept with its own evidence and the concentration of its activation mass. Concepts are
+      ranked by it so the report reads the worst ones rather than the average. **Diagnostic only:
+      no concept is pruned in this phase**
 
 ## Phase 3: Hybrid conceptual retrieval (System B)
 
@@ -78,6 +87,8 @@ Uses the concept space to retrieve, and measures it. Answers the first half of t
 - [ ] Query → concepts mapping by dot product against the dictionary (§6-§7, §50), no textual intermediaries
 - [ ] Chunk scoring over the active dimensions of X
 - [ ] Fusion of dense and conceptual signals, with justified weights rather than eyeballed ones
+- [ ] If low-coherence concepts are pruned, the decision is made against dev recall and declared as
+      a variant, never inferred from the Phase 2 diagnostic alone
 - [ ] System B measured in the same harness and against both baselines (dense and BM25)
 
 ## Phase 4: Query-aware iterative expansion (System C)
@@ -96,7 +107,8 @@ The leap of §8: stop following the question and start navigating the corpus. It
 The phase that answers the hypothesis. Its output is a report, not code.
 
 - [ ] Full bench on the same split and seed, **at equal context budget**: BM25, dense (A), conceptual (B) and iterative (C)
-- [ ] Ablations: no dense fusion, no expansion, no non-negativity, varying dictionary size
+- [ ] Ablations: no dense fusion, no expansion, no non-negativity, varying dictionary size,
+      pruning the least coherent concepts
 - [ ] Cost per query: tokens sent, latency, number of iterations (§73 demands the gain not be paid in noise or tokens)
 - [ ] Cross-validation on a second benchmark (MuSiQue) to rule out overfitting to the first
 - [ ] Report with an explicit verdict on §69 and on the document's second hypothesis, including the negative verdict where warranted
@@ -129,6 +141,7 @@ Settled during the discovery conversation. Any change propagates here only after
 | Baselines | BM25 in addition to dense | On HotpotQA, BM25 is a hard rival and frequently beats dense retrieval. Claiming an improvement "over dense" without BM25 present is a result that does not survive the first question |
 | Measurement protocol | **At fixed context budget**, not fixed K | System C retrieves more chunks by design; comparing at equal K is unfair one way and at different K unfair the other. The comparison that holds is at equal tokens sent to the LLM (§73) |
 | Primary metric | Supporting-fact recall within the budget | Objective and annotated; no LLM judge on the critical path |
+| Dictionary quality | Measured per concept against a random null baseline; reported in Phase 2, never enforced there | Coherence measured in the same embedding space the atoms were fitted to is partly guaranteed by construction: it ranks concepts against each other, it does not validate the method. And an absolute cosine is unreadable without the null, since random units of this corpus are far from orthogonal. Pruning changes what retrieval sees, so it belongs to a dev-recall decision in Phase 3, not to an unvalidated threshold in Phase 2 |
 
 Phase 1 assumptions, to be settled in its spec: a HotpotQA *distractor* subset of 500-1,000 questions, which yields the 5,000-10,000 chunks of the scale suggested in §70; `bge-small-en-v1.5` or `all-MiniLM-L6-v2` embeddings.
 

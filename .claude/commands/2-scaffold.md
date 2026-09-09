@@ -111,7 +111,7 @@ mkdir -p data
 mkdir -p .tmp
 ```
 
-`docs/security/` alberga los informes de `/8-auditar` + el catálogo consolidado de hallazgos (`docs/security/README.md`). Se crea ya en el scaffold para que la primera auditoría encuentre el destino listo.
+`docs/security/` alberga el catálogo consolidado de hallazgos de `/8-auditar` (`docs/security/README.md`). Se crea ya en el scaffold para que la primera auditoría encuentre el destino listo.
 
 Si `docs/templates/` está vacío y existe una fuente de plantillas (este framework), copiarlas.
 

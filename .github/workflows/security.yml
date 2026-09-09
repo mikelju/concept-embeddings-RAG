@@ -76,10 +76,15 @@ jobs:
         # torch==2.13.0+cpu from the PyTorch index - a version PyPI has never
         # heard of, so the resolve fails before a single CVE is checked.
         # Verified locally on 2026-09-08: -r fails, auditing the environment works.
+        #
+        # Every optional group is synced, not just `security`. `uv sync` prunes what
+        # the named groups do not ask for, so auditing with `--group security` alone
+        # would leave the `labeling` dependencies - the ones that actually open a
+        # network connection - out of the environment being scanned.
         run: |
           if [ -f uv.lock ]; then
             pip install uv
-            uv sync --group security
+            uv sync --group security --group labeling
             uv run pip-audit --desc
           elif [ -f requirements.txt ]; then
             pip install pip-audit
@@ -109,19 +114,17 @@ jobs:
         # audited findings (corpus hashes, the resolved model commit, a HotpotQA id)
         # stay quiet, while anything new fails the job.
         #
-        # .claude/skills/audit-code/ is excluded rather than baselined. It is a
-        # catalogue of secret *patterns*, so a scanner will always fire on it, and its
-        # findings are `Secret Keyword` - a detector that hashes the captured value
-        # including the line ending, which makes a baseline built on Windows fail to
-        # match on Linux. Excluding it is deterministic; baselining it is not. The
-        # project already excludes .claude/ from ruff for the same reason: not our code.
-        #
         # Regenerate the baseline deliberately, never to silence a failure:
-        #   uv run detect-secrets scan         #     $(git ls-files | grep -v '^\.claude/skills/audit-code/') > .secrets.baseline
-        # then read every entry before committing it.
+        #   uv run detect-secrets scan $(git ls-files --cached --others --exclude-standard) \
+        #     > .secrets.baseline
+        # then read every entry before committing it. `--others --exclude-standard` adds
+        # the files staged for this change but not yet committed, which plain `git ls-files`
+        # would leave unscanned. Regenerating on Windows keys the results with backslashes
+        # and this job runs on ubuntu, so normalise them to forward slashes or the hook
+        # reads its own audited findings as new ones.
         run: |
           if [ -f .secrets.baseline ]; then
-            detect-secrets-hook --baseline .secrets.baseline               $(git ls-files | grep -v '^\.claude/skills/audit-code/')
+            detect-secrets-hook --baseline .secrets.baseline $(git ls-files)
           else
             echo "[ERROR] no .secrets.baseline: create one and audit it" >&2
             exit 1

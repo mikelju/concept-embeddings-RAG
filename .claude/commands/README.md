@@ -81,20 +81,19 @@ Verifica la alineación entre la spec y el código: ejecuta los tests del proyec
 ## `/8-auditar`
 **Cuándo usarlo:** Al cerrar cada fase (tras `/7-verificar` y antes de `/9-documentar`), antes de cualquier release, tras un fix crítico o cuando se pida una revisión de seguridad.
 
-Auditoría de seguridad profesional apoyada en la skill `audit-code`. Recorre las 5 fases (scope, escaneo automatizado, revisión manual, razonamiento de explotabilidad, informe). Cubre Python (primario) y React/frontend (secundario), mapea OWASP Top 10 + CWE y produce un informe con severidad, file:line y fix propuesto.
+Revisión de seguridad autocontenida (no usa skills). Acota el alcance a la fase, ejecuta los escáneres instalados, lee el código buscando las clases de fallo que los escáneres no ven, presenta los hallazgos ordenados por gravedad con `file:line` y CWE, y los arregla en la misma sesión con su test de regresión.
 
-Incluye **escape hatch**: si la fase activa no toca código de seguridad relevante (solo docs, assets o refactor puro sin cambio de comportamiento), el comando pregunta si saltar la auditoría y registra la exención en el informe.
+Incluye **escape hatch**: si la fase activa no toca código de seguridad relevante (solo docs, assets o refactor puro sin cambio de comportamiento), el comando pregunta si saltar la auditoría y registra la exención en el catálogo.
 
 **Modos:**
 - `/8-auditar` — audita los archivos de la **fase activa** (por defecto)
 - `/8-auditar fase X` — audita una fase concreta
 - `/8-auditar completo` — audita todo `src/` (release gate)
-- `/8-auditar rapido` — solo escaneo automatizado (bandit, pip-audit, etc.)
 - `/8-auditar deps` — solo dependencias
 - `/8-auditar secretos` — solo búsqueda de credenciales hardcoded
 - `/8-auditar <ruta>` — scope restringido a ruta/archivo/glob
 
-**Genera:** `docs/security/audit-YYYY-MM-DD-<modo>.md`
+**Genera:** hallazgos en chat + código corregido + una línea por hallazgo en `docs/security/README.md`
 
 ---
 

@@ -124,7 +124,7 @@ Instalación: `pip install -e ".[security]"`.
 
 `npm audit` está incluido de fábrica en npm; no requiere instalar nada extra.
 
-**Ambos casos:** mencionar al usuario que el workflow `.github/workflows/security.yml` ya ejecuta estos scanners en CI, así que instalar localmente es opcional para desarrollo (permite `/8-auditar` con escaneo automático en la Phase 2 de la skill).
+**Ambos casos:** mencionar al usuario que el workflow `.github/workflows/security.yml` ya ejecuta estos scanners en CI, así que instalar localmente es opcional para desarrollo (permite que `/8-auditar` haga el escaneo automático de su paso 2).
 
 Si el usuario declina o prefiere posponer, documentarlo en CLAUDE.md en la sección de gotchas ("tooling de seguridad pospuesto — pendiente de instalar").
 

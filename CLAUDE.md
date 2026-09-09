@@ -10,7 +10,7 @@ A **research experiment** on retrieval over a corpus-induced concept space: ever
 
 **The deliverable is measured evidence, not an application**: four comparable systems (BM25, dense, conceptual, iterative) over a multi-hop benchmark with annotated ground truth, and an explicit verdict on the hypothesis. A well-documented negative result closes the project just as well as a positive one.
 
-**Current state: Phase 1 complete.** The frozen corpus, both baselines and the evaluation harness are built, audited and measured; the numbers live in `docs/plans/phase_1/1.results.md` and are what every later phase is judged against. Phase 2 (the concept space) has not started. The full hypothesis and the surveyed prior art live in `docs/refs/descripcion-proyecto.md` and `docs/refs/bibliografia.md` (both in Spanish, they are source material); the roadmap lives in `docs/plans/0_master_plan.md`, and `docs/USER_GUIDE.md` explains how to run the pipeline.
+**Current state: Phases 1 and 2 complete.** The frozen corpus, both baselines and the evaluation harness are built, audited and measured; the numbers live in `docs/plans/phase_1/1.results.md` and are what every later phase is judged against. Phase 2 induced four concept spaces (K = 512, 1,024, 2,048, 4,096) and **chose none of them**: the choice of K belongs to Phase 3 and is made against dev recall. Its numbers, and the one concept that activates on 99.4% of the corpus at K = 4,096, are in `docs/plans/phase_2/2.results.md`. The full hypothesis and the surveyed prior art live in `docs/refs/descripcion-proyecto.md` and `docs/refs/bibliografia.md` (both in Spanish, they are source material); the roadmap lives in `docs/plans/0_master_plan.md`, and `docs/USER_GUIDE.md` explains how to run the pipeline.
 
 ---
 
@@ -35,26 +35,28 @@ There is no server or UI to start: entry points are experiment scripts run throu
 
 ```
 src/concept_embeddings_rag/
-├── cli.py                    # The four pipeline stages: fetch, build, embed, evaluate
+├── cli.py                    # The six stages: fetch, build, embed, evaluate, induce, label
 ├── config.py                 # Every constant that decides what an experiment measures
 ├── corpus/                   # download (hash-verified), hf_source, split, pool, manifest
 ├── embeddings/               # Swappable backend + .npz cache keyed by configuration
 ├── retrieval/                # Retriever protocol, dense and BM25 behind it
-└── evaluation/               # Budget filling, the four metrics, the harness
+├── evaluation/               # Budget filling, the four metrics, the harness
+├── concepts/                 # dictionary, coding, dedup, diagnostics, labeling
+└── artifacts.py              # Atomic writes: every artifact lands whole or not at all
 tests/                        # Mirrors the source layout. test_scaffold.py checks ARM64
 data/                         # Corpus, pool and caches: git-ignored. Manifest and results: versioned
 docs/
 ├── plans/                    # SDD: master plan, phase specs, phase plans and fixes
 ├── refs/                     # Immutable reference material (hypothesis, bibliography)
-├── security/                 # /8-auditar reports, indexed by security/README.md
+├── security/                 # /8-auditar findings catalogue (security/README.md)
 ├── templates/                # Framework document templates
 └── USER_GUIDE.md             # How to run the pipeline
 .claude/commands/             # The 10 commands of the SDD-WAT workflow
 ```
 
 Entry point: `uv run cer <stage>`. Each stage refuses to run if its input is missing and names the
-stage to run first. `embed` is the expensive one (~36 min on this machine); everything else is
-seconds to minutes.
+stage to run first. `embed` (~36 min on this machine) and `induce` (hours for the sweep) are the
+expensive ones; `label` is the only one that spends money, and nothing depends on it.
 
 ### Main pattern: staged pipeline with on-disk artifacts
 
@@ -103,10 +105,10 @@ The reasoning lives in the decisions table of `docs/plans/0_master_plan.md`. Ope
 
 ## Environment variables
 
-None yet. Phase 2 will need `ANTHROPIC_API_KEY` to label concepts with an LLM (one cached call per concept, and purely for interpretability: retrieval does not depend on it).
+One, and only the `label` stage reads it. Every other stage runs with no key and no account.
 
 ```env
-ANTHROPIC_API_KEY=       # Phase 2 only: naming concepts for the report. Pending.
+ANTHROPIC_API_KEY=       # `cer label` only: naming concepts for the report
 ```
 
 Secrets live only in `.env`, are loaded at runtime, and are never printed or quoted.
@@ -181,7 +183,7 @@ Secrets live only in `.env`, are loaded at runtime, and are never printed or quo
 
 6. **ruff excludes `.claude/`**: it holds third-party skill scripts with 10 warnings that are not project code and are not to be touched.
 
-7. **Security tooling.** `ruff --select=S` (the bandit port) is in the project's lint selection, and `pip-audit` lives in the `security` dependency group: `uv run pip-audit --desc`. `detect-secrets` is still CI-only. **`pip-audit` skips `torch`** because the pinned `2.13.0+cpu` carries a local version identifier PyPI does not know, and it prints that skip beside "No known vulnerabilities found" — so check the upstream version against OSV separately rather than reading the clean line as full coverage. For the same reason `pip-audit -r <requirements>` cannot work here at all: it resolves every pin against PyPI and dies on torch. Audit the environment (`uv sync --group security && uv run pip-audit`), which is what CI does.
+7. **Security tooling.** `ruff --select=S` (the bandit port) is in the project's lint selection, and `pip-audit` lives in the `security` dependency group: `uv run pip-audit --desc`. `detect-secrets` is still CI-only. **`pip-audit` skips `torch`** because the pinned `2.13.0+cpu` carries a local version identifier PyPI does not know, and it prints that skip beside "No known vulnerabilities found" — so check the upstream version against OSV separately rather than reading the clean line as full coverage. For the same reason `pip-audit -r <requirements>` cannot work here at all: it resolves every pin against PyPI and dies on torch. Audit the environment (`uv sync --group security --group labeling && uv run pip-audit`), which is what CI does — and name every runtime group, because `uv sync` prunes whatever the groups listed do not ask for, so `--group security` alone audits an environment `anthropic` is absent from (SEC-018).
 
 8. **The first `pytest` of a session takes ~35 s** because of torch startup. Not a hang.
 
@@ -214,7 +216,7 @@ Run `/prime` at the start of every session to load context.
 
 ## Security audit
 
-The `/8-auditar` command (skill `audit-code` in `.claude/skills/`) runs a professional security audit before `/9-documentar`. It is a **mandatory** step of the phase workflow whenever the code touches:
+The `/8-auditar` command runs a security review before `/9-documentar`. It is self-contained — the whole protocol lives in `.claude/commands/8-auditar.md` and depends on no skill. It is a **mandatory** step of the phase workflow whenever the code touches:
 
 - Authentication / authorization
 - Cryptography or credential storage
@@ -225,6 +227,6 @@ The `/8-auditar` command (skill `audit-code` in `.claude/skills/`) runs a profes
 
 In this project the relevant surface will mainly be **the corpus download** (external input: verify the hash, do not trust the downloaded JSON) and **deserialization of cached artifacts** (never `pickle` over files not produced by the pipeline itself; prefer non-executing formats such as `.npz` or JSON).
 
-The audit produces a report in `docs/security/audit-YYYY-MM-DD-<mode>.md` with severity, CWE, OWASP, file:line and proposed fix. Every blocking finding (Critical/High) is resolved with a `fix-N` before closing the phase. The consolidated catalogue lives in `docs/security/README.md`.
+The audit presents its findings in chat — severity, CWE, `file:line`, what an attacker gains, and the fix — and then fixes them in the same session, each fix with its regression test. It writes no report: the only persistent record is one row per finding in `docs/security/README.md`. Every blocking finding (Critical/High) is closed before the phase closes; a non-trivial fix follows the project's fix protocol (`fix-N` in `docs/plans/fixes/`).
 
 See `CLAUDE_GLOBAL.md` → "Auditoría de seguridad" section for the detailed rules.
