@@ -41,7 +41,7 @@ docs/plans/
 |------|--------|------|--------|
 | 1 | Corpus, indexing units and dense baseline | Available | **Complete** |
 | 2 | Concept space: dictionary + matrix X | Available | **Complete** |
-| 3 | Hybrid conceptual retrieval (System B) | Pending | Pending |
+| 3 | Hybrid conceptual retrieval (System B) | Available | **In progress** |
 | 4 | Query-aware iterative expansion (System C) | Pending | Pending |
 | 5 | Comparative evaluation and verdict | Pending | Pending |
 | 6 | Exploratory extensions (conditional) | Pending | Not opened |
@@ -82,13 +82,20 @@ Four spaces were induced (K = 512, 1,024, 2,048, 4,096) and **none of them is ch
 
 ## Phase 3: Hybrid conceptual retrieval (System B)
 
-Uses the concept space to retrieve, and measures it. Answers the first half of the hypothesis: does the interpretable representation retrieve at least as well as the dense one?
+Uses the concept space to retrieve, and measures it. Answers the first half of the hypothesis: does the interpretable representation retrieve at least as well as the dense one? Specified in [`phase_3/3.spec.md`](phase_3/3.spec.md) and planned in [`phase_3/3.0_hybrid_conceptual_retrieval.md`](phase_3/3.0_hybrid_conceptual_retrieval.md), which declares every parameter of the phase before a single number is measured.
 
 - [ ] Query → concepts mapping by dot product against the dictionary (§6-§7, §50), no textual intermediaries
-- [ ] Chunk scoring over the active dimensions of X
-- [ ] Fusion of dense and conceptual signals, with justified weights rather than eyeballed ones
-- [ ] If low-coherence concepts are pruned, the decision is made against dev recall and declared as
-      a variant, never inferred from the Phase 2 diagnostic alone
+- [ ] Chunk scoring over the active dimensions of X, with the invariant that a unit whose row is all
+      zeros is unreachable through this system and is not silently rescued
+- [ ] **K, view and query operator chosen against dev recall** over the four Phase 2 spaces, and
+      frozen in a versioned selection artifact before the test split is read even once. This is the
+      choice Phase 2 deliberately left open, and Phases 4 and 5 inherit it
+- [ ] Fusion of dense and conceptual signals into System B, with weights fitted on dev rather than
+      eyeballed, and a parameter-free reference scheme measured beside them
+- [ ] **A dense + BM25 control** built by the same fusion code and fitted the same way, so that a
+      System B win can be attributed to the concept space rather than to hybridization as such
+- [ ] Hub damping by a rarity weight declared in advance, measured as a variant against the
+      undamped system. Concept **pruning** stays out of this phase and remains a declared ablation
 - [ ] System B measured in the same harness and against both baselines (dense and BM25)
 
 ## Phase 4: Query-aware iterative expansion (System C)
