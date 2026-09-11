@@ -54,7 +54,12 @@ from concept_embeddings_rag.retrieval.conceptual import (
     concept_support,
     resolve_query_operator,
 )
-from concept_embeddings_rag.retrieval.fusion import RRF, WEIGHTED, FusedRetriever
+from concept_embeddings_rag.retrieval.fusion import (
+    RRF,
+    SECOND_SIGNALS,
+    WEIGHTED,
+    FusedRetriever,
+)
 
 # The only split this phase fits anything on. It is a constant rather than an
 # argument because a selection fitted on test is not a thing this project wants to
@@ -69,6 +74,16 @@ CELL_KEYS: tuple[str, ...] = ("k", "dictionary_key", "view", "query_operator", "
 # The three coordinates that vary within one K. Ordered: the tie-break below reads
 # them in this order, so two arms with the same figure always resolve the same way.
 ARM_KEYS: tuple[str, ...] = ("query_operator", "view", "damping")
+
+# Which hybrid a fusion fit belongs to. The spec's vocabulary is `hybrid-conceptual`
+# for System B and `hybrid-bm25` for the HU-5 control, so a fit filed under the wrong
+# one of the two is refused rather than reported as the system it is not.
+SYSTEM_B_SIGNAL, CONTROL_SIGNAL = SECOND_SIGNALS
+
+# D8 fixes the order in which this phase's choices are taken, so that it cannot be
+# reshuffled after the fact to flatter a result. The last is conditional: a weight is
+# only chosen if the weighted scheme won the one before it.
+DECISION_ORDER: tuple[str, ...] = ("space", "damping", "fusion_scheme", "fusion_weight")
 
 
 class SelectionError(Exception):
@@ -264,6 +279,119 @@ class Decision:
             )
 
 
+def _check_decision_order(names: Sequence[str]) -> None:
+    """The ledger must read in D8's order, and D8's order is not editable afterwards.
+
+    A prefix of it is accepted, because a report can be built before the later
+    decisions have been taken; a permutation is not, because the order is what stops
+    a choice from being re-taken once a later one has shown which way it should have
+    gone. Reordering these is a deviation to be written down, not an edit.
+    """
+    expected = DECISION_ORDER[: len(names)]
+    if tuple(names) != expected:
+        raise SelectionError(
+            f"the decisions are recorded as {list(names)}, and D8 fixes them as "
+            f"{list(expected)}; a reordering is a deviation, not an edit"
+        )
+
+
+@dataclass(frozen=True)
+class FusionFit:
+    """One hybrid's fusion as dev decided it: the declared grid, the curve, the reference.
+
+    `curve` is the weighted scheme's dev figure at every point of `grid`, keyed by the
+    weight on the **dense** component - the `w` of decision D6's
+    `w * dense + (1 - w) * other`. The endpoint `w = 1.0` is in the grid on purpose, so
+    "the second signal contributed nothing" is read off the curve rather than inferred
+    from its absence. `rrf_score` is the same figure for the parameter-free scheme,
+    measured through the same harness call on the same questions.
+
+    Both figures survive whatever the outcome. A weighted scheme that does not beat RRF
+    has bought a degree of freedom it did not need, and HU-4 asks for that to be
+    reported as the finding it is - which it cannot be if the losing number is dropped.
+
+    The selected weight is derived from the curve rather than stored beside it: a field
+    could disagree with the measurements it claims to summarise, and a property cannot.
+    """
+
+    components: tuple[str, str]
+    metric: str
+    budget: int
+    n_questions: int
+    grid: tuple[float, ...]
+    curve: dict[float, float]
+    rrf_score: float
+
+    def __post_init__(self) -> None:
+        if not self.grid:
+            raise SelectionError("a fusion weight is fitted over a grid, and this one has no point")
+        if len(set(self.grid)) != len(self.grid):
+            raise SelectionError(
+                f"the grid repeats a point: {sorted(self.grid)}; a curve over it would claim "
+                "more measurements than were taken"
+            )
+        if set(self.curve) != set(self.grid):
+            raise SelectionError(
+                "the curve must cover exactly the grid it was fitted over: the curve holds "
+                f"{sorted(self.curve)} and the grid {sorted(self.grid)}"
+            )
+
+    @property
+    def second_signal(self) -> str:
+        """The component fused with dense: `conceptual` for System B, `bm25` for the control."""
+        return self.components[1]
+
+    @property
+    def best_weight(self) -> float:
+        """The grid point with the best dev figure, ties broken toward the dense side.
+
+        Neither D6 nor D8 says which of two equal weights to take, and the two
+        directions are not equivalent. A tie broken toward the second signal would let
+        a flat curve - the case where fusing changed nothing at all - come back as
+        evidence that the second signal contributed something. Ties therefore go to the
+        larger weight on dense, the system this phase has to beat, so an undecided curve
+        can never be read as a win for the system under test. The same rule fits the
+        HU-5 control, which is what decision D9 requires of it.
+        """
+        return max(self.grid, key=lambda weight: (self.curve[weight], weight))
+
+    @property
+    def best_weighted_score(self) -> float:
+        """What the weighted scheme reaches on dev at the weight it selected."""
+        return self.curve[self.best_weight]
+
+    @property
+    def runner_up_weight(self) -> float | None:
+        """The second-best grid point, by the same rule that chose the first."""
+        rest = [weight for weight in self.grid if weight != self.best_weight]
+        if not rest:
+            return None
+        return max(rest, key=lambda weight: (self.curve[weight], weight))
+
+    @property
+    def winning_scheme(self) -> str:
+        """D8's third decision, with a tie going to the scheme that fitted nothing.
+
+        The weighted scheme spends a degree of freedom on the same 600 questions it is
+        then scored on; RRF spends none. Matching it is therefore not beating it, and
+        only a strict win takes the decision.
+        """
+        return WEIGHTED if self.best_weighted_score > self.rrf_score else RRF
+
+    @property
+    def scheme_margin(self) -> float:
+        """How far the winning scheme's dev figure is from the other one's."""
+        return abs(self.best_weighted_score - self.rrf_score)
+
+    @property
+    def weights(self) -> dict[str, float] | None:
+        """The fused weights the winning scheme implies, keyed by component name."""
+        if self.winning_scheme != WEIGHTED:
+            return None
+        dense_name, second_name = self.components
+        return {dense_name: self.best_weight, second_name: 1.0 - self.best_weight}
+
+
 @dataclass(frozen=True)
 class SelectionReport:
     """The frozen configuration of this phase, and the dev evidence that chose it.
@@ -275,6 +403,13 @@ class SelectionReport:
     `evaluated_on` is a class constant. It is written into the artifact so a reader
     does not have to trust the filename, and it is checked on load before anything
     else - no digest can make a selection fitted on test acceptable.
+
+    `fusion` and `control` carry the two fitted curves whole. System B's is what HU-4
+    asks to be recorded - the grid, the selected value and the dev curve around it,
+    since a flat optimum and a sharp one say different things about what will survive
+    the test split - and the control's is kept beside it rather than inside the ledger,
+    because the control's fitted weight is a measurement of this phase and not one of
+    System B's decisions.
     """
 
     selected_k: int
@@ -289,6 +424,8 @@ class SelectionReport:
     seed: int
     code_version: str
     frozen_at: str = field(default_factory=_now)
+    fusion: FusionFit | None = None
+    control: FusionFit | None = None
 
     evaluated_on: ClassVar[str] = DEV_SPLIT
 
@@ -334,6 +471,28 @@ class SelectionReport:
 
         if self.tie_break is not None and not self.tie_break.strip():
             raise SelectionError("a tie-break is either a stated criterion or absent, not empty")
+
+        _check_decision_order([decision.name for decision in self.decisions])
+
+        for label, fit, expected in (
+            ("fusion", self.fusion, SYSTEM_B_SIGNAL),
+            ("control", self.control, CONTROL_SIGNAL),
+        ):
+            if fit is not None and fit.second_signal != expected:
+                raise SelectionError(
+                    f"the {label!r} field carries the fit of dense+{fit.second_signal}, and this "
+                    f"phase files dense+{expected} there; a fit under the wrong field would "
+                    "report one system's curve as the other's"
+                )
+
+        fusion_decided = {name for name in DECISION_ORDER[2:]} & {
+            decision.name for decision in self.decisions
+        }
+        if fusion_decided and self.fusion is None:
+            raise SelectionError(
+                f"the ledger records {sorted(fusion_decided)} but the report carries no fusion "
+                "fit; a decision whose evidence is absent is a claim, not a measurement"
+            )
 
         try:
             datetime.fromisoformat(self.frozen_at)
@@ -434,6 +593,34 @@ def _decision_from_payload(payload: Mapping[str, Any]) -> Decision:
     )
 
 
+def _fusion_payload(fit: FusionFit) -> dict[str, Any]:
+    """One fitted curve as JSON. The weights key the curve, so they travel as strings."""
+    return {
+        "components": list(fit.components),
+        "metric": fit.metric,
+        "budget": fit.budget,
+        "n_questions": fit.n_questions,
+        "grid": [float(weight) for weight in fit.grid],
+        "curve": {repr(float(weight)): value for weight, value in fit.curve.items()},
+        "rrf_score": fit.rrf_score,
+    }
+
+
+def _fusion_from_payload(payload: Mapping[str, Any] | None) -> FusionFit | None:
+    if payload is None:
+        return None
+    dense_name, second_name = (str(name) for name in payload["components"])
+    return FusionFit(
+        components=(dense_name, second_name),
+        metric=str(payload["metric"]),
+        budget=int(payload["budget"]),
+        n_questions=int(payload["n_questions"]),
+        grid=tuple(float(weight) for weight in payload["grid"]),
+        curve={float(weight): float(value) for weight, value in dict(payload["curve"]).items()},
+        rrf_score=float(payload["rrf_score"]),
+    )
+
+
 def _payload_of(report: SelectionReport) -> dict[str, Any]:
     return {
         "evaluated_on": SelectionReport.evaluated_on,
@@ -449,6 +636,8 @@ def _payload_of(report: SelectionReport) -> dict[str, Any]:
         "seed": report.seed,
         "code_version": report.code_version,
         "frozen_at": report.frozen_at,
+        "fusion": None if report.fusion is None else _fusion_payload(report.fusion),
+        "control": None if report.control is None else _fusion_payload(report.control),
     }
 
 
@@ -539,6 +728,8 @@ def load_selection(
         seed=int(payload["seed"]),
         code_version=str(payload["code_version"]),
         frozen_at=str(payload["frozen_at"]),
+        fusion=_fusion_from_payload(payload.get("fusion")),
+        control=_fusion_from_payload(payload.get("control")),
     )
 
     if known_dictionary_keys is not None:
@@ -1046,82 +1237,6 @@ def choose_space(
 # --- Fitting the fusion on dev ------------------------------------------------
 
 
-@dataclass(frozen=True)
-class FusionFit:
-    """One hybrid's fusion as dev decided it: the declared grid, the curve, the reference.
-
-    `curve` is the weighted scheme's dev figure at every point of `grid`, keyed by the
-    weight on the **dense** component - the `w` of decision D6's
-    `w * dense + (1 - w) * other`. The endpoint `w = 1.0` is in the grid on purpose, so
-    "the second signal contributed nothing" is read off the curve rather than inferred
-    from its absence. `rrf_score` is the same figure for the parameter-free scheme,
-    measured through the same harness call on the same questions.
-
-    Both figures survive whatever the outcome. A weighted scheme that does not beat RRF
-    has bought a degree of freedom it did not need, and HU-4 asks for that to be
-    reported as the finding it is - which it cannot be if the losing number is dropped.
-
-    The selected weight is derived from the curve rather than stored beside it: a field
-    could disagree with the measurements it claims to summarise, and a property cannot.
-    """
-
-    components: tuple[str, str]
-    metric: str
-    budget: int
-    n_questions: int
-    grid: tuple[float, ...]
-    curve: dict[float, float]
-    rrf_score: float
-
-    def __post_init__(self) -> None:
-        if not self.grid:
-            raise SelectionError("a fusion weight is fitted over a grid, and this one has no point")
-        if len(set(self.grid)) != len(self.grid):
-            raise SelectionError(
-                f"the grid repeats a point: {sorted(self.grid)}; a curve over it would claim "
-                "more measurements than were taken"
-            )
-        if set(self.curve) != set(self.grid):
-            raise SelectionError(
-                "the curve must cover exactly the grid it was fitted over: the curve holds "
-                f"{sorted(self.curve)} and the grid {sorted(self.grid)}"
-            )
-
-    @property
-    def best_weight(self) -> float:
-        """The grid point with the best dev figure, ties broken toward the dense side.
-
-        Neither D6 nor D8 says which of two equal weights to take, and the two
-        directions are not equivalent. A tie broken toward the second signal would let
-        a flat curve - the case where fusing changed nothing at all - come back as
-        evidence that the second signal contributed something. Ties therefore go to the
-        larger weight on dense, the system this phase has to beat, so an undecided curve
-        can never be read as a win for the system under test. The same rule fits the
-        HU-5 control, which is what decision D9 requires of it.
-        """
-        return max(self.grid, key=lambda weight: (self.curve[weight], weight))
-
-    @property
-    def best_weighted_score(self) -> float:
-        """What the weighted scheme reaches on dev at the weight it selected."""
-        return self.curve[self.best_weight]
-
-    @property
-    def winning_scheme(self) -> str:
-        """D8's third decision, with a tie going to the scheme that fitted nothing.
-
-        The weighted scheme spends a degree of freedom on the same 600 questions it is
-        then scored on; RRF spends none. Matching it is therefore not beating it, and
-        only a strict win takes the decision.
-        """
-        return WEIGHTED if self.best_weighted_score > self.rrf_score else RRF
-
-    @property
-    def scheme_margin(self) -> float:
-        """How far the winning scheme's dev figure is from the other one's."""
-        return abs(self.best_weighted_score - self.rrf_score)
-
-
 def _fusion_config(base_config: Mapping[str, Any], hybrid: FusedRetriever) -> dict[str, Any]:
     """The shared provenance plus what this particular reading fused, and how."""
     fused = dict(base_config)
@@ -1203,3 +1318,192 @@ def fit_fusion_weight(
         curve=curve,
         rrf_score=rrf_score,
     )
+
+
+# --- The ledger, and the freeze -----------------------------------------------
+
+
+def _weight_label(weight: float) -> str:
+    """How a grid point is named in the ledger. One decimal is exact for this grid."""
+    return f"w={weight:.1f}"
+
+
+def choose_damping(
+    undamped: SweepCell,
+    damped: SweepCell,
+    *,
+    metric: str = config.SELECTION_METRIC,
+    budget: int = config.SELECTION_BUDGET,
+) -> Decision:
+    """D8's second decision: whether the declared rarity weighting earns its place.
+
+    The two readings have to be the same arm of the same space, measured with the
+    weighting and without it. Anything else and the decision would be taken between
+    two cells that differ in more than the one thing being decided, which is the
+    failure a two-alternative comparison exists to avoid.
+
+    A tie keeps `none`. The damping is a declared variant that has to show it helps,
+    and matching the undamped system is not showing it - the same direction of
+    conservatism that hands a tied fusion to the scheme with nothing to fit.
+    """
+    if undamped.damping != UNDAMPED:
+        raise SelectionError(
+            f"the undamped reading records damping {undamped.damping!r}; this decision is "
+            f"taken against {UNDAMPED!r}"
+        )
+    if damped.damping == UNDAMPED:
+        raise SelectionError("both readings are undamped, so there is no variant to decide on")
+    if damped.damping not in config.DAMPING_MODES:
+        raise SelectionError(
+            f"unknown damping mode {damped.damping!r}; expected one of "
+            f"{sorted(config.DAMPING_MODES)}"
+        )
+
+    differing = [
+        key
+        for key in ("k", "dictionary_key", "view", "query_operator")
+        if getattr(undamped, key) != getattr(damped, key)
+    ]
+    if differing:
+        raise SelectionError(
+            "the damping decision compares one arm of one space with the weighting and "
+            f"without it, and these two readings differ in {differing} as well"
+        )
+    if undamped.n_questions != damped.n_questions:
+        raise SelectionError(
+            f"the two readings cover {undamped.n_questions} and {damped.n_questions} "
+            "questions; a margin between them would not mean what it says"
+        )
+
+    without = undamped.primary(metric, budget)
+    with_it = damped.primary(metric, budget)
+    chosen, runner_up = (
+        (damped.damping, undamped.damping)
+        if with_it > without
+        else (undamped.damping, damped.damping)
+    )
+    return Decision(
+        name=DECISION_ORDER[1],
+        chosen=chosen,
+        alternatives=[undamped.damping, damped.damping],
+        runner_up=runner_up,
+        margin=abs(with_it - without),
+    )
+
+
+def fusion_decisions(fit: FusionFit) -> list[Decision]:
+    """D8's third decision, and its fourth if and only if the third went to the weights.
+
+    D8 describes four ledger entries, which is the branch where the weighted scheme
+    wins. When RRF wins there are three, and the absence is itself the record: no
+    weight was selected, so no degree of freedom was spent on one. The eleven points
+    were measured either way and the whole curve stays in the report, because what was
+    tried is part of how a dev figure should be read even when nothing was chosen from
+    it.
+    """
+    runner_up_scheme = RRF if fit.winning_scheme == WEIGHTED else WEIGHTED
+    scheme = Decision(
+        name=DECISION_ORDER[2],
+        chosen=fit.winning_scheme,
+        alternatives=list(config.FUSION_SCHEMES),
+        runner_up=runner_up_scheme,
+        margin=fit.scheme_margin,
+    )
+    if fit.winning_scheme != WEIGHTED:
+        return [scheme]
+
+    runner_up = fit.runner_up_weight
+    return [
+        scheme,
+        Decision(
+            name=DECISION_ORDER[3],
+            chosen=_weight_label(fit.best_weight),
+            alternatives=[_weight_label(weight) for weight in fit.grid],
+            runner_up=None if runner_up is None else _weight_label(runner_up),
+            margin=0.0 if runner_up is None else fit.best_weighted_score - fit.curve[runner_up],
+        ),
+    ]
+
+
+def build_ledger(*, space: SpaceChoice, damping: Decision, fusion: FusionFit) -> list[Decision]:
+    """Every choice made against dev, in the order D8 declared before any was taken."""
+    if damping.name != DECISION_ORDER[1]:
+        raise SelectionError(
+            f"the second decision of D8 is {DECISION_ORDER[1]!r}, not {damping.name!r}"
+        )
+    ledger = [space.as_decision(DECISION_ORDER[0]), damping, *fusion_decisions(fusion)]
+    _check_decision_order([decision.name for decision in ledger])
+    return ledger
+
+
+def freeze_selection(
+    table: Mapping[int, PerKEntry],
+    *,
+    space: SpaceChoice,
+    damping: Decision,
+    fusion: FusionFit,
+    base_config: Mapping[str, Any],
+    control: FusionFit | None = None,
+    metric: str = config.SELECTION_METRIC,
+    budget: int = config.SELECTION_BUDGET,
+) -> SelectionReport:
+    """Close the configuration: the ledger, the two curves, and the moment it closed.
+
+    `frozen_at` is stamped here and nowhere else, and `save_selection` refuses to write
+    over an artifact that exists, so a configuration freezes once and a second freeze
+    has to be a deliberate, visible act.
+
+    Everything the report states is derived from what this function is handed rather
+    than passed again beside it - the seed and the code version come out of the
+    configuration, the six keys that describe System B out of the choices - so no field
+    of the artifact can disagree with the run it describes.
+    """
+    _check_config(base_config)
+    ledger = build_ledger(space=space, damping=damping, fusion=fusion)
+
+    frozen = dict(base_config)
+    frozen.update(
+        {
+            "dictionary_key": space.dictionary_key,
+            "k": space.k,
+            "view": space.best_arm["view"],
+            "query_operator": space.best_arm["query_operator"],
+            "damping": damping.chosen,
+            "fusion_scheme": fusion.winning_scheme,
+            "fusion_weights": fusion.weights,
+        }
+    )
+
+    return SelectionReport(
+        selected_k=space.k,
+        selected_dictionary_key=space.dictionary_key,
+        selection_metric=metric,
+        selection_budget=budget,
+        per_k=dict(table),
+        decisions=ledger,
+        n_dev_decisions=len(ledger),
+        tie_break=space.tie_break,
+        config=frozen,
+        seed=int(base_config["seed"]),
+        code_version=str(base_config["code_version"]),
+        fusion=fusion,
+        control=control,
+    )
+
+
+def check_freeze_precedes(report: SelectionReport, result: RunResult) -> None:
+    """Refuse a result that claims a freeze it was measured before.
+
+    HU-7 asks for the freeze to be observable rather than intended, and the observable
+    form of "the configuration closed before the test split was read" is that every
+    result of this phase was created after the stamp. One created before it was
+    measured under something else, whatever its configuration claims.
+    """
+    frozen = datetime.fromisoformat(report.frozen_at)
+    created = datetime.fromisoformat(result.created_at)
+    if created < frozen:
+        raise SelectionError(
+            f"the {result.system}/{result.split} result was created at {result.created_at}, "
+            f"before this configuration froze at {report.frozen_at}; it cannot have been "
+            "measured under the frozen selection"
+        )
