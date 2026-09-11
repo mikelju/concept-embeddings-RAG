@@ -8,6 +8,7 @@ import json
 import shutil
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from concept_embeddings_rag.cli import build_parser, cmd_build, cmd_embed, cmd_evaluate
@@ -304,6 +305,51 @@ def test_induce_sweeps_every_k_into_its_own_artifacts(tmp_path):
     # Two dictionaries per K: the induced one and the deduplicated one.
     assert len(list(concepts_dir.glob("dictionary-*.npz"))) == 4
     assert len(list(concepts_dir.glob("matrix-*-raw.npz"))) == 4
+
+
+def test_induce_writes_both_views_of_every_matrix_to_disk(tmp_path):
+    """Phase 3, decision D3: the sweep loads the artifact for the view it measures.
+
+    `row_normalized` is a pure function of `raw`, but deriving it at load time
+    would leave half of Phase 3's cells reading a matrix no hash ever verified.
+    It is written like every other artifact of this pipeline, and read back.
+    """
+    from concept_embeddings_rag.concepts.coding import load_matrix
+
+    data_dir, cache_dir, units = an_induction_workspace(tmp_path)
+
+    keys = induce(tmp_path, data_dir, cache_dir)
+
+    concepts_dir = tmp_path / "concepts"
+    assert len(list(concepts_dir.glob("matrix-*-row_normalized.npz"))) == 4
+    for key in keys:
+        matrix = load_matrix(
+            key, concepts_dir, view="row_normalized", expected_unit_ids=[u.unit_id for u in units]
+        )
+        assert matrix.view == "row_normalized"
+        sums = np.asarray(matrix.X.sum(axis=1)).ravel()
+        assert np.allclose(sums[sums > 0.0], 1.0, atol=1e-5)
+
+
+def test_a_missing_derived_view_is_written_without_recoding_the_corpus(tmp_path, monkeypatch):
+    """The state the real `data/concepts/` was in: raw on disk, the derived view absent."""
+    from concept_embeddings_rag import cli as cli_module
+
+    data_dir, cache_dir, _ = an_induction_workspace(tmp_path)
+    induce(tmp_path, data_dir, cache_dir)
+    concepts_dir = tmp_path / "concepts"
+    for path in concepts_dir.glob("matrix-*-row_normalized.*"):
+        path.unlink()
+
+    def refuse(*args, **kwargs):
+        raise AssertionError("the missing view was rebuilt by coding the corpus again")
+
+    for name in ("calibrate_coding_alpha", "code_corpus", "recode_after_merge"):
+        monkeypatch.setattr(cli_module, name, refuse)
+
+    induce(tmp_path, data_dir, cache_dir)
+
+    assert len(list(concepts_dir.glob("matrix-*-row_normalized.npz"))) == 4
 
 
 def test_induce_writes_a_merge_log_and_diagnostics_for_every_k(tmp_path):

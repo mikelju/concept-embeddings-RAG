@@ -28,6 +28,7 @@ from concept_embeddings_rag.concepts.coding import (
     calibrate_coding_alpha,
     code_corpus,
     load_matrix,
+    row_normalized,
     save_matrix,
 )
 from concept_embeddings_rag.concepts.dedup import (
@@ -366,22 +367,43 @@ def cmd_induce(
     print(f"[INFO] inducing concept spaces over {len(unit_ids)} units, k in {tuple(k_sweep)}")
     concepts_dir.mkdir(parents=True, exist_ok=True)
 
+    def derived_views_of(matrix: ConceptMatrix) -> None:
+        """Write the views that are functions of `raw`, so a reader can verify them.
+
+        `row_normalized` costs one pass over `X` to derive, which is why it was
+        tempting to leave it to the reader. It is written instead because Phase 3
+        measures on both views (decision D3) and this project verifies artifacts
+        on load rather than trusting them: a view derived in memory would be the
+        one matrix in the pipeline that no digest covers.
+        """
+        try:
+            load_matrix(
+                matrix.dictionary_key,
+                concepts_dir,
+                view="row_normalized",
+                expected_unit_ids=unit_ids,
+            )
+            return
+        except ConceptArtifactError:
+            pass
+        save_matrix(row_normalized(matrix), concepts_dir)
+
     def matrix_for(dictionary: ConceptDictionary) -> ConceptMatrix:
         """The raw `X` of a dictionary, coded only if it is not already on disk."""
         try:
-            return load_matrix(dictionary.key, concepts_dir, expected_unit_ids=unit_ids)
+            matrix = load_matrix(dictionary.key, concepts_dir, expected_unit_ids=unit_ids)
         except ConceptArtifactError:
-            pass
-        alpha, achieved = calibrate_coding_alpha(
-            dictionary, vectors, target_band=target_band, seed=seed
-        )
-        print(f"[INFO]   coding alpha {alpha:.5f} -> {achieved:.2f} active concepts per unit")
-        matrix = (
-            recode_after_merge(dictionary, vectors, unit_ids, alpha=alpha)
-            if dictionary.merge_threshold is not None
-            else code_corpus(dictionary, vectors, unit_ids, alpha=alpha)
-        )
-        save_matrix(matrix, concepts_dir)
+            alpha, achieved = calibrate_coding_alpha(
+                dictionary, vectors, target_band=target_band, seed=seed
+            )
+            print(f"[INFO]   coding alpha {alpha:.5f} -> {achieved:.2f} active concepts per unit")
+            matrix = (
+                recode_after_merge(dictionary, vectors, unit_ids, alpha=alpha)
+                if dictionary.merge_threshold is not None
+                else code_corpus(dictionary, vectors, unit_ids, alpha=alpha)
+            )
+            save_matrix(matrix, concepts_dir)
+        derived_views_of(matrix)
         return matrix
 
     produced: list[str] = []
