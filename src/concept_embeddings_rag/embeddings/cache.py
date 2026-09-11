@@ -17,7 +17,7 @@ from pathlib import Path
 
 import numpy as np
 
-from concept_embeddings_rag.corpus.pool import IndexingUnit
+from concept_embeddings_rag.corpus.pool import IndexingUnit, Question
 from concept_embeddings_rag.embeddings.backend import EmbeddingBackend
 
 
@@ -138,3 +138,197 @@ def embed_units(
         },
     )
     return vectors, unit_ids
+
+
+# --- Question embeddings (Phase 3) ------------------------------------------
+# The dev sweep makes dozens of passes over the same 600 questions, and a dense
+# encode costs ~30.7 ms here: re-encoding them every pass would cost hours and
+# change no number. So the questions are embedded once, exactly like the corpus,
+# and every retriever of the sweep is handed a backend that only reads that cache
+# (decision D1 of the phase plan).
+
+
+class QueryCacheMiss(KeyError):
+    """A query was asked for that the question cache does not hold.
+
+    Deliberately fatal. Falling back to the model on a miss would make the sweep
+    slow instead of wrong, which is the same thing as making the bug invisible.
+    """
+
+
+def question_set_hash(qids: Sequence[str]) -> str:
+    """Identify a question set by its ids, independent of ordering."""
+    joined = "\n".join(sorted(qids))
+    return hashlib.sha1(joined.encode("utf-8"), usedforsecurity=False).hexdigest()[:16]
+
+
+def question_cache_key(
+    model: str,
+    revision: str,
+    question_set: str,
+    split: str,
+    normalized: bool,
+) -> str:
+    """Key a question artifact by everything that decides what is in it.
+
+    The split is part of the key and not merely of the metadata: dev and test must
+    never be able to land in the same file, whatever their ids happen to hash to.
+    """
+    payload = f"question|{model}|{revision}|{question_set}|{split}|{int(normalized)}"
+    return hashlib.sha1(payload.encode("utf-8"), usedforsecurity=False).hexdigest()[:16]
+
+
+def _single_split(questions: Sequence[Question]) -> str:
+    splits = sorted({question.split for question in questions})
+    if len(splits) != 1:
+        raise ValueError(f"questions span more than one split: {splits}")
+    return splits[0]
+
+
+def _question_artifact_key(questions: Sequence[Question], backend: EmbeddingBackend) -> str:
+    return question_cache_key(
+        backend.name,
+        backend.revision,
+        question_set_hash([question.qid for question in questions]),
+        _single_split(questions),
+        normalized=bool(getattr(backend, "normalize", True)),
+    )
+
+
+def embed_questions(
+    questions: Sequence[Question],
+    backend: EmbeddingBackend,
+    cache: EmbeddingCache,
+) -> tuple[np.ndarray, list[str]]:
+    """Return embeddings for `questions`, computing them only if they are not cached."""
+    if not questions:
+        raise ValueError("no questions to embed")
+
+    split = _single_split(questions)
+    qids = [question.qid for question in questions]
+    key = _question_artifact_key(questions, backend)
+
+    cached = cache.load(key, expected_unit_ids=qids)
+    if cached is not None:
+        print(f"[INFO] using cached embeddings for {len(qids)} {split} questions")
+        return cached
+
+    print(f"[INFO] embedding {len(qids)} {split} questions with {backend.name}")
+    vectors = backend.encode([question.question for question in questions])
+    cache.save(
+        key,
+        vectors,
+        qids,
+        metadata={
+            "model": backend.name,
+            "revision": backend.revision,
+            "resolved_revision": _resolved_revision(backend),
+            "dim": int(vectors.shape[1]),
+            "normalized": bool(getattr(backend, "normalize", True)),
+            "split": split,
+        },
+    )
+    return vectors, qids
+
+
+class CachedQueryBackend:
+    """An `EmbeddingBackend` that answers from a table instead of from a model.
+
+    It is a backend and not a retriever on purpose: `DenseRetriever` and every
+    other system under test are handed this and need no change at all, so what the
+    sweep measures is still the retriever the final report describes.
+    """
+
+    def __init__(
+        self,
+        texts: Sequence[str],
+        vectors: np.ndarray,
+        name: str,
+        revision: str,
+    ) -> None:
+        if vectors.shape[0] != len(texts):
+            raise CacheAlignmentError(f"{vectors.shape[0]} vectors for {len(texts)} queries")
+        if vectors.ndim != 2:
+            raise CacheAlignmentError(f"expected a 2-D vector block, got shape {vectors.shape}")
+
+        table: dict[str, np.ndarray] = {}
+        for text, vector in zip(texts, vectors, strict=True):
+            previous = table.get(text)
+            if previous is not None and not np.array_equal(previous, vector):
+                raise CacheAlignmentError(
+                    "two different vectors are cached for the same query text; refusing to pick one"
+                )
+            table[text] = vector
+
+        self._table = table
+        self.name = name
+        self.revision = revision
+        self.dim = int(vectors.shape[1])
+
+    def __len__(self) -> int:
+        return len(self._table)
+
+    def encode(self, texts: Sequence[str]) -> np.ndarray:
+        rows = []
+        for text in texts:
+            vector = self._table.get(text)
+            if vector is None:
+                raise QueryCacheMiss(
+                    f"query not in the cache and this backend never calls the model: {text!r}"
+                )
+            rows.append(vector)
+        if not rows:
+            return np.empty((0, self.dim), dtype=np.float32)
+        return np.stack(rows).astype(np.float32)
+
+
+def build_query_backend(
+    questions: Sequence[Question],
+    backend: EmbeddingBackend,
+    cache: EmbeddingCache,
+) -> CachedQueryBackend:
+    """Embed `questions` once and return a backend that serves them by lookup."""
+    vectors, qids = embed_questions(questions, backend, cache)
+    key = _question_artifact_key(questions, backend)
+    _verify_question_sidecar(cache, key, backend, vectors, qids, _single_split(questions))
+
+    by_qid = {question.qid: question.question for question in questions}
+    return CachedQueryBackend(
+        texts=[by_qid[qid] for qid in qids],
+        vectors=vectors,
+        name=backend.name,
+        revision=backend.revision,
+    )
+
+
+def _verify_question_sidecar(
+    cache: EmbeddingCache,
+    key: str,
+    backend: EmbeddingBackend,
+    vectors: np.ndarray,
+    qids: Sequence[str],
+    split: str,
+) -> None:
+    """Compare the artifact against what it claims, rather than merely recording it.
+
+    A sidecar is only worth writing if something reads it back and disagrees when
+    it must - that was the whole content of the Phase 1 audit.
+    """
+    path = cache.sidecar_for(key)
+    if not path.exists():
+        raise CacheAlignmentError(f"question cache {key} has no sidecar; refusing to use it")
+
+    recorded = json.loads(path.read_text(encoding="utf-8"))
+    expected = {
+        "model": backend.name,
+        "revision": backend.revision,
+        "dim": int(vectors.shape[1]),
+        "n_units": len(qids),
+        "split": split,
+    }
+    for field, value in expected.items():
+        if recorded.get(field) != value:
+            raise CacheAlignmentError(
+                f"question cache {key}: sidecar says {field}={recorded.get(field)!r}, "
+                f"the artifact says {value!r}"
+            )
