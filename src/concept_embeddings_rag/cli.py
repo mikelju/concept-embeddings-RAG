@@ -1,4 +1,4 @@
-"""Command line interface: the four stages of the Phase 1 pipeline.
+"""Command line interface: the stages of the pipeline, in the order they run.
 
     fetch     download and freeze the benchmark
     build     select the subset, split it, and build the unified pool
@@ -6,6 +6,7 @@
     evaluate  measure dense and BM25 at every context budget
     induce    build one concept space per dictionary size (Phase 2)
     label     name the concepts of one space, for the report only (Phase 2)
+    select    choose the space on dev and freeze the configuration (Phase 3)
 
 Each stage is idempotent and refuses to run if its input is missing, saying which
 stage to run first rather than failing somewhere deep inside numpy.
@@ -78,15 +79,41 @@ from concept_embeddings_rag.embeddings.backend import (
 )
 from concept_embeddings_rag.embeddings.cache import (
     EmbeddingCache,
+    build_query_backend,
     cache_key,
+    embed_questions,
     embed_units,
+    resolved_revision,
     unit_set_hash,
 )
 from concept_embeddings_rag.evaluation.budget import TokenCounter
 from concept_embeddings_rag.evaluation.harness import evaluate_retriever
+from concept_embeddings_rag.evaluation.selection import (
+    DEV_SPLIT,
+    SelectionError,
+    SelectionReport,
+    SweepSpace,
+    check_freeze_precedes,
+    choose_damping,
+    choose_space,
+    fit_fusion_weight,
+    freeze_selection,
+    load_selection,
+    run_dev_sweep,
+    save_selection,
+    sweep_space,
+)
 from concept_embeddings_rag.retrieval.base import Retriever
 from concept_embeddings_rag.retrieval.bm25 import BM25Retriever
+from concept_embeddings_rag.retrieval.conceptual import (
+    RARITY,
+    UNDAMPED,
+    ConceptualRetriever,
+    concept_support,
+    rarity_weights,
+)
 from concept_embeddings_rag.retrieval.dense import DenseRetriever
+from concept_embeddings_rag.retrieval.fusion import FusedRetriever
 
 RAW_NAME = "hotpot_raw.json"
 MANIFEST_NAME = "manifest.json"
@@ -221,9 +248,24 @@ def cmd_evaluate(
     data_dir: Path = config.DATA_DIR,
     cache_dir: Path = config.CACHE_DIR,
     results_dir: Path = config.RESULTS_DIR,
+    concepts_dir: Path = config.CONCEPTS_DIR,
+    selection_dir: Path = config.SELECTION_DIR,
+    question_cache_dir: Path = config.QUESTION_CACHE_DIR,
     top_k: int = 100,
+    splits: Sequence[str] = ("dev", "test"),
+    backend: EmbeddingBackend | None = None,
 ) -> list[Path]:
-    """Measure dense and BM25 on both splits, at every budget."""
+    """Measure every system of the experiment on the requested splits, at every budget.
+
+    The two Phase 1 baselines always. The three Phase 3 systems - conceptual-only,
+    System B and the dense+BM25 control - whenever a frozen selection exists, built
+    entirely out of what that artifact names.
+
+    **The test split is not read without a freeze** (decision D10). Not because the
+    baselines need one, but because after this phase nothing may touch test on a
+    configuration that was still open: HU-7 spends the dev split and reads test once,
+    and that is enforced here rather than remembered.
+    """
     data_dir = Path(data_dir)
     pool_path = data_dir / POOL_NAME
     tokens_path = data_dir / TOKENS_NAME
@@ -234,39 +276,54 @@ def cmd_evaluate(
 
     units, questions = load_pool(pool_path)
     _check_pool_against_manifest(units, data_dir / MANIFEST_NAME)
+    unit_ids_of_pool = [u.unit_id for u in units]
+    pool_hash = unit_set_hash(unit_ids_of_pool)
     token_counts = json.loads(tokens_path.read_text(encoding="utf-8"))
 
-    backend = SentenceTransformerBackend()
+    backend = backend if backend is not None else SentenceTransformerBackend()
     cache = EmbeddingCache(Path(cache_dir))
-    cached = cache.load(
-        _cache_key_for(backend, units), expected_unit_ids=[u.unit_id for u in units]
-    )
+    cached = cache.load(_cache_key_for(backend, units), expected_unit_ids=unit_ids_of_pool)
     if cached is None:
         _die("embeddings are not cached for this pool: run 'embed' first")
     vectors, unit_ids = cached
 
-    retrievers: list[Retriever] = [
-        DenseRetriever(vectors=vectors, unit_ids=unit_ids, backend=backend),
-        BM25Retriever(units),
-    ]
+    report = _frozen_selection(Path(selection_dir), Path(concepts_dir), pool_hash, splits)
     run_config = {
         "model": backend.name,
         "revision": backend.revision,
-        "resolved_revision": backend.resolved_revision(),
-        "unit_set_hash": unit_set_hash([u.unit_id for u in units]),
+        "resolved_revision": resolved_revision(backend),
+        "unit_set_hash": pool_hash,
         "seed": config.DEFAULT_SEED,
         "tokenizer": config.TOKENIZER_ID,
         "code_version": __version__,
         "top_k": top_k,
         "n_units": len(units),
     }
+    question_cache = EmbeddingCache(Path(question_cache_dir))
 
     written: list[Path] = []
-    for retriever in retrievers:
-        for split in ("dev", "test"):
-            subset = [q for q in questions if q.split == split]
-            if not subset:
-                continue
+    for split in splits:
+        subset = [q for q in questions if q.split == split]
+        if not subset:
+            continue
+
+        # One query backend per split, serving the vectors `select` cached: the
+        # hybrids ask their dense component once per weight of the fitted scheme,
+        # and re-encoding the same questions for each of those would cost minutes
+        # and change nothing (decision D1).
+        query_backend = build_query_backend(subset, backend, question_cache)
+        dense = DenseRetriever(vectors=vectors, unit_ids=unit_ids, backend=query_backend)
+        bm25 = BM25Retriever(units)
+
+        systems: list[tuple[Retriever, dict]] = [(dense, {}), (bm25, {})]
+        if report is not None:
+            systems.extend(
+                _phase_3_systems(
+                    report, Path(concepts_dir), unit_ids_of_pool, query_backend, dense, bm25
+                )
+            )
+
+        for retriever, extra in systems:
             print(f"[INFO] evaluating {retriever.name} on {split} ({len(subset)} questions)")
             result = evaluate_retriever(
                 retriever,
@@ -275,13 +332,111 @@ def cmd_evaluate(
                 budgets=config.CONTEXT_BUDGETS,
                 ks=config.RECALL_AT_K,
                 top_k=top_k,
-                config=run_config,
+                config={**run_config, **extra},
                 split=split,
             )
+            if extra and report is not None:
+                # The freeze has to precede the measurement, not merely exist.
+                check_freeze_precedes(report, result)
             written.append(result.save(Path(results_dir)))
 
     print(f"[OK] wrote {len(written)} result files to {results_dir}")
     return written
+
+
+def _frozen_selection(
+    selection_dir: Path, concepts_dir: Path, pool_hash: str, splits: Sequence[str]
+) -> SelectionReport | None:
+    """The frozen configuration, or nothing - and nothing is fatal if test is asked for."""
+    known = [path.stem.split("-", maxsplit=1)[1] for path in concepts_dir.glob("dictionary-*.npz")]
+    try:
+        report = load_selection(
+            selection_dir, expected_unit_set_hash=pool_hash, known_dictionary_keys=known
+        )
+    except SelectionError as error:
+        if DEV_SPLIT not in splits or len(splits) > 1:
+            _die(
+                f"the test split may not be read on a configuration that is still open "
+                f"({error}): run 'select' to freeze one first"
+            )
+        print(f"[WARN] no frozen selection in {selection_dir}: measuring the baselines only")
+        return None
+    print(f"[INFO] using the selection frozen at {report.frozen_at} (k={report.selected_k})")
+    return report
+
+
+def _phase_3_systems(
+    report: SelectionReport,
+    concepts_dir: Path,
+    unit_ids: Sequence[str],
+    query_backend: EmbeddingBackend,
+    dense: Retriever,
+    bm25: Retriever,
+) -> list[tuple[Retriever, dict]]:
+    """The three systems this phase measures, built out of the frozen artifact alone.
+
+    Every one of them carries the six keys the spec adds to a Phase 3 result plus the
+    freeze they were built under, so a result file states on its own which of the four
+    spaces produced it and under which decisions.
+
+    System B and the control come out of the same constructor with the same scheme and
+    the same weights-by-name (decision D9). Nothing here re-fits anything: the weights
+    were fitted on dev by `select` and are read back from what it froze.
+    """
+    frozen = report.config
+    key = str(frozen["dictionary_key"])
+    view = str(frozen["view"])
+    try:
+        dictionary = load_dictionary(
+            key, concepts_dir, expected_unit_set_hash=report.config.get("unit_set_hash")
+        )
+        matrix = load_matrix(key, concepts_dir, view=view, expected_unit_ids=unit_ids)
+    except ConceptArtifactError as error:
+        _die(f"the frozen selection names a space that is not on disk ({error}): run 'induce'")
+
+    damping = str(frozen["damping"])
+    weights = None
+    if damping != UNDAMPED:
+        raw = load_matrix(key, concepts_dir, view="raw", expected_unit_ids=unit_ids)
+        weights = rarity_weights(concept_support(raw.X), raw.X.shape[0])
+
+    conceptual = ConceptualRetriever(
+        matrix,
+        dictionary,
+        query_backend,
+        arm=str(frozen["query_operator"]),
+        damping=damping,
+        concept_weights=weights,
+    )
+
+    provenance = {
+        "dictionary_key": key,
+        "k": int(frozen["k"]),
+        "view": view,
+        "query_operator": str(frozen["query_operator"]),
+        "damping": damping,
+        "frozen_at": report.frozen_at,
+    }
+    fitted = [
+        (fit, second)
+        for fit, second in ((report.fusion, conceptual), (report.control, bm25))
+        if fit is not None
+    ]
+    systems: list[tuple[Retriever, dict]] = [(conceptual, {**provenance, "fusion_scheme": None})]
+    for fit, second in fitted:
+        hybrid = FusedRetriever([dense, second], scheme=fit.winning_scheme, weights=fit.weights)
+        systems.append(
+            (
+                hybrid,
+                {
+                    **provenance,
+                    "fusion_scheme": hybrid.scheme,
+                    "fusion_weights": hybrid.weights,
+                    "fitted_on": hybrid.fitted_on,
+                },
+            )
+        )
+    return systems
 
 
 def _diagnostics_for(
@@ -586,6 +741,214 @@ def cmd_label(
     return path
 
 
+def _spaces_for_selection(
+    concepts_dir: Path,
+    unit_ids: Sequence[str],
+    pool_hash: str,
+    *,
+    k_sweep: Sequence[int],
+    seed: int,
+    induction_alpha: float,
+    merge_threshold: float,
+) -> list[SweepSpace]:
+    """The Phase 2 spaces this phase chooses between, loaded and hash-verified.
+
+    Both views of every space are required up front. Loading them lazily would let
+    the sweep die twelve cells in, after the expensive part of the work, on a file
+    that was already missing when the stage started.
+    """
+    spaces: list[SweepSpace] = []
+    for k in k_sweep:
+        key = dictionary_key(
+            k=k,
+            seed=seed,
+            alpha=induction_alpha,
+            unit_set_hash=pool_hash,
+            model=config.EMBEDDING_MODEL,
+            revision=config.EMBEDDING_REVISION,
+            merge_threshold=merge_threshold,
+        )
+        try:
+            dictionary = load_dictionary(key, concepts_dir, expected_unit_set_hash=pool_hash)
+            matrices = {
+                view: load_matrix(key, concepts_dir, view=view, expected_unit_ids=unit_ids)
+                for view in config.CONCEPT_VIEWS
+            }
+        except ConceptArtifactError as error:
+            _die(f"no concept space for k={k} in {concepts_dir} ({error}): run 'induce' first")
+        spaces.append(SweepSpace(k=dictionary.k, dictionary=dictionary, matrices=matrices))
+    return spaces
+
+
+def cmd_select(
+    data_dir: Path = config.DATA_DIR,
+    cache_dir: Path = config.CACHE_DIR,
+    concepts_dir: Path = config.CONCEPTS_DIR,
+    selection_dir: Path = config.SELECTION_DIR,
+    question_cache_dir: Path = config.QUESTION_CACHE_DIR,
+    k_sweep: Sequence[int] = config.CONCEPT_K_SWEEP,
+    seed: int = config.CONCEPT_SEED,
+    induction_alpha: float = config.INDUCTION_ALPHA,
+    merge_threshold: float = config.MERGE_COSINE_THRESHOLD,
+    top_k: int = 100,
+    backend: EmbeddingBackend | None = None,
+) -> Path:
+    """Choose the space on dev, fit the fusion on dev, and freeze the configuration.
+
+    The four decisions of D8 in the order D8 fixed: the space, then the damping on
+    the space that won, then the fusion scheme, then its weight. The HU-5 control is
+    fitted by the same function immediately afterwards, which is what makes it a
+    control rather than a second system.
+
+    Nothing here reads the test split. Its questions are **embedded**, which is a
+    vector and not a measurement: doing it now is what lets `evaluate` read test once
+    later without loading the model, and the guard inside the sweep refuses a
+    test-split question at every door regardless.
+    """
+    data_dir = Path(data_dir)
+    concepts_dir = Path(concepts_dir)
+    pool_path = data_dir / POOL_NAME
+    tokens_path = data_dir / TOKENS_NAME
+    if not pool_path.exists():
+        _die("no pool found: run 'build' first")
+    if not tokens_path.exists():
+        _die("no token counts found: run 'embed' first")
+
+    units, questions = load_pool(pool_path)
+    _check_pool_against_manifest(units, data_dir / MANIFEST_NAME)
+    unit_ids = [unit.unit_id for unit in units]
+    pool_hash = unit_set_hash(unit_ids)
+    token_counts = json.loads(tokens_path.read_text(encoding="utf-8"))
+
+    backend = backend if backend is not None else SentenceTransformerBackend()
+    corpus = EmbeddingCache(Path(cache_dir)).load(
+        _cache_key_for(backend, units), expected_unit_ids=unit_ids
+    )
+    if corpus is None:
+        _die("embeddings are not cached for this pool: run 'embed' first")
+    vectors, cached_unit_ids = corpus
+
+    spaces = _spaces_for_selection(
+        concepts_dir,
+        unit_ids,
+        pool_hash,
+        k_sweep=k_sweep,
+        seed=seed,
+        induction_alpha=induction_alpha,
+        merge_threshold=merge_threshold,
+    )
+
+    dev = [question for question in questions if question.split == DEV_SPLIT]
+    if not dev:
+        _die(f"the pool holds no {DEV_SPLIT} questions: run 'build' first")
+
+    question_cache = EmbeddingCache(Path(question_cache_dir))
+    query_backend = build_query_backend(dev, backend, question_cache)
+    for split in sorted({q.split for q in questions if q.split != DEV_SPLIT}):
+        embed_questions([q for q in questions if q.split == split], backend, question_cache)
+
+    base_config = {
+        "model": backend.name,
+        "revision": backend.revision,
+        "resolved_revision": resolved_revision(backend),
+        "unit_set_hash": pool_hash,
+        "seed": seed,
+        "tokenizer": config.TOKENIZER_ID,
+        "code_version": __version__,
+        "top_k": top_k,
+        "n_units": len(units),
+    }
+
+    print(
+        f"[INFO] sweeping {len(spaces)} spaces x {len(config.QUERY_OPERATORS)} arms x "
+        f"{len(config.CONCEPT_VIEWS)} views over {len(dev)} {DEV_SPLIT} questions"
+    )
+    table = run_dev_sweep(
+        spaces,
+        questions=dev,
+        token_counts=token_counts,
+        backend=query_backend,
+        base_config=base_config,
+    )
+    space = choose_space(table)
+    print(
+        f"[INFO] space: {space.label} at {config.SELECTION_METRIC} {space.primary:.4f} "
+        f"(runner-up {space.runner_up}, margin {space.margin:.4f})"
+    )
+    if space.tie_break is not None:
+        print(
+            f"[INFO] the margin was inside what {table[space.k].n_questions} questions "
+            f"resolve, so structure decided it -> {space.tie_break}"
+        )
+
+    selected = next(candidate for candidate in spaces if candidate.k == space.k)
+    # The support of the raw view: `df_j` of decision D7, and the same sparsity
+    # pattern the structural columns were read from, so the two cannot disagree.
+    raw = selected.matrix_for("raw")
+    weights = rarity_weights(concept_support(raw.X), raw.X.shape[0])
+    damped = sweep_space(
+        selected,
+        questions=dev,
+        token_counts=token_counts,
+        backend=query_backend,
+        base_config=base_config,
+        arms=(space.best_arm["query_operator"],),
+        views=(space.best_arm["view"],),
+        damping=RARITY,
+        concept_weights=weights,
+    )
+    undamped = next(cell for cell in table[space.k].cells if cell.arm == space.best_arm)
+    damping = choose_damping(undamped, damped[0])
+    print(f"[INFO] damping: {damping.chosen} over {damping.runner_up} by {damping.margin:.4f}")
+
+    conceptual = ConceptualRetriever(
+        selected.matrix_for(space.best_arm["view"]),
+        selected.dictionary,
+        query_backend,
+        arm=space.best_arm["query_operator"],
+        damping=damping.chosen,
+        concept_weights=None if damping.chosen == UNDAMPED else weights,
+    )
+    dense = DenseRetriever(vectors=vectors, unit_ids=cached_unit_ids, backend=query_backend)
+
+    print(f"[INFO] fitting the fusion over {len(config.FUSION_WEIGHT_GRID)} weights, twice")
+    fusion = fit_fusion_weight(
+        [dense, conceptual],
+        questions=dev,
+        token_counts=token_counts,
+        base_config=base_config,
+    )
+    control = fit_fusion_weight(
+        [dense, BM25Retriever(units)],
+        questions=dev,
+        token_counts=token_counts,
+        base_config=base_config,
+    )
+    print(
+        f"[INFO] fusion: {fusion.winning_scheme} at w={fusion.best_weight:.1f} "
+        f"({fusion.best_weighted_score:.4f} weighted against {fusion.rrf_score:.4f} rrf)"
+    )
+    print(
+        f"[INFO] control: {control.winning_scheme} at w={control.best_weight:.1f} "
+        f"({control.best_weighted_score:.4f} weighted against {control.rrf_score:.4f} rrf)"
+    )
+
+    report = freeze_selection(
+        table,
+        space=space,
+        damping=damping,
+        fusion=fusion,
+        base_config=base_config,
+        control=control,
+    )
+    path = save_selection(report, selection_dir)
+    print(
+        f"[OK] {report.n_dev_decisions} decisions frozen at {report.frozen_at} "
+        f"for k={report.selected_k} -> {path}"
+    )
+    return path
+
+
 def _check_pool_against_manifest(units: Sequence[IndexingUnit], manifest_path: Path) -> None:
     """Refuse to run on a pool the manifest does not recognise.
 
@@ -629,6 +992,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("evaluate", help="measure dense and BM25 at every context budget")
     subparsers.add_parser("induce", help="build one concept space per dictionary size")
     subparsers.add_parser("label", help="name the concepts of one space, for the report only")
+    subparsers.add_parser("select", help="choose the concept space on dev and freeze it")
     return parser
 
 
@@ -648,6 +1012,8 @@ def main(argv: list[str] | None = None) -> int:
         cmd_induce()
     elif args.command == "label":
         cmd_label()
+    elif args.command == "select":
+        cmd_select()
     return 0
 
 

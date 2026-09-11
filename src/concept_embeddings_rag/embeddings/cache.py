@@ -94,7 +94,7 @@ class EmbeddingCache:
         return vectors, unit_ids
 
 
-def _resolved_revision(backend: EmbeddingBackend) -> str:
+def resolved_revision(backend: EmbeddingBackend) -> str:
     """The commit the backend actually loaded, or the requested revision.
 
     Recorded next to every cached artifact so a rerun can be checked against
@@ -132,7 +132,7 @@ def embed_units(
         metadata={
             "model": backend.name,
             "revision": backend.revision,
-            "resolved_revision": _resolved_revision(backend),
+            "resolved_revision": resolved_revision(backend),
             "dim": int(vectors.shape[1]),
             "normalized": bool(getattr(backend, "normalize", True)),
         },
@@ -222,7 +222,7 @@ def embed_questions(
         metadata={
             "model": backend.name,
             "revision": backend.revision,
-            "resolved_revision": _resolved_revision(backend),
+            "resolved_revision": resolved_revision(backend),
             "dim": int(vectors.shape[1]),
             "normalized": bool(getattr(backend, "normalize", True)),
             "split": split,

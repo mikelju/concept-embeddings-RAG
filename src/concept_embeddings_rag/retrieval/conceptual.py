@@ -29,7 +29,10 @@ from concept_embeddings_rag.retrieval.base import Hit
 PROJECTION = "projection"
 SPARSE_CODING = "sparse_coding"
 
-UNDAMPED = "none"
+# The two arms of `config.DAMPING_MODES`, named so that nothing has to spell either
+# of them inline: `UNDAMPED` is the identity, `RARITY` the declared IDF-shaped weight
+# of decision D7.
+UNDAMPED, RARITY = config.DAMPING_MODES
 
 
 @dataclass(frozen=True)

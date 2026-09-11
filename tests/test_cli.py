@@ -636,3 +636,322 @@ def test_stale_diagnostics_name_the_artifact_instead_of_raising_a_bare_key_error
     message = str(excinfo.value)
     assert "unit9999" in message
     assert "induce" in message
+
+
+# --- T17: the selection stage -------------------------------------------------
+#
+# `select` is the stage that spends the dev split: it sweeps the four spaces, picks
+# one, measures the damping variant on it, fits the fusion twice - once for System B
+# and once for the HU-5 control - and freezes the result. Everything it decides is
+# in one artifact, and it writes that artifact once.
+#
+# The workspace below is the induction one with questions in both splits and token
+# counts added. The spaces are induced at k = 20 and 24 because the declared query
+# truncation keeps the top 16 concepts: a dictionary smaller than that would make
+# `projection_top16` and `projection_full` the same arm under two names.
+
+
+class HashingBackend:
+    """Embeds a question deterministically, with no model and no network.
+
+    It carries the real model's name and revision because the corpus cache is keyed
+    by them: a backend that renamed itself would look like a different model to
+    every artifact in the workspace.
+    """
+
+    name = "BAAI/bge-small-en-v1.5"
+    revision = "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a"
+    normalize = True
+
+    def __init__(self, dim: int = 32) -> None:
+        self.dim = dim
+
+    def encode(self, texts):
+        import hashlib
+
+        rows = []
+        for text in texts:
+            digest = hashlib.sha1(text.encode("utf-8"), usedforsecurity=False).digest()
+            rng = np.random.default_rng(int.from_bytes(digest[:8], "big"))
+            vector = rng.normal(size=self.dim)
+            rows.append(vector / np.linalg.norm(vector))
+        return np.asarray(rows, dtype="float32")
+
+
+def a_selection_workspace(tmp_path: Path, n_dev: int = 4, n_test: int = 3):
+    """A pool with two concept spaces, questions in both splits, and token counts."""
+    from concept_embeddings_rag.corpus.pool import Question, save_pool
+
+    data_dir, cache_dir, units = an_induction_workspace(tmp_path)
+    questions = [
+        Question(
+            qid=f"q{index}",
+            question=f"Which paragraph follows paragraph {index}?",
+            answer="-",
+            gold_unit_ids=(units[index].unit_id, units[index + 1].unit_id),
+            supporting_facts=((units[index].title, 0), (units[index + 1].title, 0)),
+            split="dev" if index < n_dev else "test",
+        )
+        for index in range(n_dev + n_test)
+    ]
+    save_pool(units, questions, data_dir / "pool.json")
+    (data_dir / "token_counts.json").write_text(
+        json.dumps({unit.unit_id: 10 for unit in units}, sort_keys=True), encoding="utf-8"
+    )
+    induce(tmp_path, data_dir, cache_dir, k_sweep=(20, 24), merge_threshold=0.99)
+    return data_dir, cache_dir, units, questions
+
+
+def select(tmp_path: Path, data_dir: Path, cache_dir: Path, **overrides):
+    from concept_embeddings_rag.cli import cmd_select
+
+    arguments = {
+        "data_dir": data_dir,
+        "cache_dir": cache_dir,
+        "concepts_dir": tmp_path / "concepts",
+        "selection_dir": tmp_path / "selection",
+        "question_cache_dir": tmp_path / "questions",
+        "k_sweep": (20, 24),
+        "merge_threshold": 0.99,
+        "top_k": 5,
+        "backend": HashingBackend(),
+    }
+    arguments.update(overrides)
+    return cmd_select(**arguments)
+
+
+def test_parser_exposes_the_select_stage():
+    assert build_parser().parse_args(["select"]).command == "select"
+
+
+def test_select_without_a_pool_names_the_build_stage(tmp_path):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+
+    with pytest.raises(SystemExit) as excinfo:
+        select(tmp_path, data_dir, tmp_path / "cache")
+
+    assert "build" in str(excinfo.value)
+
+
+def test_select_without_token_counts_names_the_embed_stage(tmp_path):
+    data_dir, cache_dir, _ = an_induction_workspace(tmp_path)
+
+    with pytest.raises(SystemExit) as excinfo:
+        select(tmp_path, data_dir, cache_dir)
+
+    assert "embed" in str(excinfo.value)
+
+
+def test_select_without_the_concept_spaces_names_the_induce_stage(tmp_path):
+    """A clean error naming the stage that produces them, never a traceback."""
+    data_dir, cache_dir, _, _ = a_selection_workspace(tmp_path)
+
+    with pytest.raises(SystemExit) as excinfo:
+        select(tmp_path, data_dir, cache_dir, concepts_dir=tmp_path / "empty-concepts")
+
+    message = str(excinfo.value)
+    assert message.startswith("[ERROR]")
+    assert "induce" in message
+
+
+def test_select_writes_exactly_one_artifact_and_prints_its_path(tmp_path, capsys):
+    data_dir, cache_dir, _, _ = a_selection_workspace(tmp_path)
+
+    path = select(tmp_path, data_dir, cache_dir)
+
+    assert [entry.name for entry in (tmp_path / "selection").iterdir()] == ["selection.json"]
+    assert str(path) in capsys.readouterr().out
+
+
+def test_the_stage_prints_ascii_only(tmp_path, capsys):
+    """Gunicorn and Cloud Run read stdout as charmap; an arrow there is a crash."""
+    data_dir, cache_dir, _, _ = a_selection_workspace(tmp_path)
+    capsys.readouterr()
+
+    select(tmp_path, data_dir, cache_dir)
+
+    assert capsys.readouterr().out.isascii()
+
+
+def test_the_frozen_selection_names_the_space_and_the_decisions_that_chose_it(tmp_path):
+    from concept_embeddings_rag.evaluation.selection import load_selection
+
+    data_dir, cache_dir, _, questions = a_selection_workspace(tmp_path)
+
+    select(tmp_path, data_dir, cache_dir)
+
+    report = load_selection(tmp_path / "selection")
+    assert report.selected_k in (20, 24)
+    assert report.selected_dictionary_key in report.dictionary_keys
+    assert [decision.name for decision in report.decisions][:3] == [
+        "space",
+        "damping",
+        "fusion_scheme",
+    ]
+    assert report.n_dev_decisions == len(report.decisions)
+    assert report.fusion is not None and report.control is not None
+    assert report.fusion.components[1] == "conceptual"
+    assert report.control.components[1] == "bm25"
+
+
+def test_the_sweep_behind_the_artifact_measured_the_dev_split_alone(tmp_path):
+    from concept_embeddings_rag.evaluation.selection import load_selection
+
+    data_dir, cache_dir, _, questions = a_selection_workspace(tmp_path)
+    n_dev = len([q for q in questions if q.split == "dev"])
+
+    select(tmp_path, data_dir, cache_dir)
+
+    report = load_selection(tmp_path / "selection")
+    for entry in report.per_k.values():
+        assert entry.n_questions == n_dev
+    assert report.fusion is not None and report.fusion.n_questions == n_dev
+
+
+def test_both_splits_are_embedded_once_so_evaluate_never_loads_the_model(tmp_path):
+    """Embedding a question is a vector, not a measurement: nothing scores test here."""
+    data_dir, cache_dir, _, _ = a_selection_workspace(tmp_path)
+
+    select(tmp_path, data_dir, cache_dir)
+
+    cached = sorted((tmp_path / "questions").glob("embeddings-*.npz"))
+    splits = {
+        json.loads(path.with_suffix(".json").read_text(encoding="utf-8"))["split"]
+        for path in cached
+    }
+    assert splits == {"dev", "test"}
+
+
+def test_a_second_selection_refuses_rather_than_moving_the_freeze(tmp_path):
+    """A re-freeze is a deviation to be written down, not a file to be replaced."""
+    from concept_embeddings_rag.evaluation.selection import SelectionError, load_selection
+
+    data_dir, cache_dir, _, _ = a_selection_workspace(tmp_path)
+    select(tmp_path, data_dir, cache_dir)
+    frozen_at = load_selection(tmp_path / "selection").frozen_at
+
+    with pytest.raises(SelectionError, match="already"):
+        select(tmp_path, data_dir, cache_dir)
+
+    assert load_selection(tmp_path / "selection").frozen_at == frozen_at
+
+
+# --- T18: evaluate, extended with the three systems of this phase -------------
+
+
+def evaluate(tmp_path: Path, data_dir: Path, cache_dir: Path, **overrides):
+    from concept_embeddings_rag.cli import cmd_evaluate
+
+    arguments = {
+        "data_dir": data_dir,
+        "cache_dir": cache_dir,
+        "results_dir": tmp_path / "results",
+        "concepts_dir": tmp_path / "concepts",
+        "selection_dir": tmp_path / "selection",
+        "question_cache_dir": tmp_path / "questions",
+        "top_k": 5,
+        "backend": HashingBackend(),
+    }
+    arguments.update(overrides)
+    return cmd_evaluate(**arguments)
+
+
+def results_of(paths) -> list[dict]:
+    return [json.loads(Path(path).read_text(encoding="utf-8")) for path in paths]
+
+
+def test_evaluate_refuses_the_test_split_until_a_configuration_is_frozen(tmp_path):
+    """HU-7 reads test once, on a frozen configuration; the stage enforces it."""
+    data_dir, cache_dir, _, _ = a_selection_workspace(tmp_path)
+
+    with pytest.raises(SystemExit) as excinfo:
+        evaluate(tmp_path, data_dir, cache_dir)
+
+    message = str(excinfo.value)
+    assert message.startswith("[ERROR]")
+    assert "select" in message
+
+
+def test_evaluate_on_dev_alone_measures_the_baselines_when_nothing_is_frozen(tmp_path):
+    """Dev is the split this phase is allowed to look at, so a quick check stays possible."""
+    data_dir, cache_dir, _, _ = a_selection_workspace(tmp_path)
+
+    written = evaluate(tmp_path, data_dir, cache_dir, splits=("dev",))
+
+    assert {result["system"] for result in results_of(written)} == {"dense", "bm25"}
+
+
+def test_evaluate_measures_the_three_phase_3_systems_from_the_frozen_selection(tmp_path):
+    data_dir, cache_dir, _, _ = a_selection_workspace(tmp_path)
+    select(tmp_path, data_dir, cache_dir)
+
+    written = evaluate(tmp_path, data_dir, cache_dir)
+
+    results = results_of(written)
+    assert {result["system"] for result in results} == {
+        "dense",
+        "bm25",
+        "conceptual",
+        "hybrid-conceptual",
+        "hybrid-bm25",
+    }
+    assert {result["split"] for result in results} == {"dev", "test"}
+
+
+def test_every_phase_3_result_carries_the_six_keys_and_the_freeze_it_ran_under(tmp_path):
+    from concept_embeddings_rag.evaluation.selection import load_selection
+
+    data_dir, cache_dir, _, _ = a_selection_workspace(tmp_path)
+    select(tmp_path, data_dir, cache_dir)
+    frozen_at = load_selection(tmp_path / "selection").frozen_at
+
+    written = evaluate(tmp_path, data_dir, cache_dir)
+
+    phase_3 = [
+        result
+        for result in results_of(written)
+        if result["system"] in {"conceptual", "hybrid-conceptual", "hybrid-bm25"}
+    ]
+    assert len(phase_3) == 6
+    for result in phase_3:
+        for key in ("dictionary_key", "k", "view", "query_operator", "damping", "fusion_scheme"):
+            assert key in result["config"], f"{result['system']} does not record {key}"
+        assert result["config"]["frozen_at"] == frozen_at
+
+
+def test_the_baselines_do_not_claim_a_space_they_never_used(tmp_path):
+    data_dir, cache_dir, _, _ = a_selection_workspace(tmp_path)
+    select(tmp_path, data_dir, cache_dir)
+
+    written = evaluate(tmp_path, data_dir, cache_dir)
+
+    for result in results_of(written):
+        if result["system"] in {"dense", "bm25"}:
+            assert "dictionary_key" not in result["config"]
+            assert "frozen_at" not in result["config"]
+
+
+def test_the_conceptual_system_records_no_fusion_because_nothing_was_fused_into_it(tmp_path):
+    data_dir, cache_dir, _, _ = a_selection_workspace(tmp_path)
+    select(tmp_path, data_dir, cache_dir)
+
+    written = evaluate(tmp_path, data_dir, cache_dir, splits=("dev",))
+
+    conceptual = next(r for r in results_of(written) if r["system"] == "conceptual")
+    assert conceptual["config"]["fusion_scheme"] is None
+
+
+def test_system_b_and_the_control_record_the_same_scheme_they_were_fitted_under(tmp_path):
+    from concept_embeddings_rag.evaluation.selection import load_selection
+
+    data_dir, cache_dir, _, _ = a_selection_workspace(tmp_path)
+    select(tmp_path, data_dir, cache_dir)
+    report = load_selection(tmp_path / "selection")
+
+    written = evaluate(tmp_path, data_dir, cache_dir, splits=("dev",))
+
+    by_system = {r["system"]: r["config"] for r in results_of(written)}
+    assert report.fusion is not None and report.control is not None
+    assert by_system["hybrid-conceptual"]["fusion_scheme"] == report.fusion.winning_scheme
+    assert by_system["hybrid-bm25"]["fusion_scheme"] == report.control.winning_scheme
