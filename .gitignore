@@ -31,13 +31,18 @@ venv/
 
 # Downloaded corpus and regenerable experiment artifacts stay out; measured
 # results and the manifest that gives them provenance are the deliverable and
-# are versioned.
+# are versioned. So is the Phase 3 selection: HU-3 asks for the choice of K to
+# live in a versioned artifact, and a decision recorded in an ignored file is
+# exactly the one the repository cannot reproduce.
 data/*
 !data/.gitkeep
 !data/manifest.json
 !data/results/
 data/results/*
 !data/results/*.json
+!data/selection/
+data/selection/*
+!data/selection/*.json
 .cache/
 models/
 output/

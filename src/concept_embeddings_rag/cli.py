@@ -991,7 +991,19 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("embed", help="compute and cache embeddings and token counts")
     subparsers.add_parser("evaluate", help="measure dense and BM25 at every context budget")
     subparsers.add_parser("induce", help="build one concept space per dictionary size")
-    subparsers.add_parser("label", help="name the concepts of one space, for the report only")
+    labelling = subparsers.add_parser(
+        "label", help="name the concepts of one space, for the report only"
+    )
+    # Phase 2 labelled `LABELED_K` because that was the space it expected to matter.
+    # Phase 3 selects its own K against dev recall, and when that is a different space
+    # it is the one the report has to be able to read - so the stage takes the K rather
+    # than assuming it (decision D11).
+    labelling.add_argument(
+        "--k",
+        type=int,
+        default=config.LABELED_K,
+        help=f"dictionary size to label (default {config.LABELED_K})",
+    )
     subparsers.add_parser("select", help="choose the concept space on dev and freeze it")
     return parser
 
@@ -1011,7 +1023,7 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == "induce":
         cmd_induce()
     elif args.command == "label":
-        cmd_label()
+        cmd_label(k=args.k)
     elif args.command == "select":
         cmd_select()
     return 0

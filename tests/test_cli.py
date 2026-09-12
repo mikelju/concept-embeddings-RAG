@@ -955,3 +955,11 @@ def test_system_b_and_the_control_record_the_same_scheme_they_were_fitted_under(
     assert report.fusion is not None and report.control is not None
     assert by_system["hybrid-conceptual"]["fusion_scheme"] == report.fusion.winning_scheme
     assert by_system["hybrid-bm25"]["fusion_scheme"] == report.control.winning_scheme
+
+
+def test_the_label_stage_takes_the_dictionary_size_it_is_asked_for():
+    """Phase 3 selects its own K, and when it is not Phase 2's the report needs that one."""
+    from concept_embeddings_rag import config
+
+    assert build_parser().parse_args(["label"]).k == config.LABELED_K
+    assert build_parser().parse_args(["label", "--k", "512"]).k == 512
