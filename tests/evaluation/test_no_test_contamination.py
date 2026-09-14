@@ -39,6 +39,7 @@ from concept_embeddings_rag.concepts.coding import ConceptMatrix
 from concept_embeddings_rag.concepts.dictionary import ConceptDictionary
 from concept_embeddings_rag.corpus.pool import Question
 from concept_embeddings_rag.evaluation import selection
+from concept_embeddings_rag.evaluation.expansion_selection import ExpansionCell, sweep_expansion
 from concept_embeddings_rag.evaluation.harness import RunResult
 from concept_embeddings_rag.evaluation.selection import (
     DEV_SPLIT,
@@ -363,3 +364,162 @@ def test_with_the_guard_removed_the_sweep_measures_a_test_question_without_a_mur
 
     assert cells, "the guard was removed and the sweep still refused for another reason"
     assert cells[0].n_questions == 2
+
+
+# --- T13: the same guard, extended to the Phase 4 selection path --------------
+#
+# Phase 4 fits two parameters on the same 600 dev questions, so it needs the same
+# unconditional rule and gets it by the same mechanism rather than by a second one:
+# its grid calls `check_dev_only`, which delegates to the doorman above. What is new
+# is the surface - the diffusion retriever and the expansion selection join the
+# import closure - and the static check below now walks that closure too, so a module
+# that reaches the walk is covered the moment something on the path imports it.
+
+EXPANSION_CLOSURE = import_closure("evaluation/expansion_selection.py")
+BOTH_CLOSURES = sorted(set(SELECTION_CLOSURE) | set(EXPANSION_CLOSURE))
+
+DIFFUSION_ROWS = [
+    [2.0, 0.0, 0.0],
+    [1.0, 1.0, 0.0],
+    [0.0, 3.0, 0.0],
+]
+
+
+def a_walkable_dictionary() -> ConceptDictionary:
+    return ConceptDictionary(
+        atoms=np.eye(3, 3, dtype=np.float32),
+        k=3,
+        seed=42,
+        sparsity_param=0.05,
+        max_iter=3,
+        unit_set_hash="101f564fdcca620c",
+        model="BAAI/bge-small-en-v1.5",
+        revision="5c38ec7c",
+    )
+
+
+def a_walkable_matrix(dictionary: ConceptDictionary) -> ConceptMatrix:
+    X = sparse.csr_matrix(np.array(DIFFUSION_ROWS, dtype=np.float32))
+    return ConceptMatrix(
+        X=X,
+        unit_ids=list(UNITS),
+        dictionary_key=dictionary.key,
+        view="raw",
+        coding_alpha=0.07,
+        mean_active_per_unit=float(X.nnz) / X.shape[0],
+        reconstruction_error=0.0,
+    )
+
+
+def the_expansion_grid(questions: Sequence[Question]) -> object:
+    """Phase 4's door: one cell of the grid is enough to ask the guard."""
+    dictionary = a_walkable_dictionary()
+    cells, _spent = sweep_expansion(
+        matrix=a_walkable_matrix(dictionary),
+        dictionary=dictionary,
+        seed_retrievers={
+            "dense": StubRetriever("dense", [("u1", 0.9), ("u2", 0.4)]),
+            "conceptual": StubRetriever("conceptual", [("u3", 0.7), ("u2", 0.2)]),
+        },
+        questions=questions,
+        token_counts=TOKENS,
+        base_config=a_config(),
+        inherits={
+            "k": 3,
+            "dictionary_key": dictionary.key,
+            "view": "raw",
+            "damping": "idf",
+            "query_operator": "projection_full",
+        },
+        restarts=(0.2,),
+        normalizations=("none",),
+        budgets=(config.SELECTION_BUDGET,),
+        ks=(2,),
+    )
+    return cells
+
+
+# Deliberately not folded into `DOORS` above: that table is parametrized at import
+# time and mutating it afterwards silently desynchronises the ids from the values.
+# This door gets the same three tests instead, which is what the table was doing.
+
+
+def test_the_phase_4_door_opens_for_dev_so_its_refusal_means_something():
+    assert the_expansion_grid(questions_on(DEV_SPLIT))
+
+
+@pytest.mark.parametrize("split", OTHER_SPLITS)
+def test_the_phase_4_grid_refuses_a_question_from_another_split(split: str):
+    with pytest.raises(SelectionError, match=split):
+        the_expansion_grid(questions_on(split))
+
+
+def test_one_foreign_question_hidden_among_the_dev_ones_is_enough_to_refuse_the_grid():
+    """The shape the accident would actually take, on Phase 4's path."""
+    contaminated = [*questions_on(DEV_SPLIT), a_question("q9", "0,0,0,1", "test")]
+
+    with pytest.raises(SelectionError, match="test"):
+        the_expansion_grid(contaminated)
+
+
+def test_the_phase_4_grid_asks_the_same_doorman(monkeypatch):
+    """One guard for both phases: `check_dev_only` delegates rather than re-checking."""
+    seen: list[int] = []
+    real = selection._check_questions
+
+    def spy(questions):
+        seen.append(len(questions))
+        return real(questions)
+
+    monkeypatch.setattr(selection, "_check_questions", spy)
+    the_expansion_grid(questions_on(DEV_SPLIT))
+
+    assert seen, "the expansion grid never asked the guard"
+
+
+def test_with_the_guard_removed_the_phase_4_grid_measures_a_test_question_too(monkeypatch):
+    """The negative proof again, on the new path: the cell comes back filed under dev."""
+    monkeypatch.setattr(selection, "_check_questions", lambda questions: None)
+
+    cells = the_expansion_grid(questions_on("test"))
+
+    assert cells, "the guard was removed and the grid still refused for another reason"
+    assert cells[0].n_questions == 2
+
+
+def test_a_result_measured_on_test_cannot_become_an_expansion_cell():
+    result = RunResult(
+        system="expansion",
+        split="test",
+        config=a_config(seed_arm="dense", restart=0.4, normalization="none", mean_iterations=2.0),
+        metrics={f"budget_{config.SELECTION_BUDGET}": {config.EXPANSION_SELECTION_METRIC: 0.9}},
+        cost={"n_questions": 2},
+    )
+
+    with pytest.raises(SelectionError, match="test"):
+        ExpansionCell.from_result(result)
+
+
+def test_the_closure_covers_the_modules_the_expansion_actually_runs_through():
+    assert "evaluation/expansion_selection.py" in EXPANSION_CLOSURE
+    assert "retrieval/diffusion.py" in EXPANSION_CLOSURE
+    assert "evaluation/harness.py" in EXPANSION_CLOSURE
+    assert "evaluation/selection.py" in EXPANSION_CLOSURE
+
+
+@pytest.mark.parametrize("module", BOTH_CLOSURES)
+def test_no_module_on_either_selection_path_names_a_split_other_than_dev(module: str):
+    named = string_literals((SOURCE / module).read_text(encoding="utf-8")) & set(OTHER_SPLITS)
+
+    assert not named, (
+        f"{module} names {sorted(named)}; nothing either selection imports may name a "
+        "split it is not allowed to read"
+    )
+
+
+def test_the_walk_itself_cannot_name_a_split():
+    """The retriever is on the path now, and it reads no split, no gold and no label."""
+    named = string_literals((SOURCE / "retrieval/diffusion.py").read_text(encoding="utf-8"))
+
+    assert not named & set(OTHER_SPLITS)
+    assert "evaluation/failure_analysis.py" not in EXPANSION_CLOSURE

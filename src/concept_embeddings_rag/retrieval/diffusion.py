@@ -27,6 +27,7 @@ three are decisions of the phase plan rather than implementation details:
 Nothing here reads a concept label, a gold annotation or a split.
 """
 
+import json
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -35,6 +36,7 @@ import numpy as np
 from scipy import sparse
 
 from concept_embeddings_rag import config
+from concept_embeddings_rag.artifacts import digest_of
 from concept_embeddings_rag.concepts.coding import ConceptMatrix
 from concept_embeddings_rag.concepts.dictionary import ConceptDictionary
 from concept_embeddings_rag.retrieval.base import Hit, Retriever
@@ -274,6 +276,14 @@ EXPANSION_NAMES: dict[str, str] = {
 # stopped moving entirely - and is kept apart from it because the two say different
 # things about the walk: one settled, the other ran out of patience.
 CONVERGED, THRESHOLD, CAP = "converged", "threshold", "cap"
+STOP_REASONS: tuple[str, ...] = (CONVERGED, THRESHOLD, CAP)
+
+# How much of a sha256 names a configuration. The same width the dictionary keys of
+# Phase 2 use, for the same reason: it has to fit in a filename a human reads.
+DIGEST_WIDTH: int = 16
+# What stands in for the damping weights in the digest when there are none, so that
+# "undamped" is a value the hash sees rather than an absence it cannot distinguish.
+UNDAMPED_DIGEST_PART: str = "undamped"
 
 # Below this, two consecutive mass vectors are the same vector and the difference is
 # float noise rather than movement.
@@ -348,6 +358,134 @@ class RunStats:
         }
 
 
+@dataclass(frozen=True)
+class IterationTrace:
+    """One round of one walk, as HU-5 asks it to be readable.
+
+    `concepts` are the dimensions the mass passed through on the way out, damped
+    exactly as the operator damped them, and `units` are the ones that **gained**
+    mass this round - which is what makes a second hop visible: at round two they
+    are units the seed never returned.
+
+    Both are truncated to the widths declared in `config`, because a round touches
+    every concept the mass reaches and an artifact holding all of them per question
+    per round is one nobody opens.
+    """
+
+    index: int
+    concepts: tuple[tuple[int, float], ...]
+    units: tuple[tuple[str, float], ...]
+    new_mass: float
+    stopped: bool
+
+    def __post_init__(self) -> None:
+        if self.index < 1:
+            raise DiffusionError(f"rounds are counted from one, and this one says {self.index}")
+        for concept, mass in self.concepts:
+            # The one way a label could reach `retrieval/` is from inside the data,
+            # so a concept that is not a number is refused where it would enter.
+            if not isinstance(concept, int) or isinstance(concept, bool):
+                raise DiffusionError(
+                    f"a trace holds concept ids, and this round names {concept!r}; a label "
+                    "belongs to the report that reads the trace, never to the trace"
+                )
+            if mass < 0.0:
+                raise DiffusionError(f"concept {concept} is recorded with negative mass {mass}")
+        for unit_id, mass in self.units:
+            if not isinstance(unit_id, str):
+                raise DiffusionError(f"a unit is named by its id, and this round names {unit_id!r}")
+            if mass <= 0.0:
+                raise DiffusionError(
+                    f"unit {unit_id!r} is recorded as entering with {mass} mass; a unit that "
+                    "gained nothing did not enter"
+                )
+        if self.new_mass < 0.0:
+            raise DiffusionError(f"the mass that moved is a distance, not {self.new_mass}")
+
+
+@dataclass(frozen=True)
+class ExpansionTrace:
+    """What one question's walk did, bound to the configuration that walked it.
+
+    `config_digest` is the whole reason this is an artifact rather than a printout:
+    a trace read against another run explains a ranking that was never produced,
+    in a document that looks exactly as authoritative as a correct one.
+    """
+
+    qid: str
+    seed_arm: str
+    config_digest: str
+    iterations: tuple[IterationTrace, ...]
+    stop_reason: str
+
+    def __post_init__(self) -> None:
+        if not self.qid:
+            raise DiffusionError("a trace describes one question and has to name which")
+        if self.seed_arm not in config.SEED_ARMS:
+            raise DiffusionError(
+                f"unknown seed arm: {self.seed_arm!r}; expected one of {sorted(config.SEED_ARMS)}"
+            )
+        if self.stop_reason not in STOP_REASONS:
+            raise DiffusionError(
+                f"unknown stop reason: {self.stop_reason!r}; expected one of {sorted(STOP_REASONS)}"
+            )
+        if not self.iterations:
+            raise DiffusionError(
+                "every walk runs at least one round, so a trace of no round describes nothing"
+            )
+        indices = [row.index for row in self.iterations]
+        if indices != list(range(1, len(indices) + 1)):
+            raise DiffusionError(
+                f"the rounds of a walk are consecutive from one, and these are {indices}"
+            )
+        if not any(row.stopped for row in self.iterations):
+            raise DiffusionError("no round of this trace is the one that stopped the walk")
+
+
+def _top_concepts(vector: np.ndarray, width: int) -> tuple[tuple[int, float], ...]:
+    """The concepts this round moved mass through, heaviest first, by id on ties."""
+    active = [int(index) for index in np.nonzero(vector > 0.0)[0]]
+    active.sort(key=lambda index: (-float(vector[index]), index))
+    return tuple((index, float(vector[index])) for index in active[:width])
+
+
+def _entering_units(
+    gained: np.ndarray, unit_ids: Sequence[str], width: int
+) -> tuple[tuple[str, float], ...]:
+    """The units that gained mass this round, by how much, by id on ties."""
+    rows = [int(row) for row in np.nonzero(gained > 0.0)[0]]
+    rows.sort(key=lambda row: (-float(gained[row]), unit_ids[row]))
+    return tuple((unit_ids[row], float(gained[row])) for row in rows[:width])
+
+
+def _agreeing(
+    operator: DiffusionOperator,
+    matrix: ConceptMatrix,
+    normalization: str,
+    concept_weights: np.ndarray | None,
+) -> DiffusionOperator:
+    """The operator handed in, if it is the one this retriever would have built."""
+    if operator.normalization != normalization:
+        raise DiffusionError(
+            f"the operator was built for the {operator.normalization!r} arm and this "
+            f"retriever records {normalization!r}"
+        )
+    if (operator.n_units, operator.n_concepts) != tuple(matrix.X.shape):
+        raise DiffusionError(
+            f"the operator walks a {(operator.n_units, operator.n_concepts)} matrix and this "
+            f"retriever was built over {tuple(matrix.X.shape)}"
+        )
+    theirs, mine = operator.concept_weights, concept_weights
+    if (theirs is None) != (mine is None) or (
+        theirs is not None and mine is not None and not np.array_equal(theirs, mine)
+    ):
+        raise DiffusionError(
+            "the operator was built with different concept weights from the ones this "
+            "retriever records; the damping would not be the one the result claims"
+        )
+    return operator
+
+
 class DiffusionRetriever:
     """System C: the ranking a question reaches by walking, not by scoring once.
 
@@ -381,6 +519,7 @@ class DiffusionRetriever:
         max_iterations: int = config.MAX_ITERATIONS,
         seed_top_k: int = config.SEED_TOP_K,
         inherits: Mapping[str, object] | None = None,
+        operator: "DiffusionOperator | None" = None,
     ) -> None:
         if seed_arm not in config.SEED_ARMS:
             raise DiffusionError(
@@ -424,8 +563,18 @@ class DiffusionRetriever:
 
         self.unit_ids = list(matrix.unit_ids)
         self._index = {unit_id: row for row, unit_id in enumerate(self.unit_ids)}
-        self.operator = DiffusionOperator(
-            matrix.X, normalization=normalization, concept_weights=concept_weights
+        # A sweep measures four restart fractions against the same normalization, and
+        # rescaling `X` once per cell would compute the same three matrices twelve
+        # times. An operator may therefore be handed in - but only one that agrees
+        # with everything this retriever claims about itself, because a shared
+        # operator is the easiest way for a recorded configuration to stop describing
+        # the arithmetic that ran.
+        self.operator = (
+            DiffusionOperator(
+                matrix.X, normalization=normalization, concept_weights=concept_weights
+            )
+            if operator is None
+            else _agreeing(operator, matrix, normalization, concept_weights)
         )
         self.concept_weights = self.operator.concept_weights
         self.stats = RunStats()
@@ -452,20 +601,84 @@ class DiffusionRetriever:
         """Start counting a new run. A caller that forgets would report two runs as one."""
         self.stats = RunStats()
 
+    @property
+    def config_digest(self) -> str:
+        """A short, stable name for exactly this configuration.
+
+        It covers everything `describe()` records plus the damping weights, which
+        `describe()` names but does not carry. A trace is read back against this, so
+        a digest that ignored part of the configuration would let a diagnostic be
+        read against a run it does not describe - which is the one failure a trace
+        cannot survive.
+        """
+        return digest_of(
+            json.dumps(self.describe(), sort_keys=True),
+            self.concept_weights if self.concept_weights is not None else UNDAMPED_DIGEST_PART,
+        )[:DIGEST_WIDTH]
+
     def retrieve(self, query: str, top_k: int) -> list[Hit]:
+        hits, mass, _trace = self._walk(query, qid=None)
+        return self._rank(mass, hits, top_k)
+
+    def retrieve_with_trace(
+        self, query: str, top_k: int, *, qid: str
+    ) -> tuple[list[Hit], ExpansionTrace]:
+        """The same walk, watched. HU-5 requires the watching to change nothing.
+
+        It cannot, because there is only one walk: `retrieve` and this method run
+        the identical arithmetic in the identical order and differ in whether the
+        loop also writes down what it just did. The equality of the two rankings is
+        asserted in `tests/retrieval/test_trace.py` over every cell of the grid
+        anyway, because "cannot" is a claim until something checks it.
+
+        The qid arrives here rather than through `retrieve` because the `Retriever`
+        protocol takes a question string and this phase does not touch that
+        protocol - and because a trace has to name the question it explains.
+        """
+        if not qid:
+            raise DiffusionError("a trace describes one question and needs its qid to say which")
+        hits, mass, trace = self._walk(query, qid=qid)
+        if trace is None:  # pragma: no cover - `_walk` returns one whenever a qid is given
+            raise DiffusionError("the walk was asked for a trace and produced none")
+        return self._rank(mass, hits, top_k), trace
+
+    def _walk(
+        self, query: str, *, qid: str | None
+    ) -> tuple[list[Hit], np.ndarray, ExpansionTrace | None]:
+        """The walk itself: one loop, whether or not anyone is writing it down."""
         hits = self.seed_retriever.retrieve(query, top_k=self.seed_top_k)
         start, clipped = seed_mass(hits, self._index)
         mass = start
         reason = CAP
         rounds = 0
+        rows: list[IterationTrace] = []
 
         for _round in range(self.max_iterations):
-            propagated = self.operator.propagate(mass)
+            # Decomposed rather than `propagate()` so that the traced path can name
+            # the concepts this round moved through without recomputing them. It is
+            # the same two products in the same order, so the arithmetic is not
+            # merely equivalent to the untraced one - it is the same arithmetic.
+            concepts = self.operator.to_concepts(mass)
+            propagated = _normalize(self.operator.from_concepts(concepts))
             moved = self.restart * start + (1.0 - self.restart) * propagated
             delta = float(np.abs(moved - mass).sum())
-            mass = moved
             rounds += 1
-            if delta <= _EXACT:
+
+            settled = delta <= _EXACT
+            stopping = settled or delta < self.stop_threshold or rounds == self.max_iterations
+            if qid is not None:
+                rows.append(
+                    IterationTrace(
+                        index=rounds,
+                        concepts=_top_concepts(concepts, config.TRACE_TOP_CONCEPTS),
+                        units=_entering_units(moved - mass, self.unit_ids, config.TRACE_TOP_UNITS),
+                        new_mass=delta,
+                        stopped=stopping,
+                    )
+                )
+            mass = moved
+
+            if settled:
                 reason = CONVERGED
                 break
             if delta < self.stop_threshold:
@@ -473,7 +686,18 @@ class DiffusionRetriever:
                 break
 
         self.stats.record(iterations=rounds, stop_reason=reason, clipped=clipped)
-        return self._rank(mass, hits, top_k)
+        trace = (
+            None
+            if qid is None
+            else ExpansionTrace(
+                qid=qid,
+                seed_arm=self.seed_arm,
+                config_digest=self.config_digest,
+                iterations=tuple(rows),
+                stop_reason=reason,
+            )
+        )
+        return hits, mass, trace
 
     def _rank(self, mass: np.ndarray, seed_hits: Sequence[Hit], top_k: int) -> list[Hit]:
         """Decision D4: rank the positive-mass units and the seed's own hits, by id on ties.

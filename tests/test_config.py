@@ -220,6 +220,16 @@ def test_the_dev_evaluation_cap_is_declared_and_larger_than_the_grid():
     assert grid_cells < config.DEV_EVALUATION_CAP
 
 
+def test_the_trace_widths_are_declared_and_decide_only_what_a_human_reads():
+    """T8's two constants: how wide a round of the trace is, never what the walk computed."""
+    assert isinstance(config.TRACE_TOP_CONCEPTS, int)
+    assert isinstance(config.TRACE_TOP_UNITS, int)
+    assert config.TRACE_TOP_CONCEPTS > 0
+    assert config.TRACE_TOP_UNITS > 0
+    # Narrower than the depth the harness reads, or the trace would be the ranking.
+    assert config.TRACE_TOP_UNITS < config.SEED_TOP_K
+
+
 def test_phase_4_directories_are_absolute_and_under_data():
     for path in (config.EXPANSION_DIR, config.TRACES_DIR):
         assert isinstance(path, Path)
