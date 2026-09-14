@@ -41,8 +41,8 @@ docs/plans/
 |------|--------|------|--------|
 | 1 | Corpus, indexing units and dense baseline | Available | **Complete** |
 | 2 | Concept space: dictionary + matrix X | Available | **Complete** |
-| 3 | Hybrid conceptual retrieval (System B) | Available | **In progress** |
-| 4 | Query-aware iterative expansion (System C) | Available | Planned |
+| 3 | Hybrid conceptual retrieval (System B) | Available | **Complete** |
+| 4 | Query-aware iterative expansion (System C) | Available | **Complete** |
 | 5 | Comparative evaluation and verdict | Pending | Pending |
 | 6 | Exploratory extensions (conditional) | Pending | Not opened |
 
@@ -132,13 +132,46 @@ The leap of §8: stop following the question and start navigating the corpus. It
 
 **The bar this phase is judged against is the dense+BM25 control** at 0.8643 Full Support on test @2,048, not dense at 0.8250: a cheap lexical hybrid already reaches that without any of this machinery. Beating dense and not the control is a result, to be reported as exactly that.
 
-- [ ] Expansion by **diffusion over X**: initial activation from the query, propagation chunk → concept → chunk through `X` and `Xᵀ`, with partial restart on the question's concepts at every round
-- [ ] The query-aware condition (§52-53) is guaranteed by that restart: expansion cannot drift toward the corpus's global co-occurrence — and `restart = 0.0` is measured once on dev so the claim rests on a number
-- [ ] Stopping criterion on newly contributed mass, with an explicit budget of iterations and tokens (§54)
-- [ ] Per-query trace: which concept entered at which iteration and which chunk it brought along
-- [ ] **Two seed arms measured with identical machinery** — dense-seeded (System C proper) and conceptual-seeded (the isolating variant) — so that a gain can be told apart from "the dense retriever already brought almost everything". The configuration is chosen on the dense arm and applied unchanged to the other
-- [ ] System C measured against four rivals at four budgets on both splits, with its cost, on a configuration frozen before test was read
+- [x] Expansion by **diffusion over X**: initial activation from the query, propagation chunk → concept → chunk through `X` and `Xᵀ`, with partial restart on the question's concepts at every round
+- [x] The query-aware condition (§52-53) is guaranteed by that restart: expansion cannot drift toward the corpus's global co-occurrence — and `restart = 0.0` is measured once on dev so the claim rests on a number. **It collapses to 0.0117 Full Support**: the failure mode is now a measurement
+- [x] Stopping criterion on newly contributed mass, with an explicit budget of iterations and tokens (§54). At the frozen cell the threshold fires and the cap never does; at the three lower restarts every cell ran to the cap, reported as the finding HU-4 asks for
+- [x] Per-query trace: which concept entered at which iteration and which chunk it brought along — 80 dev questions under the sampling rule fixed before the run
+- [x] **Two seed arms measured with identical machinery** — dense-seeded (System C proper) and conceptual-seeded (the isolating variant) — so that a gain can be told apart from "the dense retriever already brought almost everything". The configuration is chosen on the dense arm and applied unchanged to the other
+- [x] System C measured against four rivals at four budgets on both splits, with its cost, on a configuration frozen before test was read
 - [ ] ~~*(Optional)* Variant with an LLM inside the loop~~ — **declared out of scope by the spec** and deferred to Phase 5: the deterministic method has to be measured first to be the thing such a variant is compared against
+
+### What Phase 5 inherits, and the verdict it inherits it with
+
+The numbers and their artifacts are in [`phase_4/4.results.md`](phase_4/4.results.md).
+
+| Inherited | Value |
+|---|---|
+| **System C's configuration** | `restart = 0.8`, normalization `symmetric`, `stop_threshold = 1e-3`, `max_iterations = 5`, `seed_top_k = 100`; artifact `data/expansion/expansion.json`, digest `421ceee84e04914e` |
+| **Phase 3 decisions** | unchanged and not re-opened: K = 512, `d84c327aa8af0cdc`, view `raw`, damping `idf`, `projection_full` |
+| **The bar** | the dense+BM25 control at 0.8643 Full Support on test @2,048 |
+
+**The verdict is negative, and the mechanism is measured rather than inferred.** System C scores
+0.8214 Full Support on test @2,048 against dense's 0.8250 and the control's 0.8643. It costs 4.3x
+dense per query for it.
+
+**Why, in one line: at every restart in the declared grid the walk returns the seed's own 100 units,
+reordered, and never promotes a new one.** The diffusion reaches all 19,366 units on every question,
+so each non-seed unit receives about a hundred-thousandth of the mass while the restart holds every
+seed unit above 0.0076. System C is therefore a re-ranker of dense's top-100: it gains 5 dev
+questions and loses 6, and recovers 3 of the 72 that defeat both baselines against System B's 0 and
+the control's 6. One of those three is recovered by nothing else in this project.
+
+**The arithmetic also says where the grid could not look.** A non-seed unit could only out-score the
+weakest seed unit at `restart < 0.10`, below the declared floor of 0.2 — and `restart = 0.0`, the one
+point measured below it, collapses to 0.0117. Whether anything survives between the two is a declared
+gap and Phase 5's first ablation.
+
+**One thing Phase 3 named survives.** The questions the concept space uniquely answers really are
+conjunctions of two topics: all four the conceptual arm gains over dense are — a Florida place *and*
+baseball, a magazine *and* politics, an Irish biography *and* combat sports, an opera *and* its
+singer — and three of them are the same questions Phase 3 read, reached by a different mechanism.
+The signal is real and reproducible. It is worth about four questions in 600, and diffusion with
+restart cannot convert it into retrieval.
 
 ## Phase 5: Comparative evaluation and verdict
 
