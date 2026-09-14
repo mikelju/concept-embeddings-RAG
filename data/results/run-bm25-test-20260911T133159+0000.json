@@ -1,0 +1,46 @@
+{
+  "config": {
+    "code_version": "0.1.0",
+    "model": "BAAI/bge-small-en-v1.5",
+    "n_units": 19366,
+    "resolved_revision": "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a",
+    "revision": "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a",
+    "seed": 42,
+    "tokenizer": "BAAI/bge-small-en-v1.5",
+    "top_k": 100,
+    "unit_set_hash": "101f564fdcca620c"
+  },
+  "cost": {
+    "mean_latency_ms": 0.24909821478234204,
+    "mean_units_included": 34.33428571428571,
+    "n_questions": 1400
+  },
+  "created_at": "2026-09-11T13:31:59+00:00",
+  "metrics": {
+    "budget_1024": {
+      "full_support": 0.6428571428571429,
+      "gold_recall": 0.8128571428571428,
+      "precision": 0.16893601808285577
+    },
+    "budget_2048": {
+      "full_support": 0.7592857142857142,
+      "gold_recall": 0.8775,
+      "precision": 0.09970118166925297
+    },
+    "budget_4096": {
+      "full_support": 0.8221428571428572,
+      "gold_recall": 0.91,
+      "precision": 0.053866072468496694
+    },
+    "budget_512": {
+      "full_support": 0.49214285714285716,
+      "gold_recall": 0.7228571428571429,
+      "precision": 0.2668119459905174
+    },
+    "recall_at_10": 0.8203571428571429,
+    "recall_at_2": 0.5571428571428572,
+    "recall_at_5": 0.7085714285714285
+  },
+  "split": "test",
+  "system": "bm25"
+}

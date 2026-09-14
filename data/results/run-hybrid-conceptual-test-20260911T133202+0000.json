@@ -1,0 +1,58 @@
+{
+  "config": {
+    "code_version": "0.1.0",
+    "damping": "idf",
+    "dictionary_key": "d84c327aa8af0cdc",
+    "fitted_on": "dev",
+    "frozen_at": "2026-09-11T13:30:36+00:00",
+    "fusion_scheme": "weighted",
+    "fusion_weights": {
+      "conceptual": 0.0,
+      "dense": 1.0
+    },
+    "k": 512,
+    "model": "BAAI/bge-small-en-v1.5",
+    "n_units": 19366,
+    "query_operator": "projection_full",
+    "resolved_revision": "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a",
+    "revision": "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a",
+    "seed": 42,
+    "tokenizer": "BAAI/bge-small-en-v1.5",
+    "top_k": 100,
+    "unit_set_hash": "101f564fdcca620c",
+    "view": "raw"
+  },
+  "cost": {
+    "mean_latency_ms": 1.540989071862506,
+    "mean_units_included": 33.072857142857146,
+    "n_questions": 1400
+  },
+  "created_at": "2026-09-11T13:32:02+00:00",
+  "metrics": {
+    "budget_1024": {
+      "full_support": 0.7585714285714286,
+      "gold_recall": 0.8725,
+      "precision": 0.19324629735344023
+    },
+    "budget_2048": {
+      "full_support": 0.825,
+      "gold_recall": 0.9082142857142858,
+      "precision": 0.10760330635199393
+    },
+    "budget_4096": {
+      "full_support": 0.8707142857142857,
+      "gold_recall": 0.9328571428571428,
+      "precision": 0.057171722712013595
+    },
+    "budget_512": {
+      "full_support": 0.6542857142857142,
+      "gold_recall": 0.8153571428571429,
+      "precision": 0.3269736394557823
+    },
+    "recall_at_10": 0.8796428571428572,
+    "recall_at_2": 0.6917857142857143,
+    "recall_at_5": 0.8203571428571429
+  },
+  "split": "test",
+  "system": "hybrid-conceptual"
+}

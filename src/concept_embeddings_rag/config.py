@@ -123,8 +123,83 @@ LABEL_EVIDENCE_UNITS: Final[int] = 10
 LABELING_INPUT_USD_PER_MTOK: Final[float] = 2.00
 LABELING_OUTPUT_USD_PER_MTOK: Final[float] = 10.00
 
+# --- Hybrid conceptual retrieval (Phase 3) ----------------------------------
+# Everything this phase decides is declared here before a number is measured.
+# Nothing below may be repeated inline in a retriever, a sweep or the CLI: a
+# constant that appears twice is a constant that will disagree with itself.
+
+SELECTION_DIR: Final[Path] = DATA_DIR / "selection"
+# Dev and test question embeddings, cached once. A dense query costs ~30.7 ms on
+# this CPU, so re-encoding the same 600 dev strings on every pass of the sweep
+# would cost hours and buy nothing - see decision D1 of the phase plan.
+QUESTION_CACHE_DIR: Final[Path] = CACHE_DIR / "questions"
+
+# How the question becomes a concept vector. Truncation is part of the operator,
+# not a knob swept beside it, so the three arms are one decision with three
+# alternatives (decision D4). `projection_*` is `atoms @ q` clipped at zero;
+# `sparse_coding` runs the corpus coding penalty over the query.
+QUERY_OPERATORS: Final[tuple[str, ...]] = (
+    "projection_top16",
+    "projection_full",
+    "sparse_coding",
+)
+# The dense end of SPARSITY_TARGET_BAND: the corpus is coded at 8-16 active
+# concepts per unit, so a top-16 query describes the question at the same
+# resolution the units are described at.
+QUERY_TOP_M: Final[int] = 16
+
+# Both views of X are measured and neither is assumed. `row_normalized` is a pure
+# function of `raw`, and both exist on disk from Phase 2: the sweep loads the one
+# it measures rather than deriving it, so what is measured is what a later phase
+# would load.
+CONCEPT_VIEWS: Final[tuple[str, ...]] = ("raw", "row_normalized")
+
+# Hub damping: a rarity weight over the query vector, leaving X and the atoms
+# untouched. `none` is the identity and must be provably so. See decision D7.
+DAMPING_MODES: Final[tuple[str, ...]] = ("none", "idf")
+
+# Fusion. The weighted scheme buys a degree of freedom; RRF is the parameter-free
+# reference it has to earn that freedom against.
+FUSION_SCHEMES: Final[tuple[str, ...]] = ("weighted", "rrf")
+# `s = w * dense + (1 - w) * other`. The endpoints are in the grid on purpose: an
+# optimum at w = 1.0 says the second signal contributes nothing, and that is a
+# result to be read off the curve rather than inferred from its absence.
+FUSION_WEIGHT_GRID: Final[tuple[float, ...]] = (
+    0.0,
+    0.1,
+    0.2,
+    0.3,
+    0.4,
+    0.5,
+    0.6,
+    0.7,
+    0.8,
+    0.9,
+    1.0,
+)
+# `s = sum(1 / (RRF_K + rank))`. The standard constant, fixed rather than fitted:
+# fitting it would make the parameter-free reference no longer parameter-free.
+RRF_K: Final[int] = 60
+
+# What chooses the space, and at which budget. Kept as constants because the
+# selection artifact has to name them and the sweep has to obey them.
+SELECTION_METRIC: Final[str] = "gold_recall"
+SELECTION_BUDGET: Final[int] = 2048
+
+# A concept supported by fewer units than this is thin: reported beside recall,
+# because a space can win on recall while being made of dimensions the corpus
+# barely uses. Read from the Phase 2 diagnostics, never recomputed here.
+THIN_CONCEPT_MAX_UNITS: Final[int] = 30
+
 
 def ensure_directories() -> None:
     """Create the data directories if they do not exist yet."""
-    for path in (DATA_DIR, CACHE_DIR, RESULTS_DIR, CONCEPTS_DIR):
+    for path in (
+        DATA_DIR,
+        CACHE_DIR,
+        RESULTS_DIR,
+        CONCEPTS_DIR,
+        SELECTION_DIR,
+        QUESTION_CACHE_DIR,
+    ):
         path.mkdir(parents=True, exist_ok=True)

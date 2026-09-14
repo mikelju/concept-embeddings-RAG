@@ -100,3 +100,80 @@ def test_induction_batching_constants_are_positive():
     assert config.CONCEPT_BATCH_SIZE > 0
     assert config.CONCEPT_MAX_ITER > 0
     assert config.CODING_BATCH_SIZE > 0
+
+
+# --- Phase 3 (T1): the constants that decide what Phase 3 measures -----------
+
+
+def test_query_operator_arms_are_the_three_declared_in_decision_d4():
+    """Truncation is part of the operator, not a knob swept independently."""
+    assert config.QUERY_OPERATORS == ("projection_top16", "projection_full", "sparse_coding")
+
+
+def test_query_truncation_matches_the_dense_end_of_the_corpus_sparsity_band():
+    """A top-m query describes the question at the resolution the units are described at."""
+    _, band_high = config.SPARSITY_TARGET_BAND
+    assert config.QUERY_TOP_M == band_high == 16
+
+
+def test_both_views_of_x_are_declared_so_neither_is_assumed():
+    assert config.CONCEPT_VIEWS == ("raw", "row_normalized")
+
+
+def test_damping_modes_are_two_and_include_the_identity():
+    assert config.DAMPING_MODES == ("none", "idf")
+
+
+def test_fusion_schemes_are_the_weighted_one_and_the_parameter_free_reference():
+    assert config.FUSION_SCHEMES == ("weighted", "rrf")
+
+
+def test_fusion_weight_grid_has_eleven_points_and_includes_both_endpoints():
+    """w = 1.0 must be reachable: it is how the curve says the second signal adds nothing."""
+    grid = config.FUSION_WEIGHT_GRID
+    assert len(grid) == 11
+    assert grid[0] == 0.0
+    assert grid[-1] == 1.0
+    assert list(grid) == sorted(grid)
+    assert all(0.0 <= w <= 1.0 for w in grid)
+
+
+def test_rrf_constant_is_the_standard_sixty():
+    assert config.RRF_K == 60
+
+
+def test_selection_budget_is_one_of_the_declared_context_budgets():
+    """Asserted rather than assumed: a selection budget outside the table is unreadable."""
+    assert config.SELECTION_BUDGET == 2048
+    assert config.SELECTION_BUDGET in config.CONTEXT_BUDGETS
+
+
+def test_selection_metric_is_declared_as_a_constant():
+    assert config.SELECTION_METRIC == "gold_recall"
+
+
+def test_thin_concept_threshold_is_declared():
+    assert config.THIN_CONCEPT_MAX_UNITS == 30
+    assert config.THIN_CONCEPT_MAX_UNITS > config.DEAD_ATOM_MIN_UNITS
+
+
+def test_phase_3_directories_are_absolute_and_under_data():
+    for path in (config.SELECTION_DIR, config.QUESTION_CACHE_DIR):
+        assert isinstance(path, Path)
+        assert path.is_absolute()
+        assert config.DATA_DIR in path.parents
+
+
+def test_ensure_directories_creates_the_phase_3_directories(tmp_path, monkeypatch):
+    """A stage must not have to remember to create its own output directory."""
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path / "data")
+    monkeypatch.setattr(config, "CACHE_DIR", tmp_path / "data" / "cache")
+    monkeypatch.setattr(config, "RESULTS_DIR", tmp_path / "data" / "results")
+    monkeypatch.setattr(config, "CONCEPTS_DIR", tmp_path / "data" / "concepts")
+    monkeypatch.setattr(config, "SELECTION_DIR", tmp_path / "data" / "selection")
+    monkeypatch.setattr(config, "QUESTION_CACHE_DIR", tmp_path / "data" / "cache" / "questions")
+
+    config.ensure_directories()
+
+    assert config.SELECTION_DIR.is_dir()
+    assert config.QUESTION_CACHE_DIR.is_dir()

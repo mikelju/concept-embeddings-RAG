@@ -41,7 +41,7 @@ docs/plans/
 |------|--------|------|--------|
 | 1 | Corpus, indexing units and dense baseline | Available | **Complete** |
 | 2 | Concept space: dictionary + matrix X | Available | **Complete** |
-| 3 | Hybrid conceptual retrieval (System B) | Pending | Pending |
+| 3 | Hybrid conceptual retrieval (System B) | Available | **In progress** |
 | 4 | Query-aware iterative expansion (System C) | Pending | Pending |
 | 5 | Comparative evaluation and verdict | Pending | Pending |
 | 6 | Exploratory extensions (conditional) | Pending | Not opened |
@@ -82,14 +82,49 @@ Four spaces were induced (K = 512, 1,024, 2,048, 4,096) and **none of them is ch
 
 ## Phase 3: Hybrid conceptual retrieval (System B)
 
-Uses the concept space to retrieve, and measures it. Answers the first half of the hypothesis: does the interpretable representation retrieve at least as well as the dense one?
+Uses the concept space to retrieve, and measures it. Answers the first half of the hypothesis: does the interpretable representation retrieve at least as well as the dense one? Specified in [`phase_3/3.spec.md`](phase_3/3.spec.md) and planned in [`phase_3/3.0_hybrid_conceptual_retrieval.md`](phase_3/3.0_hybrid_conceptual_retrieval.md), which declares every parameter of the phase before a single number is measured.
 
-- [ ] Query → concepts mapping by dot product against the dictionary (§6-§7, §50), no textual intermediaries
-- [ ] Chunk scoring over the active dimensions of X
-- [ ] Fusion of dense and conceptual signals, with justified weights rather than eyeballed ones
-- [ ] If low-coherence concepts are pruned, the decision is made against dev recall and declared as
-      a variant, never inferred from the Phase 2 diagnostic alone
-- [ ] System B measured in the same harness and against both baselines (dense and BM25)
+- [x] Query → concepts mapping by dot product against the dictionary (§6-§7, §50), no textual intermediaries
+- [x] Chunk scoring over the active dimensions of X, with the invariant that a unit whose row is all
+      zeros is unreachable through this system and is not silently rescued
+- [x] **K, view and query operator chosen against dev recall** over the four Phase 2 spaces, and
+      frozen in a versioned selection artifact before the test split is read even once. This is the
+      choice Phase 2 deliberately left open, and Phases 4 and 5 inherit it
+- [x] Fusion of dense and conceptual signals into System B, with weights fitted on dev rather than
+      eyeballed, and a parameter-free reference scheme measured beside them
+- [x] **A dense + BM25 control** built by the same fusion code and fitted the same way, so that a
+      System B win can be attributed to the concept space rather than to hybridization as such
+- [x] Hub damping by a rarity weight declared in advance, measured as a variant against the
+      undamped system. Concept **pruning** stays out of this phase and remains a declared ablation
+- [x] System B measured in the same harness and against both baselines (dense and BM25)
+
+### What Phase 4 inherits, and the verdict it inherits it with
+
+Recorded here because Phase 4 starts from these three and cannot make them for itself. The numbers and
+their artifacts are in [`phase_3/3.results.md`](phase_3/3.results.md).
+
+| Inherited | Value |
+|---|---|
+| **K** | **512**, dictionary `d84c327aa8af0cdc` (chosen on dev recall; the structural tie-break kept it over K = 2,048 when the margin proved smaller than 600 questions can resolve) |
+| **View of `X`** | **`raw`** (wins at K = 512; `row_normalized` wins at the other three, so this belongs to the space and not to the method) |
+| **Damping** | **`idf`**, the rarity weight declared in advance (+0.043 on the selected space, positive on three of the four) |
+| Query operator | `projection_full` - the unclipped projection, which wins in all eight (K, view) cells |
+
+**The verdict is negative and attributable.** System B's fusion weight was fitted at `w = 1.0`: all
+the weight on dense, none on the concept space, so System B *is* dense to four decimals at every
+budget on both splits. The dense+BM25 control, built by the same code and fitted by the same
+procedure, gains +3.9 points of Full Support on test - so the headroom was real and a cheap lexical
+signal took it while the concept space did not.
+
+**One result opens the door Phase 4 walks through.** Conceptual-only retrieval answers 5 dev questions
+dense does not, 4 of them among the 72 that defeat both baselines. The complementary signal exists and
+score-level fusion cannot reach it, which is precisely the gap diffusion over `X` is meant to close.
+
+Read through the labels, those five have a shape: **every one is a conjunction of two topics** - a
+Florida place *and* baseball, an Irish biography *and* combat sports, a magazine *and* politics. A
+dense query is one point and must land near one paragraph; a concept vector can ask for the paragraph
+that is about both subjects at once, which is the shape of a bridge. Five questions are a hypothesis,
+not a result, but it points Phase 4 at the conjunctions rather than at retrieval quality in general.
 
 ## Phase 4: Query-aware iterative expansion (System C)
 
