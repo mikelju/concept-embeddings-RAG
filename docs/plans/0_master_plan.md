@@ -42,7 +42,7 @@ docs/plans/
 | 1 | Corpus, indexing units and dense baseline | Available | **Complete** |
 | 2 | Concept space: dictionary + matrix X | Available | **Complete** |
 | 3 | Hybrid conceptual retrieval (System B) | Available | **In progress** |
-| 4 | Query-aware iterative expansion (System C) | Pending | Pending |
+| 4 | Query-aware iterative expansion (System C) | Available | Planned |
 | 5 | Comparative evaluation and verdict | Pending | Pending |
 | 6 | Exploratory extensions (conditional) | Pending | Not opened |
 
@@ -128,14 +128,17 @@ not a result, but it points Phase 4 at the conjunctions rather than at retrieval
 
 ## Phase 4: Query-aware iterative expansion (System C)
 
-The leap of §8: stop following the question and start navigating the corpus. It is the distinctive part of the proposal and the one most likely to fail.
+The leap of §8: stop following the question and start navigating the corpus. It is the distinctive part of the proposal and the one most likely to fail. Specified in [`phase_4/4.spec.md`](phase_4/4.spec.md) and planned in [`phase_4/4.0_query_aware_iterative_expansion.md`](phase_4/4.0_query_aware_iterative_expansion.md), which declares the operator, the stopping rule and both parameter grids before a single number is measured.
+
+**The bar this phase is judged against is the dense+BM25 control** at 0.8643 Full Support on test @2,048, not dense at 0.8250: a cheap lexical hybrid already reaches that without any of this machinery. Beating dense and not the control is a result, to be reported as exactly that.
 
 - [ ] Expansion by **diffusion over X**: initial activation from the query, propagation chunk → concept → chunk through `X` and `Xᵀ`, with partial restart on the question's concepts at every round
-- [ ] The query-aware condition (§52-53) is guaranteed by that restart: expansion cannot drift toward the corpus's global co-occurrence
+- [ ] The query-aware condition (§52-53) is guaranteed by that restart: expansion cannot drift toward the corpus's global co-occurrence — and `restart = 0.0` is measured once on dev so the claim rests on a number
 - [ ] Stopping criterion on newly contributed mass, with an explicit budget of iterations and tokens (§54)
 - [ ] Per-query trace: which concept entered at which iteration and which chunk it brought along
-- [ ] System C measured
-- [ ] *(Optional, time permitting)* Variant with an LLM inside the loop, as a comparison, to estimate how much headroom the deterministic method leaves
+- [ ] **Two seed arms measured with identical machinery** — dense-seeded (System C proper) and conceptual-seeded (the isolating variant) — so that a gain can be told apart from "the dense retriever already brought almost everything". The configuration is chosen on the dense arm and applied unchanged to the other
+- [ ] System C measured against four rivals at four budgets on both splits, with its cost, on a configuration frozen before test was read
+- [ ] ~~*(Optional)* Variant with an LLM inside the loop~~ — **declared out of scope by the spec** and deferred to Phase 5: the deterministic method has to be measured first to be the thing such a variant is compared against
 
 ## Phase 5: Comparative evaluation and verdict
 
