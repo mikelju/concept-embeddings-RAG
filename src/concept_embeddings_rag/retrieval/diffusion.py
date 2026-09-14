@@ -33,7 +33,9 @@ import numpy as np
 from scipy import sparse
 
 from concept_embeddings_rag import config
-from concept_embeddings_rag.retrieval.base import Hit
+from concept_embeddings_rag.concepts.coding import ConceptMatrix
+from concept_embeddings_rag.concepts.dictionary import ConceptDictionary
+from concept_embeddings_rag.retrieval.base import Hit, Retriever
 
 # The three arms of decision D3, named so nothing has to spell them inline.
 NONE, SYMMETRIC, STOCHASTIC = config.NORMALIZATION_ARMS
@@ -250,3 +252,159 @@ def _check_degrees(degrees: np.ndarray, label: str, cause: str) -> None:
             f"{zeros} {label}(s) have a degree of zero, because the {cause}. Phase 2 measured "
             f"none of these at any K, so this is a broken input rather than a case to handle"
         )
+
+
+# The two systems of HU-3, named by their seed. The mapping is one-way and total,
+# so a result filename can never claim an arm the run did not use.
+EXPANSION_NAMES: dict[str, str] = {
+    "dense": "expansion",
+    "conceptual": "expansion-conceptual",
+}
+
+# Why a round ended. `converged` is the degenerate case of `threshold` - the mass
+# stopped moving entirely - and is kept apart from it because the two say different
+# things about the walk: one settled, the other ran out of patience.
+CONVERGED, THRESHOLD, CAP = "converged", "threshold", "cap"
+
+# Below this, two consecutive mass vectors are the same vector and the difference is
+# float noise rather than movement.
+_EXACT = 1e-12
+
+
+class DiffusionRetriever:
+    """System C: the ranking a question reaches by walking, not by scoring once.
+
+    Everything it holds is the concept space plus one seed retriever, and the seed
+    is the only thing that differs between this phase's two arms (HU-3). That is
+    deliberate to the point of being enforced: the name is derived from the arm, so
+    a result file cannot record `expansion` while a conceptual seed ran.
+
+    The walk is
+
+        s_0     = the seed's ranking, clipped and L1-normalized (decision D1)
+        s_{t+1} = restart * s_0 + (1 - restart) * propagate(s_t)
+
+    and it stops when a round moves less than `stop_threshold` of the mass, or at
+    `max_iterations`, whichever comes first. Both mixture terms are non-negative and
+    sum to `restart` and `1 - restart`, so `s_{t+1}` is a distribution by
+    construction and never needs rescuing with a second normalization.
+    """
+
+    def __init__(
+        self,
+        matrix: ConceptMatrix,
+        dictionary: ConceptDictionary,
+        seed_retriever: Retriever,
+        *,
+        seed_arm: str,
+        restart: float,
+        normalization: str,
+        concept_weights: np.ndarray | None = None,
+        stop_threshold: float = config.STOP_THRESHOLD,
+        max_iterations: int = config.MAX_ITERATIONS,
+        seed_top_k: int = config.SEED_TOP_K,
+        inherits: Mapping[str, object] | None = None,
+    ) -> None:
+        if seed_arm not in config.SEED_ARMS:
+            raise DiffusionError(
+                f"unknown seed arm: {seed_arm!r}; expected one of {sorted(config.SEED_ARMS)}"
+            )
+        if not 0.0 <= restart <= 1.0:
+            raise DiffusionError(
+                f"the restart is a fraction of the mass: expected it in [0, 1], got {restart}"
+            )
+        if matrix.dictionary_key != dictionary.key:
+            raise DiffusionError(
+                f"the matrix was coded against dictionary {matrix.dictionary_key!r}, "
+                f"not {dictionary.key!r}"
+            )
+        if matrix.X.shape[1] != dictionary.k:
+            raise DiffusionError(
+                f"the matrix has {matrix.X.shape[1]} concepts but the dictionary has "
+                f"{dictionary.k} atoms"
+            )
+        if matrix.X.shape[0] != len(matrix.unit_ids):
+            raise DiffusionError(f"{matrix.X.shape[0]} rows for {len(matrix.unit_ids)} unit ids")
+        if stop_threshold <= 0.0:
+            raise DiffusionError(
+                f"the stop threshold is a fraction of the mass: expected it above 0, "
+                f"got {stop_threshold}"
+            )
+        if max_iterations < 1:
+            raise DiffusionError(f"the walk runs at least one round, not {max_iterations}")
+
+        self.name = EXPANSION_NAMES[seed_arm]
+        self.matrix = matrix
+        self.dictionary = dictionary
+        self.seed_retriever = seed_retriever
+        self.seed_arm = seed_arm
+        self.restart = float(restart)
+        self.normalization = normalization
+        self.stop_threshold = float(stop_threshold)
+        self.max_iterations = int(max_iterations)
+        self.seed_top_k = int(seed_top_k)
+        self.inherits = dict(inherits) if inherits is not None else {}
+
+        self.unit_ids = list(matrix.unit_ids)
+        self._index = {unit_id: row for row, unit_id in enumerate(self.unit_ids)}
+        self.operator = DiffusionOperator(
+            matrix.X, normalization=normalization, concept_weights=concept_weights
+        )
+        self.concept_weights = self.operator.concept_weights
+
+    def describe(self) -> dict:
+        """The spec's data contract, to be recorded beside every metric."""
+        return {
+            "name": self.name,
+            "seed_arm": self.seed_arm,
+            "seed_system": self.seed_retriever.name,
+            "restart": self.restart,
+            "normalization": self.normalization,
+            "stop_threshold": self.stop_threshold,
+            "max_iterations": self.max_iterations,
+            "seed_top_k": self.seed_top_k,
+            "dictionary_key": self.matrix.dictionary_key,
+            "k": int(self.matrix.X.shape[1]),
+            "view": self.matrix.view,
+            "damping": self.inherits.get("damping"),
+            "inherits": dict(self.inherits),
+        }
+
+    def retrieve(self, query: str, top_k: int) -> list[Hit]:
+        hits = self.seed_retriever.retrieve(query, top_k=self.seed_top_k)
+        start, _clipped = seed_mass(hits, self._index)
+        mass = start
+        reason = CAP
+
+        for _round in range(self.max_iterations):
+            propagated = self.operator.propagate(mass)
+            moved = self.restart * start + (1.0 - self.restart) * propagated
+            delta = float(np.abs(moved - mass).sum())
+            mass = moved
+            if delta <= _EXACT:
+                reason = CONVERGED
+                break
+            if delta < self.stop_threshold:
+                reason = THRESHOLD
+                break
+
+        self.last_stop_reason = reason
+        return self._rank(mass, hits, top_k)
+
+    def _rank(self, mass: np.ndarray, seed_hits: Sequence[Hit], top_k: int) -> list[Hit]:
+        """Decision D4: rank the positive-mass units and the seed's own hits, by id on ties.
+
+        The union with the seed's hits is what makes the parity property of HU-2
+        exact rather than exact-up-to-a-tie: a seed hit whose score was clipped to
+        zero must not be displaced from the list by whichever zero-mass unit of the
+        pool happens to sort first alphabetically.
+        """
+        n_units = len(self.unit_ids)
+        k = min(top_k, n_units)
+        best = np.argpartition(-mass, k - 1)[:k] if k < n_units else np.arange(n_units)
+
+        candidates = {int(row) for row in best if mass[row] > 0.0}
+        candidates.update(self._index[unit_id] for unit_id, _score in seed_hits)
+
+        ordered = sorted(candidates, key=lambda row: (-float(mass[row]), self.unit_ids[row]))
+        return [(self.unit_ids[row], float(mass[row])) for row in ordered[:top_k]]
