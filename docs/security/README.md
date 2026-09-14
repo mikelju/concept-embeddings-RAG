@@ -16,8 +16,9 @@ written; later audits add rows below, not documents.
 
 ## Open findings
 
-None. Every finding from the three passes is closed, each held closed by a regression test.
-Neither phase has blocking security work outstanding.
+None **of the phases that have been audited**, which are Phases 1 and 2. Every finding from the
+three passes is closed, each held closed by a regression test, and neither phase has blocking
+security work outstanding. Phase 3 has not been audited — see "Deferred audits" below.
 
 ### Phase 1 — 2026-09-08
 
@@ -73,6 +74,36 @@ in `docs/plans/phase_2/2.results.md` stand.
 
 **Phase closure: no Critical and no High finding, so the phase may close.** The three Medium
 findings are fixed and held closed by regression tests, so no `fix-N` document is owed.
+
+## Deferred audits
+
+An audit that was not run is a decision on record here, never a gap nobody noticed.
+
+### Phase 3 — deferred on 2026-09-14, until the Phase 4 results are in
+
+**Status: not audited.** Phase 3 was verified against its specification and merged to `main`
+([PR #4](https://github.com/mikelju/concept-embeddings-RAG/pull/4)) with `/8-auditar` outstanding.
+
+**Reason.** Phase 3 returned a negative result — the concept space retrieves worse than either
+baseline and contributes nothing to a fused system — so the code it audits may not survive to the
+end of the project. Phase 4 asks the question that decides this: whether the second paragraph can be
+reached through concepts at all. Auditing now would spend a session on a surface that Phase 4 either
+promotes to the project's main result or retires. The decision is to run the audit **after** Phase 4
+has a number, covering Phases 3 and 4 together, and to scale its depth to what that number says.
+
+**What this costs, stated rather than implied.** The Phase 3 surface that an audit would look at is
+artifact deserialization: `json.loads` over the selection artifact and the result files, plus the
+`.npz` matrices. All of it is produced by this pipeline, verified on load by digest, and carries no
+`pickle` and no `allow_pickle=True`. The risk being carried is therefore a review that has not
+happened, not a known weakness left open.
+
+**What closes this.** Either a Phase 3 + Phase 4 audit pass with its rows added above, or - if the
+project ends on a negative verdict and the code is never used outside this repository - an explicit
+decision to close it as exempt, recorded here with that reasoning. Whichever happens, it is written
+down before the project closes.
+
+**Also outstanding from Phase 3, unrelated to security**: `tests/test_cli.py` is not
+`ruff format`-clean (one block at line 958). No CI check enforces formatting, so nothing failed.
 
 ## Dependency scanning
 
