@@ -192,6 +192,54 @@ SELECTION_BUDGET: Final[int] = 2048
 THIN_CONCEPT_MAX_UNITS: Final[int] = 30
 
 
+# --- Query-aware iterative expansion (Phase 4) ------------------------------
+# Everything this phase decides is declared here before a number is measured,
+# and the two grids below are the *only* free parameters it has.
+
+EXPANSION_DIR: Final[Path] = DATA_DIR / "expansion"
+# Per-query traces of what the expansion did, for the sample declared in D10.
+# Reporting and diagnosis only: nothing in the metrics path reads one.
+TRACES_DIR: Final[Path] = DATA_DIR / "traces"
+
+# How deep every system is asked before the budget filling starts. It was a
+# default argument in the CLI until Phase 4 needed to assert something about it:
+# the diffusion asks its seed for exactly this, so the two cannot drift apart.
+EVALUATION_TOP_K: Final[int] = 100
+# Decision D5: the seed is asked for the depth the harness reads, and this is not
+# a third free parameter. Asking for more would make "restart = 1.0 reproduces the
+# seed" a property that holds at one depth and fails at another.
+SEED_TOP_K: Final[int] = EVALUATION_TOP_K
+
+# Which retriever the walk starts from. `dense` is System C proper; `conceptual`
+# is the isolating variant of HU-3, which exists so that a gain can be told apart
+# from "the dense retriever already brought almost everything".
+SEED_ARMS: Final[tuple[str, ...]] = ("dense", "conceptual")
+
+# First free parameter: how much of the mass returns to the seed's own signal at
+# every round. The endpoints are deliberately absent - 1.0 is the seed itself and
+# is asserted by a test rather than paid for with a dev evaluation, and 0.0 is the
+# declared failure mode of §52-§53, measured once after the choice is made.
+RESTART_GRID: Final[tuple[float, ...]] = (0.2, 0.4, 0.6, 0.8)
+
+# Second free parameter: how the propagation operator is normalized (decision D3).
+# `none` is the null hypothesis - maybe on this space it does not matter - and the
+# other two demote well-connected units and concepts in different ways.
+NORMALIZATION_ARMS: Final[tuple[str, ...]] = ("none", "symmetric", "stochastic")
+
+# Declared, not fitted (HU-4). The walk stops when a round moves less than this
+# fraction of the total mass, and never runs more rounds than the cap. HotpotQA is
+# a two-hop benchmark and one round is one hop, so five is more than twice what the
+# corpus's structure needs: a run that mostly reaches the cap is a finding about
+# the threshold, not a reason to raise the cap.
+STOP_THRESHOLD: Final[float] = 1e-3
+MAX_ITERATIONS: Final[int] = 5
+
+# What the whole phase may spend on dev: one evaluation is one pass of one
+# retriever over the 600 dev questions. The grid costs 24, leaving slack that is
+# counted and written into the selection artifact rather than assumed.
+DEV_EVALUATION_CAP: Final[int] = 40
+
+
 def ensure_directories() -> None:
     """Create the data directories if they do not exist yet."""
     for path in (
@@ -201,5 +249,7 @@ def ensure_directories() -> None:
         CONCEPTS_DIR,
         SELECTION_DIR,
         QUESTION_CACHE_DIR,
+        EXPANSION_DIR,
+        TRACES_DIR,
     ):
         path.mkdir(parents=True, exist_ok=True)

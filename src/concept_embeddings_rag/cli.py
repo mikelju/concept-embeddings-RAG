@@ -251,7 +251,7 @@ def cmd_evaluate(
     concepts_dir: Path = config.CONCEPTS_DIR,
     selection_dir: Path = config.SELECTION_DIR,
     question_cache_dir: Path = config.QUESTION_CACHE_DIR,
-    top_k: int = 100,
+    top_k: int = config.EVALUATION_TOP_K,
     splits: Sequence[str] = ("dev", "test"),
     backend: EmbeddingBackend | None = None,
 ) -> list[Path]:
@@ -790,7 +790,7 @@ def cmd_select(
     seed: int = config.CONCEPT_SEED,
     induction_alpha: float = config.INDUCTION_ALPHA,
     merge_threshold: float = config.MERGE_COSINE_THRESHOLD,
-    top_k: int = 100,
+    top_k: int = config.EVALUATION_TOP_K,
     backend: EmbeddingBackend | None = None,
 ) -> Path:
     """Choose the space on dev, fit the fusion on dev, and freeze the configuration.
