@@ -337,10 +337,6 @@ class ExpansionSelection:
             named.add(str(recorded))
         return sorted(named)
 
-    def cells_of(self, seed_arm: str) -> list[ExpansionCell]:
-        """The grid measured on one arm, in the order it was swept."""
-        return [cell for cell in self.cells if cell.seed_arm == seed_arm]
-
 
 def expansion_path(directory: Path | str) -> Path:
     """Where this phase's one selection artifact lives."""
@@ -579,11 +575,6 @@ def spent_against_cap(spent: int, cap: int = config.DEV_EVALUATION_CAP) -> None:
             f"this phase has spent {spent} dev evaluations against a declared cap of {cap}; "
             "exceeding it requires a deviation document, not a quiet second sweep"
         )
-
-
-def sweep_cells(cells: Sequence[ExpansionCell]) -> dict[str, list[ExpansionCell]]:
-    """The measured grid, split by seed arm, for a report that prints both."""
-    return {arm: [cell for cell in cells if cell.seed_arm == arm] for arm in config.SEED_ARMS}
 
 
 # --- The dev grid that fills the table ----------------------------------------
