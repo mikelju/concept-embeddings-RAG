@@ -27,7 +27,9 @@ three are decisions of the phase plan rather than implementation details:
 Nothing here reads a concept label, a gold annotation or a split.
 """
 
+from collections import Counter
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
 
 import numpy as np
 from scipy import sparse
@@ -133,8 +135,15 @@ class DiffusionOperator:
 
         degree_units = np.asarray(matrix.sum(axis=1)).ravel()
         degree_concepts = np.asarray(matrix.sum(axis=0)).ravel()
-        _check_degrees(degree_units, "unit", "row of X is all zeros")
-        _check_degrees(degree_concepts, "concept", "column of X is all zeros")
+        # Checked only where the arm would actually divide by a degree. `none` does
+        # not, so an empty row is not an error there - it is the invariant the spec
+        # states, that a unit no concept reaches gains no mass, and it is asserted in
+        # `tests/retrieval/test_diffusion_invariants.py` rather than made unreachable.
+        # Phase 2 measured zero orphan units and zero dead atoms at every K, so on the
+        # real space neither branch fires.
+        if normalization != NONE:
+            _check_degrees(degree_units, "unit", "row of X is all zeros")
+            _check_degrees(degree_concepts, "concept", "column of X is all zeros")
 
         # `left` is applied transposed (units -> concepts) and `right` as it stands
         # (concepts -> units). For two of the arms they are the same matrix; for the
@@ -271,6 +280,74 @@ CONVERGED, THRESHOLD, CAP = "converged", "threshold", "cap"
 _EXACT = 1e-12
 
 
+@dataclass
+class RunStats:
+    """What one pass over a question set cost, accumulated as it goes.
+
+    Mutable state on a retriever is a smell, and this is the bounded version of it.
+    `evaluate_retriever` takes its configuration **before** it runs and the harness is
+    frozen for this phase, so a measurement of the run itself has no other door into
+    the result (decision D12). The bound is that nothing here is ever read by the path
+    that produces a score, and that a caller resets it per run.
+
+    `iterations` is kept per question rather than summarised, because HU-4 asks for the
+    distribution: a system that stops at round 1 on 90% of questions and one that runs
+    to the cap can share a mean and are not the same system.
+    """
+
+    iterations: list[int] = field(default_factory=list)
+    stop_reasons: Counter[str] = field(default_factory=Counter)
+    sparse_products: int = 0
+    clipped_seed_hits: int = 0
+
+    def record(self, *, iterations: int, stop_reason: str, clipped: int) -> None:
+        self.iterations.append(iterations)
+        self.stop_reasons[stop_reason] += 1
+        # Decision D2: one round is exactly two sparse matrix-vector products, and the
+        # count is derived from the rounds rather than incremented inside the operator,
+        # so an operator that quietly did more work would show up as a disagreement.
+        self.sparse_products += 2 * iterations
+        self.clipped_seed_hits += clipped
+
+    @property
+    def n_questions(self) -> int:
+        return len(self.iterations)
+
+    @property
+    def mean_iterations(self) -> float:
+        return float(sum(self.iterations) / len(self.iterations)) if self.iterations else 0.0
+
+    @property
+    def iterations_histogram(self) -> dict[int, int]:
+        return dict(sorted(Counter(self.iterations).items()))
+
+    @property
+    def cap_hits(self) -> int:
+        return int(self.stop_reasons[CAP])
+
+    def describe(self) -> dict:
+        """The statistics in the shape decision D12 records them in a result config.
+
+        The histogram's keys become strings because a result is JSON and JSON has no
+        integer keys; doing it here rather than at the writing end keeps the artifact
+        and this object saying the same thing.
+        """
+        if not self.iterations:
+            raise ValueError(
+                "no question was asked of this retriever, so there is nothing to describe; "
+                "a mean of zero iterations would read as a measurement rather than an absence"
+            )
+        return {
+            "mean_iterations": self.mean_iterations,
+            "iterations_histogram": {str(k): v for k, v in self.iterations_histogram.items()},
+            "stop_reasons": dict(sorted(self.stop_reasons.items())),
+            "cap_hits": self.cap_hits,
+            "clipped_seed_hits": self.clipped_seed_hits,
+            "mean_sparse_products": self.sparse_products / len(self.iterations),
+            "n_questions": self.n_questions,
+        }
+
+
 class DiffusionRetriever:
     """System C: the ranking a question reaches by walking, not by scoring once.
 
@@ -351,6 +428,7 @@ class DiffusionRetriever:
             matrix.X, normalization=normalization, concept_weights=concept_weights
         )
         self.concept_weights = self.operator.concept_weights
+        self.stats = RunStats()
 
     def describe(self) -> dict:
         """The spec's data contract, to be recorded beside every metric."""
@@ -370,17 +448,23 @@ class DiffusionRetriever:
             "inherits": dict(self.inherits),
         }
 
+    def reset_stats(self) -> None:
+        """Start counting a new run. A caller that forgets would report two runs as one."""
+        self.stats = RunStats()
+
     def retrieve(self, query: str, top_k: int) -> list[Hit]:
         hits = self.seed_retriever.retrieve(query, top_k=self.seed_top_k)
-        start, _clipped = seed_mass(hits, self._index)
+        start, clipped = seed_mass(hits, self._index)
         mass = start
         reason = CAP
+        rounds = 0
 
         for _round in range(self.max_iterations):
             propagated = self.operator.propagate(mass)
             moved = self.restart * start + (1.0 - self.restart) * propagated
             delta = float(np.abs(moved - mass).sum())
             mass = moved
+            rounds += 1
             if delta <= _EXACT:
                 reason = CONVERGED
                 break
@@ -388,7 +472,7 @@ class DiffusionRetriever:
                 reason = THRESHOLD
                 break
 
-        self.last_stop_reason = reason
+        self.stats.record(iterations=rounds, stop_reason=reason, clipped=clipped)
         return self._rank(mass, hits, top_k)
 
     def _rank(self, mass: np.ndarray, seed_hits: Sequence[Hit], top_k: int) -> list[Hit]:
