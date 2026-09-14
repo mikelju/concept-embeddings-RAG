@@ -43,6 +43,15 @@ data/results/*
 !data/selection/
 data/selection/*
 !data/selection/*.json
+# The Phase 4 freeze, by the same rule as Phase 3's: every number of that phase is
+# bound to it, so a checkout that cannot verify the digest cannot check the results.
+!data/expansion/
+data/expansion/*
+!data/expansion/*.json
+# The traces are diagnostics, not a freeze: 0.7 MB per arm of per-round detail that
+# `cer expand` regenerates deterministically from the artifacts above. The reading
+# that matters is quoted in 4.results.md.
+data/traces/
 .cache/
 models/
 output/
