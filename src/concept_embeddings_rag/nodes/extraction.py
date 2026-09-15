@@ -786,6 +786,17 @@ def _write_aggregate(
     return summary
 
 
+def load_extraction_summary(
+    extraction_dir: Path | str, *, prompt_digest: str = PROMPT_DIGEST
+) -> dict[str, Any]:
+    """The summary of the aggregate: counts, costs, failures, and the digest of the archive."""
+    path = Path(extraction_dir) / f"{_extraction_stem(prompt_digest)}.json"
+    if not path.exists():
+        raise ExtractionError(f"no extraction in {extraction_dir}: run `cer extract` first")
+    summary: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+    return summary
+
+
 def load_extraction(
     extraction_dir: Path | str,
     *,

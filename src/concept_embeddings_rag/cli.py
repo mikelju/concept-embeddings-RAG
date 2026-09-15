@@ -10,6 +10,7 @@
     expand    sweep the expansion grid on dev and freeze the cell (Phase 4)
     pilot     freeze the navigation pilot's dev questions by rule (Phase 5)
     extract   read entities and concepts out of every paragraph, offline (Phase 5)
+    nodes     normalize the extraction into typed nodes over the pool (Phase 5)
 
 Each stage is idempotent and refuses to run if its input is missing, saying which
 stage to run first rather than failing somewhere deep inside numpy.
@@ -136,9 +137,17 @@ from concept_embeddings_rag.nodes.extraction import (
     BatchClient,
     ExtractionError,
     SyncClient,
+    load_extraction,
+    load_extraction_summary,
     load_sample_report,
     run_full,
     run_sample,
+)
+from concept_embeddings_rag.nodes.index import (
+    NodeIndexError,
+    build_node_index,
+    fragmentation,
+    save_node_index,
 )
 from concept_embeddings_rag.retrieval.base import Retriever
 from concept_embeddings_rag.retrieval.bm25 import BM25Retriever
@@ -1487,6 +1496,60 @@ def cmd_extract(
     print(f"[OK] extraction written to {extraction_dir}")
 
 
+def cmd_nodes(
+    data_dir: Path = config.DATA_DIR,
+    extraction_dir: Path = config.EXTRACTION_DIR,
+    nodes_dir: Path = config.NODES_DIR,
+) -> Path:
+    """Normalize the extraction into typed nodes and index them over the pool (Phase 5, HU-3).
+
+    Refuses an extraction whose failures are a finding (plan D5, task T13): above 1% of the
+    pool, the finding is written and no node is built from it. Refuses one that does not
+    cover every pool unit. Prints the fragmentation figures and never a node form, which is
+    corpus text and has no place in a log.
+    """
+    data_dir = Path(data_dir)
+    pool_path = data_dir / POOL_NAME
+    if not pool_path.exists():
+        _die("no pool found: run 'build' first")
+    units, _ = load_pool(pool_path)
+    _check_pool_against_manifest(units, data_dir / MANIFEST_NAME)
+    unit_ids = [unit.unit_id for unit in units]
+
+    try:
+        summary = load_extraction_summary(extraction_dir)
+        if summary["finding"]:
+            _die(
+                f"the extraction failed on {summary['failure_rate']:.2%} of the pool "
+                f"({summary['failures']}), a finding above the "
+                f"{config.EXTRACTION_FAILURE_FINDING:.0%} threshold: write the finding; no nodes "
+                "are built from this extraction"
+            )
+        records = load_extraction(extraction_dir, expected_unit_ids=unit_ids)
+        index = build_node_index(records, unit_ids, extraction_digest=str(summary["digest"]))
+    except (ExtractionError, NodeIndexError) as error:
+        _die(str(error))
+    path = save_node_index(index, nodes_dir)
+
+    print(
+        f"[INFO] {len(unit_ids)} paragraphs, {index.failed_units} with a failed extraction, "
+        f"{len(index.nodes)} nodes ({config.NORMALIZATION_VERSION})"
+    )
+    for node_type, figures in fragmentation(index).items():
+        per_node = figures["paragraphs_per_node"]
+        per_paragraph = figures["nodes_per_paragraph"]
+        print(
+            f"[INFO] {node_type}: {figures['distinct_nodes']} distinct, "
+            f"{figures['singleton_share']:.1%} in a single paragraph; paragraphs per node mean "
+            f"{per_node['mean']:.2f}, median {per_node['median']:.1f}, max {per_node['max']}; "
+            f"nodes per paragraph mean {per_paragraph['mean']:.2f}; "
+            f"{figures['paragraphs_without_node']} paragraphs without one; "
+            f"{index.dropped_empty[node_type]} forms empty after normalization"
+        )
+    print(f"[OK] node index written -> {path}")
+    return path
+
+
 def _poll_pause() -> None:
     """How long the full run waits between two looks at a batch. Most end within an hour."""
     time.sleep(60)
@@ -1566,6 +1629,9 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser(
         "pilot", help="freeze the Phase 5 navigation pilot's dev questions by rule"
     )
+    subparsers.add_parser(
+        "nodes", help="normalize the extraction into typed nodes and index them over the pool"
+    )
     extraction = subparsers.add_parser(
         "extract", help="read entities and concepts out of every paragraph (spends money)"
     )
@@ -1606,6 +1672,8 @@ def main(argv: list[str] | None = None) -> int:
         cmd_pilot()
     elif args.command == "extract":
         cmd_extract(sample=args.sample)
+    elif args.command == "nodes":
+        cmd_nodes()
     return 0
 
 
