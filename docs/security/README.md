@@ -168,6 +168,11 @@ Regenerated again 2026-09-15 with the research-line closure (commit `360927d`): 
 of public configuration or artifacts, a dictionary key, the pinned model commit, a fixture digest or
 a HotpotQA question id.
 
+Extended 2026-09-15 by Phase 5 deviation 5.1, which versions `data/extraction/sample-report.json`:
+14 findings added, 125 in total. All 14 were read: one is the extraction prompt digest and 13 are
+unit ids of the 20 sampled paragraphs, content hashes of the public corpus. The path exclusion below
+was deliberately **not** widened to cover the report: one small file is audited entry by entry.
+
 ### Path exclusion for id-bearing pipeline artifacts (Phase 5, decision D12)
 
 Phase 5 versions artifacts whose content is mostly unit ids and question ids — content hashes of

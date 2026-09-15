@@ -67,6 +67,11 @@ data/pilot/*
 !data/navigation/
 data/navigation/*
 !data/navigation/*.json
+# The extraction sample report of Phase 5: the measured figures deviation 5.1 rests on.
+# Only the report; the extraction archive's versioning is decided in T13 (plan D7).
+!data/extraction/
+data/extraction/*
+!data/extraction/sample-report.json
 .cache/
 models/
 output/
