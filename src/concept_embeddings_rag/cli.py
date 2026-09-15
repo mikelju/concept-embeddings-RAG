@@ -8,6 +8,7 @@
     label     name the concepts of one space, for the report only (Phase 2)
     select    choose the space on dev and freeze the configuration (Phase 3)
     expand    sweep the expansion grid on dev and freeze the cell (Phase 4)
+    pilot     freeze the navigation pilot's dev questions by rule (Phase 5)
 
 Each stage is idempotent and refuses to run if its input is missing, saying which
 stage to run first rather than failing somewhere deep inside numpy.
@@ -104,6 +105,13 @@ from concept_embeddings_rag.evaluation.expansion_selection import (
     sweep_expansion,
 )
 from concept_embeddings_rag.evaluation.harness import evaluate_retriever
+from concept_embeddings_rag.evaluation.pilot import (
+    PilotError,
+    build_pilot,
+    check_pilot_against,
+    pilot_path,
+    save_pilot,
+)
 from concept_embeddings_rag.evaluation.selection import (
     DEV_SPLIT,
     SelectionError,
@@ -1293,6 +1301,75 @@ def cmd_expand(
     return path
 
 
+def cmd_pilot(
+    data_dir: Path = config.DATA_DIR,
+    cache_dir: Path = config.CACHE_DIR,
+    question_cache_dir: Path = config.QUESTION_CACHE_DIR,
+    pilot_dir: Path = config.PILOT_DIR,
+    backend: EmbeddingBackend | None = None,
+) -> Path:
+    """Freeze the Phase 5 pilot: the dev questions dense leaves a gold paragraph outside top-10.
+
+    HU-1 of the Phase 5 spec. Nothing here reads a concept, an extraction or a test
+    question, and nothing is measured: the stage records where every hop will start and
+    what it will have to find, once, before any text-derived node exists.
+    """
+    data_dir = Path(data_dir)
+    pool_path = data_dir / POOL_NAME
+    if not pool_path.exists():
+        _die("no pool found: run 'build' first")
+    # Checked before the work rather than at the write: the pilot freezes once.
+    if pilot_path(pilot_dir).exists():
+        _die(
+            f"a pilot is already frozen at {pilot_path(pilot_dir)}; this phase writes one and "
+            "never overwrites it. Move it aside deliberately if a second freeze is meant"
+        )
+
+    units, questions = load_pool(pool_path)
+    _check_pool_against_manifest(units, data_dir / MANIFEST_NAME)
+    unit_ids = [unit.unit_id for unit in units]
+    pool_hash = unit_set_hash(unit_ids)
+
+    backend = backend if backend is not None else SentenceTransformerBackend()
+    corpus = EmbeddingCache(Path(cache_dir)).load(
+        _cache_key_for(backend, units), expected_unit_ids=unit_ids
+    )
+    if corpus is None:
+        _die("embeddings are not cached for this pool: run 'embed' first")
+    vectors, cached_unit_ids = corpus
+
+    dev = [question for question in questions if question.split == DEV_SPLIT]
+    if not dev:
+        _die(f"the pool holds no {DEV_SPLIT} questions: run 'build' first")
+    query_backend = build_query_backend(dev, backend, EmbeddingCache(Path(question_cache_dir)))
+
+    try:
+        pilot = build_pilot(
+            dev,
+            unit_ids=cached_unit_ids,
+            vectors=vectors,
+            query_backend=query_backend,
+            model=backend.name,
+            revision=backend.revision,
+            unit_set_hash=pool_hash,
+        )
+        if not pilot.questions:
+            _die(
+                f"no {DEV_SPLIT} question leaves a gold paragraph outside dense's top-"
+                f"{pilot.read_depth}; there is nothing for a second hop to find"
+            )
+        check_pilot_against(pilot, questions)
+        path = save_pilot(pilot, pilot_dir)
+    except PilotError as error:
+        _die(str(error))
+
+    print(
+        f"[OK] pilot frozen: {len(pilot.questions)} of {len(dev)} {DEV_SPLIT} questions miss "
+        f"{pilot.n_missing} gold paragraphs outside dense top-{pilot.read_depth} -> {path}"
+    )
+    return path
+
+
 def _check_pool_against_manifest(units: Sequence[IndexingUnit], manifest_path: Path) -> None:
     """Refuse to run on a pool the manifest does not recognise.
 
@@ -1364,6 +1441,9 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser(
         "expand", help="sweep the expansion grid on dev and freeze the cell it chose"
     )
+    subparsers.add_parser(
+        "pilot", help="freeze the Phase 5 navigation pilot's dev questions by rule"
+    )
     return parser
 
 
@@ -1387,6 +1467,8 @@ def main(argv: list[str] | None = None) -> int:
         cmd_select()
     elif args.command == "expand":
         cmd_expand()
+    elif args.command == "pilot":
+        cmd_pilot()
     return 0
 
 
