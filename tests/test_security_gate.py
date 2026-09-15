@@ -112,3 +112,45 @@ def test_the_baseline_is_keyed_the_way_the_runner_reads_it():
         assert "\\" not in name, f"{name} is keyed with backslashes; the ubuntu hook will miss it"
         for finding in findings:
             assert "\\" not in finding["filename"]
+
+
+def excluded_file_patterns() -> list[str]:
+    filters = json.loads(BASELINE.read_text(encoding="utf-8"))["filters_used"]
+    return [
+        pattern
+        for entry in filters
+        if entry["path"] == "detect_secrets.filters.regex.should_exclude_file"
+        for pattern in entry["pattern"]
+    ]
+
+
+def test_the_path_exclusion_covers_only_the_phase_5_id_artifacts():
+    """D12 of Phase 5: one narrow exclusion, on either separator, and nothing wider.
+
+    An exclusion is the one baseline change that can hide a real secret without a
+    finding ever appearing, so its scope is asserted file name by file name.
+    """
+    patterns = excluded_file_patterns()
+    assert len(patterns) == 1
+    exclusion = re.compile(patterns[0])
+
+    excluded = [
+        "data/pilot/pilot.json",
+        r"data\pilot\pilot.json",
+        "data/navigation/hop_run.json",
+        r"data\navigation\gate_decision.json",
+    ]
+    scanned = [
+        "data/results/run-dense-test.json",
+        "data/selection/selection.json",
+        "data/pilot/nested/pilot.json",
+        "data/pilot/pilot.py",
+        "data/extraction/extraction.jsonl.gz",
+        "src/concept_embeddings_rag/config.py",
+        ".env",
+        "xdata/pilot/pilot.json",
+    ]
+    for path in excluded:
+        assert exclusion.search(path), f"{path} should be excluded"
+    for path in scanned:
+        assert not exclusion.search(path), f"{path} must still be scanned"

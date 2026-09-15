@@ -58,6 +58,15 @@ data/traces/
 !data/diagnostics/
 data/diagnostics/*
 !data/diagnostics/*.json
+# Phase 5: the frozen pilot and the navigation run (hop run, traces, gate decision).
+# Small and versioned, like every freeze and result before them. Both are full of
+# content-hash unit ids, which is why .secrets.baseline excludes them by path (D12).
+!data/pilot/
+data/pilot/*
+!data/pilot/*.json
+!data/navigation/
+data/navigation/*
+!data/navigation/*.json
 .cache/
 models/
 output/

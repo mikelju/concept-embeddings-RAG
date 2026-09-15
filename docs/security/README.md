@@ -163,6 +163,38 @@ code an audit is looking at. And a baseline regenerated on this Windows machine 
 with backslashes while the job runs on ubuntu: normalise them to forward slashes, or the hook
 reads its own audited findings as new ones. `tests/test_security_gate.py` holds both closed.
 
+Regenerated again 2026-09-15 with the research-line closure (commit `360927d`): 111 findings, the
+28 above kept and 83 added. Every added one was read before committing, and every one is a digest
+of public configuration or artifacts, a dictionary key, the pinned model commit, a fixture digest or
+a HotpotQA question id.
+
+### Path exclusion for id-bearing pipeline artifacts (Phase 5, decision D12)
+
+Phase 5 versions artifacts whose content is mostly unit ids and question ids — content hashes of
+the public corpus. detect-secrets flags each one as a high-entropy string: the frozen pilot alone
+raised **1,385** findings. Auditing thousands of machine-written ids one by one would bury the 111
+findings that were read, which is the opposite of what a baseline is for.
+
+So the baseline carries one `should_exclude_file` filter, and it is deliberately narrow:
+
+```
+^data[\\/](pilot|navigation)[\\/][^\\/]+[.]json$
+```
+
+Only `.json` files directly inside `data/pilot/` and `data/navigation/` are skipped. Both are
+written by the pipeline, verified on load by digest, and hold no text beyond ids, figures and
+configuration. The pattern accepts either separator, so the check run on this Windows machine is the
+check CI runs on ubuntu. Verified before committing: the full tracked tree passes, a hex string in a
+file outside those directories still fails, and the same string inside them is skipped.
+`tests/test_security_gate.py` holds the pattern to exactly that scope.
+
+**When regenerating**, pass the filter again, or it is silently dropped with the old baseline:
+
+```bash
+uv run detect-secrets scan --exclude-files '^data[\\/](pilot|navigation)[\\/][^\\/]+[.]json$' \
+  $(git ls-files --cached --others --exclude-standard) > .secrets.baseline
+```
+
 ## Conventions
 
 - This file is the whole paperwork of an audit: one row per finding, with id, severity, title and
