@@ -284,10 +284,12 @@ MAX_NODES_PER_TYPE: Final[int] = 50
 MAX_NODE_CHARS: Final[int] = 120
 
 # Cost guards (D4, D5). The margin exists because the Phase 2 labelling ran 45% over
-# its forecast; the ceiling is the one the spec approved.
+# its forecast. The ceiling was 25 USD in the approved spec; deviation 5.1 raised it to
+# 35 USD after the sample measured 779.4 input tokens per request and an estimate of 33.17
+# USD. Nothing else in these guards changed with it.
 EXTRACTION_SAMPLE_SIZE: Final[int] = 20
 EXTRACTION_ESTIMATE_MARGIN: Final[float] = 1.5
-EXTRACTION_COST_CEILING_USD: Final[float] = 25.0
+EXTRACTION_COST_CEILING_USD: Final[float] = 35.0
 EXTRACTION_BATCH_SIZE: Final[int] = 5000
 # Above this share of the pool, failed extractions are a finding that stops the phase.
 EXTRACTION_FAILURE_FINDING: Final[float] = 0.01

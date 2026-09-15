@@ -293,7 +293,8 @@ def test_the_cost_guards_are_declared_before_money_is_spent():
     """HU-2 and D4: a sample first, a margin on its estimate, and a ceiling above which it stops."""
     assert config.EXTRACTION_SAMPLE_SIZE == 20
     assert config.EXTRACTION_ESTIMATE_MARGIN == 1.5
-    assert config.EXTRACTION_COST_CEILING_USD == 25.0
+    # Raised from 25.0 by deviation 5.1, after the sample measured 33.17 USD with its margin.
+    assert config.EXTRACTION_COST_CEILING_USD == 35.0
     assert config.EXTRACTION_BATCH_SIZE == 5000
     assert config.EXTRACTION_FAILURE_FINDING == 0.01
 
