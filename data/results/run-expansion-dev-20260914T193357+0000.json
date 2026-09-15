@@ -1,0 +1,76 @@
+{
+  "config": {
+    "cap_hits": 0,
+    "clipped_seed_hits": 0,
+    "code_version": "0.1.0",
+    "config_digest": "93328d444f5f3c07",
+    "damping": "idf",
+    "dictionary_key": "d84c327aa8af0cdc",
+    "expansion_selection_digest": "421ceee84e04914eccc38efa80f2f0903c3ef6673575ec160f515b2e02efae62",
+    "frozen_at": "2026-09-14T19:33:26+00:00",
+    "fusion_scheme": null,
+    "inherits_frozen_at": "2026-09-11T13:30:36+00:00",
+    "iterations_histogram": {
+      "3": 11,
+      "4": 589
+    },
+    "k": 512,
+    "max_iterations": 5,
+    "mean_iterations": 3.9816666666666665,
+    "mean_sparse_products": 7.963333333333333,
+    "model": "BAAI/bge-small-en-v1.5",
+    "n_questions": 600,
+    "n_units": 19366,
+    "normalization": "symmetric",
+    "query_operator": "projection_full",
+    "resolved_revision": "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a",
+    "restart": 0.8,
+    "revision": "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a",
+    "seed": 42,
+    "seed_arm": "dense",
+    "seed_system": "dense",
+    "seed_top_k": 100,
+    "selection_digest": "91daa10ef0a75b6eba377d18a55ac868467b01b09fb7284c7835a84d4e4e602d",
+    "stop_reasons": {
+      "threshold": 600
+    },
+    "stop_threshold": 0.001,
+    "tokenizer": "BAAI/bge-small-en-v1.5",
+    "top_k": 100,
+    "unit_set_hash": "101f564fdcca620c",
+    "view": "raw"
+  },
+  "cost": {
+    "mean_latency_ms": 3.7211793317692354,
+    "mean_units_included": 32.515,
+    "n_questions": 600
+  },
+  "created_at": "2026-09-14T19:33:57+00:00",
+  "metrics": {
+    "budget_1024": {
+      "full_support": 0.7366666666666667,
+      "gold_recall": 0.8641666666666666,
+      "precision": 0.1964520202020202
+    },
+    "budget_2048": {
+      "full_support": 0.81,
+      "gold_recall": 0.9008333333333334,
+      "precision": 0.10831969728390343
+    },
+    "budget_4096": {
+      "full_support": 0.86,
+      "gold_recall": 0.9266666666666666,
+      "precision": 0.057654909646120356
+    },
+    "budget_512": {
+      "full_support": 0.6316666666666667,
+      "gold_recall": 0.8,
+      "precision": 0.33016666666666666
+    },
+    "recall_at_10": 0.8683333333333333,
+    "recall_at_2": 0.6741666666666667,
+    "recall_at_5": 0.8183333333333334
+  },
+  "split": "dev",
+  "system": "expansion"
+}

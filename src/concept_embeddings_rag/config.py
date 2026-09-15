@@ -239,6 +239,20 @@ MAX_ITERATIONS: Final[int] = 5
 # counted and written into the selection artifact rather than assumed.
 DEV_EVALUATION_CAP: Final[int] = 40
 
+# What chooses the cell, and where. Phase 3 selected on `gold_recall` because it was
+# choosing a space and half the evidence still tells you something about a space.
+# This phase selects a retrieval system, and a HotpotQA question needs *both* of its
+# paragraphs - so the figure that decides is Full Support, at the same budget.
+EXPANSION_SELECTION_METRIC: Final[str] = "full_support"
+EXPANSION_SELECTION_BUDGET: Final[int] = SELECTION_BUDGET
+
+# How wide a round of the trace is. Reporting only, exactly like the Phase 2
+# diagnostics above: these decide how much of a round a human reads, never what
+# the walk computed. A round touches every concept the mass reaches, and writing
+# all 512 of them per round per question would produce an artifact nobody opens.
+TRACE_TOP_CONCEPTS: Final[int] = 10
+TRACE_TOP_UNITS: Final[int] = 10
+
 
 def ensure_directories() -> None:
     """Create the data directories if they do not exist yet."""

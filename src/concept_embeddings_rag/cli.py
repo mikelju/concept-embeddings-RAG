@@ -7,6 +7,7 @@
     induce    build one concept space per dictionary size (Phase 2)
     label     name the concepts of one space, for the report only (Phase 2)
     select    choose the space on dev and freeze the configuration (Phase 3)
+    expand    sweep the expansion grid on dev and freeze the cell (Phase 4)
 
 Each stage is idempotent and refuses to run if its input is missing, saying which
 stage to run first rather than failing somewhere deep inside numpy.
@@ -17,6 +18,7 @@ import json
 import sys
 import time
 from collections.abc import Sequence
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import NoReturn
@@ -87,6 +89,20 @@ from concept_embeddings_rag.embeddings.cache import (
     unit_set_hash,
 )
 from concept_embeddings_rag.evaluation.budget import TokenCounter
+from concept_embeddings_rag.evaluation.expansion_selection import (
+    ExpansionSelection,
+    ExpansionSelectionError,
+    build_expansion_retrievers,
+    cell_config,
+    check_dictionary_agrees,
+    choose_cell,
+    expansion_path,
+    expansion_selection_digest,
+    freeze_expansion_selection,
+    load_expansion_selection,
+    save_expansion_selection,
+    sweep_expansion,
+)
 from concept_embeddings_rag.evaluation.harness import evaluate_retriever
 from concept_embeddings_rag.evaluation.selection import (
     DEV_SPLIT,
@@ -101,6 +117,7 @@ from concept_embeddings_rag.evaluation.selection import (
     load_selection,
     run_dev_sweep,
     save_selection,
+    selection_digest,
     sweep_space,
 )
 from concept_embeddings_rag.retrieval.base import Retriever
@@ -113,6 +130,7 @@ from concept_embeddings_rag.retrieval.conceptual import (
     rarity_weights,
 )
 from concept_embeddings_rag.retrieval.dense import DenseRetriever
+from concept_embeddings_rag.retrieval.diffusion import EXPANSION_NAMES, DiffusionRetriever
 from concept_embeddings_rag.retrieval.fusion import FusedRetriever
 
 RAW_NAME = "hotpot_raw.json"
@@ -251,21 +269,32 @@ def cmd_evaluate(
     concepts_dir: Path = config.CONCEPTS_DIR,
     selection_dir: Path = config.SELECTION_DIR,
     question_cache_dir: Path = config.QUESTION_CACHE_DIR,
+    expansion_dir: Path = config.EXPANSION_DIR,
     top_k: int = config.EVALUATION_TOP_K,
     splits: Sequence[str] = ("dev", "test"),
+    systems: Sequence[str] | None = None,
     backend: EmbeddingBackend | None = None,
 ) -> list[Path]:
-    """Measure every system of the experiment on the requested splits, at every budget.
+    """Measure the requested systems on the requested splits, at every budget.
 
-    The two Phase 1 baselines always. The three Phase 3 systems - conceptual-only,
-    System B and the dense+BM25 control - whenever a frozen selection exists, built
-    entirely out of what that artifact names.
+    Without `systems`, the two Phase 1 baselines and - whenever a frozen selection
+    exists - the three Phase 3 systems, built entirely out of what that artifact
+    names. That was the whole stage until Phase 4.
+
+    `systems` is decision D11 of Phase 4. Running this stage again to measure the two
+    expansion systems would otherwise produce a **second test-split result for every
+    Phase 3 system**, which Phase 3 declared a deviation waiting to be written. So the
+    Phase 4 test read names its two systems and measures nothing else - which is also
+    what makes "the rivals' numbers are read from the Phase 3 files" the only
+    possibility rather than a good intention.
 
     **The test split is not read without a freeze** (decision D10). Not because the
-    baselines need one, but because after this phase nothing may touch test on a
-    configuration that was still open: HU-7 spends the dev split and reads test once,
-    and that is enforced here rather than remembered.
+    baselines need one, but because after Phase 3 nothing may touch test on a
+    configuration that was still open: test is read once, on a frozen configuration.
+    The expansion systems additionally require the Phase 4 freeze and refuse to be
+    built without it.
     """
+    requested = _requested_systems(systems)
     data_dir = Path(data_dir)
     pool_path = data_dir / POOL_NAME
     tokens_path = data_dir / TOKENS_NAME
@@ -288,6 +317,11 @@ def cmd_evaluate(
     vectors, unit_ids = cached
 
     report = _frozen_selection(Path(selection_dir), Path(concepts_dir), pool_hash, splits)
+    expansion = (
+        _frozen_expansion(Path(expansion_dir), pool_hash, report)
+        if _wants_expansion(requested)
+        else None
+    )
     run_config = {
         "model": backend.name,
         "revision": backend.revision,
@@ -315,16 +349,33 @@ def cmd_evaluate(
         dense = DenseRetriever(vectors=vectors, unit_ids=unit_ids, backend=query_backend)
         bm25 = BM25Retriever(units)
 
-        systems: list[tuple[Retriever, dict]] = [(dense, {}), (bm25, {})]
+        built: list[tuple[Retriever, dict]] = [(dense, {}), (bm25, {})]
         if report is not None:
-            systems.extend(
+            built.extend(
                 _phase_3_systems(
                     report, Path(concepts_dir), unit_ids_of_pool, query_backend, dense, bm25
                 )
             )
+        if report is not None and expansion is not None:
+            built.extend(
+                _phase_4_systems(
+                    report,
+                    expansion,
+                    Path(concepts_dir),
+                    unit_ids_of_pool,
+                    query_backend,
+                    dense,
+                )
+            )
 
-        for retriever, extra in systems:
+        for retriever, extra in built:
+            if requested is not None and retriever.name not in requested:
+                continue
             print(f"[INFO] evaluating {retriever.name} on {split} ({len(subset)} questions)")
+            if isinstance(retriever, DiffusionRetriever):
+                # Decision D12: the counters are per run, so a caller that forgot to
+                # reset them would report two runs as one.
+                retriever.reset_stats()
             result = evaluate_retriever(
                 retriever,
                 questions=subset,
@@ -335,9 +386,16 @@ def cmd_evaluate(
                 config={**run_config, **extra},
                 split=split,
             )
+            if isinstance(retriever, DiffusionRetriever):
+                # The harness takes its configuration before the run exists, and it is
+                # frozen for this phase, so a measurement of the run itself has no other
+                # door into the result.
+                result = replace(result, config={**result.config, **retriever.stats.describe()})
             if extra and report is not None:
                 # The freeze has to precede the measurement, not merely exist.
                 check_freeze_precedes(report, result)
+                if expansion is not None and isinstance(retriever, DiffusionRetriever):
+                    check_freeze_precedes(expansion, result)
             written.append(result.save(Path(results_dir)))
 
     print(f"[OK] wrote {len(written)} result files to {results_dir}")
@@ -437,6 +495,110 @@ def _phase_3_systems(
             )
         )
     return systems
+
+
+# The names `--systems` accepts, and the two that need the Phase 4 freeze.
+PHASE_1_AND_3_SYSTEMS: tuple[str, ...] = (
+    "dense",
+    "bm25",
+    "conceptual",
+    "hybrid-conceptual",
+    "hybrid-bm25",
+)
+EXPANSION_SYSTEMS: tuple[str, ...] = tuple(EXPANSION_NAMES[arm] for arm in config.SEED_ARMS)
+KNOWN_SYSTEMS: tuple[str, ...] = PHASE_1_AND_3_SYSTEMS + EXPANSION_SYSTEMS
+
+
+def _requested_systems(systems: Sequence[str] | None) -> frozenset[str] | None:
+    """What `--systems` asked for, or nothing - which means the pre-Phase-4 behaviour."""
+    if systems is None:
+        return None
+    names = [name.strip() for name in systems if name.strip()]
+    if not names:
+        _die(f"--systems was given no name; expected some of {list(KNOWN_SYSTEMS)}")
+    unknown = sorted({name for name in names if name not in KNOWN_SYSTEMS})
+    if unknown:
+        _die(f"unknown system(s) {unknown}; expected some of {list(KNOWN_SYSTEMS)}")
+    return frozenset(names)
+
+
+def _wants_expansion(requested: frozenset[str] | None) -> bool:
+    """The expansion systems are built only when named.
+
+    Never by default (decision D11): building them on a bare `evaluate` would measure
+    them beside a second test-split result for every Phase 3 system, which is the
+    duplication the selector exists to prevent.
+    """
+    return requested is not None and bool(requested & set(EXPANSION_SYSTEMS))
+
+
+def _frozen_expansion(
+    expansion_dir: Path, pool_hash: str, inherited: SelectionReport | None
+) -> ExpansionSelection:
+    """The Phase 4 freeze, or a refusal naming the stage that writes it."""
+    if inherited is None:
+        _die(
+            "the expansion systems inherit a Phase 3 configuration and there is none frozen: "
+            "run 'select' first"
+        )
+    try:
+        return load_expansion_selection(
+            expansion_dir,
+            expected_unit_set_hash=pool_hash,
+            inherits_selection_digest=selection_digest(inherited),
+        )
+    except ExpansionSelectionError as error:
+        _die(f"the expansion systems may not be measured on an open configuration ({error})")
+
+
+def _phase_4_systems(
+    inherited: SelectionReport,
+    expansion: ExpansionSelection,
+    concepts_dir: Path,
+    unit_ids: Sequence[str],
+    query_backend: EmbeddingBackend,
+    dense: Retriever,
+) -> list[tuple[Retriever, dict]]:
+    """The two arms of HU-3, built out of the two frozen artifacts alone.
+
+    Nothing here chooses anything: the cell was chosen on dev by `expand` and is read
+    back from what it froze, and the space, view, damping and query operator come from
+    the Phase 3 artifact it inherits. The conceptual seed is Phase 3's own retriever at
+    that configuration, so the isolating arm differs from System C in its seed and in
+    nothing else.
+    """
+    dictionary, matrix, weights, inherits = _inherited_space(inherited, concepts_dir, unit_ids)
+    try:
+        check_dictionary_agrees(expansion, dictionary.key)
+    except ExpansionSelectionError as error:
+        _die(str(error))
+
+    conceptual = ConceptualRetriever(
+        matrix,
+        dictionary,
+        query_backend,
+        arm=inherits["query_operator"],
+        damping=inherits["damping"],
+        concept_weights=weights,
+    )
+    retrievers = build_expansion_retrievers(
+        matrix=matrix,
+        dictionary=dictionary,
+        seed_retrievers={"dense": dense, "conceptual": conceptual},
+        restart=expansion.chosen_restart,
+        normalization=expansion.chosen_normalization,
+        inherits=inherits,
+        concept_weights=weights,
+    )
+
+    digests = {
+        "selection_digest": selection_digest(inherited),
+        "expansion_selection_digest": expansion_selection_digest(expansion),
+        "frozen_at": expansion.frozen_at,
+        "inherits_frozen_at": inherited.frozen_at,
+        "fusion_scheme": None,
+    }
+    return [(retriever, {**cell_config({}, retriever), **digests}) for retriever in retrievers]
 
 
 def _diagnostics_for(
@@ -949,6 +1111,188 @@ def cmd_select(
     return path
 
 
+def _inherited_space(
+    report: SelectionReport,
+    concepts_dir: Path,
+    unit_ids: Sequence[str],
+) -> tuple[ConceptDictionary, ConceptMatrix, np.ndarray | None, dict]:
+    """The Phase 3 configuration, loaded and hash-verified, never retyped.
+
+    Returns the dictionary, the matrix in the view that was frozen, the damping
+    weights if the frozen damping is not the identity, and the four decisions in the
+    shape every Phase 4 artifact records them.
+    """
+    frozen = report.config
+    key = str(frozen["dictionary_key"])
+    view = str(frozen["view"])
+    damping = str(frozen["damping"])
+    try:
+        dictionary = load_dictionary(
+            key, concepts_dir, expected_unit_set_hash=frozen.get("unit_set_hash")
+        )
+        matrix = load_matrix(key, concepts_dir, view=view, expected_unit_ids=unit_ids)
+        weights = None
+        if damping != UNDAMPED:
+            raw = load_matrix(key, concepts_dir, view="raw", expected_unit_ids=unit_ids)
+            weights = rarity_weights(concept_support(raw.X), raw.X.shape[0])
+    except ConceptArtifactError as error:
+        _die(f"the frozen selection names a space that is not on disk ({error}): run 'induce'")
+
+    inherits = {
+        "k": int(frozen["k"]),
+        "dictionary_key": key,
+        "view": view,
+        "damping": damping,
+        "query_operator": str(frozen["query_operator"]),
+    }
+    return dictionary, matrix, weights, inherits
+
+
+def cmd_expand(
+    data_dir: Path = config.DATA_DIR,
+    cache_dir: Path = config.CACHE_DIR,
+    concepts_dir: Path = config.CONCEPTS_DIR,
+    selection_dir: Path = config.SELECTION_DIR,
+    expansion_dir: Path = config.EXPANSION_DIR,
+    question_cache_dir: Path = config.QUESTION_CACHE_DIR,
+    top_k: int = config.EVALUATION_TOP_K,
+    backend: EmbeddingBackend | None = None,
+) -> Path:
+    """Sweep the expansion grid on dev, choose one cell, and freeze it.
+
+    Two free parameters and one decision (D7, D8). Everything else is either declared
+    in `config.py` or **inherited from the frozen Phase 3 selection**, which is read
+    from disk and verified rather than retyped here: if that artifact's digest does
+    not check out, or it names a dictionary that is not the one on disk, this stage
+    refuses to run.
+
+    Nothing here reads the test split. The guard inside the grid refuses a question
+    from any other split at the door, whatever this function passes it.
+    """
+    data_dir = Path(data_dir)
+    concepts_dir = Path(concepts_dir)
+    expansion_dir = Path(expansion_dir)
+    pool_path = data_dir / POOL_NAME
+    tokens_path = data_dir / TOKENS_NAME
+    if not pool_path.exists():
+        _die("no pool found: run 'build' first")
+    if not tokens_path.exists():
+        _die("no token counts found: run 'embed' first")
+    # Checked before the sweep rather than at the write: a configuration freezes once,
+    # and discovering that after twenty-four evaluations would waste the whole spend.
+    if expansion_path(expansion_dir).exists():
+        _die(
+            f"a selection is already frozen at {expansion_path(expansion_dir)}; this phase "
+            "writes one and never overwrites it. A second freeze is a deviation to be "
+            "recorded, so move the existing artifact aside deliberately if that is meant"
+        )
+
+    units, questions = load_pool(pool_path)
+    _check_pool_against_manifest(units, data_dir / MANIFEST_NAME)
+    unit_ids = [unit.unit_id for unit in units]
+    pool_hash = unit_set_hash(unit_ids)
+    token_counts = json.loads(tokens_path.read_text(encoding="utf-8"))
+
+    backend = backend if backend is not None else SentenceTransformerBackend()
+    corpus = EmbeddingCache(Path(cache_dir)).load(
+        _cache_key_for(backend, units), expected_unit_ids=unit_ids
+    )
+    if corpus is None:
+        _die("embeddings are not cached for this pool: run 'embed' first")
+    vectors, cached_unit_ids = corpus
+
+    known = [path.stem.split("-", maxsplit=1)[1] for path in concepts_dir.glob("dictionary-*.npz")]
+    try:
+        inherited = load_selection(
+            selection_dir, expected_unit_set_hash=pool_hash, known_dictionary_keys=known
+        )
+    except SelectionError as error:
+        _die(
+            f"this phase inherits its space, view, damping and query operator from a frozen "
+            f"Phase 3 selection, and there is none to read ({error}): run 'select' first"
+        )
+    print(f"[INFO] inheriting the selection frozen at {inherited.frozen_at}")
+
+    dictionary, matrix, weights, inherits = _inherited_space(inherited, concepts_dir, unit_ids)
+
+    dev = [question for question in questions if question.split == DEV_SPLIT]
+    if not dev:
+        _die(f"the pool holds no {DEV_SPLIT} questions: run 'build' first")
+
+    question_cache = EmbeddingCache(Path(question_cache_dir))
+    query_backend = build_query_backend(dev, backend, question_cache)
+
+    seed_retrievers: dict[str, Retriever] = {
+        "dense": DenseRetriever(vectors=vectors, unit_ids=cached_unit_ids, backend=query_backend),
+        "conceptual": ConceptualRetriever(
+            matrix,
+            dictionary,
+            query_backend,
+            arm=inherits["query_operator"],
+            damping=inherits["damping"],
+            concept_weights=weights,
+        ),
+    }
+
+    base_config = {
+        "model": backend.name,
+        "revision": backend.revision,
+        "resolved_revision": resolved_revision(backend),
+        "unit_set_hash": pool_hash,
+        "seed": config.DEFAULT_SEED,
+        "tokenizer": config.TOKENIZER_ID,
+        "code_version": __version__,
+        "top_k": top_k,
+        "n_units": len(units),
+    }
+
+    cells_total = len(config.RESTART_GRID) * len(config.NORMALIZATION_ARMS) * len(config.SEED_ARMS)
+    print(
+        f"[INFO] sweeping {cells_total} cells ({len(config.RESTART_GRID)} restarts x "
+        f"{len(config.NORMALIZATION_ARMS)} normalizations x {len(config.SEED_ARMS)} arms) "
+        f"over {len(dev)} {DEV_SPLIT} questions"
+    )
+    try:
+        cells, spent = sweep_expansion(
+            matrix=matrix,
+            dictionary=dictionary,
+            seed_retrievers=seed_retrievers,
+            questions=dev,
+            token_counts=token_counts,
+            base_config=base_config,
+            inherits=inherits,
+            concept_weights=weights,
+        )
+        choice = choose_cell(cells)
+        report = freeze_expansion_selection(
+            cells,
+            choice=choice,
+            base_config=base_config,
+            inherits=inherits,
+            inherits_selection_digest=selection_digest(inherited),
+            dev_evaluations_spent=spent,
+        )
+        path = save_expansion_selection(report, expansion_dir)
+    except SelectionError as error:
+        _die(str(error))
+
+    print(
+        f"[INFO] cell: {choice.label} at {config.EXPANSION_SELECTION_METRIC} "
+        f"{choice.primary:.4f} (runner-up {choice.runner_up}, margin {choice.margin:.4f}, "
+        f"resolution {choice.resolution:.4f})"
+    )
+    if choice.tie_break is not None:
+        print(
+            f"[INFO] the margin was inside what {len(dev)} questions resolve, so cost "
+            f"decided it -> {choice.tie_break}"
+        )
+    print(
+        f"[OK] frozen at {report.frozen_at} after {spent} of "
+        f"{config.DEV_EVALUATION_CAP} dev evaluations -> {path}"
+    )
+    return path
+
+
 def _check_pool_against_manifest(units: Sequence[IndexingUnit], manifest_path: Path) -> None:
     """Refuse to run on a pool the manifest does not recognise.
 
@@ -989,7 +1333,19 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("fetch", help="download and freeze the benchmark into data/")
     subparsers.add_parser("build", help="select the subset, split it, build the unified pool")
     subparsers.add_parser("embed", help="compute and cache embeddings and token counts")
-    subparsers.add_parser("evaluate", help="measure dense and BM25 at every context budget")
+    evaluation = subparsers.add_parser(
+        "evaluate", help="measure the systems of the experiment at every context budget"
+    )
+    # Decision D11 of Phase 4: without this, measuring the two expansion systems would
+    # write a second test-split result for every Phase 3 system as a side effect.
+    evaluation.add_argument(
+        "--systems",
+        default=None,
+        help=(
+            "comma-separated systems to measure (default: every Phase 1 and Phase 3 system); "
+            f"one or more of {','.join(KNOWN_SYSTEMS)}"
+        ),
+    )
     subparsers.add_parser("induce", help="build one concept space per dictionary size")
     labelling = subparsers.add_parser(
         "label", help="name the concepts of one space, for the report only"
@@ -1005,6 +1361,9 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"dictionary size to label (default {config.LABELED_K})",
     )
     subparsers.add_parser("select", help="choose the concept space on dev and freeze it")
+    subparsers.add_parser(
+        "expand", help="sweep the expansion grid on dev and freeze the cell it chose"
+    )
     return parser
 
 
@@ -1019,13 +1378,15 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == "embed":
         cmd_embed()
     elif args.command == "evaluate":
-        cmd_evaluate()
+        cmd_evaluate(systems=None if args.systems is None else args.systems.split(","))
     elif args.command == "induce":
         cmd_induce()
     elif args.command == "label":
         cmd_label(k=args.k)
     elif args.command == "select":
         cmd_select()
+    elif args.command == "expand":
+        cmd_expand()
     return 0
 
 
