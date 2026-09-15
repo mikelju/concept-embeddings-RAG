@@ -1,0 +1,276 @@
+{
+  "config": {
+    "code_version": "0.1.0",
+    "damping": "idf",
+    "depths": [
+      10,
+      100
+    ],
+    "dictionary_keys": {
+      "1024": "a2b5320e4405d6e3",
+      "2048": "2fd69f5a413a6922",
+      "4096": "de39f6cdd5d5de3b",
+      "512": "d84c327aa8af0cdc"
+    },
+    "model": "BAAI/bge-small-en-v1.5",
+    "n_units": 19366,
+    "read": 10,
+    "revision": "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a",
+    "split": "dev",
+    "stochastic": false,
+    "truncations": [
+      1,
+      2,
+      4,
+      "all"
+    ],
+    "unit_set_hash": "101f564fdcca620c"
+  },
+  "hit_rates": {
+    "bm25-follow(p1)": {
+      "all@10": 0.4430379746835443,
+      "all@100": 0.740506329113924,
+      "bridge@10": 0.4430379746835443,
+      "bridge@100": 0.740506329113924
+    },
+    "bm25-question": {
+      "all@10": 0.44936708860759494,
+      "all@100": 0.7215189873417721,
+      "bridge@10": 0.44936708860759494,
+      "bridge@100": 0.7215189873417721
+    },
+    "concept-hop(p1) k=1024/m=1": {
+      "all@10": 0.04430379746835443,
+      "all@100": 0.13924050632911392,
+      "bridge@10": 0.04430379746835443,
+      "bridge@100": 0.13924050632911392
+    },
+    "concept-hop(p1) k=1024/m=2": {
+      "all@10": 0.06962025316455696,
+      "all@100": 0.2468354430379747,
+      "bridge@10": 0.06962025316455696,
+      "bridge@100": 0.2468354430379747
+    },
+    "concept-hop(p1) k=1024/m=4": {
+      "all@10": 0.08227848101265822,
+      "all@100": 0.2468354430379747,
+      "bridge@10": 0.08227848101265822,
+      "bridge@100": 0.2468354430379747
+    },
+    "concept-hop(p1) k=1024/m=all": {
+      "all@10": 0.08227848101265822,
+      "all@100": 0.2721518987341772,
+      "bridge@10": 0.08227848101265822,
+      "bridge@100": 0.2721518987341772
+    },
+    "concept-hop(p1) k=2048/m=1": {
+      "all@10": 0.056962025316455694,
+      "all@100": 0.12658227848101267,
+      "bridge@10": 0.056962025316455694,
+      "bridge@100": 0.12658227848101267
+    },
+    "concept-hop(p1) k=2048/m=2": {
+      "all@10": 0.0759493670886076,
+      "all@100": 0.2468354430379747,
+      "bridge@10": 0.0759493670886076,
+      "bridge@100": 0.2468354430379747
+    },
+    "concept-hop(p1) k=2048/m=4": {
+      "all@10": 0.0949367088607595,
+      "all@100": 0.33544303797468356,
+      "bridge@10": 0.0949367088607595,
+      "bridge@100": 0.33544303797468356
+    },
+    "concept-hop(p1) k=2048/m=all": {
+      "all@10": 0.0949367088607595,
+      "all@100": 0.3987341772151899,
+      "bridge@10": 0.0949367088607595,
+      "bridge@100": 0.3987341772151899
+    },
+    "concept-hop(p1) k=4096/m=1": {
+      "all@10": 0.04430379746835443,
+      "all@100": 0.0949367088607595,
+      "bridge@10": 0.04430379746835443,
+      "bridge@100": 0.0949367088607595
+    },
+    "concept-hop(p1) k=4096/m=2": {
+      "all@10": 0.05063291139240506,
+      "all@100": 0.16455696202531644,
+      "bridge@10": 0.05063291139240506,
+      "bridge@100": 0.16455696202531644
+    },
+    "concept-hop(p1) k=4096/m=4": {
+      "all@10": 0.10126582278481013,
+      "all@100": 0.34810126582278483,
+      "bridge@10": 0.10126582278481013,
+      "bridge@100": 0.34810126582278483
+    },
+    "concept-hop(p1) k=4096/m=all": {
+      "all@10": 0.10759493670886076,
+      "all@100": 0.43037974683544306,
+      "bridge@10": 0.10759493670886076,
+      "bridge@100": 0.43037974683544306
+    },
+    "concept-hop(p1) k=512/m=1": {
+      "all@10": 0.03164556962025317,
+      "all@100": 0.18354430379746836,
+      "bridge@10": 0.03164556962025317,
+      "bridge@100": 0.18354430379746836
+    },
+    "concept-hop(p1) k=512/m=2": {
+      "all@10": 0.04430379746835443,
+      "all@100": 0.2911392405063291,
+      "bridge@10": 0.04430379746835443,
+      "bridge@100": 0.2911392405063291
+    },
+    "concept-hop(p1) k=512/m=4": {
+      "all@10": 0.05063291139240506,
+      "all@100": 0.31645569620253167,
+      "bridge@10": 0.05063291139240506,
+      "bridge@100": 0.31645569620253167
+    },
+    "concept-hop(p1) k=512/m=all": {
+      "all@10": 0.0759493670886076,
+      "all@100": 0.3670886075949367,
+      "bridge@10": 0.0759493670886076,
+      "bridge@100": 0.3670886075949367
+    },
+    "dense-continue": {
+      "all@10": 0.2974683544303797,
+      "all@100": 0.6962025316455697,
+      "bridge@10": 0.2974683544303797,
+      "bridge@100": 0.6962025316455697
+    },
+    "dense-neighbours(p1)": {
+      "all@10": 0.3924050632911392,
+      "all@100": 0.6518987341772152,
+      "bridge@10": 0.3924050632911392,
+      "bridge@100": 0.6518987341772152
+    }
+  },
+  "n_dev_questions": 600,
+  "n_missing_paragraphs": {
+    "all": 158,
+    "bridge": 158
+  },
+  "n_questions_with_missing": {
+    "all": 152,
+    "bridge": 152
+  },
+  "reach_from_p1": {
+    "k=1024/m=1": 0.003159022595215706,
+    "k=1024/m=2": 0.00902082869054284,
+    "k=1024/m=4": 0.027891733749327362,
+    "k=1024/m=all": 0.11346323181702063,
+    "k=2048/m=1": 0.002091294020448208,
+    "k=2048/m=2": 0.009841243742424325,
+    "k=2048/m=4": 0.0900479407752056,
+    "k=2048/m=all": 0.5052853074025558,
+    "k=4096/m=1": 0.11605560749441506,
+    "k=4096/m=2": 0.48346532446990653,
+    "k=4096/m=4": 0.9006852758768759,
+    "k=4096/m=all": 0.9943029563478043,
+    "k=512/m=1": 0.004903126477766242,
+    "k=512/m=2": 0.015333098702555212,
+    "k=512/m=4": 0.04546322366382754,
+    "k=512/m=all": 0.37357930610891577
+  },
+  "structure": {
+    "k=1024/m=1": {
+      "active_per_paragraph": 1.0,
+      "largest_concept_share": 0.010533925436331715,
+      "paragraphs_per_concept_mean": 20.913606911447083,
+      "paragraphs_per_concept_median": 10.0
+    },
+    "k=1024/m=2": {
+      "active_per_paragraph": 1.999070535990912,
+      "largest_concept_share": 0.016213983269647837,
+      "paragraphs_per_concept_mean": 38.104330708661415,
+      "paragraphs_per_concept_median": 22.0
+    },
+    "k=1024/m=4": {
+      "active_per_paragraph": 3.9749561086440153,
+      "largest_concept_share": 0.027987194051430343,
+      "paragraphs_per_concept_mean": 75.1748046875,
+      "paragraphs_per_concept_median": 53.0
+    },
+    "k=1024/m=all": {
+      "active_per_paragraph": 9.227460497779614,
+      "largest_concept_share": 0.07001962201796964,
+      "paragraphs_per_concept_mean": 174.5107421875,
+      "paragraphs_per_concept_median": 141.0
+    },
+    "k=2048/m=1": {
+      "active_per_paragraph": 1.0,
+      "largest_concept_share": 0.014716513477228133,
+      "paragraphs_per_concept_mean": 11.003409090909091,
+      "paragraphs_per_concept_median": 5.0
+    },
+    "k=2048/m=2": {
+      "active_per_paragraph": 1.9998450893318187,
+      "largest_concept_share": 0.07704223897552412,
+      "paragraphs_per_concept_mean": 19.220347394540944,
+      "paragraphs_per_concept_median": 10.0
+    },
+    "k=2048/m=4": {
+      "active_per_paragraph": 3.9867809563151915,
+      "largest_concept_share": 0.2730042342249303,
+      "paragraphs_per_concept_mean": 37.69921875,
+      "paragraphs_per_concept_median": 22.5
+    },
+    "k=2048/m=all": {
+      "active_per_paragraph": 10.012909222348446,
+      "largest_concept_share": 0.6668387896313126,
+      "paragraphs_per_concept_mean": 94.6826171875,
+      "paragraphs_per_concept_median": 65.0
+    },
+    "k=4096/m=1": {
+      "active_per_paragraph": 1.0,
+      "largest_concept_share": 0.33698234018382733,
+      "paragraphs_per_concept_mean": 7.405736137667304,
+      "paragraphs_per_concept_median": 2.0
+    },
+    "k=4096/m=2": {
+      "active_per_paragraph": 2.0,
+      "largest_concept_share": 0.6849117009191367,
+      "paragraphs_per_concept_mean": 11.200694042799306,
+      "paragraphs_per_concept_median": 4.0
+    },
+    "k=4096/m=4": {
+      "active_per_paragraph": 3.9791903335743055,
+      "largest_concept_share": 0.9303934730971807,
+      "paragraphs_per_concept_mean": 19.050927070457355,
+      "paragraphs_per_concept_median": 8.0
+    },
+    "k=4096/m=all": {
+      "active_per_paragraph": 8.25771971496437,
+      "largest_concept_share": 0.9941650314985025,
+      "paragraphs_per_concept_mean": 39.042724609375,
+      "paragraphs_per_concept_median": 22.0
+    },
+    "k=512/m=1": {
+      "active_per_paragraph": 1.0,
+      "largest_concept_share": 0.014509965919653,
+      "paragraphs_per_concept_mean": 38.88755020080321,
+      "paragraphs_per_concept_median": 17.5
+    },
+    "k=512/m=2": {
+      "active_per_paragraph": 2.0,
+      "largest_concept_share": 0.02122276154084478,
+      "paragraphs_per_concept_mean": 75.6484375,
+      "paragraphs_per_concept_median": 46.0
+    },
+    "k=512/m=4": {
+      "active_per_paragraph": 3.9999483631106063,
+      "largest_concept_share": 0.03185996075596406,
+      "paragraphs_per_concept_mean": 151.294921875,
+      "paragraphs_per_concept_median": 117.0
+    },
+    "k=512/m=all": {
+      "active_per_paragraph": 15.633274811525354,
+      "largest_concept_share": 0.07244655581947744,
+      "paragraphs_per_concept_mean": 591.31640625,
+      "paragraphs_per_concept_median": 549.0
+    }
+  }
+}

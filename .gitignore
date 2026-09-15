@@ -52,6 +52,11 @@ data/expansion/*
 # `cer expand` regenerates deterministically from the artifacts above. The reading
 # that matters is quoted in 4.results.md.
 data/traces/
+# Exploratory diagnostics quoted by a closure document. Small, and versioned for the
+# same reason results are: a figure in a report must point at a file that exists.
+!data/diagnostics/
+data/diagnostics/*
+!data/diagnostics/*.json
 .cache/
 models/
 output/
