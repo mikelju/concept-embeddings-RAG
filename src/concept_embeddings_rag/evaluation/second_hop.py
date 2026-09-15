@@ -16,10 +16,14 @@ diagnostic broke them, because its figures must reproduce to the last digit.
 """
 
 from collections.abc import Collection, Mapping, Sequence
+from dataclasses import dataclass
 from typing import Protocol
 
 import numpy as np
 from scipy import sparse
+
+from concept_embeddings_rag.nodes.index import NodeIndex
+from concept_embeddings_rag.retrieval.conceptual import concept_support, rarity_weights
 
 # The hops the diagnostic compared that owe nothing to a concept space, by the names its
 # output uses. The gate's comparator is one of them (`config.GATE_COMPARATOR`).
@@ -140,3 +144,96 @@ def concept_hop(
     scores = np.asarray(X @ concepts).ravel()
     reach = float((scores > 0).sum() / X.shape[0])
     return rank_scores(scores, read, positive_only=True, depth=depth), reach
+
+
+# --- The text-derived hop of Phase 5 (decision D9) ---------------------------------------
+
+
+@dataclass(frozen=True)
+class NodeContribution:
+    """One node `p1` and a candidate share, and what it adds to the candidate's score."""
+
+    node_id: int
+    type: str
+    form: str
+    weight: float
+
+
+@dataclass(frozen=True)
+class RankedCandidate:
+    """A paragraph the hop reached, with the path that reached it: `p1` -> nodes -> here."""
+
+    row: int
+    unit_id: str
+    score: float
+    nodes: tuple[NodeContribution, ...]
+
+
+def node_weights(index: NodeIndex) -> np.ndarray:
+    """The Phase 3 rarity weight over node document frequency: `log(1 + N / (1 + df))`."""
+    return rarity_weights(concept_support(index.incidence), index.incidence.shape[0])
+
+
+def node_hop(
+    index: NodeIndex,
+    weights: np.ndarray,
+    *,
+    types: Sequence[str],
+    p1: int,
+    read: Collection[int],
+    depth: int,
+) -> tuple[list[RankedCandidate], int]:
+    """One hop from `p1` over the nodes of the given types, with nothing fitted (D9).
+
+    A candidate scores the sum of the weights of the arm's nodes it shares with `p1`. Read
+    paragraphs, `p1` among them, are excluded; candidates with a positive score are ranked
+    by score, then by **unit id** - never by pool row, because rows are grouped by the
+    question whose context introduced them (D8). Each ranked candidate carries its shared
+    nodes, heaviest first, so a success can be read as a path.
+
+    Returns the ranking to `depth` and the number of positive-scoring candidates before
+    truncation, which is the candidate concentration HU-5 reports.
+    """
+    incidence = index.incidence
+    arm = np.zeros(incidence.shape[1], dtype=bool)
+    arm[index.columns_of(types)] = True
+    p1_nodes = incidence.indices[incidence.indptr[p1] : incidence.indptr[p1 + 1]]
+    shared = p1_nodes[arm[p1_nodes]]
+
+    query = np.zeros(incidence.shape[1])
+    query[shared] = weights[shared]
+    scores = np.asarray(incidence @ query).ravel()
+    excluded = np.zeros(incidence.shape[0], dtype=bool)
+    excluded[list(read)] = True
+    positive_rows = np.nonzero((scores > 0.0) & ~excluded)[0]
+
+    ordered = sorted(
+        (int(row) for row in positive_rows),
+        key=lambda row: (-float(scores[row]), index.unit_ids[row]),
+    )
+    shared_set = {int(node) for node in shared}
+    candidates: list[RankedCandidate] = []
+    for row in ordered[:depth]:
+        row_nodes = incidence.indices[incidence.indptr[row] : incidence.indptr[row + 1]]
+        contributions = sorted(
+            (
+                NodeContribution(
+                    node_id=int(node),
+                    type=index.nodes[int(node)].type,
+                    form=index.nodes[int(node)].form,
+                    weight=float(weights[int(node)]),
+                )
+                for node in row_nodes
+                if int(node) in shared_set
+            ),
+            key=lambda contribution: (-contribution.weight, contribution.node_id),
+        )
+        candidates.append(
+            RankedCandidate(
+                row=row,
+                unit_id=index.unit_ids[row],
+                score=float(scores[row]),
+                nodes=tuple(contributions),
+            )
+        )
+    return candidates, int(positive_rows.size)
