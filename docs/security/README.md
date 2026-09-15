@@ -173,6 +173,12 @@ Extended 2026-09-15 by Phase 5 deviation 5.1, which versions `data/extraction/sa
 unit ids of the 20 sampled paragraphs, content hashes of the public corpus. The path exclusion below
 was deliberately **not** widened to cover the report: one small file is audited entry by entry.
 
+Extended 2026-09-16 by Phase 5 task T13, which versions the extraction archive and its summary:
+2 findings added, 127 in total. Both are in `data/extraction/extraction-0107de3ae9b4e4a3.json`: the
+sha256 digest of the archive and the extraction prompt digest. The `.jsonl.gz` archive is binary and
+raises no finding; it holds the entities and concepts the model read from the public corpus, and no
+credential, key or request header was ever written into it.
+
 ### Path exclusion for id-bearing pipeline artifacts (Phase 5, decision D12)
 
 Phase 5 versions artifacts whose content is mostly unit ids and question ids — content hashes of

@@ -72,6 +72,11 @@ data/navigation/*
 !data/extraction/
 data/extraction/*
 !data/extraction/sample-report.json
+# T13 (plan D7): the extraction archive is the non-reproducible record of what the pilot
+# measured, versioned because it compresses to 2.5 MB; its summary carries the digest the
+# archive is verified against. The batch state is operational and stays out.
+!data/extraction/extraction-*.jsonl.gz
+!data/extraction/extraction-*.json
 .cache/
 models/
 output/
