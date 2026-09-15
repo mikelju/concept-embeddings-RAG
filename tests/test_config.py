@@ -177,3 +177,77 @@ def test_ensure_directories_creates_the_phase_3_directories(tmp_path, monkeypatc
 
     assert config.SELECTION_DIR.is_dir()
     assert config.QUESTION_CACHE_DIR.is_dir()
+
+
+# --- Phase 4 (T1): the constants that decide what Phase 4 measures -----------
+
+
+def test_restart_grid_is_the_four_declared_points_and_excludes_the_endpoints():
+    """restart = 1.0 is the seed and is asserted by a test, not paid for with a dev evaluation."""
+    grid = config.RESTART_GRID
+    assert grid == (0.2, 0.4, 0.6, 0.8)
+    assert 1.0 not in grid
+    assert 0.0 not in grid
+    assert list(grid) == sorted(grid)
+
+
+def test_normalization_arms_are_the_three_declared_in_decision_d3():
+    assert config.NORMALIZATION_ARMS == ("none", "symmetric", "stochastic")
+
+
+def test_stop_threshold_and_cap_are_declared_constants_not_grids():
+    """HU-4 forbids a third degree of freedom: these are values, not alternatives."""
+    assert isinstance(config.STOP_THRESHOLD, float)
+    assert 0.0 < config.STOP_THRESHOLD < 1.0
+    assert isinstance(config.MAX_ITERATIONS, int)
+    assert config.MAX_ITERATIONS >= 2
+
+
+def test_the_two_seed_arms_are_declared_before_measurement():
+    assert config.SEED_ARMS == ("dense", "conceptual")
+
+
+def test_seed_depth_equals_the_depth_the_harness_reads():
+    """Decision D5: asking the seed for more would make restart = 1.0 hold at one depth only."""
+    assert config.SEED_TOP_K == config.EVALUATION_TOP_K == 100
+
+
+def test_the_dev_evaluation_cap_is_declared_and_larger_than_the_grid():
+    """24 cells of the grid against a cap of 40, so the slack is visible rather than assumed."""
+    grid_cells = len(config.RESTART_GRID) * len(config.NORMALIZATION_ARMS) * len(config.SEED_ARMS)
+    assert config.DEV_EVALUATION_CAP == 40
+    assert grid_cells == 24
+    assert grid_cells < config.DEV_EVALUATION_CAP
+
+
+def test_the_trace_widths_are_declared_and_decide_only_what_a_human_reads():
+    """T8's two constants: how wide a round of the trace is, never what the walk computed."""
+    assert isinstance(config.TRACE_TOP_CONCEPTS, int)
+    assert isinstance(config.TRACE_TOP_UNITS, int)
+    assert config.TRACE_TOP_CONCEPTS > 0
+    assert config.TRACE_TOP_UNITS > 0
+    # Narrower than the depth the harness reads, or the trace would be the ranking.
+    assert config.TRACE_TOP_UNITS < config.SEED_TOP_K
+
+
+def test_phase_4_directories_are_absolute_and_under_data():
+    for path in (config.EXPANSION_DIR, config.TRACES_DIR):
+        assert isinstance(path, Path)
+        assert path.is_absolute()
+        assert config.DATA_DIR in path.parents
+
+
+def test_ensure_directories_creates_the_phase_4_directories(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path / "data")
+    monkeypatch.setattr(config, "CACHE_DIR", tmp_path / "data" / "cache")
+    monkeypatch.setattr(config, "RESULTS_DIR", tmp_path / "data" / "results")
+    monkeypatch.setattr(config, "CONCEPTS_DIR", tmp_path / "data" / "concepts")
+    monkeypatch.setattr(config, "SELECTION_DIR", tmp_path / "data" / "selection")
+    monkeypatch.setattr(config, "QUESTION_CACHE_DIR", tmp_path / "data" / "cache" / "questions")
+    monkeypatch.setattr(config, "EXPANSION_DIR", tmp_path / "data" / "expansion")
+    monkeypatch.setattr(config, "TRACES_DIR", tmp_path / "data" / "traces")
+
+    config.ensure_directories()
+
+    assert config.EXPANSION_DIR.is_dir()
+    assert config.TRACES_DIR.is_dir()

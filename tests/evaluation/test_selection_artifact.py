@@ -29,13 +29,17 @@ from concept_embeddings_rag.evaluation.selection import (
     DEV_SPLIT,
     SELECTION_FILENAME,
     Decision,
+    FrozenReport,
     PerKEntry,
     SelectionError,
     SelectionReport,
     SweepCell,
+    digest_of_payload,
     load_selection,
     save_selection,
+    selection_digest,
     selection_path,
+    serialize_payload,
 )
 
 POOL = "poolhash0001"
@@ -469,3 +473,56 @@ def test_the_tie_break_records_the_structural_criterion_when_it_was_applied(tmp_
     save_selection(a_report(tie_break="smaller hub: 0.61 vs 0.99 hub share"), tmp_path)
 
     assert load_selection(tmp_path).tie_break == "smaller hub: 0.61 vs 0.99 hub share"
+
+
+# --- T9: the primitives Phase 4 shares, and the artifact they may not break ----
+#
+# Decision D13 makes the payload serializer, the payload digest and the
+# freeze-ordering check public so that Phase 4 can freeze its own artifact through
+# them rather than inventing a second pattern. The risk that carries is precise: a
+# refactor that changed a key, a value or the ordering would silently invalidate the
+# digest of the Phase 3 selection **already frozen on disk**, and every Phase 3
+# number would stop being verifiable. These are the tests that make that loud.
+
+
+def test_the_shared_primitives_are_public_and_still_produce_the_frozen_shape(tmp_path):
+    report = a_report()
+    save_selection(report, tmp_path)
+    written = json.loads(selection_path(tmp_path).read_text(encoding="utf-8"))
+
+    payload = {key: value for key, value in written.items() if key != "digest"}
+    assert serialize_payload(payload) == json.dumps(payload, indent=2, sort_keys=True)
+    assert digest_of_payload(written) == written["digest"]
+
+
+def test_the_digest_of_a_report_is_the_one_its_artifact_carries(tmp_path):
+    """`selection_digest` is what Phase 4 records as the freeze it inherits from."""
+    report = a_report()
+    save_selection(report, tmp_path)
+    written = json.loads(selection_path(tmp_path).read_text(encoding="utf-8"))
+
+    assert selection_digest(report) == written["digest"]
+    assert selection_digest(load_selection(tmp_path)) == written["digest"]
+
+
+def test_the_frozen_phase_3_selection_on_disk_still_loads_and_verifies():
+    """The one that fails loudly if the shape ever drifts.
+
+    `data/` is git-ignored, so a clone without the artifact skips rather than fails:
+    what is asserted here is that the file this project actually froze still passes
+    its own digest check, not that every checkout has one.
+    """
+    path = selection_path(config.SELECTION_DIR)
+    if not path.exists():
+        pytest.skip(f"no frozen selection at {path}; nothing on disk to check the shape against")
+
+    report = load_selection(config.SELECTION_DIR)
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert digest_of_payload(payload) == payload["digest"]
+    assert selection_digest(report) == payload["digest"]
+    assert report.evaluated_on == DEV_SPLIT
+
+
+def test_both_frozen_report_types_satisfy_the_protocol_the_freeze_check_takes():
+    assert isinstance(a_report(), FrozenReport)

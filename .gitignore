@@ -43,6 +43,21 @@ data/results/*
 !data/selection/
 data/selection/*
 !data/selection/*.json
+# The Phase 4 freeze, by the same rule as Phase 3's: every number of that phase is
+# bound to it, so a checkout that cannot verify the digest cannot check the results.
+!data/expansion/
+data/expansion/*
+!data/expansion/*.json
+# The traces are diagnostics, not a freeze: 0.7 MB per arm of per-round detail. No
+# `cer` stage writes them - they came from the Phase 4 report script, which is not in
+# the repository (a gap declared in USER_GUIDE.md). The reading that matters is quoted
+# in 4.results.md.
+data/traces/
+# Exploratory diagnostics quoted by a closure document. Small, and versioned for the
+# same reason results are: a figure in a report must point at a file that exists.
+!data/diagnostics/
+data/diagnostics/*
+!data/diagnostics/*.json
 .cache/
 models/
 output/

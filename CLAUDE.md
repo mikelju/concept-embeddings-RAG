@@ -10,7 +10,7 @@ A **research experiment** on retrieval over a corpus-induced concept space: ever
 
 **The deliverable is measured evidence, not an application**: four comparable systems (BM25, dense, conceptual, iterative) over a multi-hop benchmark with annotated ground truth, and an explicit verdict on the hypothesis. A well-documented negative result closes the project just as well as a positive one.
 
-**Current state: Phases 1 and 2 complete.** The frozen corpus, both baselines and the evaluation harness are built, audited and measured; the numbers live in `docs/plans/phase_1/1.results.md` and are what every later phase is judged against. Phase 2 induced four concept spaces (K = 512, 1,024, 2,048, 4,096) and **chose none of them**: the choice of K belongs to Phase 3 and is made against dev recall. Its numbers, and the one concept that activates on 99.4% of the corpus at K = 4,096, are in `docs/plans/phase_2/2.results.md`. The full hypothesis and the surveyed prior art live in `docs/refs/descripcion-proyecto.md` and `docs/refs/bibliografia.md` (both in Spanish, they are source material); the roadmap lives in `docs/plans/0_master_plan.md`, and `docs/USER_GUIDE.md` explains how to run the pipeline.
+**Current state: Phases 1-4 complete, and the first research line closed with a negative, bounded result.** Phase 1 built the frozen corpus, both baselines and the evaluation harness (`docs/plans/phase_1/1.results.md`). Phase 2 induced four concept spaces from the pooled paragraph embeddings (`phase_2/2.results.md`). Phase 3 chose K = 512 on dev and fused it with dense: the fitted weight put everything on dense, while a dense+BM25 control built the same way gained +3.9 points (`phase_3/3.results.md`). Phase 4 expanded by diffusion over `X`: the walk returns dense's own top-100 reordered and never promotes a new paragraph (`phase_4/4.results.md`). The closure, `docs/plans/phase_4/4.1_research_line_closure.md`, scopes that verdict: it rules out concepts induced from pooled embeddings on this benchmark, **not** concepts extracted from the text, which the proposal describes and this project has not yet tested. The master plan was renumbered around it: **Phase 5 is a text-derived concepts pilot and is not yet specified**; Phase 6 is the comparative evaluation, Phase 7 the extensions. The full hypothesis and the surveyed prior art live in `docs/refs/descripcion-proyecto.md` and `docs/refs/bibliografia.md` (both in Spanish, they are source material); the roadmap lives in `docs/plans/0_master_plan.md`, and `docs/USER_GUIDE.md` explains how to run the pipeline.
 
 ---
 
@@ -35,16 +35,18 @@ There is no server or UI to start: entry points are experiment scripts run throu
 
 ```
 src/concept_embeddings_rag/
-├── cli.py                    # The six stages: fetch, build, embed, evaluate, induce, label
+├── cli.py                    # The stages: fetch, build, embed, evaluate, induce, label, select, expand
 ├── config.py                 # Every constant that decides what an experiment measures
 ├── corpus/                   # download (hash-verified), hf_source, split, pool, manifest
 ├── embeddings/               # Swappable backend + .npz cache keyed by configuration
-├── retrieval/                # Retriever protocol, dense and BM25 behind it
-├── evaluation/               # Budget filling, the four metrics, the harness
+├── retrieval/                # Retriever protocol: dense, BM25, conceptual, fusion, diffusion
+├── evaluation/               # Budget filling, metrics, harness, dev selection, freezes, traces
 ├── concepts/                 # dictionary, coding, dedup, diagnostics, labeling
 └── artifacts.py              # Atomic writes: every artifact lands whole or not at all
 tests/                        # Mirrors the source layout. test_scaffold.py checks ARM64
-data/                         # Corpus, pool and caches: git-ignored. Manifest and results: versioned
+scripts/                      # Exploratory, read-only diagnostics quoted by a report
+data/                         # Corpus, pool and caches: git-ignored. Manifest, results, freezes
+                              # and quoted diagnostics: versioned
 docs/
 ├── plans/                    # SDD: master plan, phase specs, phase plans and fixes
 ├── refs/                     # Immutable reference material (hypothesis, bibliography)

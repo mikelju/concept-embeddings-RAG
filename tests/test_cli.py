@@ -963,3 +963,401 @@ def test_the_label_stage_takes_the_dictionary_size_it_is_asked_for():
 
     assert build_parser().parse_args(["label"]).k == config.LABELED_K
     assert build_parser().parse_args(["label", "--k", "512"]).k == 512
+
+
+# --- T15: the `expand` stage ---------------------------------------------------
+#
+# `expand` is Phase 4's equivalent of `select`: it spends the dev split on the two
+# free parameters it is allowed to fit, and freezes the cell it chose. Everything
+# else it runs under is **inherited** - the space, the view, the damping and the
+# query operator come out of the Phase 3 artifact, read and verified rather than
+# retyped - which is why the stage refuses to start when that artifact is missing
+# and names the stage that writes it.
+
+
+def expand(tmp_path: Path, data_dir: Path, cache_dir: Path, **overrides):
+    from concept_embeddings_rag.cli import cmd_expand
+
+    arguments = {
+        "data_dir": data_dir,
+        "cache_dir": cache_dir,
+        "concepts_dir": tmp_path / "concepts",
+        "selection_dir": tmp_path / "selection",
+        "expansion_dir": tmp_path / "expansion",
+        "question_cache_dir": tmp_path / "questions",
+        "top_k": 5,
+        "backend": HashingBackend(),
+    }
+    arguments.update(overrides)
+    return cmd_expand(**arguments)
+
+
+def an_expansion_workspace(tmp_path: Path):
+    """A workspace with the Phase 3 configuration already frozen."""
+    data_dir, cache_dir, units, questions = a_selection_workspace(tmp_path)
+    select(tmp_path, data_dir, cache_dir)
+    return data_dir, cache_dir, units, questions
+
+
+def test_parser_exposes_the_expand_stage():
+    assert build_parser().parse_args(["expand"]).command == "expand"
+
+
+def test_expand_without_a_pool_names_the_build_stage(tmp_path):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+
+    with pytest.raises(SystemExit) as excinfo:
+        expand(tmp_path, data_dir, tmp_path / "cache")
+
+    assert "build" in str(excinfo.value)
+
+
+def test_expand_without_token_counts_names_the_embed_stage(tmp_path):
+    data_dir, cache_dir, _ = an_induction_workspace(tmp_path)
+
+    with pytest.raises(SystemExit) as excinfo:
+        expand(tmp_path, data_dir, cache_dir)
+
+    assert "embed" in str(excinfo.value)
+
+
+def test_expand_without_the_phase_3_freeze_names_the_select_stage(tmp_path):
+    """The four inherited decisions are read from an artifact or the phase does not run."""
+    data_dir, cache_dir, _, _ = a_selection_workspace(tmp_path)
+
+    with pytest.raises(SystemExit) as excinfo:
+        expand(tmp_path, data_dir, cache_dir)
+
+    message = str(excinfo.value)
+    assert message.startswith("[ERROR]")
+    assert "select" in message
+
+
+def test_expand_without_cached_embeddings_names_the_embed_stage(tmp_path):
+    data_dir, cache_dir, _, _ = an_expansion_workspace(tmp_path)
+    for path in Path(cache_dir).glob("embeddings-*.npz"):
+        path.unlink()
+
+    with pytest.raises(SystemExit) as excinfo:
+        expand(tmp_path, data_dir, cache_dir)
+
+    assert "embed" in str(excinfo.value)
+
+
+def test_expand_writes_exactly_one_artifact_and_prints_its_path(tmp_path, capsys):
+    data_dir, cache_dir, _, _ = an_expansion_workspace(tmp_path)
+
+    path = expand(tmp_path, data_dir, cache_dir)
+
+    assert path.exists()
+    assert sorted(p.name for p in (tmp_path / "expansion").iterdir()) == ["expansion.json"]
+    assert str(path) in capsys.readouterr().out
+
+
+def test_a_second_expansion_refuses_rather_than_moving_the_freeze(tmp_path):
+    data_dir, cache_dir, _, _ = an_expansion_workspace(tmp_path)
+    expand(tmp_path, data_dir, cache_dir)
+
+    with pytest.raises(SystemExit) as excinfo:
+        expand(tmp_path, data_dir, cache_dir)
+
+    assert "already frozen" in str(excinfo.value)
+
+
+def test_the_stage_prints_the_cell_the_margin_and_what_it_spent(tmp_path, capsys):
+    from concept_embeddings_rag import config
+
+    data_dir, cache_dir, _, _ = an_expansion_workspace(tmp_path)
+
+    expand(tmp_path, data_dir, cache_dir)
+
+    out = capsys.readouterr().out
+    assert "restart=" in out
+    assert "margin" in out
+    assert f"of {config.DEV_EVALUATION_CAP} dev evaluations" in out
+    assert out.isascii()
+
+
+def test_the_frozen_cell_names_the_grid_it_was_chosen_from(tmp_path):
+    from concept_embeddings_rag import config
+    from concept_embeddings_rag.evaluation.expansion_selection import load_expansion_selection
+
+    data_dir, cache_dir, _, _ = an_expansion_workspace(tmp_path)
+    expand(tmp_path, data_dir, cache_dir)
+
+    report = load_expansion_selection(tmp_path / "expansion")
+
+    assert len(report.cells) == 24
+    assert report.chosen_restart in config.RESTART_GRID
+    assert report.chosen_normalization in config.NORMALIZATION_ARMS
+    assert report.dev_evaluations_spent == 24
+    assert report.n_dev_decisions == 1
+
+
+def test_the_freeze_inherits_the_phase_3_configuration_it_was_fitted_under(tmp_path):
+    from concept_embeddings_rag.evaluation.expansion_selection import load_expansion_selection
+    from concept_embeddings_rag.evaluation.selection import load_selection, selection_digest
+
+    data_dir, cache_dir, _, _ = an_expansion_workspace(tmp_path)
+    expand(tmp_path, data_dir, cache_dir)
+
+    inherited = load_selection(tmp_path / "selection")
+    report = load_expansion_selection(tmp_path / "expansion")
+
+    assert report.inherits_selection_digest == selection_digest(inherited)
+    assert report.inherits["dictionary_key"] == inherited.config["dictionary_key"]
+    assert report.inherits["view"] == inherited.config["view"]
+    assert report.inherits["damping"] == inherited.config["damping"]
+    assert report.inherits["query_operator"] == inherited.config["query_operator"]
+
+
+def test_the_expansion_grid_behind_the_artifact_measured_the_dev_split_alone(tmp_path):
+    from concept_embeddings_rag.evaluation.expansion_selection import load_expansion_selection
+
+    data_dir, cache_dir, _, questions = an_expansion_workspace(tmp_path)
+    expand(tmp_path, data_dir, cache_dir)
+
+    report = load_expansion_selection(tmp_path / "expansion")
+    n_dev = len([question for question in questions if question.split == "dev"])
+    assert {cell.n_questions for cell in report.cells} == {n_dev}
+
+
+def test_the_artifact_verifies_against_the_pool_it_was_measured_over(tmp_path):
+    from concept_embeddings_rag.evaluation.expansion_selection import (
+        ExpansionSelectionError,
+        load_expansion_selection,
+    )
+
+    data_dir, cache_dir, _, _ = an_expansion_workspace(tmp_path)
+    expand(tmp_path, data_dir, cache_dir)
+
+    with pytest.raises(ExpansionSelectionError, match="pool"):
+        load_expansion_selection(tmp_path / "expansion", expected_unit_set_hash="another-pool")
+
+
+# --- T16: evaluate, extended with the two expansion systems --------------------
+
+
+def test_the_selector_measures_the_two_expansion_systems_and_no_phase_3_system(tmp_path):
+    data_dir, cache_dir, _, _ = an_expansion_workspace(tmp_path)
+    expand(tmp_path, data_dir, cache_dir)
+
+    written = evaluate(
+        tmp_path,
+        data_dir,
+        cache_dir,
+        expansion_dir=tmp_path / "expansion",
+        systems=["expansion", "expansion-conceptual"],
+    )
+
+    results = results_of(written)
+    assert {result["system"] for result in results} == {"expansion", "expansion-conceptual"}
+    assert {result["split"] for result in results} == {"dev", "test"}
+
+
+def test_a_bare_evaluate_measures_no_expansion_system_at_all(tmp_path):
+    """Decision D11: building them by default would duplicate every Phase 3 result."""
+    data_dir, cache_dir, _, _ = an_expansion_workspace(tmp_path)
+    expand(tmp_path, data_dir, cache_dir)
+
+    written = evaluate(tmp_path, data_dir, cache_dir, expansion_dir=tmp_path / "expansion")
+
+    assert not {"expansion", "expansion-conceptual"} & {r["system"] for r in results_of(written)}
+
+
+def test_the_selector_can_also_name_a_phase_3_system(tmp_path):
+    data_dir, cache_dir, _, _ = an_expansion_workspace(tmp_path)
+
+    written = evaluate(tmp_path, data_dir, cache_dir, systems=["dense"], splits=("dev",))
+
+    assert {result["system"] for result in results_of(written)} == {"dense"}
+
+
+def test_an_unknown_system_is_refused_by_name(tmp_path):
+    data_dir, cache_dir, _, _ = an_expansion_workspace(tmp_path)
+
+    with pytest.raises(SystemExit) as excinfo:
+        evaluate(tmp_path, data_dir, cache_dir, systems=["diffusion"], splits=("dev",))
+
+    assert "diffusion" in str(excinfo.value)
+
+
+def test_the_expansion_systems_are_refused_without_the_phase_4_freeze(tmp_path):
+    """Test is read once, on a frozen configuration - this phase's as well as Phase 3's."""
+    data_dir, cache_dir, _, _ = an_expansion_workspace(tmp_path)
+
+    with pytest.raises(SystemExit) as excinfo:
+        evaluate(
+            tmp_path,
+            data_dir,
+            cache_dir,
+            expansion_dir=tmp_path / "expansion",
+            systems=["expansion"],
+        )
+
+    message = str(excinfo.value)
+    assert message.startswith("[ERROR]")
+    assert "expand" in message
+
+
+def test_every_expansion_result_carries_the_diffusion_configuration(tmp_path):
+    from concept_embeddings_rag.evaluation.expansion_selection import load_expansion_selection
+
+    data_dir, cache_dir, _, _ = an_expansion_workspace(tmp_path)
+    expand(tmp_path, data_dir, cache_dir)
+    report = load_expansion_selection(tmp_path / "expansion")
+
+    written = evaluate(
+        tmp_path,
+        data_dir,
+        cache_dir,
+        expansion_dir=tmp_path / "expansion",
+        systems=["expansion", "expansion-conceptual"],
+        splits=("dev",),
+    )
+
+    for result in results_of(written):
+        recorded = result["config"]
+        assert recorded["restart"] == report.chosen_restart
+        assert recorded["normalization"] == report.chosen_normalization
+        assert recorded["stop_threshold"] == report.stop_threshold
+        assert recorded["max_iterations"] == report.max_iterations
+        assert recorded["seed_top_k"] == report.config["seed_top_k"]
+
+
+def test_every_expansion_result_names_its_arm_and_the_seed_that_produced_it(tmp_path):
+    data_dir, cache_dir, _, _ = an_expansion_workspace(tmp_path)
+    expand(tmp_path, data_dir, cache_dir)
+
+    written = evaluate(
+        tmp_path,
+        data_dir,
+        cache_dir,
+        expansion_dir=tmp_path / "expansion",
+        systems=["expansion", "expansion-conceptual"],
+        splits=("dev",),
+    )
+
+    by_system = {result["system"]: result["config"] for result in results_of(written)}
+    assert by_system["expansion"]["seed_arm"] == "dense"
+    assert by_system["expansion"]["seed_system"] == "dense"
+    assert by_system["expansion-conceptual"]["seed_arm"] == "conceptual"
+    assert by_system["expansion-conceptual"]["seed_system"] == "conceptual"
+
+
+def test_every_expansion_result_carries_the_four_inherited_decisions(tmp_path):
+    data_dir, cache_dir, _, _ = an_expansion_workspace(tmp_path)
+    expand(tmp_path, data_dir, cache_dir)
+
+    written = evaluate(
+        tmp_path,
+        data_dir,
+        cache_dir,
+        expansion_dir=tmp_path / "expansion",
+        systems=["expansion"],
+        splits=("dev",),
+    )
+
+    config_of = results_of(written)[0]["config"]
+    for key in ("k", "dictionary_key", "view", "damping", "query_operator"):
+        assert key in config_of, f"the result does not record {key}"
+
+
+def test_every_expansion_result_carries_both_selection_digests(tmp_path):
+    from concept_embeddings_rag.evaluation.expansion_selection import (
+        expansion_selection_digest,
+        load_expansion_selection,
+    )
+    from concept_embeddings_rag.evaluation.selection import load_selection, selection_digest
+
+    data_dir, cache_dir, _, _ = an_expansion_workspace(tmp_path)
+    expand(tmp_path, data_dir, cache_dir)
+
+    written = evaluate(
+        tmp_path,
+        data_dir,
+        cache_dir,
+        expansion_dir=tmp_path / "expansion",
+        systems=["expansion"],
+        splits=("dev",),
+    )
+
+    config_of = results_of(written)[0]["config"]
+    assert config_of["selection_digest"] == selection_digest(load_selection(tmp_path / "selection"))
+    assert config_of["expansion_selection_digest"] == expansion_selection_digest(
+        load_expansion_selection(tmp_path / "expansion")
+    )
+
+
+def test_the_counters_in_the_result_are_the_ones_the_retriever_recorded(tmp_path):
+    from concept_embeddings_rag import config
+
+    data_dir, cache_dir, _, questions = an_expansion_workspace(tmp_path)
+    expand(tmp_path, data_dir, cache_dir)
+
+    written = evaluate(
+        tmp_path,
+        data_dir,
+        cache_dir,
+        expansion_dir=tmp_path / "expansion",
+        systems=["expansion"],
+        splits=("dev",),
+    )
+
+    config_of = results_of(written)[0]["config"]
+    n_dev = len([question for question in questions if question.split == "dev"])
+    assert config_of["n_questions"] == n_dev
+    assert sum(config_of["iterations_histogram"].values()) == n_dev
+    assert 0 < config_of["mean_iterations"] <= config.MAX_ITERATIONS
+    assert config_of["mean_sparse_products"] == pytest.approx(2 * config_of["mean_iterations"])
+    assert config_of["clipped_seed_hits"] >= 0
+
+
+def test_the_counters_are_reset_between_the_two_splits(tmp_path):
+    """A retriever that kept counting would report two runs as one."""
+    data_dir, cache_dir, _, questions = an_expansion_workspace(tmp_path)
+    expand(tmp_path, data_dir, cache_dir)
+
+    written = evaluate(
+        tmp_path,
+        data_dir,
+        cache_dir,
+        expansion_dir=tmp_path / "expansion",
+        systems=["expansion"],
+    )
+
+    by_split = {result["split"]: result["config"] for result in results_of(written)}
+    for split, recorded in by_split.items():
+        expected = len([question for question in questions if question.split == split])
+        assert recorded["n_questions"] == expected
+
+
+def test_the_two_arms_differ_in_their_numbers_but_not_in_their_configuration(tmp_path):
+    data_dir, cache_dir, _, _ = an_expansion_workspace(tmp_path)
+    expand(tmp_path, data_dir, cache_dir)
+
+    written = evaluate(
+        tmp_path,
+        data_dir,
+        cache_dir,
+        expansion_dir=tmp_path / "expansion",
+        systems=["expansion", "expansion-conceptual"],
+        splits=("dev",),
+    )
+
+    configs = {result["system"]: result["config"] for result in results_of(written)}
+    shared = set(configs["expansion"]) - {
+        "seed_arm",
+        "seed_system",
+        "config_digest",
+        "mean_iterations",
+        "iterations_histogram",
+        "stop_reasons",
+        "cap_hits",
+        "mean_sparse_products",
+        "clipped_seed_hits",
+        "n_questions",
+    }
+    for key in shared:
+        assert configs["expansion"][key] == configs["expansion-conceptual"][key], key

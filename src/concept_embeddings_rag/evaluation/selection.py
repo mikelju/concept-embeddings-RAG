@@ -32,7 +32,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, ClassVar, cast
+from typing import Any, ClassVar, Protocol, cast, runtime_checkable
 
 import numpy as np
 
@@ -65,6 +65,22 @@ from concept_embeddings_rag.retrieval.fusion import (
 # argument because a selection fitted on test is not a thing this project wants to
 # be able to express, let alone write to disk.
 DEV_SPLIT: str = "dev"
+
+
+@runtime_checkable
+class FrozenReport(Protocol):
+    """Anything this project freezes: a configuration that closed at a stated moment.
+
+    Phase 3's `SelectionReport` and Phase 4's `ExpansionSelection` both satisfy it,
+    which is what lets `check_freeze_precedes` serve the two without either phase
+    owning the other. Declared as a read-only property rather than an attribute
+    because both reports are frozen dataclasses, and a settable member would
+    exclude exactly the two classes it exists to cover.
+    """
+
+    @property
+    def frozen_at(self) -> str: ...
+
 
 SELECTION_FILENAME: str = "selection.json"
 
@@ -641,13 +657,36 @@ def _payload_of(report: SelectionReport) -> dict[str, Any]:
     }
 
 
-def _serialize(payload: Mapping[str, Any]) -> str:
+def serialize_payload(payload: Mapping[str, Any]) -> str:
+    """How every selection artifact of this project is written.
+
+    Public since Phase 4 (decision D13), because that phase freezes a second
+    artifact and two serializers would be two formats that agree until the day
+    they do not. **No key, value or ordering changes when this is shared**: the
+    Phase 3 selection already frozen on disk is bound to these exact bytes, and a
+    refactor that silently invalidated its digest would make every Phase 3 number
+    unverifiable.
+    """
     return json.dumps(payload, indent=2, sort_keys=True)
 
 
-def _digest_of_payload(payload: Mapping[str, Any]) -> str:
+def digest_of_payload(payload: Mapping[str, Any]) -> str:
     """The digest is taken over the serialization, minus the digest field itself."""
-    return digest_of(_serialize({key: value for key, value in payload.items() if key != "digest"}))
+    return digest_of(
+        serialize_payload({key: value for key, value in payload.items() if key != "digest"})
+    )
+
+
+def selection_digest(report: SelectionReport) -> str:
+    """The digest the frozen artifact of this report carries.
+
+    Phase 4 inherits this phase's configuration and records **which** freeze it
+    inherited, so it needs the digest as a value rather than as a field of a file
+    it would have to parse a second time. Computed from the report rather than read
+    off the disk on purpose: `load_selection` has already proved the two agree, and
+    a digest read from the file it is supposed to verify proves nothing.
+    """
+    return digest_of_payload(_payload_of(report))
 
 
 def save_selection(report: SelectionReport, directory: Path | str) -> Path:
@@ -665,8 +704,8 @@ def save_selection(report: SelectionReport, directory: Path | str) -> Path:
         )
 
     payload = _payload_of(report)
-    payload["digest"] = _digest_of_payload(payload)
-    write_text_atomic(path, _serialize(payload))
+    payload["digest"] = digest_of_payload(payload)
+    write_text_atomic(path, serialize_payload(payload))
     return path
 
 
@@ -700,7 +739,7 @@ def load_selection(
 
     recorded = payload.get("digest")
     if recorded is not None:
-        actual = _digest_of_payload(payload)
+        actual = digest_of_payload(payload)
         if actual != recorded:
             raise SelectionError(
                 f"the selection at {path.name} hashes to {actual[:16]} but records "
@@ -910,6 +949,17 @@ def _check_questions(questions: Sequence[Question]) -> None:
             f"the selection is fitted on the {DEV_SPLIT!r} split alone; questions on {intruders} "
             "were handed to the sweep and it refuses to measure them"
         )
+
+
+def check_dev_only(questions: Sequence[Question]) -> None:
+    """The same guard, at Phase 4's doors.
+
+    Public since Phase 4 (decision D13), and a delegation rather than a copy: the
+    refusal that protects this project's whole comparison is one function, called
+    from every entrance of both phases. Two copies of it would be two chances to
+    let one question through.
+    """
+    _check_questions(questions)
 
 
 def _check_config(base_config: Mapping[str, Any]) -> int:
@@ -1491,13 +1541,18 @@ def freeze_selection(
     )
 
 
-def check_freeze_precedes(report: SelectionReport, result: RunResult) -> None:
+def check_freeze_precedes(report: FrozenReport, result: RunResult) -> None:
     """Refuse a result that claims a freeze it was measured before.
 
     HU-7 asks for the freeze to be observable rather than intended, and the observable
     form of "the configuration closed before the test split was read" is that every
     result of this phase was created after the stamp. One created before it was
     measured under something else, whatever its configuration claims.
+
+    Generalized over both report types by decision D13 of Phase 4: the property is
+    about a stamp and a creation time, not about which phase froze. Phase 4 applies
+    the same function to its own artifact, and applying a second copy of it would be
+    a second chance to get the comparison subtly wrong.
     """
     frozen = datetime.fromisoformat(report.frozen_at)
     created = datetime.fromisoformat(result.created_at)
