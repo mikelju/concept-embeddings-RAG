@@ -8,6 +8,10 @@ which is why it lives in the repository rather than in a scratch directory:
 
     uv run python scripts/second_hop_diagnostic.py
 
+Since Phase 5 the protocol itself lives in `concept_embeddings_rag.evaluation.second_hop`,
+which the navigation pilot measures its new hops against; this script is one of its callers,
+and `tests/evaluation/test_second_hop.py` holds it to its committed output.
+
 Protocol, per dev question:
 
 - A reader has already read dense's top-10 paragraphs (`read`).
@@ -49,29 +53,15 @@ from concept_embeddings_rag.embeddings.cache import (
     cache_key,
     unit_set_hash,
 )
+from concept_embeddings_rag.evaluation import second_hop
 from concept_embeddings_rag.retrieval.bm25 import BM25Retriever
 from concept_embeddings_rag.retrieval.conceptual import concept_support, rarity_weights
 
 SPLIT = "dev"
-READ = 10
-DEPTHS = (10, 100)
+READ = config.PILOT_READ_DEPTH
+DEPTHS = config.SECOND_HOP_DEPTHS
 TRUNCATIONS: tuple[int | None, ...] = (1, 2, 4, None)  # None = every concept the coding kept
 DEFAULT_OUT = config.DATA_DIR / "diagnostics" / "second_hop-dev.json"
-
-
-def truncate_rows(X: sparse.csr_matrix, m: int | None) -> sparse.csr_matrix:
-    """Describe every paragraph by its m strongest concepts and nothing else."""
-    if m is None:
-        return X
-    X = X.tocsr(copy=True)
-    for row in range(X.shape[0]):
-        start, end = X.indptr[row], X.indptr[row + 1]
-        if end - start > m:
-            values = X.data[start:end]
-            weakest = np.argsort(values)[: (end - start) - m]
-            values[weakest] = 0.0
-    X.eliminate_zeros()
-    return X
 
 
 def variant(k: int, m: int | None) -> str:
@@ -117,7 +107,7 @@ def main(out: Path) -> None:
     for k, key in sorted(keys.items()):
         raw = load_matrix(key, config.CONCEPTS_DIR, view="raw", expected_unit_ids=unit_ids).X
         for m in TRUNCATIONS:
-            X = truncate_rows(sparse.csr_matrix(raw, dtype=np.float64), m)
+            X = second_hop.truncate_rows(sparse.csr_matrix(raw, dtype=np.float64), m)
             support = concept_support(X)
             weights = rarity_weights(support, X.shape[0])
             spaces[(k, m)] = (X, weights)
@@ -144,10 +134,10 @@ def main(out: Path) -> None:
 
     for question in dev:
         kind = kinds[question.qid]
-        q = query_backend.encode([question.question])[0]
-        order = np.argsort(-(vectors @ q), kind="stable")
-        read = {int(row) for row in order[:READ]}
-        p1 = int(order[0])
+        order = second_hop.dense_order(vectors, query_backend.encode([question.question])[0])
+        read_list = second_hop.read_rows(order, READ)
+        read = set(read_list)
+        p1 = second_hop.origin(read_list)
         missing = [index[g] for g in question.gold_unit_ids if index[g] not in read]
         if not missing:
             continue
@@ -155,35 +145,23 @@ def main(out: Path) -> None:
             questions_with_missing[name] += 1
             missing_paragraphs[name] += len(missing)
 
-        def rank_scores(scores: np.ndarray, *, positive_only: bool) -> list[int]:
-            scores = scores.astype(np.float64, copy=True)
-            scores[list(read)] = -np.inf  # noqa: B023 - read in the same iteration it is bound
-            if positive_only:
-                scores[scores <= 0.0] = -np.inf
-            depth = max(DEPTHS)
-            top = np.argpartition(-scores, depth)[:depth]
-            top = top[np.argsort(-scores[top], kind="stable")]
-            return [int(row) for row in top if np.isfinite(scores[row])]
-
-        def rank_bm25(text: str) -> list[int]:
-            got = bm25.retrieve(text, top_k=max(DEPTHS) + READ + 1)
-            rows = [index[u] for u, s in got if s > 0.0 and index[u] not in read]  # noqa: B023
-            return rows[: max(DEPTHS)]
-
-        continued = [int(row) for row in order[READ : READ + max(DEPTHS)]]
-        record("dense-continue", kind, continued, missing)
-        record("bm25-question", kind, rank_bm25(question.question), missing)
-        neighbours = rank_scores(vectors @ vectors[p1], positive_only=False)
-        record("dense-neighbours(p1)", kind, neighbours, missing)
-        record("bm25-follow(p1)", kind, rank_bm25(units[p1].indexable_text), missing)
+        depth = max(DEPTHS)
+        continued = second_hop.dense_continue(order, read_depth=READ, depth=depth)
+        record(second_hop.DENSE_CONTINUE, kind, continued, missing)
+        by_question = second_hop.rank_bm25(
+            bm25, index, question.question, read, read_depth=READ, depth=depth
+        )
+        record(second_hop.BM25_QUESTION, kind, by_question, missing)
+        neighbours = second_hop.dense_neighbours(vectors, p1, read, depth=depth)
+        record(second_hop.DENSE_NEIGHBOURS, kind, neighbours, missing)
+        followed = second_hop.rank_bm25(
+            bm25, index, units[p1].indexable_text, read, read_depth=READ, depth=depth
+        )
+        record(second_hop.BM25_FOLLOW, kind, followed, missing)
 
         for (k, m), (X, weights) in spaces.items():
-            row = X.getrow(p1)
-            concepts = np.zeros(X.shape[1])
-            concepts[row.indices] = row.data * weights[row.indices]
-            scores = np.asarray(X @ concepts).ravel()
-            reach[variant(k, m)].append(float((scores > 0).sum() / X.shape[0]))
-            ranked = rank_scores(scores, positive_only=True)
+            ranked, reached = second_hop.concept_hop(X, weights, p1=p1, read=read, depth=depth)
+            reach[variant(k, m)].append(reached)
             record(f"concept-hop(p1) {variant(k, m)}", kind, ranked, missing)
 
     summary = {
