@@ -86,24 +86,28 @@ Then run the experiment, in order:
 uv run cer fetch      # download and freeze the benchmark        (~4 min)
 uv run cer build      # select the subset, build the pool        (~9 s)
 uv run cer embed      # embed the corpus, cached on disk         (~36 min, once)
-uv run cer evaluate   # measure the baselines                    (~1 min)
-uv run cer induce     # induce one concept space per K           (~3.7 h for the sweep)
-uv run cer label      # name the concepts, for the report        (needs ANTHROPIC_API_KEY)
+uv run cer induce     # induce one concept space per K           (hours for the sweep)
+uv run cer label      # name the concepts, for the report        (optional, needs ANTHROPIC_API_KEY)
 uv run cer select     # choose the space on dev and freeze it    (~3 min of sweep)
-uv run cer evaluate   # measure the baselines and System B on dev and test
+uv run cer evaluate   # measure the five Phase 1-3 systems on dev and test   (~1 min)
 uv run cer expand     # sweep the expansion grid on dev and freeze one cell
-uv run cer evaluate --systems expansion,expansion-conceptual   # read test once for System C
+uv run cer evaluate --systems expansion,expansion-conceptual   # measure System C
 ```
 
+**Both decisions ship with the repository**: `data/selection/selection.json` and
+`data/expansion/expansion.json` are versioned, `select` and `expand` never overwrite them, and
+`evaluate` refuses to read test without them. On a fresh clone, skip those two stages — `fetch`,
+`build`, `embed`, `induce` and the two `evaluate` calls reproduce the recorded numbers.
+
 `label` is the only stage that calls a paid API, is cached per concept, and produces nothing
-retrieval depends on. `expand` freezes once and refuses to overwrite an existing freeze. Each stage
-refuses to run if the previous one has not, and says which to run first.
+retrieval depends on. Each stage refuses to run if the previous one has not, and says which to run
+first.
 
 The closure's second-hop diagnostic, exploratory and dev only, regenerates with
 `uv run python scripts/second_hop_diagnostic.py`.
 
-[`docs/USER_GUIDE.md`](docs/USER_GUIDE.md) covers the first six stages, the results and what to do
-when something stops; `select` and `expand` are documented in the Phase 3 and Phase 4 plans.
+[`docs/USER_GUIDE.md`](docs/USER_GUIDE.md) covers every stage, the results, and what to do when
+something stops.
 
 ## Platform note
 

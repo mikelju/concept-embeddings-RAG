@@ -48,9 +48,10 @@ data/selection/*
 !data/expansion/
 data/expansion/*
 !data/expansion/*.json
-# The traces are diagnostics, not a freeze: 0.7 MB per arm of per-round detail that
-# `cer expand` regenerates deterministically from the artifacts above. The reading
-# that matters is quoted in 4.results.md.
+# The traces are diagnostics, not a freeze: 0.7 MB per arm of per-round detail. No
+# `cer` stage writes them - they came from the Phase 4 report script, which is not in
+# the repository (a gap declared in USER_GUIDE.md). The reading that matters is quoted
+# in 4.results.md.
 data/traces/
 # Exploratory diagnostics quoted by a closure document. Small, and versioned for the
 # same reason results are: a figure in a report must point at a file that exists.

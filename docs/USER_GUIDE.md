@@ -1,21 +1,23 @@
 # concept-embeddings-RAG — User Guide
 
-> How to run the experiment: freeze a benchmark corpus, build the two baseline retrieval systems,
-> measure them, and induce the corpus's own concept space. Written for whoever runs or reproduces
-> the experiment, not for whoever changes it.
+> How to run the experiment: freeze a benchmark corpus, compute its embeddings, induce the corpus's
+> own concept spaces, choose one on development data, and measure every retrieval system against
+> the baselines. Written for whoever runs or reproduces the experiment, not for whoever changes it.
 
 ---
 
 ## 📋 Contents
 
 - [Before you start](#-before-you-start)
-- [The six stages](#-the-six-stages)
+- [The stages](#-the-stages)
 - [1. Freeze the corpus](#1--freeze-the-corpus-fetch)
 - [2. Build the pool](#2--build-the-pool-build)
 - [3. Compute the embeddings](#3--compute-the-embeddings-embed)
-- [4. Measure the systems](#4--measure-the-systems-evaluate)
-- [5. Induce the concept spaces](#5--induce-the-concept-spaces-induce)
-- [6. Name the concepts](#6--name-the-concepts-label)
+- [4. Induce the concept spaces](#4--induce-the-concept-spaces-induce)
+- [5. Name the concepts](#5--name-the-concepts-label)
+- [6. Choose the concept space](#6--choose-the-concept-space-select)
+- [7. Measure the systems](#7--measure-the-systems-evaluate)
+- [8. Choose the expansion](#8--choose-the-expansion-expand)
 - [Reading the results](#-reading-the-results)
 - [When something refuses to run](#-when-something-refuses-to-run)
 - [Questions](#-questions)
@@ -26,7 +28,7 @@
 ## 🚀 Before you start
 
 There is no server, no interface and nothing to log into. Everything is one command, `cer`, with
-six stages you run in order.
+eight stages you run in order.
 
 1. Install the environment: `uv sync`
 2. Check it works: `uv run pytest` — the first run takes about 35 seconds while torch loads. That
@@ -34,22 +36,30 @@ six stages you run in order.
 3. Run the stages below, in order. **Each stage refuses to run if the previous one has not**, and
    tells you which one to run.
 
-You need an internet connection for stages 1, 3 and 6 only. **Stage 6 is also the only one that
+You need an internet connection for stages 1, 3 and 5 only. **Stage 5 is also the only one that
 needs an API key and the only one that costs money** — and nothing else depends on it, so you can
-stop after stage 5 and still have everything the experiment measures.
+skip it and still have everything the experiment measures.
+
+📦 **Two decisions already ship with the repository.** The files that stages 6 and 8 freeze —
+`data/selection/selection.json` and `data/expansion/expansion.json` — are versioned, because every
+recorded number is bound to them. On a fresh clone you normally **do not run** `select` or `expand`:
+`evaluate` reads those files. Running either stage again means re-deciding, which is covered in
+their sections.
 
 ---
 
-## 🧭 The six stages
+## 🧭 The stages
 
 | Stage | What it does | Roughly how long |
 |---|---|---|
 | `fetch` | Downloads the benchmark and freezes it | ~4 min |
 | `build` | Picks the question subset and builds the corpus | ~9 s |
 | `embed` | Turns every paragraph into a vector | **~36 min** |
-| `evaluate` | Measures both baseline systems and writes the results | ~1 min |
 | `induce` | Builds the concept spaces from the corpus | **hours** |
 | `label` | Puts names on the concepts, for the report | ~1 h, **costs money** |
+| `select` | Chooses the concept space and fits the hybrids, on dev only | ~3 min of sweep |
+| `evaluate` | Measures the systems on both splits and writes the results | ~1 min |
+| `expand` | Chooses the expansion setting, on dev only | not recorded |
 
 Run them like this:
 
@@ -57,9 +67,12 @@ Run them like this:
 uv run cer fetch
 uv run cer build
 uv run cer embed
-uv run cer evaluate
 uv run cer induce
 uv run cer label      # optional, needs a key
+uv run cer select     # skip on a clone: the decision ships with the repository
+uv run cer evaluate
+uv run cer expand     # skip on a clone, for the same reason
+uv run cer evaluate --systems expansion,expansion-conceptual
 ```
 
 💡 **You only pay the long stages once.** Everything is cached, so re-running `evaluate` after
@@ -115,7 +128,8 @@ uv run cer build
 
 **Never make a decision by looking at the test numbers.** The development split exists for
 tuning; the test split is measured once, at the end. Looking at test while adjusting anything
-invalidates the whole experiment — there is no way to undo it afterwards.
+invalidates the whole experiment — there is no way to undo it afterwards. Stages 6 and 8, the two
+that decide anything, refuse a test question at the door.
 
 ---
 
@@ -141,39 +155,14 @@ uv run cer embed
 ### ⚠️ Do not delete `data/cache/`
 
 Deleting it costs you 36 minutes of computer time to get back exactly the same numbers — and it
-makes stage 5 unrunnable until you have paid them again.
+makes stages 4, 6, 7 and 8 unrunnable until you have paid them again.
 
 ---
 
-## 4. 📊 Measure the systems (`evaluate`)
-
-Runs both retrieval systems over every question and writes down how well each one did.
-
-### How to run it
-
-```bash
-uv run cer evaluate
-```
-
-### What you should know
-
-- Two systems are measured: **dense** (meaning-based search) and **BM25** (keyword-based search).
-  BM25 is there to keep the comparison honest — it is a genuinely strong rival on this benchmark.
-- Both are measured **at the same context budget**, not at the same number of paragraphs. That is
-  the only fair comparison: a system that returns more paragraphs is not better if it needs more
-  room to do it. Budgets used: **512, 1,024, 2,048 and 4,096 tokens**.
-- Neither system is ever shown the candidate paragraphs attached to a question. Both always
-  search the full corpus of 19,366.
-- Results go to `data/results/`, one file per system and split. **Nothing is ever overwritten** —
-  each run writes new files, so a measurement you took last week cannot be silently replaced by
-  one you took today.
-
----
-
-## 5. 🧩 Induce the concept spaces (`induce`)
+## 4. 🧩 Induce the concept spaces (`induce`)
 
 Discovers the corpus's own concepts and rewrites every paragraph as a short list of them. This is
-the representation the later phases will retrieve over.
+the representation stages 6 to 8 retrieve over.
 
 ### How to run it
 
@@ -184,14 +173,14 @@ uv run cer induce
 ### What you should know
 
 - It builds **four spaces in one go**, one per dictionary size: **512, 1,024, 2,048 and 4,096
-  concepts**. Having four is the point — they are compared later.
-- ❗ **No size is chosen here.** Which one the project ends up using is decided in Phase 3, against
-  development recall. Nothing on this page or in the results picks a winner.
+  concepts**. Having four is the point — stage 6 compares them.
+- ❗ **No size is chosen here.** That is stage 6's job, made against development recall.
 - It **never re-embeds anything**. It reads what stage 3 cached and refuses to start without it.
 - ✅ **Safe to interrupt and re-run.** Every piece it writes is filed under the settings that made
   it, so a second run finds its own output and skips past it. You lose only the size that was in
   progress.
-- Everything lands in `data/concepts/`.
+- Everything lands in `data/concepts/`. It is not versioned, so **a clone has to run this stage**
+  before `evaluate` can use the decisions that ship with the repository.
 
 ### How long it takes
 
@@ -219,7 +208,7 @@ Budget an evening for the full sweep and do not read the recorded total as a ben
 
 ---
 
-## 6. 🏷 Name the concepts (`label`)
+## 5. 🏷 Name the concepts (`label`)
 
 Asks a language model to put a name and a one-line gloss on each concept, so you can read the
 space instead of squinting at numbers.
@@ -229,7 +218,8 @@ space instead of squinting at numbers.
 ```bash
 uv sync --group labeling          # once: installs what this stage needs
 cp .env.example .env              # then put your key in it
-uv run cer label
+uv run cer label                  # names the 2,048-concept space
+uv run cer label --k 512          # or any other size
 ```
 
 ### What you should know
@@ -238,8 +228,8 @@ uv run cer label
   estimate is taken **before the cache is consulted**, so it is an upper bound.
 - The recorded run cost **11.73 USD** — 45% above what was forecast. Expect the same order, not
   the forecast.
-- Only **one space is named: the 2,048-concept one.** The other three are read through their
-  evidence paragraphs, which costs nothing and shows the same thing.
+- By default **one space is named: the 2,048-concept one.** `--k` names another — the reports read
+  the 512-concept space this way once stage 6 chose it.
 - ✅ **You never pay twice.** Every answer is cached on disk per concept. Interrupt it, re-run it,
   and it resumes where it stopped. A call that failed was never billed.
 - If the service is overloaded it retries up to **8 times** on its own, backing off between
@@ -260,14 +250,151 @@ written into any file the project produces.
 
 ---
 
+## 6. 🎯 Choose the concept space (`select`)
+
+Decides, on the development questions alone, which of the four concept spaces the retrieval
+systems use and how the two hybrid systems weigh their signals — then freezes those decisions in a
+file every later stage reads.
+
+### How to run it
+
+```bash
+uv run cer select
+```
+
+### What you should know
+
+- It needs stages 3 and 4: the cached embeddings and **all four** concept spaces.
+- It makes **four decisions, in a fixed order**: the space (its size, how each paragraph's row is
+  scaled, how the question is turned into concepts); then whether rare concepts should count for
+  more; then how System B combines dense search with the concept space; then the same fitting for
+  the **control**, dense combined with BM25. The control is fitted by the same code so that a win
+  for System B could be credited to the concepts rather than to combining two signals as such.
+- **Only the 600 development questions are measured.** The test questions are turned into vectors
+  and cached in `data/cache/questions/`, so stage 7 does not have to load the model — a vector is
+  not a measurement, and the sweep refuses a test question regardless.
+- The sweep took **2 min 59 s** on this machine, not counting loading the corpus and caches.
+- It writes `data/selection/selection.json`, fingerprinted. Every result built on it records which
+  freeze it came from.
+
+### 🔒 It freezes once
+
+**`select` never writes over an existing selection** — and the repository ships one. On a clone it
+therefore runs the whole sweep and only then stops with `a selection is already frozen at ...`.
+You do not need it: stage 7 reads the shipped file. If you genuinely mean to re-decide, move the
+existing file aside yourself first. That is a second freeze, which the project treats as a
+deviation to be written down, and every number measured under the old file belongs to the old file.
+
+What the recorded run chose, and why, is in
+[`docs/plans/phase_3/3.results.md`](plans/phase_3/3.results.md): the 512-concept space, and a
+fusion weight that put everything on dense.
+
+### Messages you will see
+
+- `[INFO] space: ... (runner-up ..., margin ...)` — the winning space and how close it was.
+- `the margin was inside what 600 questions resolve, so structure decided it` — the difference was
+  too small for 600 questions to tell apart, so the rule declared in advance broke the tie.
+- `[INFO] damping: ... over ... by ...` and `[INFO] fusion: ... at w=...` — the other decisions.
+- `[OK] 4 decisions frozen at ... for k=...` — done.
+
+---
+
+## 7. 📊 Measure the systems (`evaluate`)
+
+Runs the retrieval systems over every question of both splits and writes down how well each one
+did.
+
+### How to run it
+
+```bash
+uv run cer evaluate                                          # the five systems of Phases 1-3
+uv run cer evaluate --systems expansion,expansion-conceptual # the expansion, after stage 8
+```
+
+### What you should know
+
+- **It needs a frozen selection.** It will not read the test split on a configuration that is still
+  open, so it runs after stage 6 — or, on a clone, after stage 4 has put back the four spaces the
+  shipped selection names.
+- Without `--systems`, five systems are measured: **dense** (meaning-based search), **BM25**
+  (keyword-based search), **conceptual** (the concept space alone), **hybrid-conceptual**
+  (System B: dense + concepts) and **hybrid-bm25** (the control: dense + BM25). BM25 is there to
+  keep the comparison honest — it is a genuinely strong rival on this benchmark.
+- `--systems` measures only the systems it names. The two expansion systems — `expansion`
+  (System C) and `expansion-conceptual` (the same walk started from the concept space) — are
+  **built only when named**, and need stage 8's freeze. That is what stops a second test result
+  for every other system from being written beside them.
+- **Nothing is fitted here.** Every weight and setting is read from the frozen files, and each
+  result is checked to have been written after the freeze it was built under.
+- All systems are measured **at the same context budget**, not at the same number of paragraphs.
+  That is the only fair comparison: a system that returns more paragraphs is not better if it needs
+  more room to do it. Budgets used: **512, 1,024, 2,048 and 4,096 tokens**.
+- No system is ever shown the candidate paragraphs attached to a question. All of them search the
+  full corpus of 19,366.
+- Results go to `data/results/`, one file per system and split. **Nothing is ever overwritten** —
+  each run writes new files, so a measurement you took last week cannot be silently replaced by
+  one you took today. On a clone, a re-run should reproduce the versioned files exactly: compare
+  them, never replace them.
+
+---
+
+## 8. 🌊 Choose the expansion (`expand`)
+
+Tries the iterative expansion — System C, which walks from the paragraphs a question retrieved to
+the concepts they share and back — across its grid of settings on development data, chooses one
+setting, and freezes it.
+
+### How to run it
+
+```bash
+uv run cer expand
+uv run cer evaluate --systems expansion,expansion-conceptual
+```
+
+### What you should know
+
+- **It inherits stage 6's decisions** — the space, the scaling, the rarity weighting, the question
+  operator — by reading and verifying the frozen selection, never by retyping them. If that file is
+  missing, modified, or names a space that is not on disk, it refuses to start.
+- It measures **24 settings on the 600 development questions**: 4 values of how strongly each round
+  returns to the starting paragraphs, times 3 ways of normalizing the walk, times 2 starting points
+  (dense, which is System C proper, and the concept space, which isolates what the walk itself
+  adds). The phase may spend at most 40 such passes on dev, and the frozen file records how many it
+  did.
+- When the walk stops — a threshold on how much changed, and a cap of five rounds — is fixed in the
+  configuration, not tuned.
+- It writes `data/expansion/expansion.json`, fingerprinted and bound to the selection it inherited.
+- The sweep's wall-clock time was not recorded. Per question, a walk costs about 3.7 ms against
+  0.8 ms for dense search.
+
+### 🔒 It freezes once, and says so first
+
+Like `select`, it never writes over an existing freeze, and the repository ships one — but `expand`
+checks **before** the sweep and stops at once with `a selection is already frozen at ...`. On a
+clone, go straight to `evaluate --systems expansion,expansion-conceptual`. Re-deciding means moving
+the file aside deliberately, with the same consequences as in stage 6.
+
+What the recorded run chose, and why the result is negative, is in
+[`docs/plans/phase_4/4.results.md`](plans/phase_4/4.results.md).
+
+### Messages you will see
+
+- `[INFO] sweeping 24 cells (4 restarts x 3 normalizations x 2 arms) over 600 dev questions`
+- `[INFO] cell: ... at full_support ... (runner-up ..., margin ..., resolution ...)` — the chosen
+  setting, its margin, and the smallest difference 600 questions can resolve.
+- `the margin was inside what 600 questions resolve, so cost decided it` — the cheaper setting won
+  the tie, by the rule declared in advance.
+- `[OK] frozen at ... after 24 of 40 dev evaluations -> ...` — done.
+
+---
+
 ## 📈 Reading the results
 
 Each result file records the numbers **and the exact configuration that produced them** — model,
-corpus fingerprint, seed, tokenizer, code version. A number without that is not accepted.
+corpus fingerprint, seed, tokenizer, code version, and for the later systems the freeze they were
+built under. A number without that is not accepted.
 
-### The baselines
-
-Four measurements matter:
+### The metrics
 
 - **Gold Recall** — of the 2 paragraphs needed to answer, how many made it into the context.
 - **Full Support** — the honest one: the share of questions where **both** needed paragraphs are
@@ -275,23 +402,48 @@ Four measurements matter:
 - **Precision** — of what was included, how much was actually needed.
 - **Recall@K** — the same idea at a fixed number of paragraphs, for comparison with published work.
 
-The Phase 1 numbers and what they mean are written up in
-[`docs/plans/phase_1/1.results.md`](plans/phase_1/1.results.md). The short version: dense beats
-BM25 at every budget, and 12% of questions defeat both — which is the case this project was built
-to attack.
+### The baselines — Phase 1
 
-### The concept spaces
+Written up in [`docs/plans/phase_1/1.results.md`](plans/phase_1/1.results.md). The short version:
+dense beats BM25 at every budget, and 12% of questions defeat both — which is the case this project
+was built to attack.
+
+### The concept spaces — Phase 2
 
 Written up in [`docs/plans/phase_2/2.results.md`](plans/phase_2/2.results.md), read from the files
-on disk rather than recomputed for the report. Three things to take from it:
+on disk rather than recomputed for the report:
 
 - **Every space works as a representation.** All four keep paragraphs on 8 to 16 concepts, and even
   the least coherent concept of the smallest space is far above what unrelated paragraphs score.
 - ⚠️ **One concept swallows the corpus at the larger sizes.** At 2,048 concepts a single one is
   active on 67% of all paragraphs; at 4,096, on 99.4%. It passes every coherence check — it looks
   like one of the *better* concepts — and only the over-generality measure catches it.
-- **That is a warning, not a verdict.** Whether it hurts retrieval is measured in Phase 3 and 4,
-  and nothing so far settles it.
+
+### Retrieving through concepts — Phase 3
+
+Written up in [`docs/plans/phase_3/3.results.md`](plans/phase_3/3.results.md). The concept space
+alone retrieves far worse than either baseline, and System B's fitted weight is all on dense, so
+System B *is* dense. The control, fitted the same way, gains about 4 points of Full Support on test.
+
+### The expansion — Phase 4
+
+Written up in [`docs/plans/phase_4/4.results.md`](plans/phase_4/4.results.md). System C ties dense
+and loses to the control at every budget, because the walk returns the paragraphs it started from,
+reordered, and never brings a new one in.
+
+### The closure
+
+[`docs/plans/phase_4/4.1_research_line_closure.md`](plans/phase_4/4.1_research_line_closure.md)
+says what those results rule out and — just as prominently — what they do not: concepts extracted
+from the text itself were never tested. It also quotes an exploratory, dev-only diagnostic of
+which "second hop" finds a paragraph dense missed. That one regenerates with:
+
+```bash
+uv run python scripts/second_hop_diagnostic.py
+```
+
+It needs stages 2-4 on disk, reads no test question, decides nothing, and writes
+`data/diagnostics/second_hop-dev.json`.
 
 ---
 
@@ -305,12 +457,18 @@ Every stage checks its inputs and says what to do. These are the messages you ma
 | `no pool found: run 'build' first` | Stage 2 has not run | `uv run cer build` |
 | `no embeddings or token counts found: run 'embed' first` | Stage 3 has not run | `uv run cer embed` |
 | `embeddings are not cached for this pool` | The corpus changed after the embeddings were made | `uv run cer embed` again |
-| `no concept space for k=2048 ...: run 'induce' first` | Stage 5 has not run | `uv run cer induce` |
-| `the labelling stage needs the optional dependency group` | Stage 6 is not installed | `uv sync --group labeling` |
-| `ANTHROPIC_API_KEY is not set` | Stage 6 has no key | Copy `.env.example` to `.env` and put it there |
+| `no concept space for k=2048 ...: run 'induce' first` | Stage 4 has not run | `uv run cer induce` |
+| `the labelling stage needs the optional dependency group` | Stage 5 is not installed | `uv sync --group labeling` |
+| `ANTHROPIC_API_KEY is not set` | Stage 5 has no key | Copy `.env.example` to `.env` and put it there |
 | `the API key was rejected; fix the key rather than retrying` | The key is wrong or revoked | Fix the key — re-running will not help |
 | `rate limited after the SDK's own retries` | The service is busy | Re-run: it resumes from the cache, and you are not charged twice |
 | `the diagnostics of ... cite unit ..., which is not in the pool` | A concept space describes a corpus no longer on disk | Re-run `induce`, or restore the pool it was built from |
+| `the test split may not be read on a configuration that is still open (...)` | No usable frozen selection — on a clone, usually because the spaces it names are not induced yet | Read the reason in brackets: `uv run cer induce`, or `uv run cer select` if there is no selection at all |
+| `the frozen selection names a space that is not on disk` | Stage 4 has not produced the space stage 6 chose | `uv run cer induce` |
+| `a selection is already frozen at ...` | Stage 6 or 8 was asked to decide again | Nothing, normally — see "It freezes once" in stage 6 |
+| `the expansion systems inherit a Phase 3 configuration and there is none frozen` | `--systems` named the expansion without a stage 6 freeze | `uv run cer select` (or restore the shipped file) |
+| `the expansion systems may not be measured on an open configuration` | Stage 8's freeze is missing or does not match | `uv run cer expand` (or restore the shipped file) |
+| `unknown system(s) [...]` | `--systems` was given a name it does not know | Use the names the message lists |
 | `...has hash X, manifest expects Y` | The corpus file no longer matches its fingerprint | See below |
 | `pool hashes to X but the manifest expects Y` | The corpus and the pool no longer agree | `uv run cer build` |
 | `unit ... does not hash to its content` | `data/pool.json` was modified | `uv run cer build` |
@@ -322,12 +480,13 @@ interrupted write, or an edit. **Do not work around it.** Either restore the ori
 delete `data/manifest.json` and re-freeze deliberately — and if you do that, treat every number
 you recorded earlier as belonging to the old corpus.
 
-### 🔴 If a concept space refuses to load
+### 🔴 If a concept space or a freeze refuses to load
 
-Same principle, one layer up. Every file stage 5 writes carries a fingerprint of itself and of the
-corpus it came from, and the code that reads it checks both. A refusal means the file is not the
-file that was written — truncated by an interrupted run, or edited. Delete it and re-run `induce`;
-it rebuilds only what is missing.
+Same principle, one layer up. Every file stages 4, 6 and 8 write carries a fingerprint of itself
+and of the corpus it came from, and the code that reads it checks both. A refusal means the file is
+not the file that was written — truncated by an interrupted run, or edited. For a concept space,
+delete it and re-run `induce`; it rebuilds only what is missing. For a freeze, restore it from the
+repository rather than regenerating it, unless re-deciding is what you mean.
 
 ---
 
@@ -337,12 +496,21 @@ it rebuilds only what is missing.
 No. Run them in order once. After that, only re-run the stage whose inputs changed — and
 `evaluate` as often as you like, it is fast.
 
+**On a fresh clone, what is the shortest path to the recorded numbers?**
+`fetch`, `build`, `embed`, `induce`, then `evaluate` and `evaluate --systems
+expansion,expansion-conceptual`. The two decisions ship with the repository, so `select` and
+`expand` are not needed — and would refuse to overwrite them anyway.
+
 **Can I stop `embed` halfway and resume?**
 No. It saves at the end, so an interrupted run starts over. Give it the 36 minutes.
 
 **Can I stop `induce` or `label` halfway and resume?**
 Yes, both. `induce` re-runs skip every space already on disk; `label` resumes from its cache and
 never pays for the same concept twice.
+
+**Can I stop `select` or `expand` halfway?**
+Yes, but they resume nothing: each writes its file once, at the end, whole or not at all. An
+interrupted run leaves no freeze behind and starts over.
 
 **Why is my `data/results/` filling up with files?**
 By design. Every run writes new files instead of replacing old ones, so a measurement can never
@@ -351,17 +519,17 @@ because each carries the configuration it came from.
 
 **Can I use a different embedding model?**
 Yes, but it is a deliberate decision, not a tweak: it invalidates the 36-minute cache, makes the
-new numbers incomparable with the recorded ones, and every concept space has to be rebuilt. It is
-a one-line change in `src/concept_embeddings_rag/config.py`.
+new numbers incomparable with the recorded ones, and every concept space and both freezes have to
+be rebuilt. It is a one-line change in `src/concept_embeddings_rag/config.py`.
 
 **Does any of this send data anywhere or need an API key?**
-Only stage 6. Stages 1 and 3 download from public sources and upload nothing. Stage 6 sends
+Only stage 5. Stages 1 and 3 download from public sources and upload nothing. Stage 5 sends
 paragraphs of the public benchmark corpus to the model that names the concepts, and needs a key in
 `.env`. Skip it and the project runs with no key and no network calls beyond the two downloads.
 
 **Which dictionary size should I use?**
-None of them, yet. That is decided in Phase 3 against development recall, and choosing one now by
-reading the Phase 2 numbers is exactly the mistake the results document refuses to make.
+The 512-concept space, chosen by stage 6 on development recall and frozen. Picking a different one
+by reading the results pages is exactly the mistake the freeze exists to prevent.
 
 ---
 
@@ -385,6 +553,11 @@ reading the Phase 2 numbers is exactly the mistake the results document refuses 
 - **Concept names are the least trustworthy thing here.** They are not reproducible, they were
   produced by a model reading ten paragraphs, and nothing in the project reads them back. Treat
   them as a reading aid, never as evidence.
-- **Retrieval over the concept space is not built yet.** Phases 1 and 2 are done: the baselines,
-  the harness and the spaces exist. Conceptual retrieval and iterative expansion do not. See
-  [`docs/plans/0_master_plan.md`](plans/0_master_plan.md) for what comes next.
+- **Some Phase 4 readings come from no stage.** The count of new paragraphs per setting, the run
+  with no return to the starting paragraphs at all, the expansion's failure analysis and the
+  per-question traces in `data/traces/` were produced by a one-off report script that is not in the
+  repository. The figures are quoted in the Phase 4 report; regenerating them from a clone is not
+  possible today.
+- **The first research line is closed, and negative.** Concepts induced from the embeddings were
+  built, measured and ruled out on this benchmark. Concepts extracted from the text — the next
+  phase — are not built yet. See [`docs/plans/0_master_plan.md`](plans/0_master_plan.md).
