@@ -18,7 +18,7 @@ written; later audits add rows below, not documents.
 
 None **of the phases that have been audited**, which are Phases 1 and 2. Every finding from the
 three passes is closed, each held closed by a regression test, and neither phase has blocking
-security work outstanding. Phase 3 has not been audited — see "Deferred audits" below.
+security work outstanding. Phases 3 and 4 have not been audited — see "Deferred audits" below.
 
 ### Phase 1 — 2026-09-08
 
@@ -80,6 +80,13 @@ findings are fixed and held closed by regression tests, so no `fix-N` document i
 An audit that was not run is a decision on record here, never a gap nobody noticed.
 
 ### Phase 3 — deferred on 2026-09-14, until the Phase 4 results are in
+
+**Update, 2026-09-15: the condition has been met and the decision is still open.** Phase 4 has its
+numbers, it is negative, and its code (diffusion, the expansion selection and freeze, the traces) is
+unaudited too, so the surface below now covers both phases. The research line they implement was
+closed the same day ([4.1](../plans/phase_4/4.1_research_line_closure.md)); the project was not, so
+"What closes this" still applies: a Phase 3 + 4 audit, or an explicit exemption recorded here. That
+choice belongs to the author and has not been made.
 
 **Status: not audited.** Phase 3 was verified against its specification and merged to `main`
 ([PR #4](https://github.com/mikelju/concept-embeddings-RAG/pull/4)) with `/8-auditar` outstanding.

@@ -42,9 +42,15 @@ docs/plans/
 | 1 | Corpus, indexing units and dense baseline | Available | **Complete** |
 | 2 | Concept space: dictionary + matrix X | Available | **Complete** |
 | 3 | Hybrid conceptual retrieval (System B) | Available | **Complete** |
-| 4 | Query-aware iterative expansion (System C) | Available | **Complete** |
-| 5 | Comparative evaluation and verdict | Pending | Pending |
-| 6 | Exploratory extensions (conditional) | Pending | Not opened |
+| 4 | Query-aware iterative expansion (System C) | Available | **Complete — negative result** |
+| 5 | Text-derived concepts: navigation pilot | Pending | Next — not specified |
+| 6 | Comparative evaluation and verdict | Pending | Conditional on the Phase 5 gate |
+| 7 | Exploratory extensions (conditional) | Pending | Not opened |
+
+**The first research line is closed** (2026-09-15): concepts induced from pooled embeddings, tested
+through Phases 2-4, gave a negative and bounded result. The original Phase 5 — a comparative
+evaluation of that method — was not run; the plan was renumbered so Phase 5 tests the representation
+the proposal actually described. See [`phase_4/4.1_research_line_closure.md`](phase_4/4.1_research_line_closure.md).
 
 ---
 
@@ -138,9 +144,9 @@ The leap of §8: stop following the question and start navigating the corpus. It
 - [x] Per-query trace: which concept entered at which iteration and which chunk it brought along — 80 dev questions under the sampling rule fixed before the run
 - [x] **Two seed arms measured with identical machinery** — dense-seeded (System C proper) and conceptual-seeded (the isolating variant) — so that a gain can be told apart from "the dense retriever already brought almost everything". The configuration is chosen on the dense arm and applied unchanged to the other
 - [x] System C measured against four rivals at four budgets on both splits, with its cost, on a configuration frozen before test was read
-- [ ] ~~*(Optional)* Variant with an LLM inside the loop~~ — **declared out of scope by the spec** and deferred to Phase 5: the deterministic method has to be measured first to be the thing such a variant is compared against
+- [ ] ~~*(Optional)* Variant with an LLM inside the loop~~ — **declared out of scope by the spec**, and not pursued after the closure: the deterministic method it would have been compared against failed on its own, and the founding decision that keeps an LLM out of the retrieval loop stands
 
-### What Phase 5 inherits, and the verdict it inherits it with
+### What Phase 4 leaves, and the verdict it leaves it with
 
 The numbers and their artifacts are in [`phase_4/4.results.md`](phase_4/4.results.md).
 
@@ -164,7 +170,7 @@ the control's 6. One of those three is recovered by nothing else in this project
 **The arithmetic also says where the grid could not look.** A non-seed unit could only out-score the
 weakest seed unit at `restart < 0.10`, below the declared floor of 0.2 — and `restart = 0.0`, the one
 point measured below it, collapses to 0.0117. Whether anything survives between the two is a declared
-gap and Phase 5's first ablation.
+gap, listed by the closure as an untested lever rather than scheduled work.
 
 **One thing Phase 3 named survives.** The questions the concept space uniquely answers really are
 conjunctions of two topics: all four the conceptual arm gains over dense are — a Florida place *and*
@@ -173,25 +179,72 @@ singer — and three of them are the same questions Phase 3 read, reached by a d
 The signal is real and reproducible. It is worth about four questions in 600, and diffusion with
 restart cannot convert it into retrieval.
 
-## Phase 5: Comparative evaluation and verdict
+### Research line closed — negative result, limited scope
 
-The phase that answers the hypothesis. Its output is a report, not code.
+Recorded in [`phase_4/4.1_research_line_closure.md`](phase_4/4.1_research_line_closure.md), which
+reads every figure from a versioned artifact.
 
-- [ ] Full bench on the same split and seed, **at equal context budget**: BM25, dense (A), conceptual (B) and iterative (C)
-- [ ] Ablations: no dense fusion, no expansion, no non-negativity, varying dictionary size,
-      pruning the least coherent concepts
+**What it establishes.** A concept space induced by sparse coding of pooled paragraph embeddings adds
+no measurable retrieval value over dense on HotpotQA — not by conceptual retrieval, not by score
+fusion, not by diffusion — and a dense+BM25 control is clearly stronger. An exploratory dev-only
+diagnostic adds that a hop through those concepts is the weakest second hop tested at every K, below
+simply reading further down the dense list.
+
+**What it does not establish.** It does not test the architecture the proposal describes, in which
+concepts are extracted from the text of each unit. A pooled embedding recoded as sparse atoms is a
+lossy copy of the vector the dense baseline already uses; that operationalization is what failed,
+and it is the variable the next phase changes.
+
+**What became of this plan's Phase 5.** The full bench, the fusion and expansion ablations, the K
+sweep and the cost per query were already measured by Phases 3 and 4. The non-negativity and pruning
+ablations were not run and are listed as untested levers. MuSiQue moves to Phase 6.
+
+## Phase 5: Text-derived concepts — navigation pilot
+
+Opened by the closure above, and **not yet specified**: what follows is the question and the
+constraints a spec has to honour, not decisions already taken.
+
+The question: **do concepts and entities extracted from the text give a more useful navigation
+structure than atoms induced from pooled embeddings?** Concretely, when dense has found the first
+paragraph of a bridge and missed the second, can a hop over text-derived nodes recover it better than
+reading further down the dense list, or than BM25?
+
+- [ ] Specified with `/4-especificar` before any extraction runs: the pilot question set, drawn from
+      dev by a deterministic rule and never hand-picked; the node types; the hops compared; the
+      metrics; and a GO/STOP gate declared before the first number exists
+- [ ] The extractor (LLM or otherwise) builds the representation **offline**; it never sits inside
+      the retrieval loop, by the same founding decision that governed Phase 4
+- [ ] Everything else held fixed: corpus, indexing unit, embedding model, both baselines, budgets
+- [ ] A design that can tell "concepts navigate" apart from "names navigate": an entity-only win
+      answers a narrower question than §69
+- [ ] A documented GO/STOP decision - scale to the full corpus and iterative expansion, or close the
+      hypothesis
+
+The founding decisions on the concept engine and the concept embedding change in the table below only
+once this phase has verified an alternative.
+
+## Phase 6: Comparative evaluation and verdict
+
+**Opened only if Phase 5 passes its gate.** The phase that answers the hypothesis for the
+representation that reaches it. Its output is a report, not code.
+
+- [ ] Full bench on the same split and seed, **at equal context budget**: BM25, dense, dense+BM25, the
+      pooled-embedding concept space (numbers already on file from Phases 3-4), the text-derived
+      space, and its iterative expansion
+- [ ] Ablations of the text-derived representation, declared in its spec
 - [ ] Cost per query: tokens sent, latency, number of iterations (§73 demands the gain not be paid in noise or tokens)
 - [ ] Cross-validation on a second benchmark (MuSiQue) to rule out overfitting to the first
 - [ ] Report with an explicit verdict on §69 and on the document's second hypothesis, including the negative verdict where warranted
 
-## Phase 6: Exploratory extensions (conditional)
+## Phase 7: Exploratory extensions (conditional)
 
-**Not opened unless the Phase 5 results justify it.** The decision is documented either way.
+**Not opened unless the Phase 6 results justify it.** The decision is documented either way.
 
-- [ ] Documented decision to open the phase or not, grounded in the Phase 5 numbers
+- [ ] Documented decision to open the phase or not, grounded in the Phase 6 numbers
 - [ ] Document hierarchy as a fourth scoring signal (§34, §56)
 - [ ] Variable resolution of the concept dictionary (§48)
 - [ ] Graph derived from X, only if the emergent associations prove useful (§58)
+- [ ] Token-level or multi-vector concept representations, finer than one vector per unit
 
 ---
 
@@ -232,13 +285,15 @@ Development runs on **Windows on ARM (`win_arm64`)**, which rules out part of th
 
 Multi-hop benchmarks measure **Type B** questions from §72 (multi-concept, with the hops already laid out by the annotator). **Type C** — the 200 km training plan that never mentions nutrition or pacing — is where the proposal promises most, and no standard benchmark measures it: there, satellite knowledge would have to emerge from the corpus rather than from annotation.
 
-Phase 5 will therefore be able to claim an improvement in multi-hop retrieval and **not** to claim that the system discovers satellite context, absent a separately built set of Type C questions. This is a declared gap, not a filled one. Covering it is Phase 6 material and requires first deciding how to build such a set without fabricating convenient ground truth.
+Phase 6 will therefore be able to claim an improvement in multi-hop retrieval and **not** to claim that the system discovers satellite context, absent a separately built set of Type C questions. This is a declared gap, not a filled one. Covering it is Phase 7 material and requires first deciding how to build such a set without fabricating convenient ground truth.
 
-**A second limitation of the same family:** the indexing unit is chosen by complete meaning rather than length, but the benchmark offers only a shallow three-level hierarchy (article → paragraph → sentence). A real document hierarchy — chapter, section, subsection — does not exist in Wikipedia and cannot be exercised here. That is why hierarchy is Phase 6 material and not a Phase 3 signal, and why a corpus of books would be the natural setting for that part. A point of precision: RAPTOR does not read document structure either — it starts from fixed-length chunks and **fabricates** the tree by recursive clustering and summarization.
+**A second limitation of the same family:** the indexing unit is chosen by complete meaning rather than length, but the benchmark offers only a shallow three-level hierarchy (article → paragraph → sentence). A real document hierarchy — chapter, section, subsection — does not exist in Wikipedia and cannot be exercised here. That is why hierarchy is Phase 7 material and not a Phase 3 signal, and why a corpus of books would be the natural setting for that part. A point of precision: RAPTOR does not read document structure either — it starts from fixed-length chunks and **fabricates** the tree by recursive clustering and summarization.
 
 ## Project success criterion
 
-The project succeeds if, at the end of Phase 5, there exists a **defensible and reproducible** answer to the hypothesis of §69, with its numbers, its ablations and its cost. A negative result documented rigorously — that iterative conceptual expansion does not improve recall at equal token budget — is a valid result and closes the project just as well as the opposite.
+The project succeeds if, at the end of Phase 6 — or at the Phase 5 gate, if the pilot says STOP — there exists a **defensible and reproducible** answer to the hypothesis of §69, with its numbers, its ablations and its cost. A negative result documented rigorously — that iterative conceptual expansion does not improve recall at equal token budget — is a valid result and closes the project just as well as the opposite.
+
+The first research line already has such an answer for its own operationalization (see the closure under Phase 4). It does not yet answer §69, because it did not test concepts extracted from the text.
 
 ---
 

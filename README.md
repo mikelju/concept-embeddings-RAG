@@ -18,37 +18,54 @@ ground truth, and an explicit verdict on the hypothesis.
 
 ## Status
 
-**Current research line — closed with a bounded negative result.** The tested formulation was a
-concept space induced by sparse dictionary learning over pooled dense paragraph embeddings, evaluated
-with conceptual retrieval, dense+concept fusion, and diffusion-based iterative expansion on HotpotQA.
-The evidence does **not** justify claiming that the broader hypothesis about text-derived interpretable
-concepts is disproven.
+**First research line — closed with a bounded negative result.** Phases 1-4 tested one
+operationalization of the idea: a concept space induced by sparse dictionary learning over *pooled
+dense paragraph embeddings*, used for conceptual retrieval, dense+concept fusion and diffusion-based
+iterative expansion on HotpotQA. It adds no measurable retrieval value over dense, and a cheap
+dense+BM25 control beats it. That does **not** refute the broader hypothesis: concepts extracted from
+the text itself were never tested.
 
-The consolidated closure is in
-[`docs/plans/phase_5/5.results.md`](docs/plans/phase_5/5.results.md), with its specification and
-closure plan in `docs/plans/phase_5/5.spec.md` and `docs/plans/phase_5/5.0_research_closure.md`.
+Full Support at 2,048 context tokens, 1,400 test questions, read from the versioned result files:
 
-At 2,048 context tokens on 1,400 test questions, the reported Full Support values are: concepts
-0.355, BM25 0.759, dense 0.825, dense+concepts 0.825, diffusion expansion 0.821, and dense+BM25
-0.864. The principal Phase 4 failure was mechanical: the tested diffusion configuration did not
-promote previously unseen paragraphs beyond the 100-item seed set.
+| System | Full Support |
+|---|---:|
+| Concepts alone | 0.355 |
+| BM25 | 0.759 |
+| Dense | 0.825 |
+| Dense + concepts (System B) | 0.825 |
+| Diffusion expansion (System C) | 0.821 |
+| **Dense + BM25 control** | **0.864** |
 
-**Important repository note.** The closure source supplied on 2026-09-15 references later Phase 4
-result commits and artifacts that are not present in the visible `phase-4-iterative-expansion` Git
-history used as this branch's base. The closure records that synchronization gap explicitly rather
-than claiming fresh-clone reproducibility for those later results.
+The expansion failed mechanically: at every restart it tested, the walk returned the seed's own 100
+paragraphs reordered and never promoted a new one — at 4.3x the cost of dense per query.
 
-## Earlier phases
+The closure, with what it rules out, what stays open and what became of the planned evaluation, is
+[`docs/plans/phase_4/4.1_research_line_closure.md`](docs/plans/phase_4/4.1_research_line_closure.md).
+**Next:** Phase 5, a small pilot with concepts and entities extracted from the text — not yet
+specified. Roadmap: [`docs/plans/0_master_plan.md`](docs/plans/0_master_plan.md).
+
+## The phases
 
 **Phase 1 — the instrument.** A frozen corpus of 19,366 paragraphs, dense and BM25 baselines, and an
 evaluation harness that compares systems at a fixed context budget rather than at a fixed number of
-chunks. The phase report is in [`docs/plans/phase_1/1.results.md`](docs/plans/phase_1/1.results.md).
+chunks. Dense beats BM25 at every budget, and 12% of dev questions defeat both.
+[`1.results.md`](docs/plans/phase_1/1.results.md)
 
-**Phase 2 — the concept space.** Four spaces were induced over that same pool by non-negative sparse
-coding (K = 512, 1,024, 2,048, 4,096), with structural and coherence diagnostics. The phase report is
-in [`docs/plans/phase_2/2.results.md`](docs/plans/phase_2/2.results.md).
+**Phase 2 — the concept space.** Four spaces induced over that same pool by non-negative sparse
+coding (K = 512, 1,024, 2,048, 4,096), with structural and coherence diagnostics. At K = 4,096 one
+atom activates 99.4% of the corpus while passing every coherence check.
+[`2.results.md`](docs/plans/phase_2/2.results.md)
 
-Roadmap and historical phase decisions remain in [`docs/plans/0_master_plan.md`](docs/plans/0_master_plan.md).
+**Phase 3 — retrieving through concepts (System B).** K = 512 chosen on dev; the fusion weight fitted
+on dev put all of it on dense, while the same fitting procedure gave the dense+BM25 control +3.9
+points. [`3.results.md`](docs/plans/phase_3/3.results.md)
+
+**Phase 4 — expanding by diffusion (System C).** A re-ranker of dense's top-100 that ties dense and
+loses to the control at every budget, for arithmetic reasons the report measures.
+[`4.results.md`](docs/plans/phase_4/4.results.md)
+
+Security findings of every audited phase are catalogued in
+[`docs/security/README.md`](docs/security/README.md).
 
 ## Requirements
 
@@ -63,19 +80,30 @@ uv run pytest    # runs the tests (the first run takes ~35 s while torch loads)
 uv run ruff check .
 ```
 
-The original experiment stages are:
+Then run the experiment, in order:
 
 ```bash
-uv run cer fetch      # download and freeze the benchmark
-uv run cer build      # select the subset, build the pool
-uv run cer embed      # embed the corpus, cached on disk
-uv run cer evaluate   # measure dense and BM25
-uv run cer induce     # induce the concept spaces
-uv run cer label      # label concepts for interpretation only
+uv run cer fetch      # download and freeze the benchmark        (~4 min)
+uv run cer build      # select the subset, build the pool        (~9 s)
+uv run cer embed      # embed the corpus, cached on disk         (~36 min, once)
+uv run cer evaluate   # measure the baselines                    (~1 min)
+uv run cer induce     # induce one concept space per K           (~3.7 h for the sweep)
+uv run cer label      # name the concepts, for the report        (needs ANTHROPIC_API_KEY)
+uv run cer select     # choose the space on dev and freeze it    (~3 min of sweep)
+uv run cer evaluate   # measure the baselines and System B on dev and test
+uv run cer expand     # sweep the expansion grid on dev and freeze one cell
+uv run cer evaluate --systems expansion,expansion-conceptual   # read test once for System C
 ```
 
-The closure documents what those stages established and what remains open; it does not add a new
-retrieval mechanism.
+`label` is the only stage that calls a paid API, is cached per concept, and produces nothing
+retrieval depends on. `expand` freezes once and refuses to overwrite an existing freeze. Each stage
+refuses to run if the previous one has not, and says which to run first.
+
+The closure's second-hop diagnostic, exploratory and dev only, regenerates with
+`uv run python scripts/second_hop_diagnostic.py`.
+
+[`docs/USER_GUIDE.md`](docs/USER_GUIDE.md) covers the first six stages, the results and what to do
+when something stops; `select` and `expand` are documented in the Phase 3 and Phase 4 plans.
 
 ## Platform note
 
