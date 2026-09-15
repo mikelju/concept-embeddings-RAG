@@ -43,7 +43,7 @@ docs/plans/
 | 2 | Concept space: dictionary + matrix X | Available | **Complete** |
 | 3 | Hybrid conceptual retrieval (System B) | Available | **Complete** |
 | 4 | Query-aware iterative expansion (System C) | Available | **Complete — negative result** |
-| 5 | Text-derived concepts: navigation pilot | Pending | Next — not specified |
+| 5 | Text-derived concepts: navigation pilot | Available | **In progress** — planned |
 | 6 | Comparative evaluation and verdict | Pending | Conditional on the Phase 5 gate |
 | 7 | Exploratory extensions (conditional) | Pending | Not opened |
 
@@ -201,8 +201,14 @@ ablations were not run and are listed as untested levers. MuSiQue moves to Phase
 
 ## Phase 5: Text-derived concepts — navigation pilot
 
-Opened by the closure above, and **not yet specified**: what follows is the question and the
-constraints a spec has to honour, not decisions already taken.
+Opened by the closure above. Specified in [`phase_5/5.spec.md`](phase_5/5.spec.md) and planned in
+[`phase_5/5.0_text_derived_concepts.md`](phase_5/5.0_text_derived_concepts.md), which fix every
+choice below before a number exists: **the whole corpus extracted offline by Sonnet 5**, **all 152
+dev questions** the Phase 4 diagnostic defined, a hop from dense's first paragraph over
+**entity-only, concept-only and entity + concept** nodes, the **question** as the statistical unit,
+and **BM25 on the question** as the frozen comparator. The gate: GO if entity + concept beats both
+the comparator and entity-only; NAMES ONLY if entity-only itself beats the comparator; STOP
+otherwise.
 
 The question: **do concepts and entities extracted from the text give a more useful navigation
 structure than atoms induced from pooled embeddings?** Concretely, when dense has found the first
