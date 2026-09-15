@@ -11,6 +11,7 @@
     pilot     freeze the navigation pilot's dev questions by rule (Phase 5)
     extract   read entities and concepts out of every paragraph, offline (Phase 5)
     nodes     normalize the extraction into typed nodes over the pool (Phase 5)
+    navigate  run every second hop over the pilot, once (Phase 5)
 
 Each stage is idempotent and refuses to run if its input is missing, saying which
 stage to run first rather than failing somewhere deep inside numpy.
@@ -27,6 +28,7 @@ from pathlib import Path
 from typing import NoReturn
 
 import numpy as np
+from scipy import sparse
 
 from concept_embeddings_rag import __version__, config
 from concept_embeddings_rag.concepts.coding import (
@@ -108,10 +110,19 @@ from concept_embeddings_rag.evaluation.expansion_selection import (
     sweep_expansion,
 )
 from concept_embeddings_rag.evaluation.harness import evaluate_retriever
+from concept_embeddings_rag.evaluation.navigation import (
+    HOP_RUN_FILENAME,
+    diagnostic_mismatches,
+    load_hop_run,
+    run_navigation,
+    save_navigation,
+)
 from concept_embeddings_rag.evaluation.pilot import (
     PilotError,
     build_pilot,
     check_pilot_against,
+    load_pilot,
+    pilot_digest,
     pilot_path,
     save_pilot,
 )
@@ -147,6 +158,7 @@ from concept_embeddings_rag.nodes.index import (
     NodeIndexError,
     build_node_index,
     fragmentation,
+    load_node_index,
     save_node_index,
 )
 from concept_embeddings_rag.retrieval.base import Retriever
@@ -1550,6 +1562,134 @@ def cmd_nodes(
     return path
 
 
+def cmd_navigate(
+    data_dir: Path = config.DATA_DIR,
+    cache_dir: Path = config.CACHE_DIR,
+    question_cache_dir: Path = config.QUESTION_CACHE_DIR,
+    concepts_dir: Path = config.CONCEPTS_DIR,
+    pilot_dir: Path = config.PILOT_DIR,
+    extraction_dir: Path = config.EXTRACTION_DIR,
+    nodes_dir: Path = config.NODES_DIR,
+    navigation_dir: Path = config.NAVIGATION_DIR,
+    backend: EmbeddingBackend | None = None,
+) -> Path:
+    """Run every second hop over the frozen pilot, once (Phase 5, HU-5 and HU-6).
+
+    Everything it reads is frozen and verified first: the pilot, the extraction summary,
+    the node index and the pooled-embedding space. It refuses to measure a second time
+    before doing any work, because the gate may not be computed from a second measurement.
+    """
+    navigation_dir = Path(navigation_dir)
+    if (navigation_dir / HOP_RUN_FILENAME).exists():
+        _die(
+            f"a navigation run is already written in {navigation_dir}; this phase measures once, "
+            "and the gate may not be re-run on a second measurement"
+        )
+    data_dir = Path(data_dir)
+    pool_path = data_dir / POOL_NAME
+    if not pool_path.exists():
+        _die("no pool found: run 'build' first")
+    units, questions = load_pool(pool_path)
+    _check_pool_against_manifest(units, data_dir / MANIFEST_NAME)
+    unit_ids = [unit.unit_id for unit in units]
+    pool_hash = unit_set_hash(unit_ids)
+
+    try:
+        pilot = load_pilot(pilot_dir, expected_unit_set_hash=pool_hash)
+        check_pilot_against(pilot, questions)
+    except PilotError as error:
+        _die(f"{error}; run 'pilot' first if none is frozen")
+
+    try:
+        summary = load_extraction_summary(extraction_dir)
+        if summary["finding"]:
+            _die("the extraction's failures are a finding: no navigation is measured on it")
+        index = load_node_index(
+            nodes_dir, extraction_digest=str(summary["digest"]), expected_unit_ids=unit_ids
+        )
+    except ExtractionError as error:
+        _die(f"{error}")
+    except NodeIndexError as error:
+        _die(f"{error}; run 'nodes' first")
+
+    backend = backend if backend is not None else SentenceTransformerBackend()
+    corpus = EmbeddingCache(Path(cache_dir)).load(
+        _cache_key_for(backend, units), expected_unit_ids=unit_ids
+    )
+    if corpus is None:
+        _die("embeddings are not cached for this pool: run 'embed' first")
+    vectors, _ = corpus
+    by_id = {question.qid: question for question in questions}
+    pilot_questions = [by_id[entry.qid] for entry in pilot.questions]
+    query_backend = build_query_backend(
+        pilot_questions, backend, EmbeddingCache(Path(question_cache_dir))
+    )
+
+    reference_key = dictionary_key(
+        k=config.REFERENCE_CONCEPT_K,
+        seed=config.CONCEPT_SEED,
+        alpha=config.INDUCTION_ALPHA,
+        unit_set_hash=pool_hash,
+        model=config.EMBEDDING_MODEL,
+        revision=config.EMBEDDING_REVISION,
+        merge_threshold=config.MERGE_COSINE_THRESHOLD,
+    )
+    try:
+        reference = load_matrix(
+            reference_key, Path(concepts_dir), view="raw", expected_unit_ids=unit_ids
+        ).X
+    except ConceptArtifactError as error:
+        _die(f"the reference concept space is not on disk ({error}): run 'induce'")
+    reference = sparse.csr_matrix(reference, dtype=np.float64)
+
+    run = run_navigation(
+        pilot,
+        by_id,
+        unit_ids=unit_ids,
+        texts=[unit.indexable_text for unit in units],
+        vectors=vectors,
+        query_backend=query_backend,
+        bm25=BM25Retriever(units),
+        index=index,
+        concept_matrix=reference,
+        concept_weights=rarity_weights(concept_support(reference), reference.shape[0]),
+        provenance={
+            "pilot_digest": pilot_digest(pilot),
+            "node_index_digest": index.digest,
+            "normalization_version": index.normalization_version,
+            "extraction_digest": str(summary["digest"]),
+            "extraction_model": str(summary["model"]),
+            "prompt_digest": str(summary["prompt_digest"]),
+            "unit_set_hash": pool_hash,
+            "model": backend.name,
+            "revision": backend.revision,
+            "reference_dictionary_key": reference_key,
+            "code_version": __version__,
+            "stochastic": False,
+        },
+    )
+    run_path, traces_path = save_navigation(run, navigation_dir)
+
+    print(f"[INFO] {len(pilot.questions)} pilot questions, {pilot.n_missing} missing paragraphs")
+    print(f"[INFO] {'hop':<34} {'q@10':>6} {'q@100':>6} {'p@10':>6} {'p@100':>6}")
+    for hop, figures in run.payload["aggregates"].items():
+        q, p = figures["per_question"], figures["per_paragraph"]
+        print(f"[INFO] {hop:<34} {q['10']:6.3f} {q['100']:6.3f} {p['10']:6.3f} {p['100']:6.3f}")
+
+    diagnostic_path = data_dir / "diagnostics" / "second_hop-dev.json"
+    if diagnostic_path.exists():
+        mismatches = diagnostic_mismatches(
+            load_hop_run(navigation_dir), json.loads(diagnostic_path.read_text(encoding="utf-8"))
+        )
+        if mismatches:
+            for mismatch in mismatches:
+                print(f"[WARN] continuity with the Phase 4 diagnostic: {mismatch}")
+        else:
+            print("[OK] the non-concept hops reproduce the Phase 4 diagnostic exactly")
+    print(f"[OK] navigation run -> {run_path}; traces -> {traces_path}")
+    return run_path
+
+
 def _poll_pause() -> None:
     """How long the full run waits between two looks at a batch. Most end within an hour."""
     time.sleep(60)
@@ -1632,6 +1772,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser(
         "nodes", help="normalize the extraction into typed nodes and index them over the pool"
     )
+    subparsers.add_parser("navigate", help="run every second hop over the frozen pilot, once")
     extraction = subparsers.add_parser(
         "extract", help="read entities and concepts out of every paragraph (spends money)"
     )
@@ -1674,6 +1815,8 @@ def main(argv: list[str] | None = None) -> int:
         cmd_extract(sample=args.sample)
     elif args.command == "nodes":
         cmd_nodes()
+    elif args.command == "navigate":
+        cmd_navigate()
     return 0
 
 
