@@ -109,6 +109,7 @@ from concept_embeddings_rag.evaluation.expansion_selection import (
     save_expansion_selection,
     sweep_expansion,
 )
+from concept_embeddings_rag.evaluation.gate import compute_gate, save_gate
 from concept_embeddings_rag.evaluation.harness import evaluate_retriever
 from concept_embeddings_rag.evaluation.navigation import (
     HOP_RUN_FILENAME,
@@ -1687,6 +1688,24 @@ def cmd_navigate(
         else:
             print("[OK] the non-concept hops reproduce the Phase 4 diagnostic exactly")
     print(f"[OK] navigation run -> {run_path}; traces -> {traces_path}")
+
+    # The gate reads the run as written and verified, never the object in memory.
+    decision = compute_gate(load_hop_run(navigation_dir))
+    gate_path = save_gate(decision, navigation_dir)
+    for name, test in decision["tests"].items():
+        print(
+            f"[INFO] gate test '{name}': {test['wins']} wins, {test['losses']} losses, "
+            f"{test['ties']} ties, p = {test['p_value']:.4g} -> "
+            f"{'passed' if test['passed'] else 'not passed'}"
+        )
+    for name, test in decision["reported"].items():
+        print(
+            f"[INFO] reported only '{name}': {test['wins']} wins, {test['losses']} losses, "
+            f"p = {test['p_value']:.4g}"
+        )
+    for anomaly in decision["anomalies"]:
+        print(f"[WARN] anomaly: {anomaly}")
+    print(f"[OK] gate outcome: {decision['outcome']} -> {gate_path}")
     return run_path
 
 
