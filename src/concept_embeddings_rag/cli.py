@@ -9,6 +9,7 @@
     select    choose the space on dev and freeze the configuration (Phase 3)
     expand    sweep the expansion grid on dev and freeze the cell (Phase 4)
     pilot     freeze the navigation pilot's dev questions by rule (Phase 5)
+    extract   read entities and concepts out of every paragraph, offline (Phase 5)
 
 Each stage is idempotent and refuses to run if its input is missing, saying which
 stage to run first rather than failing somewhere deep inside numpy.
@@ -18,7 +19,7 @@ import argparse
 import json
 import sys
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -59,6 +60,7 @@ from concept_embeddings_rag.concepts.labeling import (
     REQUEST_SHAPE,
     AnthropicLabelingClient,
     LabelingClient,
+    LabelingError,
     MissingAPIKey,
     build_prompt,
     estimate_cost_usd,
@@ -127,6 +129,16 @@ from concept_embeddings_rag.evaluation.selection import (
     save_selection,
     selection_digest,
     sweep_space,
+)
+from concept_embeddings_rag.nodes.extraction import (
+    AnthropicBatchClient,
+    AnthropicSyncClient,
+    BatchClient,
+    ExtractionError,
+    SyncClient,
+    load_sample_report,
+    run_full,
+    run_sample,
 )
 from concept_embeddings_rag.retrieval.base import Retriever
 from concept_embeddings_rag.retrieval.bm25 import BM25Retriever
@@ -1370,6 +1382,116 @@ def cmd_pilot(
     return path
 
 
+def cmd_extract(
+    sample: bool = False,
+    data_dir: Path = config.DATA_DIR,
+    cache_dir: Path = config.CACHE_DIR,
+    extraction_dir: Path = config.EXTRACTION_DIR,
+    client: SyncClient | None = None,
+    batch_client: BatchClient | None = None,
+    wait: Callable[[], None] | None = None,
+) -> None:
+    """Read entities and concepts out of every paragraph, offline (Phase 5, HU-2).
+
+    `--sample` extracts the 20 lowest unit ids synchronously and reports what they cost and
+    how long they are beside the corpus. Without it, the whole pool goes through batches -
+    only after a sample exists and only under the ceiling, both checked before anything is
+    submitted. This is the second stage after `label` that spends money, and the key it
+    needs is read from `.env` when a real client is built, never before.
+    """
+    data_dir = Path(data_dir)
+    pool_path = data_dir / POOL_NAME
+    tokens_path = data_dir / TOKENS_NAME
+    if not pool_path.exists():
+        _die("no pool found: run 'build' first")
+    if not tokens_path.exists():
+        _die("no token counts found: run 'embed' first")
+    units, _ = load_pool(pool_path)
+    _check_pool_against_manifest(units, data_dir / MANIFEST_NAME)
+    token_counts = json.loads(tokens_path.read_text(encoding="utf-8"))
+
+    try:
+        if sample:
+            if client is None:
+                read_api_key()
+                client = AnthropicSyncClient()
+            report = run_sample(
+                units,
+                client,
+                cache_dir=cache_dir,
+                extraction_dir=extraction_dir,
+                token_counts=token_counts,
+            )
+            failed = {unit: status for unit, status in report.statuses.items() if status != "ok"}
+            print(
+                f"[INFO] sample: {report.n_ok} of {len(report.unit_ids)} paragraphs extracted "
+                f"within the schema and bounds"
+                + (f"; failures {sorted(failed.values())}" if failed else "")
+            )
+            print(
+                f"[INFO] tokens per request: {report.mean_input_tokens:.1f} in, "
+                f"{report.mean_output_tokens:.1f} out; the sample cost {report.sample_usd:.4f} USD"
+            )
+            for name, lengths in (
+                ("sample", report.sample_lengths),
+                ("corpus", report.corpus_lengths),
+            ):
+                print(
+                    f"[INFO] {name} paragraph length (tokens): mean {lengths['mean']:.1f}, "
+                    f"median {lengths['median']:.1f}, min {lengths['min']:.0f}, "
+                    f"max {lengths['max']:.0f}"
+                )
+            print(
+                f"[INFO] estimate for the full run: {report.estimated_full_usd:.2f} USD at batch "
+                f"rates, output margin {config.EXTRACTION_ESTIMATE_MARGIN}; ceiling "
+                f"{report.ceiling_usd:.2f} USD"
+            )
+            print("[OK] sample written; the full run is `cer extract`, after the spend is approved")
+            return
+
+        try:
+            load_sample_report(extraction_dir)
+        except ExtractionError:
+            _die("no sample report found: run 'extract --sample' first, and read its estimate")
+        if batch_client is None:
+            read_api_key()
+            batch_client = AnthropicBatchClient()
+        summary = run_full(
+            units,
+            batch_client,
+            cache_dir=cache_dir,
+            extraction_dir=extraction_dir,
+            wait=wait if wait is not None else _poll_pause,
+        )
+    except MissingAPIKey as error:
+        _die(str(error))
+    except (ExtractionError, LabelingError) as error:
+        _die(str(error))
+
+    print(
+        f"[INFO] {summary.n_units} paragraphs: {summary.calls} requested, {summary.cached} already "
+        f"cached, {summary.resubmissions} resubmitted once"
+    )
+    print(
+        f"[INFO] cost: {summary.actual_usd:.2f} USD actual against {summary.estimated_usd:.2f} USD "
+        "estimated"
+    )
+    if summary.finding:
+        print(
+            f"[WARN] {summary.failure_rate:.2%} of the pool failed extraction "
+            f"({summary.failures}), above the {config.EXTRACTION_FAILURE_FINDING:.0%} finding "
+            "threshold: stop here, write the finding, and build no nodes"
+        )
+    elif summary.failures:
+        print(f"[INFO] failures {summary.failures} ({summary.failure_rate:.2%} of the pool)")
+    print(f"[OK] extraction written to {extraction_dir}")
+
+
+def _poll_pause() -> None:
+    """How long the full run waits between two looks at a batch. Most end within an hour."""
+    time.sleep(60)
+
+
 def _check_pool_against_manifest(units: Sequence[IndexingUnit], manifest_path: Path) -> None:
     """Refuse to run on a pool the manifest does not recognise.
 
@@ -1444,6 +1566,19 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser(
         "pilot", help="freeze the Phase 5 navigation pilot's dev questions by rule"
     )
+    extraction = subparsers.add_parser(
+        "extract", help="read entities and concepts out of every paragraph (spends money)"
+    )
+    # Decision D4 of Phase 5: the full run refuses without the sample, whose measured
+    # estimate is what the author approves before anything else is spent.
+    extraction.add_argument(
+        "--sample",
+        action="store_true",
+        help=(
+            f"extract only the {config.EXTRACTION_SAMPLE_SIZE} lowest unit ids and report "
+            "the estimate"
+        ),
+    )
     return parser
 
 
@@ -1469,6 +1604,8 @@ def main(argv: list[str] | None = None) -> int:
         cmd_expand()
     elif args.command == "pilot":
         cmd_pilot()
+    elif args.command == "extract":
+        cmd_extract(sample=args.sample)
     return 0
 
 
