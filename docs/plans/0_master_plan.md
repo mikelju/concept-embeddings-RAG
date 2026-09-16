@@ -219,6 +219,14 @@ At hit@10 per question, entity navigation scored **0.6579**, versus 0.4441 for B
 
 **What this establishes:** text-derived entities are a strong second-hop navigation signal on this HotpotQA bridge diagnostic. **What it does not establish:** that an end-to-end dense + entity system beats the existing dense+BM25 system, or that concepts provide useful satellite-context discovery. The founding decisions remain unchanged. Full provenance and scope are in [`phase_5/5.results.md`](phase_5/5.results.md).
 
+### How the phase closed, and what it leaves open
+
+`/7-verificar` checked all 47 acceptance criteria against the artifacts rather than against the documents that quote them: 47 verified, none failing, none uncovered, with 1,386 tests passing and no skip, and ruff and mypy clean. It recomputed the gate from the per-question scores and reproduced it to the digit. The six divergences it found were documentation, not measurement, and each was corrected in its own commit.
+
+`/8-auditar` closed with **no Critical and no High**: four findings, one Medium and three Low, catalogued as SEC-020 to SEC-023 in [`docs/security/README.md`](../security/README.md). One shape runs through all four — the artifacts this phase *measures* from carry a digest and verify it on load, while the artifacts it *runs* from carry none, so the cost ceiling, the failure gate and the batch state are all trusted on read. The fixes are specified and **not applied**: each touches `src/`, and whether to spend a `fix-N` on them before Phase 6 is the author's call. Phases 3 and 4 remain unaudited, as the same catalogue records.
+
+`/9-documentar` has **not** been run, so the phase is closed on its numbers but not on its documentation: `CLAUDE.md` still describes the project as it stood before this phase.
+
 ## Phase 6: Dense + Entity Navigation — end-to-end comparison
 
 This is a **new research line derived from Phase 5's positive entity finding**. It replaces the old conditional Phase 6 that was intended to evaluate the text-derived concept hypothesis. The first question is deliberately narrow:
