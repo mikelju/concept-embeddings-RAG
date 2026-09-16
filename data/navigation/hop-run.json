@@ -1,0 +1,7832 @@
+{
+  "aggregates": {
+    "bm25-follow(p1)": {
+      "per_paragraph": {
+        "10": 0.4430379746835443,
+        "100": 0.740506329113924
+      },
+      "per_question": {
+        "10": 0.4506578947368421,
+        "100": 0.7532894736842105
+      },
+      "subgroup_per_question": {
+        "10": 0.4589041095890411,
+        "100": 0.7671232876712328
+      }
+    },
+    "bm25-question": {
+      "per_paragraph": {
+        "10": 0.44936708860759494,
+        "100": 0.7215189873417721
+      },
+      "per_question": {
+        "10": 0.4440789473684211,
+        "100": 0.7171052631578947
+      },
+      "subgroup_per_question": {
+        "10": 0.4383561643835616,
+        "100": 0.7123287671232876
+      }
+    },
+    "concept-hop(p1) k=512": {
+      "per_paragraph": {
+        "10": 0.0759493670886076,
+        "100": 0.3670886075949367
+      },
+      "per_question": {
+        "10": 0.07894736842105263,
+        "100": 0.3684210526315789
+      },
+      "subgroup_per_question": {
+        "10": 0.0821917808219178,
+        "100": 0.3698630136986301
+      }
+    },
+    "dense-continue": {
+      "per_paragraph": {
+        "10": 0.2974683544303797,
+        "100": 0.6962025316455697
+      },
+      "per_question": {
+        "10": 0.3026315789473684,
+        "100": 0.6973684210526315
+      },
+      "subgroup_per_question": {
+        "10": 0.3082191780821918,
+        "100": 0.6986301369863014
+      }
+    },
+    "dense-neighbours(p1)": {
+      "per_paragraph": {
+        "10": 0.3924050632911392,
+        "100": 0.6518987341772152
+      },
+      "per_question": {
+        "10": 0.40131578947368424,
+        "100": 0.6513157894736842
+      },
+      "subgroup_per_question": {
+        "10": 0.410958904109589,
+        "100": 0.6506849315068494
+      }
+    },
+    "node-hop(p1) concept": {
+      "new_relevant": 1,
+      "per_paragraph": {
+        "10": 0.056962025316455694,
+        "100": 0.17721518987341772
+      },
+      "per_question": {
+        "10": 0.05921052631578947,
+        "100": 0.17434210526315788
+      },
+      "positive_candidates": {
+        "max": 1964,
+        "mean": 434.2828947368421,
+        "mean_share_of_pool": 0.022425017801138186,
+        "median": 248.0
+      },
+      "subgroup_per_question": {
+        "10": 0.06164383561643835,
+        "100": 0.17123287671232876
+      }
+    },
+    "node-hop(p1) entity": {
+      "new_relevant": 18,
+      "per_paragraph": {
+        "10": 0.6455696202531646,
+        "100": 0.7341772151898734
+      },
+      "per_question": {
+        "10": 0.6578947368421053,
+        "100": 0.743421052631579
+      },
+      "positive_candidates": {
+        "max": 1798,
+        "mean": 173.32894736842104,
+        "mean_share_of_pool": 0.008950167684003979,
+        "median": 34.5
+      },
+      "subgroup_per_question": {
+        "10": 0.6712328767123288,
+        "100": 0.7534246575342466
+      }
+    },
+    "node-hop(p1) entity+concept": {
+      "new_relevant": 10,
+      "per_paragraph": {
+        "10": 0.46835443037974683,
+        "100": 0.7341772151898734
+      },
+      "per_question": {
+        "10": 0.48026315789473684,
+        "100": 0.743421052631579
+      },
+      "positive_candidates": {
+        "max": 2656,
+        "mean": 595.4736842105264,
+        "mean_share_of_pool": 0.03074840876848737,
+        "median": 391.5
+      },
+      "subgroup_per_question": {
+        "10": 0.4931506849315068,
+        "100": 0.7534246575342466
+      }
+    }
+  },
+  "digest": "49847f3cedb635406416bbb15dfa1913f4fa10782ed07a6461ccd56d5ded246a",
+  "per_question": [
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "cf6024f4c56bd51f",
+      "positives": {
+        "node-hop(p1) concept": 483,
+        "node-hop(p1) entity": 68,
+        "node-hop(p1) entity+concept": 549
+      },
+      "qid": "5a712beb5542994082a3e61c",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "cf26b64f10740233",
+      "positives": {
+        "node-hop(p1) concept": 3,
+        "node-hop(p1) entity": 6,
+        "node-hop(p1) entity+concept": 9
+      },
+      "qid": "5a7184675542994082a3e864",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "b28c465906b2942c",
+      "positives": {
+        "node-hop(p1) concept": 760,
+        "node-hop(p1) entity": 13,
+        "node-hop(p1) entity+concept": 768
+      },
+      "qid": "5a7284c85542991f9a20c4c0",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 0.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "50945d4da5614ce6",
+      "positives": {
+        "node-hop(p1) concept": 254,
+        "node-hop(p1) entity": 167,
+        "node-hop(p1) entity+concept": 411
+      },
+      "qid": "5a72944c5542994cef4bc351",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "29f6ea8427e6329f",
+      "positives": {
+        "node-hop(p1) concept": 292,
+        "node-hop(p1) entity": 15,
+        "node-hop(p1) entity+concept": 307
+      },
+      "qid": "5a72f74a55429901807daf59",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "a28a108ce6b408b5",
+      "positives": {
+        "node-hop(p1) concept": 89,
+        "node-hop(p1) entity": 1798,
+        "node-hop(p1) entity+concept": 1875
+      },
+      "qid": "5a73677455429901807db030",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 0.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "7ce494ee5baf325f",
+      "positives": {
+        "node-hop(p1) concept": 124,
+        "node-hop(p1) entity": 434,
+        "node-hop(p1) entity+concept": 553
+      },
+      "qid": "5a736aa95542991f29ee2dfa",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 0.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "bc70413d15d5a39c",
+      "positives": {
+        "node-hop(p1) concept": 376,
+        "node-hop(p1) entity": 17,
+        "node-hop(p1) entity+concept": 392
+      },
+      "qid": "5a74106b55429979e288289e",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "0e923c353db353d4",
+      "positives": {
+        "node-hop(p1) concept": 1191,
+        "node-hop(p1) entity": 117,
+        "node-hop(p1) entity+concept": 1266
+      },
+      "qid": "5a7481d755429974ef308c12",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "611df7fbc6f5ffc8",
+      "positives": {
+        "node-hop(p1) concept": 1928,
+        "node-hop(p1) entity": 13,
+        "node-hop(p1) entity+concept": 1932
+      },
+      "qid": "5a74b55455429974ef308c39",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 0.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "c4db27ba2bced2d0",
+      "positives": {
+        "node-hop(p1) concept": 14,
+        "node-hop(p1) entity": 1,
+        "node-hop(p1) entity+concept": 15
+      },
+      "qid": "5a74be7a55429929fddd84e4",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "8b9f065aed063ef5",
+      "positives": {
+        "node-hop(p1) concept": 1004,
+        "node-hop(p1) entity": 6,
+        "node-hop(p1) entity+concept": 1006
+      },
+      "qid": "5a753c8c55429916b01642ab",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "96e0241dde5540ee",
+      "positives": {
+        "node-hop(p1) concept": 57,
+        "node-hop(p1) entity": 11,
+        "node-hop(p1) entity+concept": 66
+      },
+      "qid": "5a7553a95542996c70cfaedf",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 0.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "c76ddcb7842cca66",
+      "positives": {
+        "node-hop(p1) concept": 406,
+        "node-hop(p1) entity": 155,
+        "node-hop(p1) entity+concept": 531
+      },
+      "qid": "5a762f4755429976ec32bd44",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 0.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "94f59674486549f5",
+      "positives": {
+        "node-hop(p1) concept": 292,
+        "node-hop(p1) entity": 68,
+        "node-hop(p1) entity+concept": 351
+      },
+      "qid": "5a7636fb55429976ec32bd79",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "379484de49376924",
+      "positives": {
+        "node-hop(p1) concept": 877,
+        "node-hop(p1) entity": 0,
+        "node-hop(p1) entity+concept": 877
+      },
+      "qid": "5a77691455429966f1a36d2b",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "37ae56ed92c86cf6",
+      "positives": {
+        "node-hop(p1) concept": 290,
+        "node-hop(p1) entity": 25,
+        "node-hop(p1) entity+concept": 313
+      },
+      "qid": "5a776cfa5542993735360274",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "aea3aa658bcea066",
+      "positives": {
+        "node-hop(p1) concept": 8,
+        "node-hop(p1) entity": 0,
+        "node-hop(p1) entity+concept": 8
+      },
+      "qid": "5a7782b95542995d8318117f",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 0.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [
+          "144adc8215dd7620"
+        ],
+        "node-hop(p1) entity": [
+          "144adc8215dd7620"
+        ],
+        "node-hop(p1) entity+concept": [
+          "144adc8215dd7620"
+        ]
+      },
+      "p1": "018dcb4ad6c0d949",
+      "positives": {
+        "node-hop(p1) concept": 124,
+        "node-hop(p1) entity": 1,
+        "node-hop(p1) entity+concept": 124
+      },
+      "qid": "5a77e62b5542992a6e59dfea",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "fc1bc5ff3c9c2ece",
+      "positives": {
+        "node-hop(p1) concept": 783,
+        "node-hop(p1) entity": 310,
+        "node-hop(p1) entity+concept": 1043
+      },
+      "qid": "5a77e96c5542995d8318132d",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [
+          "12f7387f075aa794"
+        ],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "049f83c0d848becb",
+      "positives": {
+        "node-hop(p1) concept": 197,
+        "node-hop(p1) entity": 11,
+        "node-hop(p1) entity+concept": 205
+      },
+      "qid": "5a7a06485542990198eaf04e",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [
+          "4a9cfe0f938b7061"
+        ],
+        "node-hop(p1) entity+concept": [
+          "4a9cfe0f938b7061"
+        ]
+      },
+      "p1": "f02b3516ab9f3ca8",
+      "positives": {
+        "node-hop(p1) concept": 378,
+        "node-hop(p1) entity": 25,
+        "node-hop(p1) entity+concept": 398
+      },
+      "qid": "5a7a36e65542990198eaf0ea",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "5c6fdf6e42cc7964",
+      "positives": {
+        "node-hop(p1) concept": 1269,
+        "node-hop(p1) entity": 71,
+        "node-hop(p1) entity+concept": 1280
+      },
+      "qid": "5a7a978555429941d65f26db",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 0.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [
+          "0b2d39582054b139"
+        ],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "52c5890eb0bacf41",
+      "positives": {
+        "node-hop(p1) concept": 762,
+        "node-hop(p1) entity": 26,
+        "node-hop(p1) entity+concept": 784
+      },
+      "qid": "5a7ad6045542992d025e6706",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "83f3815d6f0a8279",
+      "positives": {
+        "node-hop(p1) concept": 138,
+        "node-hop(p1) entity": 4,
+        "node-hop(p1) entity+concept": 142
+      },
+      "qid": "5a7b116a554299042af8f6c4",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "5584cc1773c19947",
+      "positives": {
+        "node-hop(p1) concept": 77,
+        "node-hop(p1) entity": 1,
+        "node-hop(p1) entity+concept": 78
+      },
+      "qid": "5a7b74485542997c3ec97190",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "9e1c4786c44f4d36",
+      "positives": {
+        "node-hop(p1) concept": 546,
+        "node-hop(p1) entity": 10,
+        "node-hop(p1) entity+concept": 552
+      },
+      "qid": "5a7b78c35542997c3ec971a9",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "269bdfead7a437ad",
+      "positives": {
+        "node-hop(p1) concept": 297,
+        "node-hop(p1) entity": 34,
+        "node-hop(p1) entity+concept": 326
+      },
+      "qid": "5a7c9f325542990527d554e6",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 0.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "3a70194443fcf4a4",
+      "positives": {
+        "node-hop(p1) concept": 40,
+        "node-hop(p1) entity": 274,
+        "node-hop(p1) entity+concept": 312
+      },
+      "qid": "5a7d2b2b5542995ed0d1661b",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "615f2b741c5284b2",
+      "positives": {
+        "node-hop(p1) concept": 940,
+        "node-hop(p1) entity": 146,
+        "node-hop(p1) entity+concept": 1068
+      },
+      "qid": "5a7d7d895542995f4f402281",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 0.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "9b2645c247b0fc6b",
+      "positives": {
+        "node-hop(p1) concept": 1007,
+        "node-hop(p1) entity": 17,
+        "node-hop(p1) entity+concept": 1020
+      },
+      "qid": "5a7da6015542995f4f40229d",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 0.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "5d805022e5c93d2e",
+      "positives": {
+        "node-hop(p1) concept": 486,
+        "node-hop(p1) entity": 688,
+        "node-hop(p1) entity+concept": 1148
+      },
+      "qid": "5a7da8065542995f4f4022a7",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "e393f4975e2227f5",
+      "positives": {
+        "node-hop(p1) concept": 2,
+        "node-hop(p1) entity": 19,
+        "node-hop(p1) entity+concept": 21
+      },
+      "qid": "5a7dcc775542990b8f503ab5",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 0.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [
+          "5d29b14fe6c57c1d"
+        ],
+        "node-hop(p1) entity+concept": [
+          "5d29b14fe6c57c1d"
+        ]
+      },
+      "p1": "c9ae746d29b9f85b",
+      "positives": {
+        "node-hop(p1) concept": 120,
+        "node-hop(p1) entity": 11,
+        "node-hop(p1) entity+concept": 131
+      },
+      "qid": "5a7e02b75542997cc2c474f3",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "9c25a1d8f3d86062",
+      "positives": {
+        "node-hop(p1) concept": 500,
+        "node-hop(p1) entity": 7,
+        "node-hop(p1) entity+concept": 503
+      },
+      "qid": "5a7e1a2955429965cec5ea5d",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 0.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [
+          "66ddb94f201dc720"
+        ],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "1cfd34b3414b3fc9",
+      "positives": {
+        "node-hop(p1) concept": 213,
+        "node-hop(p1) entity": 135,
+        "node-hop(p1) entity+concept": 343
+      },
+      "qid": "5a7e42df5542994959419954",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "3b68171e5d447e66",
+      "positives": {
+        "node-hop(p1) concept": 993,
+        "node-hop(p1) entity": 52,
+        "node-hop(p1) entity+concept": 1037
+      },
+      "qid": "5a7ef18c55429934daa2fc84",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 0.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "ea90c770ff540279",
+      "positives": {
+        "node-hop(p1) concept": 203,
+        "node-hop(p1) entity": 25,
+        "node-hop(p1) entity+concept": 227
+      },
+      "qid": "5a7f00b455429930675135f1",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "04cb5aa1d74cd204",
+      "positives": {
+        "node-hop(p1) concept": 231,
+        "node-hop(p1) entity": 121,
+        "node-hop(p1) entity+concept": 300
+      },
+      "qid": "5a7f113d55429934daa2fcbe",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "de06041e2628d8fa",
+      "positives": {
+        "node-hop(p1) concept": 313,
+        "node-hop(p1) entity": 18,
+        "node-hop(p1) entity+concept": 330
+      },
+      "qid": "5a806e01554299485f5985e5",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "9eca95d8c88f5fd9",
+      "positives": {
+        "node-hop(p1) concept": 467,
+        "node-hop(p1) entity": 2,
+        "node-hop(p1) entity+concept": 469
+      },
+      "qid": "5a80a25d5542995d8a8ddfb7",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 0.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": false,
+      "n_missing": 2,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [
+          "dcf134fc010a290a"
+        ],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "ab91214fd68c1940",
+      "positives": {
+        "node-hop(p1) concept": 1008,
+        "node-hop(p1) entity": 6,
+        "node-hop(p1) entity+concept": 1014
+      },
+      "qid": "5a80b9df5542992bc0c4a7ec",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.5,
+          "100": 0.5
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.5
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.5,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "14dff5d0cba3e96a",
+      "positives": {
+        "node-hop(p1) concept": 7,
+        "node-hop(p1) entity": 1,
+        "node-hop(p1) entity+concept": 8
+      },
+      "qid": "5a81018755429938b6142287",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 0.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "3e7d0ddb4b9eeaa4",
+      "positives": {
+        "node-hop(p1) concept": 553,
+        "node-hop(p1) entity": 1458,
+        "node-hop(p1) entity+concept": 1880
+      },
+      "qid": "5a81736255429903bc27b96e",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 0.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "f0c765a0bfc8879e",
+      "positives": {
+        "node-hop(p1) concept": 186,
+        "node-hop(p1) entity": 1,
+        "node-hop(p1) entity+concept": 187
+      },
+      "qid": "5a81b43d5542995ce29dcc39",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "99bfb2fd30633fd0",
+      "positives": {
+        "node-hop(p1) concept": 179,
+        "node-hop(p1) entity": 92,
+        "node-hop(p1) entity+concept": 260
+      },
+      "qid": "5a81f85d55429926c1cdadca",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "e88474a09dd27fd0",
+      "positives": {
+        "node-hop(p1) concept": 30,
+        "node-hop(p1) entity": 3,
+        "node-hop(p1) entity+concept": 33
+      },
+      "qid": "5a824858554299676cceb247",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "d3aa18cc3df488e7",
+      "positives": {
+        "node-hop(p1) concept": 139,
+        "node-hop(p1) entity": 1,
+        "node-hop(p1) entity+concept": 140
+      },
+      "qid": "5a8268aa55429940e5e1a8aa",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "f5628dc0e9ee7997",
+      "positives": {
+        "node-hop(p1) concept": 112,
+        "node-hop(p1) entity": 158,
+        "node-hop(p1) entity+concept": 261
+      },
+      "qid": "5a8332815542993344745fe9",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 0.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "a6a9eabce6e60472",
+      "positives": {
+        "node-hop(p1) concept": 682,
+        "node-hop(p1) entity": 8,
+        "node-hop(p1) entity+concept": 690
+      },
+      "qid": "5a8347d65542996488c2e3f6",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 0.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "3e87cdc5607995eb",
+      "positives": {
+        "node-hop(p1) concept": 99,
+        "node-hop(p1) entity": 1420,
+        "node-hop(p1) entity+concept": 1511
+      },
+      "qid": "5a837d9a554299123d8c213e",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "017481b1e02b1875",
+      "positives": {
+        "node-hop(p1) concept": 517,
+        "node-hop(p1) entity": 1481,
+        "node-hop(p1) entity+concept": 1939
+      },
+      "qid": "5a83870f554299123d8c2149",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 0.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [
+          "b699ae2c02f068c8"
+        ],
+        "node-hop(p1) entity+concept": [
+          "b699ae2c02f068c8"
+        ]
+      },
+      "p1": "4f0e3d6e64fa16cf",
+      "positives": {
+        "node-hop(p1) concept": 1372,
+        "node-hop(p1) entity": 3,
+        "node-hop(p1) entity+concept": 1373
+      },
+      "qid": "5a84c0765542991dd0999dd9",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "95c84e2626aeef6c",
+      "positives": {
+        "node-hop(p1) concept": 97,
+        "node-hop(p1) entity": 100,
+        "node-hop(p1) entity+concept": 197
+      },
+      "qid": "5a8512035542992a431d1ace",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "033f8c814116bbd6",
+      "positives": {
+        "node-hop(p1) concept": 88,
+        "node-hop(p1) entity": 1,
+        "node-hop(p1) entity+concept": 89
+      },
+      "qid": "5a85ea095542994775f606a8",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [
+          "968aedc59459291c"
+        ],
+        "node-hop(p1) entity+concept": [
+          "968aedc59459291c"
+        ]
+      },
+      "p1": "5f9cafd215652cc8",
+      "positives": {
+        "node-hop(p1) concept": 217,
+        "node-hop(p1) entity": 6,
+        "node-hop(p1) entity+concept": 222
+      },
+      "qid": "5a863114554299211dda2aa5",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "d010bba60cb963c3",
+      "positives": {
+        "node-hop(p1) concept": 575,
+        "node-hop(p1) entity": 2,
+        "node-hop(p1) entity+concept": 577
+      },
+      "qid": "5a875b755542996e4f308796",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 0.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "b502c81bb85e659b",
+      "positives": {
+        "node-hop(p1) concept": 985,
+        "node-hop(p1) entity": 36,
+        "node-hop(p1) entity+concept": 999
+      },
+      "qid": "5a8763a25542993e715abf1f",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "2450736a4dbcfd75",
+      "positives": {
+        "node-hop(p1) concept": 1399,
+        "node-hop(p1) entity": 4,
+        "node-hop(p1) entity+concept": 1400
+      },
+      "qid": "5a881d2355429938390d3eeb",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [
+          "622d403310e26c66"
+        ],
+        "node-hop(p1) entity+concept": [
+          "622d403310e26c66"
+        ]
+      },
+      "p1": "616493c714e3ffe8",
+      "positives": {
+        "node-hop(p1) concept": 904,
+        "node-hop(p1) entity": 103,
+        "node-hop(p1) entity+concept": 964
+      },
+      "qid": "5a883afc5542994846c1ce48",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "c8fde637657217e7",
+      "positives": {
+        "node-hop(p1) concept": 47,
+        "node-hop(p1) entity": 1387,
+        "node-hop(p1) entity+concept": 1431
+      },
+      "qid": "5a8ac5595542992d82986f77",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 0.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "10755f49365493ce",
+      "positives": {
+        "node-hop(p1) concept": 36,
+        "node-hop(p1) entity": 375,
+        "node-hop(p1) entity+concept": 411
+      },
+      "qid": "5a8af11a55429950cd6afc21",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "dc9a8f5d8c642c2a",
+      "positives": {
+        "node-hop(p1) concept": 1283,
+        "node-hop(p1) entity": 11,
+        "node-hop(p1) entity+concept": 1285
+      },
+      "qid": "5a8baf775542996e8ac889c8",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "0186f1b388118a04",
+      "positives": {
+        "node-hop(p1) concept": 285,
+        "node-hop(p1) entity": 1461,
+        "node-hop(p1) entity+concept": 1637
+      },
+      "qid": "5a8bf6cf5542995e66a47525",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [
+          "1c8956fd9b8cbe77"
+        ],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "588ab5dff220b699",
+      "positives": {
+        "node-hop(p1) concept": 1240,
+        "node-hop(p1) entity": 6,
+        "node-hop(p1) entity+concept": 1245
+      },
+      "qid": "5a8d227a554299585d9e37b1",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "f15dccf34410b780",
+      "positives": {
+        "node-hop(p1) concept": 1500,
+        "node-hop(p1) entity": 438,
+        "node-hop(p1) entity+concept": 1877
+      },
+      "qid": "5a8dafbd554299068b959da0",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "8fc5d654df4a05c6",
+      "positives": {
+        "node-hop(p1) concept": 52,
+        "node-hop(p1) entity": 282,
+        "node-hop(p1) entity+concept": 333
+      },
+      "qid": "5a8db2105542994ba4e3dd04",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "be5839455a1ca7ca",
+      "positives": {
+        "node-hop(p1) concept": 38,
+        "node-hop(p1) entity": 8,
+        "node-hop(p1) entity+concept": 43
+      },
+      "qid": "5a8dd5f955429917b4a5bcc7",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "9445dba1bf6f6fbf",
+      "positives": {
+        "node-hop(p1) concept": 198,
+        "node-hop(p1) entity": 0,
+        "node-hop(p1) entity+concept": 198
+      },
+      "qid": "5a8e942b5542995085b3745c",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "39542232e123f1ec",
+      "positives": {
+        "node-hop(p1) concept": 90,
+        "node-hop(p1) entity": 96,
+        "node-hop(p1) entity+concept": 184
+      },
+      "qid": "5a8ec55f5542995a26add50c",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 0.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "1bdf815979338287",
+      "positives": {
+        "node-hop(p1) concept": 158,
+        "node-hop(p1) entity": 531,
+        "node-hop(p1) entity+concept": 675
+      },
+      "qid": "5a8ed8b955429917b4a5bdd3",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "7d22f8399d8c45aa",
+      "positives": {
+        "node-hop(p1) concept": 95,
+        "node-hop(p1) entity": 7,
+        "node-hop(p1) entity+concept": 101
+      },
+      "qid": "5a8f157e554299458435d54d",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 0.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "5533b8b0b203413e",
+      "positives": {
+        "node-hop(p1) concept": 46,
+        "node-hop(p1) entity": 1386,
+        "node-hop(p1) entity+concept": 1426
+      },
+      "qid": "5a8f608d5542992414482a94",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "14d9fb696d4cbbf7",
+      "positives": {
+        "node-hop(p1) concept": 124,
+        "node-hop(p1) entity": 163,
+        "node-hop(p1) entity+concept": 286
+      },
+      "qid": "5a8f73455542997ba9cb3269",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "ac739721ec84bd35",
+      "positives": {
+        "node-hop(p1) concept": 44,
+        "node-hop(p1) entity": 6,
+        "node-hop(p1) entity+concept": 50
+      },
+      "qid": "5a8f7a135542992414482adc",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "8449e32f52ca6e4d",
+      "positives": {
+        "node-hop(p1) concept": 606,
+        "node-hop(p1) entity": 86,
+        "node-hop(p1) entity+concept": 645
+      },
+      "qid": "5a8fdd9c55429916514e73de",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "7d68ec2fae2ba6d5",
+      "positives": {
+        "node-hop(p1) concept": 5,
+        "node-hop(p1) entity": 3,
+        "node-hop(p1) entity+concept": 8
+      },
+      "qid": "5a90945755429933b8a2056c",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "d443d09d96802f19",
+      "positives": {
+        "node-hop(p1) concept": 54,
+        "node-hop(p1) entity": 62,
+        "node-hop(p1) entity+concept": 115
+      },
+      "qid": "5a90970d5542995651fb51a5",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [
+          "366a7f710b791d07"
+        ],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "037646cf64600e3a",
+      "positives": {
+        "node-hop(p1) concept": 1052,
+        "node-hop(p1) entity": 13,
+        "node-hop(p1) entity+concept": 1062
+      },
+      "qid": "5ab1dcab5542993be8fa985e",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "99b1d4a1fb48af8b",
+      "positives": {
+        "node-hop(p1) concept": 165,
+        "node-hop(p1) entity": 73,
+        "node-hop(p1) entity+concept": 231
+      },
+      "qid": "5ab28019554299722f9b4d51",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 0.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "441ae57fa3a219c7",
+      "positives": {
+        "node-hop(p1) concept": 58,
+        "node-hop(p1) entity": 110,
+        "node-hop(p1) entity+concept": 168
+      },
+      "qid": "5ab2b1e05542997061209685",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "3b9294620f2bde04",
+      "positives": {
+        "node-hop(p1) concept": 903,
+        "node-hop(p1) entity": 7,
+        "node-hop(p1) entity+concept": 910
+      },
+      "qid": "5ab30ebf554299753aec592c",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [
+          "4029e72dee0e1b01"
+        ],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "14b78ac88bd75fc7",
+      "positives": {
+        "node-hop(p1) concept": 1045,
+        "node-hop(p1) entity": 9,
+        "node-hop(p1) entity+concept": 1052
+      },
+      "qid": "5ab31fea554299194fa9356a",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "f275563125c1d7d8",
+      "positives": {
+        "node-hop(p1) concept": 942,
+        "node-hop(p1) entity": 116,
+        "node-hop(p1) entity+concept": 988
+      },
+      "qid": "5ab3952e5542992ade7c6de8",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 0.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "643b64dffc188c71",
+      "positives": {
+        "node-hop(p1) concept": 302,
+        "node-hop(p1) entity": 73,
+        "node-hop(p1) entity+concept": 355
+      },
+      "qid": "5ab626d555429953192ad279",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 0.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "4c0c3f696c50c32c",
+      "positives": {
+        "node-hop(p1) concept": 249,
+        "node-hop(p1) entity": 136,
+        "node-hop(p1) entity+concept": 378
+      },
+      "qid": "5ab65e1e55429954757d3261",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "45bf5d38e6f7f49e",
+      "positives": {
+        "node-hop(p1) concept": 6,
+        "node-hop(p1) entity": 67,
+        "node-hop(p1) entity+concept": 73
+      },
+      "qid": "5ab661ac5542995eadeeffb1",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 0.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "3e145ee88275744c",
+      "positives": {
+        "node-hop(p1) concept": 47,
+        "node-hop(p1) entity": 11,
+        "node-hop(p1) entity+concept": 54
+      },
+      "qid": "5ab6aa4c55429953192ad359",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "078d48000ead03e3",
+      "positives": {
+        "node-hop(p1) concept": 53,
+        "node-hop(p1) entity": 0,
+        "node-hop(p1) entity+concept": 53
+      },
+      "qid": "5ab6cd0e554299710c8d1f68",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 0.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "a086f33bba99bbf9",
+      "positives": {
+        "node-hop(p1) concept": 668,
+        "node-hop(p1) entity": 148,
+        "node-hop(p1) entity+concept": 747
+      },
+      "qid": "5ab72b5855429928e1fe3828",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "6aa4defc69c70e9a",
+      "positives": {
+        "node-hop(p1) concept": 25,
+        "node-hop(p1) entity": 0,
+        "node-hop(p1) entity+concept": 25
+      },
+      "qid": "5ab7f22a5542991d322237d4",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 0.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "381af54a8f4069a8",
+      "positives": {
+        "node-hop(p1) concept": 578,
+        "node-hop(p1) entity": 58,
+        "node-hop(p1) entity+concept": 602
+      },
+      "qid": "5ab8723c55429934fafe6dbc",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "31ebc66845d70bc0",
+      "positives": {
+        "node-hop(p1) concept": 560,
+        "node-hop(p1) entity": 9,
+        "node-hop(p1) entity+concept": 564
+      },
+      "qid": "5abae1725542996cc5e49ece",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 0.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "5adc10e25c54979d",
+      "positives": {
+        "node-hop(p1) concept": 417,
+        "node-hop(p1) entity": 14,
+        "node-hop(p1) entity+concept": 429
+      },
+      "qid": "5abb07ec5542996cc5e49f55",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "1584c799a85b1093",
+      "positives": {
+        "node-hop(p1) concept": 338,
+        "node-hop(p1) entity": 382,
+        "node-hop(p1) entity+concept": 706
+      },
+      "qid": "5abc091555429965836003f6",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "ac746773118ac601",
+      "positives": {
+        "node-hop(p1) concept": 326,
+        "node-hop(p1) entity": 396,
+        "node-hop(p1) entity+concept": 712
+      },
+      "qid": "5abc32cb55429959677d6a40",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "f1945fdfe6cb609b",
+      "positives": {
+        "node-hop(p1) concept": 495,
+        "node-hop(p1) entity": 6,
+        "node-hop(p1) entity+concept": 501
+      },
+      "qid": "5abcc96c5542996583600492",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "30cc02e5f5a82356",
+      "positives": {
+        "node-hop(p1) concept": 602,
+        "node-hop(p1) entity": 61,
+        "node-hop(p1) entity+concept": 635
+      },
+      "qid": "5abccb235542996583600497",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "b5f1e93543bd5a3d",
+      "positives": {
+        "node-hop(p1) concept": 129,
+        "node-hop(p1) entity": 12,
+        "node-hop(p1) entity+concept": 138
+      },
+      "qid": "5abcf17655429959677d6b5c",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [
+          "eff2c8d19b116469"
+        ],
+        "node-hop(p1) entity+concept": [
+          "eff2c8d19b116469"
+        ]
+      },
+      "p1": "966b73f0ed05ee76",
+      "positives": {
+        "node-hop(p1) concept": 38,
+        "node-hop(p1) entity": 153,
+        "node-hop(p1) entity+concept": 186
+      },
+      "qid": "5abd552555429933744ab776",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "bf55d7f37152bb81",
+      "positives": {
+        "node-hop(p1) concept": 2,
+        "node-hop(p1) entity": 4,
+        "node-hop(p1) entity+concept": 6
+      },
+      "qid": "5abd96fe5542992ac4f382d9",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "9b7bb49b7bd96bec",
+      "positives": {
+        "node-hop(p1) concept": 110,
+        "node-hop(p1) entity": 61,
+        "node-hop(p1) entity+concept": 171
+      },
+      "qid": "5abde4ed5542991f66106097",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "04b84aa5d955be35",
+      "positives": {
+        "node-hop(p1) concept": 141,
+        "node-hop(p1) entity": 1,
+        "node-hop(p1) entity+concept": 142
+      },
+      "qid": "5abe024c5542991f661060a2",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "92d532cad950e3ef",
+      "positives": {
+        "node-hop(p1) concept": 130,
+        "node-hop(p1) entity": 38,
+        "node-hop(p1) entity+concept": 165
+      },
+      "qid": "5abe48675542991f66106119",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [
+          "7256892e6e6feb5d"
+        ],
+        "node-hop(p1) entity+concept": [
+          "7256892e6e6feb5d"
+        ]
+      },
+      "p1": "63df854f9b508201",
+      "positives": {
+        "node-hop(p1) concept": 534,
+        "node-hop(p1) entity": 74,
+        "node-hop(p1) entity+concept": 594
+      },
+      "qid": "5abe822155429976d4830b48",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "b38b806f053ca677",
+      "positives": {
+        "node-hop(p1) concept": 139,
+        "node-hop(p1) entity": 91,
+        "node-hop(p1) entity+concept": 229
+      },
+      "qid": "5abec90a5542994516f45438",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "9a023ed5618a4e48",
+      "positives": {
+        "node-hop(p1) concept": 267,
+        "node-hop(p1) entity": 51,
+        "node-hop(p1) entity+concept": 315
+      },
+      "qid": "5abf1a6b5542997ec76fd3c1",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [
+          "95b419ab48a37d9b"
+        ],
+        "node-hop(p1) entity+concept": [
+          "95b419ab48a37d9b"
+        ]
+      },
+      "p1": "cf9ea6680901c5e7",
+      "positives": {
+        "node-hop(p1) concept": 1405,
+        "node-hop(p1) entity": 15,
+        "node-hop(p1) entity+concept": 1412
+      },
+      "qid": "5abff65c5542994516f45551",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "59719a6fca148de8",
+      "positives": {
+        "node-hop(p1) concept": 1534,
+        "node-hop(p1) entity": 221,
+        "node-hop(p1) entity+concept": 1735
+      },
+      "qid": "5ac017945542997d642959bc",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "4a24c6be9ab168e4",
+      "positives": {
+        "node-hop(p1) concept": 573,
+        "node-hop(p1) entity": 7,
+        "node-hop(p1) entity+concept": 577
+      },
+      "qid": "5ac03b395542992a796decce",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 0.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "8cde890253bb40b1",
+      "positives": {
+        "node-hop(p1) concept": 247,
+        "node-hop(p1) entity": 1484,
+        "node-hop(p1) entity+concept": 1671
+      },
+      "qid": "5ac05fb55542997d64295a0b",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": false,
+      "n_missing": 2,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "1415eca508265b8a",
+      "positives": {
+        "node-hop(p1) concept": 1359,
+        "node-hop(p1) entity": 23,
+        "node-hop(p1) entity+concept": 1367
+      },
+      "qid": "5ac29cf8554299218029dac2",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "bm25-question": {
+          "10": 0.5,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.5
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.5
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.5,
+          "100": 0.5
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 0.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "eab27a96f4bcff37",
+      "positives": {
+        "node-hop(p1) concept": 44,
+        "node-hop(p1) entity": 5,
+        "node-hop(p1) entity+concept": 48
+      },
+      "qid": "5ac2bcf55542990b17b1546e",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "62498a9d247d596a",
+      "positives": {
+        "node-hop(p1) concept": 758,
+        "node-hop(p1) entity": 1,
+        "node-hop(p1) entity+concept": 758
+      },
+      "qid": "5ac300905542996773102682",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "f8250f128b15076c",
+      "positives": {
+        "node-hop(p1) concept": 117,
+        "node-hop(p1) entity": 12,
+        "node-hop(p1) entity+concept": 128
+      },
+      "qid": "5ac3e01d5542997ea680c969",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "c8c471a9d5d6462b",
+      "positives": {
+        "node-hop(p1) concept": 343,
+        "node-hop(p1) entity": 10,
+        "node-hop(p1) entity+concept": 350
+      },
+      "qid": "5ac3e5de554299204fd21ebc",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "64b2a20f86c59fac",
+      "positives": {
+        "node-hop(p1) concept": 21,
+        "node-hop(p1) entity": 41,
+        "node-hop(p1) entity+concept": 59
+      },
+      "qid": "5ac45b23554299204fd21f31",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "0023a06bfebb2b52",
+      "positives": {
+        "node-hop(p1) concept": 1453,
+        "node-hop(p1) entity": 320,
+        "node-hop(p1) entity+concept": 1697
+      },
+      "qid": "5adca8375542990d50227cd4",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "dd907bd91f3e7823",
+      "positives": {
+        "node-hop(p1) concept": 0,
+        "node-hop(p1) entity": 0,
+        "node-hop(p1) entity+concept": 0
+      },
+      "qid": "5adcc6765542994d58a2f6c9",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 0.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "7a6ace701fa2aa15",
+      "positives": {
+        "node-hop(p1) concept": 499,
+        "node-hop(p1) entity": 3,
+        "node-hop(p1) entity+concept": 501
+      },
+      "qid": "5adcf8155542990d50227d6a",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "9cd860c73175d8ea",
+      "positives": {
+        "node-hop(p1) concept": 195,
+        "node-hop(p1) entity": 194,
+        "node-hop(p1) entity+concept": 319
+      },
+      "qid": "5add673e5542992ae4cec54d",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "294220690b71207f",
+      "positives": {
+        "node-hop(p1) concept": 198,
+        "node-hop(p1) entity": 1,
+        "node-hop(p1) entity+concept": 199
+      },
+      "qid": "5add6f975542992200553b18",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": false,
+      "n_missing": 2,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "aa39b9fe26edafea",
+      "positives": {
+        "node-hop(p1) concept": 771,
+        "node-hop(p1) entity": 408,
+        "node-hop(p1) entity+concept": 1174
+      },
+      "qid": "5adea8cf55429939a52fe92d",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "bm25-question": {
+          "10": 0.5,
+          "100": 0.5
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.5
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 0.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "3d00374278efdd3b",
+      "positives": {
+        "node-hop(p1) concept": 34,
+        "node-hop(p1) entity": 35,
+        "node-hop(p1) entity+concept": 68
+      },
+      "qid": "5adf490a5542993a75d26488",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "dda42e5922333c8e",
+      "positives": {
+        "node-hop(p1) concept": 46,
+        "node-hop(p1) entity": 3,
+        "node-hop(p1) entity+concept": 49
+      },
+      "qid": "5adf715b5542992d7e9f9354",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [
+          "5de755ee8fa85159"
+        ],
+        "node-hop(p1) entity+concept": [
+          "5de755ee8fa85159"
+        ]
+      },
+      "p1": "14801c0ce29d451a",
+      "positives": {
+        "node-hop(p1) concept": 153,
+        "node-hop(p1) entity": 174,
+        "node-hop(p1) entity+concept": 323
+      },
+      "qid": "5adf8a065542992d7e9f9392",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "2390ad481aa6a276",
+      "positives": {
+        "node-hop(p1) concept": 20,
+        "node-hop(p1) entity": 39,
+        "node-hop(p1) entity+concept": 59
+      },
+      "qid": "5adfa73b55429942ec259ad8",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "c279868ce0fcd836",
+      "positives": {
+        "node-hop(p1) concept": 68,
+        "node-hop(p1) entity": 148,
+        "node-hop(p1) entity+concept": 205
+      },
+      "qid": "5adfd01f55429925eb1afa9f",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "514ce9032c3d4bfb",
+      "positives": {
+        "node-hop(p1) concept": 166,
+        "node-hop(p1) entity": 53,
+        "node-hop(p1) entity+concept": 199
+      },
+      "qid": "5ae0ab7755429945ae959407",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "7c70e54afbd9d532",
+      "positives": {
+        "node-hop(p1) concept": 1053,
+        "node-hop(p1) entity": 1724,
+        "node-hop(p1) entity+concept": 2656
+      },
+      "qid": "5ae0b2f25542993d6555ec1c",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "fa3749def0f962cc",
+      "positives": {
+        "node-hop(p1) concept": 1964,
+        "node-hop(p1) entity": 13,
+        "node-hop(p1) entity+concept": 1968
+      },
+      "qid": "5ae0c1be5542993d6555ec42",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 0.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "662a61346dc75099",
+      "positives": {
+        "node-hop(p1) concept": 1216,
+        "node-hop(p1) entity": 11,
+        "node-hop(p1) entity+concept": 1224
+      },
+      "qid": "5ae1681b554299422ee9967c",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "1f88bb2cfe96a79d",
+      "positives": {
+        "node-hop(p1) concept": 21,
+        "node-hop(p1) entity": 27,
+        "node-hop(p1) entity+concept": 43
+      },
+      "qid": "5ae1e80b5542997f29b3c197",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "f050535e81462e3a",
+      "positives": {
+        "node-hop(p1) concept": 370,
+        "node-hop(p1) entity": 374,
+        "node-hop(p1) entity+concept": 736
+      },
+      "qid": "5ae1f8235542997f29b3c1cf",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "66c8eda7ca78f1bd",
+      "positives": {
+        "node-hop(p1) concept": 87,
+        "node-hop(p1) entity": 28,
+        "node-hop(p1) entity+concept": 114
+      },
+      "qid": "5ae20cd25542997283cd2376",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "6880e1aa1a6bcf13",
+      "positives": {
+        "node-hop(p1) concept": 653,
+        "node-hop(p1) entity": 148,
+        "node-hop(p1) entity+concept": 800
+      },
+      "qid": "5ae2b83c5542992decbdcd7f",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "5c6922179d664567",
+      "positives": {
+        "node-hop(p1) concept": 39,
+        "node-hop(p1) entity": 70,
+        "node-hop(p1) entity+concept": 108
+      },
+      "qid": "5ae30a4655429928c42395bb",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 0.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "d98e89bda3228868",
+      "positives": {
+        "node-hop(p1) concept": 1023,
+        "node-hop(p1) entity": 40,
+        "node-hop(p1) entity+concept": 1060
+      },
+      "qid": "5ae39e9c5542990afbd1e195",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "0f44d7f6ece2516e",
+      "positives": {
+        "node-hop(p1) concept": 184,
+        "node-hop(p1) entity": 1,
+        "node-hop(p1) entity+concept": 185
+      },
+      "qid": "5ae4c5595542990ba0bbb123",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "fa3db80201c5418f",
+      "positives": {
+        "node-hop(p1) concept": 842,
+        "node-hop(p1) entity": 12,
+        "node-hop(p1) entity+concept": 851
+      },
+      "qid": "5ae50eff55429908b6326500",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "046933d8f6de894e",
+      "positives": {
+        "node-hop(p1) concept": 479,
+        "node-hop(p1) entity": 14,
+        "node-hop(p1) entity+concept": 489
+      },
+      "qid": "5ae531a95542990ba0bbb1fc",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "8f60f5dac701f26c",
+      "positives": {
+        "node-hop(p1) concept": 16,
+        "node-hop(p1) entity": 47,
+        "node-hop(p1) entity+concept": 63
+      },
+      "qid": "5ae532365542992663a4f150",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [
+          "77fbcdc7815deac9"
+        ],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "115aa1a7e1e45e6b",
+      "positives": {
+        "node-hop(p1) concept": 1526,
+        "node-hop(p1) entity": 37,
+        "node-hop(p1) entity+concept": 1548
+      },
+      "qid": "5ae547f85542990ba0bbb254",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": false,
+      "n_missing": 2,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "c83792b8c9aea754",
+      "positives": {
+        "node-hop(p1) concept": 100,
+        "node-hop(p1) entity": 195,
+        "node-hop(p1) entity+concept": 258
+      },
+      "qid": "5ae552bb55429908b63265d9",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 0.5
+        },
+        "bm25-question": {
+          "10": 0.5,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.5,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.5
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.5
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 0.5
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 0.5
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "f486b1411c6d2e8c",
+      "positives": {
+        "node-hop(p1) concept": 267,
+        "node-hop(p1) entity": 127,
+        "node-hop(p1) entity+concept": 391
+      },
+      "qid": "5ae5b06e554299546bf82f2a",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": false,
+      "n_missing": 2,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "627fa3d783f420e0",
+      "positives": {
+        "node-hop(p1) concept": 379,
+        "node-hop(p1) entity": 208,
+        "node-hop(p1) entity+concept": 537
+      },
+      "qid": "5ae5d06a55429929b08079b4",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 0.5
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.5
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.5
+        },
+        "node-hop(p1) entity": {
+          "10": 0.0,
+          "100": 0.5
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "fa191fb76d916739",
+      "positives": {
+        "node-hop(p1) concept": 26,
+        "node-hop(p1) entity": 2,
+        "node-hop(p1) entity+concept": 28
+      },
+      "qid": "5ae676915542995703ce8b66",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "eb67c13225bb8a93",
+      "positives": {
+        "node-hop(p1) concept": 169,
+        "node-hop(p1) entity": 87,
+        "node-hop(p1) entity+concept": 249
+      },
+      "qid": "5ae7281c5542991e8301cb69",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-continue": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": false,
+      "n_missing": 2,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "7757cf0e5cca28c9",
+      "positives": {
+        "node-hop(p1) concept": 129,
+        "node-hop(p1) entity": 71,
+        "node-hop(p1) entity+concept": 182
+      },
+      "qid": "5ae7690c5542995703ce8c22",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 0.5,
+          "100": 0.5
+        },
+        "bm25-question": {
+          "10": 0.5,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.5
+        },
+        "dense-continue": {
+          "10": 0.5,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.5
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.5
+        },
+        "node-hop(p1) entity": {
+          "10": 0.5,
+          "100": 0.5
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.5,
+          "100": 0.5
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "0f38f8871840de79",
+      "positives": {
+        "node-hop(p1) concept": 198,
+        "node-hop(p1) entity": 213,
+        "node-hop(p1) entity+concept": 407
+      },
+      "qid": "5ae7a5f05542993210983ece",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "8bd473b5c4b48a20",
+      "positives": {
+        "node-hop(p1) concept": 1309,
+        "node-hop(p1) entity": 25,
+        "node-hop(p1) entity+concept": 1324
+      },
+      "qid": "5ae7ac495542993210983eee",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 0.0,
+          "100": 0.0
+        }
+      }
+    },
+    {
+      "exactly_one_gold_read": true,
+      "n_missing": 1,
+      "new_relevant": {
+        "node-hop(p1) concept": [],
+        "node-hop(p1) entity": [],
+        "node-hop(p1) entity+concept": []
+      },
+      "p1": "1073232ff9dd2cbc",
+      "positives": {
+        "node-hop(p1) concept": 52,
+        "node-hop(p1) entity": 1387,
+        "node-hop(p1) entity+concept": 1438
+      },
+      "qid": "5ae8027d5542993210984031",
+      "scores": {
+        "bm25-follow(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "bm25-question": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "concept-hop(p1) k=512": {
+          "10": 0.0,
+          "100": 0.0
+        },
+        "dense-continue": {
+          "10": 0.0,
+          "100": 1.0
+        },
+        "dense-neighbours(p1)": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) concept": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity": {
+          "10": 1.0,
+          "100": 1.0
+        },
+        "node-hop(p1) entity+concept": {
+          "10": 1.0,
+          "100": 1.0
+        }
+      }
+    }
+  ],
+  "provenance": {
+    "code_version": "0.1.0",
+    "depths": [
+      10,
+      100
+    ],
+    "extraction_digest": "8e59854118ae5f4d83d88ce967098801f9f922309d7beb6b3e3deaf06fb1f12f",
+    "extraction_model": "claude-sonnet-5",
+    "hops": [
+      "dense-continue",
+      "bm25-question",
+      "dense-neighbours(p1)",
+      "bm25-follow(p1)",
+      "concept-hop(p1) k=512",
+      "node-hop(p1) entity",
+      "node-hop(p1) concept",
+      "node-hop(p1) entity+concept"
+    ],
+    "model": "BAAI/bge-small-en-v1.5",
+    "n_missing": 158,
+    "n_questions": 152,
+    "n_subgroup": 146,
+    "n_units": 19366,
+    "node_index_digest": "b498f99418389b2f7849c680cda1749ea58700a9997fbfed7ce474d3b0a0559a",
+    "normalization_version": "normalization-v1",
+    "pilot_digest": "e0f0af8f468dbf3332d9311948f416b75e4e5bf0d9971a0bd332b04acff2c364",
+    "prompt_digest": "0107de3ae9b4e4a3",
+    "read_depth": 10,
+    "reference_dictionary_key": "d84c327aa8af0cdc",
+    "revision": "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a",
+    "split": "dev",
+    "stochastic": false,
+    "unit_set_hash": "101f564fdcca620c"
+  }
+}
