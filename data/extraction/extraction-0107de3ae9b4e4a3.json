@@ -1,0 +1,25 @@
+{
+  "actual_usd": 25.984768,
+  "archive": "extraction-0107de3ae9b4e4a3.jsonl.gz",
+  "cached": 20,
+  "calls": 19346,
+  "digest": "8e59854118ae5f4d83d88ce967098801f9f922309d7beb6b3e3deaf06fb1f12f",
+  "estimated_usd": 33.1716189,
+  "failure_rate": 0.00041309511515026334,
+  "failures": {
+    "bounds": 8
+  },
+  "finding": false,
+  "input_tokens": 14850200,
+  "model": "claude-sonnet-5",
+  "n_units": 19366,
+  "output_tokens": 2221302,
+  "prompt_digest": "0107de3ae9b4e4a3",
+  "rates_usd_per_mtok": {
+    "batch_factor": 0.5,
+    "input": 2.0,
+    "output": 10.0
+  },
+  "reproducibility_note": "Current models reject `temperature`, so extracting the same paragraph again may return different entities and concepts. This artifact, not a re-run, is the record of what the pilot measured; everything built on it is deterministic.",
+  "resubmissions": 0
+}

@@ -1361,3 +1361,93 @@ def test_the_two_arms_differ_in_their_numbers_but_not_in_their_configuration(tmp
     }
     for key in shared:
         assert configs["expansion"][key] == configs["expansion-conceptual"][key], key
+
+
+# --- Phase 5, T3: the pilot stage ----------------------------------------------
+#
+# `pilot` measures nothing: it records, once, which dev questions leave a gold
+# paragraph outside dense's top-10, where every hop will start, and what it must find.
+
+
+def a_pilot_workspace(tmp_path: Path, n_dev: int = 6, n_test: int = 3):
+    """A pool with cached embeddings and questions in both splits, gold chosen blindly."""
+    from concept_embeddings_rag.corpus.pool import Question, save_pool
+
+    data_dir, cache_dir, units = an_induction_workspace(tmp_path)
+    questions = [
+        Question(
+            qid=f"q{index}",
+            question=f"Which paragraph follows paragraph {index}?",
+            answer="-",
+            gold_unit_ids=(units[index * 7].unit_id, units[index * 7 + 1].unit_id),
+            supporting_facts=((units[index * 7].title, 0), (units[index * 7 + 1].title, 0)),
+            split="dev" if index < n_dev else "test",
+        )
+        for index in range(n_dev + n_test)
+    ]
+    save_pool(units, questions, data_dir / "pool.json")
+    return data_dir, cache_dir, units, questions
+
+
+def pilot(tmp_path: Path, data_dir: Path, cache_dir: Path, **overrides):
+    from concept_embeddings_rag.cli import cmd_pilot
+
+    arguments = {
+        "data_dir": data_dir,
+        "cache_dir": cache_dir,
+        "question_cache_dir": tmp_path / "questions",
+        "pilot_dir": tmp_path / "pilot",
+        "backend": HashingBackend(),
+    }
+    arguments.update(overrides)
+    return cmd_pilot(**arguments)
+
+
+def test_parser_exposes_the_pilot_stage():
+    assert build_parser().parse_args(["pilot"]).command == "pilot"
+
+
+def test_pilot_without_a_pool_names_the_build_stage(tmp_path):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+
+    with pytest.raises(SystemExit) as excinfo:
+        pilot(tmp_path, data_dir, tmp_path / "cache")
+
+    assert "build" in str(excinfo.value)
+
+
+def test_pilot_without_cached_embeddings_names_the_embed_stage(tmp_path):
+    data_dir, _, _, _ = a_pilot_workspace(tmp_path)
+
+    with pytest.raises(SystemExit) as excinfo:
+        pilot(tmp_path, data_dir, tmp_path / "empty-cache")
+
+    assert "embed" in str(excinfo.value)
+
+
+def test_pilot_writes_exactly_one_artifact_of_dev_questions_and_prints_its_path(tmp_path, capsys):
+    from concept_embeddings_rag.evaluation.pilot import load_pilot
+
+    data_dir, cache_dir, _, questions = a_pilot_workspace(tmp_path)
+
+    path = pilot(tmp_path, data_dir, cache_dir)
+
+    assert sorted(p.name for p in (tmp_path / "pilot").iterdir()) == ["pilot.json"]
+    out = capsys.readouterr().out
+    assert str(path) in out
+    assert out.isascii()
+    frozen = load_pilot(tmp_path / "pilot")
+    dev_ids = {question.qid for question in questions if question.split == "dev"}
+    assert frozen.questions
+    assert {question.qid for question in frozen.questions} <= dev_ids
+
+
+def test_a_second_pilot_refuses_rather_than_moving_the_freeze(tmp_path):
+    data_dir, cache_dir, _, _ = a_pilot_workspace(tmp_path)
+    pilot(tmp_path, data_dir, cache_dir)
+
+    with pytest.raises(SystemExit) as excinfo:
+        pilot(tmp_path, data_dir, cache_dir)
+
+    assert "already frozen" in str(excinfo.value)

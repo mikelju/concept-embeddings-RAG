@@ -1,0 +1,5464 @@
+{
+  "digest": "163777a044e1d6fcded400495a6e8f9917411e614978aa1aa43427a6cc8d5925",
+  "hop_run_digest": "49847f3cedb635406416bbb15dfa1913f4fa10782ed07a6461ccd56d5ded246a",
+  "traces": [
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "peter dinklage",
+          "node_id": 68466,
+          "type": "entity",
+          "weight": 8.262094497680664
+        }
+      ],
+      "p1": "cf6024f4c56bd51f",
+      "qid": "5a712beb5542994082a3e61c",
+      "rank": 5,
+      "score": 8.262094497680664,
+      "unit_id": "6101f86970a3e7c3"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "peter dinklage",
+          "node_id": 68466,
+          "type": "entity",
+          "weight": 8.262094497680664
+        }
+      ],
+      "p1": "cf6024f4c56bd51f",
+      "qid": "5a712beb5542994082a3e61c",
+      "rank": 80,
+      "score": 8.262094497680664,
+      "unit_id": "6101f86970a3e7c3"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "mazda capella",
+          "node_id": 56780,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "mazda 626",
+          "node_id": 56779,
+          "type": "entity",
+          "weight": 8.485186576843262
+        },
+        {
+          "form": "mazda",
+          "node_id": 56778,
+          "type": "entity",
+          "weight": 8.079824447631836
+        },
+        {
+          "form": "ford",
+          "node_id": 30998,
+          "type": "entity",
+          "weight": 7.674514293670654
+        }
+      ],
+      "p1": "cf26b64f10740233",
+      "qid": "5a7184675542994082a3e864",
+      "rank": 1,
+      "score": 33.01234197616577,
+      "unit_id": "99d91e7b87d23e9a"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "mazda capella",
+          "node_id": 56780,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "mazda 626",
+          "node_id": 56779,
+          "type": "entity",
+          "weight": 8.485186576843262
+        },
+        {
+          "form": "mazda",
+          "node_id": 56778,
+          "type": "entity",
+          "weight": 8.079824447631836
+        },
+        {
+          "form": "ford",
+          "node_id": 30998,
+          "type": "entity",
+          "weight": 7.674514293670654
+        }
+      ],
+      "p1": "cf26b64f10740233",
+      "qid": "5a7184675542994082a3e864",
+      "rank": 1,
+      "score": 33.01234197616577,
+      "unit_id": "99d91e7b87d23e9a"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "mike greenwell",
+          "node_id": 58483,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "boston red sox",
+          "node_id": 13142,
+          "type": "entity",
+          "weight": 6.8765740394592285
+        }
+      ],
+      "p1": "50945d4da5614ce6",
+      "qid": "5a72944c5542994cef4bc351",
+      "rank": 1,
+      "score": 15.649390697479248,
+      "unit_id": "38fc834e75d4c6e5"
+    },
+    {
+      "arm": "concept",
+      "hop": "node-hop(p1) concept",
+      "nodes": [
+        {
+          "form": "left fielder",
+          "node_id": 116541,
+          "type": "concept",
+          "weight": 8.262094497680664
+        },
+        {
+          "form": "nickname",
+          "node_id": 120982,
+          "type": "concept",
+          "weight": 5.322290897369385
+        }
+      ],
+      "p1": "50945d4da5614ce6",
+      "qid": "5a72944c5542994cef4bc351",
+      "rank": 3,
+      "score": 13.584385395050049,
+      "unit_id": "38fc834e75d4c6e5"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "mike greenwell",
+          "node_id": 58483,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "left fielder",
+          "node_id": 116541,
+          "type": "concept",
+          "weight": 8.262094497680664
+        },
+        {
+          "form": "boston red sox",
+          "node_id": 13142,
+          "type": "entity",
+          "weight": 6.8765740394592285
+        },
+        {
+          "form": "nickname",
+          "node_id": 120982,
+          "type": "concept",
+          "weight": 5.322290897369385
+        }
+      ],
+      "p1": "50945d4da5614ce6",
+      "qid": "5a72944c5542994cef4bc351",
+      "rank": 1,
+      "score": 29.233776092529297,
+      "unit_id": "38fc834e75d4c6e5"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "rosie o'donnell",
+          "node_id": 75185,
+          "type": "entity",
+          "weight": 8.262094497680664
+        }
+      ],
+      "p1": "29f6ea8427e6329f",
+      "qid": "5a72f74a55429901807daf59",
+      "rank": 7,
+      "score": 8.262094497680664,
+      "unit_id": "3d69a0a66faddf0e"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "rosie o'donnell",
+          "node_id": 75185,
+          "type": "entity",
+          "weight": 8.262094497680664
+        }
+      ],
+      "p1": "29f6ea8427e6329f",
+      "qid": "5a72f74a55429901807daf59",
+      "rank": 62,
+      "score": 8.262094497680664,
+      "unit_id": "3d69a0a66faddf0e"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "tata consultancy services",
+          "node_id": 85002,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "bc70413d15d5a39c",
+      "qid": "5a74106b55429979e288289e",
+      "rank": 4,
+      "score": 8.77281665802002,
+      "unit_id": "bf1b8cfd91a5516b"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "tata consultancy services",
+          "node_id": 85002,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "bc70413d15d5a39c",
+      "qid": "5a74106b55429979e288289e",
+      "rank": 6,
+      "score": 8.77281665802002,
+      "unit_id": "bf1b8cfd91a5516b"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "jake and the fatman",
+          "node_id": 42631,
+          "type": "entity",
+          "weight": 8.485186576843262
+        },
+        {
+          "form": "cbs",
+          "node_id": 16498,
+          "type": "entity",
+          "weight": 5.098276615142822
+        }
+      ],
+      "p1": "0e923c353db353d4",
+      "qid": "5a7481d755429974ef308c12",
+      "rank": 1,
+      "score": 13.583463191986084,
+      "unit_id": "cdbdfa5f23e94932"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "jake and the fatman",
+          "node_id": 42631,
+          "type": "entity",
+          "weight": 8.485186576843262
+        },
+        {
+          "form": "cbs",
+          "node_id": 16498,
+          "type": "entity",
+          "weight": 5.098276615142822
+        },
+        {
+          "form": "television series",
+          "node_id": 133170,
+          "type": "concept",
+          "weight": 3.6609489917755127
+        },
+        {
+          "form": "actor",
+          "node_id": 96802,
+          "type": "concept",
+          "weight": 3.317875385284424
+        }
+      ],
+      "p1": "0e923c353db353d4",
+      "qid": "5a7481d755429974ef308c12",
+      "rank": 1,
+      "score": 20.56228756904602,
+      "unit_id": "cdbdfa5f23e94932"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "margarita",
+          "node_id": 55240,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "c4db27ba2bced2d0",
+      "qid": "5a74be7a55429929fddd84e4",
+      "rank": 1,
+      "score": 8.77281665802002,
+      "unit_id": "3b62f21a221d477e"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "margarita",
+          "node_id": 55240,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "c4db27ba2bced2d0",
+      "qid": "5a74be7a55429929fddd84e4",
+      "rank": 3,
+      "score": 8.77281665802002,
+      "unit_id": "3b62f21a221d477e"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "pete townshend",
+          "node_id": 68402,
+          "type": "entity",
+          "weight": 8.485186576843262
+        },
+        {
+          "form": "who",
+          "node_id": 93672,
+          "type": "entity",
+          "weight": 7.569205284118652
+        }
+      ],
+      "p1": "8b9f065aed063ef5",
+      "qid": "5a753c8c55429916b01642ab",
+      "rank": 1,
+      "score": 16.054391860961914,
+      "unit_id": "871446f7aae7f15c"
+    },
+    {
+      "arm": "concept",
+      "hop": "node-hop(p1) concept",
+      "nodes": [
+        {
+          "form": "rock opera",
+          "node_id": 127714,
+          "type": "concept",
+          "weight": 7.09951114654541
+        },
+        {
+          "form": "rock band",
+          "node_id": 127692,
+          "type": "concept",
+          "weight": 4.119341850280762
+        }
+      ],
+      "p1": "8b9f065aed063ef5",
+      "qid": "5a753c8c55429916b01642ab",
+      "rank": 15,
+      "score": 11.218852996826172,
+      "unit_id": "871446f7aae7f15c"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "pete townshend",
+          "node_id": 68402,
+          "type": "entity",
+          "weight": 8.485186576843262
+        },
+        {
+          "form": "who",
+          "node_id": 93672,
+          "type": "entity",
+          "weight": 7.569205284118652
+        },
+        {
+          "form": "rock opera",
+          "node_id": 127714,
+          "type": "concept",
+          "weight": 7.09951114654541
+        },
+        {
+          "form": "rock band",
+          "node_id": 127692,
+          "type": "concept",
+          "weight": 4.119341850280762
+        }
+      ],
+      "p1": "8b9f065aed063ef5",
+      "qid": "5a753c8c55429916b01642ab",
+      "rank": 1,
+      "score": 27.273244857788086,
+      "unit_id": "871446f7aae7f15c"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "john adams",
+          "node_id": 44837,
+          "type": "entity",
+          "weight": 8.079824447631836
+        }
+      ],
+      "p1": "94f59674486549f5",
+      "qid": "5a7636fb55429976ec32bd79",
+      "rank": 8,
+      "score": 8.079824447631836,
+      "unit_id": "311b4ac2da75de3e"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "john adams",
+          "node_id": 44837,
+          "type": "entity",
+          "weight": 8.079824447631836
+        },
+        {
+          "form": "president",
+          "node_id": 124656,
+          "type": "concept",
+          "weight": 4.427963733673096
+        }
+      ],
+      "p1": "94f59674486549f5",
+      "qid": "5a7636fb55429976ec32bd79",
+      "rank": 9,
+      "score": 12.507788181304932,
+      "unit_id": "311b4ac2da75de3e"
+    },
+    {
+      "arm": "concept",
+      "hop": "node-hop(p1) concept",
+      "nodes": [
+        {
+          "form": "black metal",
+          "node_id": 99935,
+          "type": "concept",
+          "weight": 7.306995868682861
+        }
+      ],
+      "p1": "379484de49376924",
+      "qid": "5a77691455429966f1a36d2b",
+      "rank": 99,
+      "score": 7.306995868682861,
+      "unit_id": "168008848f81c695"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "black metal",
+          "node_id": 99935,
+          "type": "concept",
+          "weight": 7.306995868682861
+        }
+      ],
+      "p1": "379484de49376924",
+      "qid": "5a77691455429966f1a36d2b",
+      "rank": 99,
+      "score": 7.306995868682861,
+      "unit_id": "168008848f81c695"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "mandan",
+          "node_id": 54847,
+          "type": "entity",
+          "weight": 8.485186576843262
+        },
+        {
+          "form": "north dakota",
+          "node_id": 64051,
+          "type": "entity",
+          "weight": 6.8765740394592285
+        }
+      ],
+      "p1": "37ae56ed92c86cf6",
+      "qid": "5a776cfa5542993735360274",
+      "rank": 1,
+      "score": 15.36176061630249,
+      "unit_id": "826496d4e561a447"
+    },
+    {
+      "arm": "concept",
+      "hop": "node-hop(p1) concept",
+      "nodes": [
+        {
+          "form": "tribe",
+          "node_id": 134525,
+          "type": "concept",
+          "weight": 5.981980800628662
+        }
+      ],
+      "p1": "37ae56ed92c86cf6",
+      "qid": "5a776cfa5542993735360274",
+      "rank": 38,
+      "score": 5.981980800628662,
+      "unit_id": "826496d4e561a447"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "mandan",
+          "node_id": 54847,
+          "type": "entity",
+          "weight": 8.485186576843262
+        },
+        {
+          "form": "north dakota",
+          "node_id": 64051,
+          "type": "entity",
+          "weight": 6.8765740394592285
+        },
+        {
+          "form": "tribe",
+          "node_id": 134525,
+          "type": "concept",
+          "weight": 5.981980800628662
+        }
+      ],
+      "p1": "37ae56ed92c86cf6",
+      "qid": "5a776cfa5542993735360274",
+      "rank": 1,
+      "score": 21.343741416931152,
+      "unit_id": "826496d4e561a447"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "eluvium",
+          "node_id": 27647,
+          "type": "entity",
+          "weight": 8.485186576843262
+        },
+        {
+          "form": "matthew cooper",
+          "node_id": 56464,
+          "type": "entity",
+          "weight": 8.485186576843262
+        }
+      ],
+      "p1": "018dcb4ad6c0d949",
+      "qid": "5a77e62b5542992a6e59dfea",
+      "rank": 1,
+      "score": 16.970373153686523,
+      "unit_id": "144adc8215dd7620"
+    },
+    {
+      "arm": "concept",
+      "hop": "node-hop(p1) concept",
+      "nodes": [
+        {
+          "form": "ambient music",
+          "node_id": 97627,
+          "type": "concept",
+          "weight": 7.386987209320068
+        }
+      ],
+      "p1": "018dcb4ad6c0d949",
+      "qid": "5a77e62b5542992a6e59dfea",
+      "rank": 1,
+      "score": 7.386987209320068,
+      "unit_id": "144adc8215dd7620"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "eluvium",
+          "node_id": 27647,
+          "type": "entity",
+          "weight": 8.485186576843262
+        },
+        {
+          "form": "matthew cooper",
+          "node_id": 56464,
+          "type": "entity",
+          "weight": 8.485186576843262
+        },
+        {
+          "form": "ambient music",
+          "node_id": 97627,
+          "type": "concept",
+          "weight": 7.386987209320068
+        }
+      ],
+      "p1": "018dcb4ad6c0d949",
+      "qid": "5a77e62b5542992a6e59dfea",
+      "rank": 1,
+      "score": 24.357360363006592,
+      "unit_id": "144adc8215dd7620"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "miami gardens",
+          "node_id": 57735,
+          "type": "entity",
+          "weight": 8.262094497680664
+        },
+        {
+          "form": "miami",
+          "node_id": 57724,
+          "type": "entity",
+          "weight": 6.159817218780518
+        },
+        {
+          "form": "national football league",
+          "node_id": 61587,
+          "type": "entity",
+          "weight": 4.888403415679932
+        },
+        {
+          "form": "florida",
+          "node_id": 30756,
+          "type": "entity",
+          "weight": 4.810546875
+        }
+      ],
+      "p1": "fc1bc5ff3c9c2ece",
+      "qid": "5a77e96c5542995d8318132d",
+      "rank": 1,
+      "score": 24.120862007141113,
+      "unit_id": "9fb7a778fa2020ef"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "miami gardens",
+          "node_id": 57735,
+          "type": "entity",
+          "weight": 8.262094497680664
+        },
+        {
+          "form": "miami",
+          "node_id": 57724,
+          "type": "entity",
+          "weight": 6.159817218780518
+        },
+        {
+          "form": "national football league",
+          "node_id": 61587,
+          "type": "entity",
+          "weight": 4.888403415679932
+        },
+        {
+          "form": "florida",
+          "node_id": 30756,
+          "type": "entity",
+          "weight": 4.810546875
+        }
+      ],
+      "p1": "fc1bc5ff3c9c2ece",
+      "qid": "5a77e96c5542995d8318132d",
+      "rank": 3,
+      "score": 24.120862007141113,
+      "unit_id": "9fb7a778fa2020ef"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "giovanni ribisi",
+          "node_id": 33964,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "049f83c0d848becb",
+      "qid": "5a7a06485542990198eaf04e",
+      "rank": 3,
+      "score": 8.77281665802002,
+      "unit_id": "12f7387f075aa794"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "giovanni ribisi",
+          "node_id": 33964,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "049f83c0d848becb",
+      "qid": "5a7a06485542990198eaf04e",
+      "rank": 15,
+      "score": 8.77281665802002,
+      "unit_id": "12f7387f075aa794"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "sandi toksvig",
+          "node_id": 76842,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "f02b3516ab9f3ca8",
+      "qid": "5a7a36e65542990198eaf0ea",
+      "rank": 1,
+      "score": 8.77281665802002,
+      "unit_id": "4a9cfe0f938b7061"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "sandi toksvig",
+          "node_id": 76842,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "comedian",
+          "node_id": 103372,
+          "type": "concept",
+          "weight": 5.081712245941162
+        }
+      ],
+      "p1": "f02b3516ab9f3ca8",
+      "qid": "5a7a36e65542990198eaf0ea",
+      "rank": 2,
+      "score": 13.854528903961182,
+      "unit_id": "4a9cfe0f938b7061"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "jimmy van heusen",
+          "node_id": 44436,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "52c5890eb0bacf41",
+      "qid": "5a7ad6045542992d025e6706",
+      "rank": 5,
+      "score": 8.77281665802002,
+      "unit_id": "0b2d39582054b139"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "jimmy van heusen",
+          "node_id": 44436,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "film",
+          "node_id": 109727,
+          "type": "concept",
+          "weight": 3.614441394805908
+        }
+      ],
+      "p1": "52c5890eb0bacf41",
+      "qid": "5a7ad6045542992d025e6706",
+      "rank": 12,
+      "score": 12.387258052825928,
+      "unit_id": "0b2d39582054b139"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "tower of london",
+          "node_id": 87620,
+          "type": "entity",
+          "weight": 8.262094497680664
+        }
+      ],
+      "p1": "83f3815d6f0a8279",
+      "qid": "5a7b116a554299042af8f6c4",
+      "rank": 2,
+      "score": 8.262094497680664,
+      "unit_id": "24699d074e15f023"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "tower of london",
+          "node_id": 87620,
+          "type": "entity",
+          "weight": 8.262094497680664
+        }
+      ],
+      "p1": "83f3815d6f0a8279",
+      "qid": "5a7b116a554299042af8f6c4",
+      "rank": 3,
+      "score": 8.262094497680664,
+      "unit_id": "24699d074e15f023"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "military frontier",
+          "node_id": 58648,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "5584cc1773c19947",
+      "qid": "5a7b74485542997c3ec97190",
+      "rank": 1,
+      "score": 8.77281665802002,
+      "unit_id": "ee21f303b8f13212"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "military frontier",
+          "node_id": 58648,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "5584cc1773c19947",
+      "qid": "5a7b74485542997c3ec97190",
+      "rank": 1,
+      "score": 8.77281665802002,
+      "unit_id": "ee21f303b8f13212"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "life and times of juniper lee",
+          "node_id": 51698,
+          "type": "entity",
+          "weight": 8.485186576843262
+        }
+      ],
+      "p1": "9e1c4786c44f4d36",
+      "qid": "5a7b78c35542997c3ec971a9",
+      "rank": 3,
+      "score": 8.485186576843262,
+      "unit_id": "82881a45a4013ac5"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "life and times of juniper lee",
+          "node_id": 51698,
+          "type": "entity",
+          "weight": 8.485186576843262
+        }
+      ],
+      "p1": "9e1c4786c44f4d36",
+      "qid": "5a7b78c35542997c3ec971a9",
+      "rank": 42,
+      "score": 8.485186576843262,
+      "unit_id": "82881a45a4013ac5"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "royal albert hall",
+          "node_id": 75386,
+          "type": "entity",
+          "weight": 8.079824447631836
+        },
+        {
+          "form": "london",
+          "node_id": 52664,
+          "type": "entity",
+          "weight": 4.2508392333984375
+        }
+      ],
+      "p1": "3a70194443fcf4a4",
+      "qid": "5a7d2b2b5542995ed0d1661b",
+      "rank": 2,
+      "score": 12.330663681030273,
+      "unit_id": "19a4fcb9e4c9dc63"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "royal albert hall",
+          "node_id": 75386,
+          "type": "entity",
+          "weight": 8.079824447631836
+        },
+        {
+          "form": "london",
+          "node_id": 52664,
+          "type": "entity",
+          "weight": 4.2508392333984375
+        }
+      ],
+      "p1": "3a70194443fcf4a4",
+      "qid": "5a7d2b2b5542995ed0d1661b",
+      "rank": 5,
+      "score": 12.330663681030273,
+      "unit_id": "19a4fcb9e4c9dc63"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "national football league",
+          "node_id": 61587,
+          "type": "entity",
+          "weight": 4.888403415679932
+        }
+      ],
+      "p1": "615f2b741c5284b2",
+      "qid": "5a7d7d895542995f4f402281",
+      "rank": 76,
+      "score": 4.888403415679932,
+      "unit_id": "806a23256fbb2bba"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "moby",
+          "node_id": 59305,
+          "type": "entity",
+          "weight": 8.079824447631836
+        }
+      ],
+      "p1": "9b2645c247b0fc6b",
+      "qid": "5a7da6015542995f4f40229d",
+      "rank": 1,
+      "score": 8.079824447631836,
+      "unit_id": "54006f47a9b6d077"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "arrigo boito",
+          "node_id": 7736,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "mefistofele",
+          "node_id": 57076,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "la scala",
+          "node_id": 49644,
+          "type": "entity",
+          "weight": 8.079824447631836
+        },
+        {
+          "form": "milan",
+          "node_id": 58597,
+          "type": "entity",
+          "weight": 6.827835559844971
+        }
+      ],
+      "p1": "5d805022e5c93d2e",
+      "qid": "5a7da8065542995f4f4022a7",
+      "rank": 1,
+      "score": 32.453293323516846,
+      "unit_id": "5473ba950c0b1f81"
+    },
+    {
+      "arm": "concept",
+      "hop": "node-hop(p1) concept",
+      "nodes": [
+        {
+          "form": "opera",
+          "node_id": 121818,
+          "type": "concept",
+          "weight": 5.123656272888184
+        }
+      ],
+      "p1": "5d805022e5c93d2e",
+      "qid": "5a7da8065542995f4f4022a7",
+      "rank": 99,
+      "score": 5.123656272888184,
+      "unit_id": "5473ba950c0b1f81"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "arrigo boito",
+          "node_id": 7736,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "mefistofele",
+          "node_id": 57076,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "la scala",
+          "node_id": 49644,
+          "type": "entity",
+          "weight": 8.079824447631836
+        },
+        {
+          "form": "milan",
+          "node_id": 58597,
+          "type": "entity",
+          "weight": 6.827835559844971
+        },
+        {
+          "form": "opera",
+          "node_id": 121818,
+          "type": "concept",
+          "weight": 5.123656272888184
+        }
+      ],
+      "p1": "5d805022e5c93d2e",
+      "qid": "5a7da8065542995f4f4022a7",
+      "rank": 2,
+      "score": 37.57694959640503,
+      "unit_id": "5473ba950c0b1f81"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "river phoenix",
+          "node_id": 73909,
+          "type": "entity",
+          "weight": 8.485186576843262
+        }
+      ],
+      "p1": "c9ae746d29b9f85b",
+      "qid": "5a7e02b75542997cc2c474f3",
+      "rank": 2,
+      "score": 8.485186576843262,
+      "unit_id": "5d29b14fe6c57c1d"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "river phoenix",
+          "node_id": 73909,
+          "type": "entity",
+          "weight": 8.485186576843262
+        }
+      ],
+      "p1": "c9ae746d29b9f85b",
+      "qid": "5a7e02b75542997cc2c474f3",
+      "rank": 2,
+      "score": 8.485186576843262,
+      "unit_id": "5d29b14fe6c57c1d"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "ninja tune",
+          "node_id": 63518,
+          "type": "entity",
+          "weight": 8.079824447631836
+        }
+      ],
+      "p1": "9c25a1d8f3d86062",
+      "qid": "5a7e1a2955429965cec5ea5d",
+      "rank": 5,
+      "score": 8.079824447631836,
+      "unit_id": "22d95333243896e4"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "asamoah gyan",
+          "node_id": 7965,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "1cfd34b3414b3fc9",
+      "qid": "5a7e42df5542994959419954",
+      "rank": 2,
+      "score": 8.77281665802002,
+      "unit_id": "66ddb94f201dc720"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "asamoah gyan",
+          "node_id": 7965,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "1cfd34b3414b3fc9",
+      "qid": "5a7e42df5542994959419954",
+      "rank": 11,
+      "score": 8.77281665802002,
+      "unit_id": "66ddb94f201dc720"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "altamont free concert",
+          "node_id": 5349,
+          "type": "entity",
+          "weight": 8.262094497680664
+        }
+      ],
+      "p1": "ea90c770ff540279",
+      "qid": "5a7f00b455429930675135f1",
+      "rank": 2,
+      "score": 8.262094497680664,
+      "unit_id": "d6c046e018e025b9"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "altamont free concert",
+          "node_id": 5349,
+          "type": "entity",
+          "weight": 8.262094497680664
+        }
+      ],
+      "p1": "ea90c770ff540279",
+      "qid": "5a7f00b455429930675135f1",
+      "rank": 4,
+      "score": 8.262094497680664,
+      "unit_id": "d6c046e018e025b9"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "new york yankees",
+          "node_id": 62810,
+          "type": "entity",
+          "weight": 6.653688430786133
+        },
+        {
+          "form": "major league baseball",
+          "node_id": 54543,
+          "type": "entity",
+          "weight": 5.213293552398682
+        }
+      ],
+      "p1": "04cb5aa1d74cd204",
+      "qid": "5a7f113d55429934daa2fcbe",
+      "rank": 22,
+      "score": 11.866981983184814,
+      "unit_id": "8b7002320ba541b1"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "new york yankees",
+          "node_id": 62810,
+          "type": "entity",
+          "weight": 6.653688430786133
+        },
+        {
+          "form": "major league baseball",
+          "node_id": 54543,
+          "type": "entity",
+          "weight": 5.213293552398682
+        }
+      ],
+      "p1": "04cb5aa1d74cd204",
+      "qid": "5a7f113d55429934daa2fcbe",
+      "rank": 46,
+      "score": 11.866981983184814,
+      "unit_id": "8b7002320ba541b1"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "mos def",
+          "node_id": 59950,
+          "type": "entity",
+          "weight": 7.792245864868164
+        }
+      ],
+      "p1": "de06041e2628d8fa",
+      "qid": "5a806e01554299485f5985e5",
+      "rank": 18,
+      "score": 7.792245864868164,
+      "unit_id": "f4aed08323cad813"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "mos def",
+          "node_id": 59950,
+          "type": "entity",
+          "weight": 7.792245864868164
+        }
+      ],
+      "p1": "de06041e2628d8fa",
+      "qid": "5a806e01554299485f5985e5",
+      "rank": 24,
+      "score": 7.792245864868164,
+      "unit_id": "f4aed08323cad813"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "judy lewis",
+          "node_id": 46376,
+          "type": "entity",
+          "weight": 8.485186576843262
+        },
+        {
+          "form": "loretta young",
+          "node_id": 52936,
+          "type": "entity",
+          "weight": 8.485186576843262
+        },
+        {
+          "form": "clark gable",
+          "node_id": 19082,
+          "type": "entity",
+          "weight": 8.079824447631836
+        }
+      ],
+      "p1": "ab91214fd68c1940",
+      "qid": "5a80b9df5542992bc0c4a7ec",
+      "rank": 1,
+      "score": 25.05019760131836,
+      "unit_id": "ef8120108759e7a1"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "clark gable",
+          "node_id": 19082,
+          "type": "entity",
+          "weight": 8.079824447631836
+        }
+      ],
+      "p1": "ab91214fd68c1940",
+      "qid": "5a80b9df5542992bc0c4a7ec",
+      "rank": 6,
+      "score": 8.079824447631836,
+      "unit_id": "dcf134fc010a290a"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "judy lewis",
+          "node_id": 46376,
+          "type": "entity",
+          "weight": 8.485186576843262
+        },
+        {
+          "form": "loretta young",
+          "node_id": 52936,
+          "type": "entity",
+          "weight": 8.485186576843262
+        },
+        {
+          "form": "clark gable",
+          "node_id": 19082,
+          "type": "entity",
+          "weight": 8.079824447631836
+        }
+      ],
+      "p1": "ab91214fd68c1940",
+      "qid": "5a80b9df5542992bc0c4a7ec",
+      "rank": 1,
+      "score": 25.05019760131836,
+      "unit_id": "ef8120108759e7a1"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "clark gable",
+          "node_id": 19082,
+          "type": "entity",
+          "weight": 8.079824447631836
+        }
+      ],
+      "p1": "ab91214fd68c1940",
+      "qid": "5a80b9df5542992bc0c4a7ec",
+      "rank": 12,
+      "score": 8.079824447631836,
+      "unit_id": "dcf134fc010a290a"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "aarp the magazine",
+          "node_id": 2923,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "f0c765a0bfc8879e",
+      "qid": "5a81b43d5542995ce29dcc39",
+      "rank": 1,
+      "score": 8.77281665802002,
+      "unit_id": "822b6884d830c395"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "aarp the magazine",
+          "node_id": 2923,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "f0c765a0bfc8879e",
+      "qid": "5a81b43d5542995ce29dcc39",
+      "rank": 8,
+      "score": 8.77281665802002,
+      "unit_id": "822b6884d830c395"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "chesley sullenberger",
+          "node_id": 17703,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "us airways flight 1549",
+          "node_id": 90286,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "hudson river",
+          "node_id": 39419,
+          "type": "entity",
+          "weight": 6.827835559844971
+        }
+      ],
+      "p1": "99bfb2fd30633fd0",
+      "qid": "5a81f85d55429926c1cdadca",
+      "rank": 1,
+      "score": 24.37346887588501,
+      "unit_id": "129f749cc729910a"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "chesley sullenberger",
+          "node_id": 17703,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "us airways flight 1549",
+          "node_id": 90286,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "hudson river",
+          "node_id": 39419,
+          "type": "entity",
+          "weight": 6.827835559844971
+        }
+      ],
+      "p1": "99bfb2fd30633fd0",
+      "qid": "5a81f85d55429926c1cdadca",
+      "rank": 1,
+      "score": 24.37346887588501,
+      "unit_id": "129f749cc729910a"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "house of schwarzenberg",
+          "node_id": 39168,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "e88474a09dd27fd0",
+      "qid": "5a824858554299676cceb247",
+      "rank": 1,
+      "score": 8.77281665802002,
+      "unit_id": "b038f880928cd6a2"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "house of schwarzenberg",
+          "node_id": 39168,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "e88474a09dd27fd0",
+      "qid": "5a824858554299676cceb247",
+      "rank": 2,
+      "score": 8.77281665802002,
+      "unit_id": "b038f880928cd6a2"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "fc cartagena",
+          "node_id": 29777,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "d3aa18cc3df488e7",
+      "qid": "5a8268aa55429940e5e1a8aa",
+      "rank": 1,
+      "score": 8.77281665802002,
+      "unit_id": "6a7d0f18de3e9062"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "fc cartagena",
+          "node_id": 29777,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "d3aa18cc3df488e7",
+      "qid": "5a8268aa55429940e5e1a8aa",
+      "rank": 5,
+      "score": 8.77281665802002,
+      "unit_id": "6a7d0f18de3e9062"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "lucas grabeel",
+          "node_id": 53511,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "3e87cdc5607995eb",
+      "qid": "5a837d9a554299123d8c213e",
+      "rank": 19,
+      "score": 8.77281665802002,
+      "unit_id": "36ba8adfcbc266a0"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "lucas grabeel",
+          "node_id": 53511,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "3e87cdc5607995eb",
+      "qid": "5a837d9a554299123d8c213e",
+      "rank": 27,
+      "score": 8.77281665802002,
+      "unit_id": "36ba8adfcbc266a0"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "snow patrol",
+          "node_id": 80463,
+          "type": "entity",
+          "weight": 7.92572546005249
+        }
+      ],
+      "p1": "4f0e3d6e64fa16cf",
+      "qid": "5a84c0765542991dd0999dd9",
+      "rank": 3,
+      "score": 7.92572546005249,
+      "unit_id": "b699ae2c02f068c8"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "snow patrol",
+          "node_id": 80463,
+          "type": "entity",
+          "weight": 7.92572546005249
+        },
+        {
+          "form": "vocals",
+          "node_id": 135920,
+          "type": "concept",
+          "weight": 5.049394130706787
+        }
+      ],
+      "p1": "4f0e3d6e64fa16cf",
+      "qid": "5a84c0765542991dd0999dd9",
+      "rank": 8,
+      "score": 12.975119590759277,
+      "unit_id": "b699ae2c02f068c8"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "bob gibson",
+          "node_id": 12601,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "major league baseball",
+          "node_id": 54543,
+          "type": "entity",
+          "weight": 5.213293552398682
+        }
+      ],
+      "p1": "95c84e2626aeef6c",
+      "qid": "5a8512035542992a431d1ace",
+      "rank": 2,
+      "score": 13.986110210418701,
+      "unit_id": "74321ef469b49367"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "bob gibson",
+          "node_id": 12601,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "major league baseball",
+          "node_id": 54543,
+          "type": "entity",
+          "weight": 5.213293552398682
+        }
+      ],
+      "p1": "95c84e2626aeef6c",
+      "qid": "5a8512035542992a431d1ace",
+      "rank": 2,
+      "score": 13.986110210418701,
+      "unit_id": "74321ef469b49367"
+    },
+    {
+      "arm": "concept",
+      "hop": "node-hop(p1) concept",
+      "nodes": [
+        {
+          "form": "series",
+          "node_id": 129183,
+          "type": "concept",
+          "weight": 5.731387138366699
+        }
+      ],
+      "p1": "033f8c814116bbd6",
+      "qid": "5a85ea095542994775f606a8",
+      "rank": 44,
+      "score": 5.731387138366699,
+      "unit_id": "47c48b2af2562c34"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "series",
+          "node_id": 129183,
+          "type": "concept",
+          "weight": 5.731387138366699
+        }
+      ],
+      "p1": "033f8c814116bbd6",
+      "qid": "5a85ea095542994775f606a8",
+      "rank": 45,
+      "score": 5.731387138366699,
+      "unit_id": "47c48b2af2562c34"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "somebody up there likes me",
+          "node_id": 80670,
+          "type": "entity",
+          "weight": 8.485186576843262
+        }
+      ],
+      "p1": "5f9cafd215652cc8",
+      "qid": "5a863114554299211dda2aa5",
+      "rank": 2,
+      "score": 8.485186576843262,
+      "unit_id": "968aedc59459291c"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "somebody up there likes me",
+          "node_id": 80670,
+          "type": "entity",
+          "weight": 8.485186576843262
+        }
+      ],
+      "p1": "5f9cafd215652cc8",
+      "qid": "5a863114554299211dda2aa5",
+      "rank": 4,
+      "score": 8.485186576843262,
+      "unit_id": "968aedc59459291c"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "shellback",
+          "node_id": 79017,
+          "type": "entity",
+          "weight": 8.485186576843262
+        }
+      ],
+      "p1": "b502c81bb85e659b",
+      "qid": "5a8763a25542993e715abf1f",
+      "rank": 12,
+      "score": 8.485186576843262,
+      "unit_id": "50415a2c77aaaf92"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "shellback",
+          "node_id": 79017,
+          "type": "entity",
+          "weight": 8.485186576843262
+        }
+      ],
+      "p1": "b502c81bb85e659b",
+      "qid": "5a8763a25542993e715abf1f",
+      "rank": 59,
+      "score": 8.485186576843262,
+      "unit_id": "50415a2c77aaaf92"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "love and theft",
+          "node_id": 53294,
+          "type": "entity",
+          "weight": 8.485186576843262
+        }
+      ],
+      "p1": "2450736a4dbcfd75",
+      "qid": "5a881d2355429938390d3eeb",
+      "rank": 4,
+      "score": 8.485186576843262,
+      "unit_id": "f3f40fb0a45c7cd1"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "love and theft",
+          "node_id": 53294,
+          "type": "entity",
+          "weight": 8.485186576843262
+        },
+        {
+          "form": "country music",
+          "node_id": 104820,
+          "type": "concept",
+          "weight": 5.002818584442139
+        },
+        {
+          "form": "single",
+          "node_id": 129786,
+          "type": "concept",
+          "weight": 3.370992422103882
+        }
+      ],
+      "p1": "2450736a4dbcfd75",
+      "qid": "5a881d2355429938390d3eeb",
+      "rank": 13,
+      "score": 16.858997583389282,
+      "unit_id": "f3f40fb0a45c7cd1"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "styx",
+          "node_id": 83464,
+          "type": "entity",
+          "weight": 8.262094497680664
+        }
+      ],
+      "p1": "616493c714e3ffe8",
+      "qid": "5a883afc5542994846c1ce48",
+      "rank": 2,
+      "score": 8.262094497680664,
+      "unit_id": "622d403310e26c66"
+    },
+    {
+      "arm": "concept",
+      "hop": "node-hop(p1) concept",
+      "nodes": [
+        {
+          "form": "rock band",
+          "node_id": 127692,
+          "type": "concept",
+          "weight": 4.119341850280762
+        },
+        {
+          "form": "album",
+          "node_id": 97359,
+          "type": "concept",
+          "weight": 3.471506357192993
+        }
+      ],
+      "p1": "616493c714e3ffe8",
+      "qid": "5a883afc5542994846c1ce48",
+      "rank": 49,
+      "score": 7.590848207473755,
+      "unit_id": "622d403310e26c66"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "styx",
+          "node_id": 83464,
+          "type": "entity",
+          "weight": 8.262094497680664
+        },
+        {
+          "form": "rock band",
+          "node_id": 127692,
+          "type": "concept",
+          "weight": 4.119341850280762
+        },
+        {
+          "form": "album",
+          "node_id": 97359,
+          "type": "concept",
+          "weight": 3.471506357192993
+        }
+      ],
+      "p1": "616493c714e3ffe8",
+      "qid": "5a883afc5542994846c1ce48",
+      "rank": 1,
+      "score": 15.852942705154419,
+      "unit_id": "622d403310e26c66"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "clara schumann",
+          "node_id": 19036,
+          "type": "entity",
+          "weight": 8.262094497680664
+        }
+      ],
+      "p1": "10755f49365493ce",
+      "qid": "5a8af11a55429950cd6afc21",
+      "rank": 7,
+      "score": 8.262094497680664,
+      "unit_id": "b069ec75146605d2"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "clara schumann",
+          "node_id": 19036,
+          "type": "entity",
+          "weight": 8.262094497680664
+        }
+      ],
+      "p1": "10755f49365493ce",
+      "qid": "5a8af11a55429950cd6afc21",
+      "rank": 9,
+      "score": 8.262094497680664,
+      "unit_id": "b069ec75146605d2"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "wale",
+          "node_id": 92002,
+          "type": "entity",
+          "weight": 7.792245864868164
+        }
+      ],
+      "p1": "dc9a8f5d8c642c2a",
+      "qid": "5a8baf775542996e8ac889c8",
+      "rank": 7,
+      "score": 7.792245864868164,
+      "unit_id": "4838f7c4cc6240aa"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "wale",
+          "node_id": 92002,
+          "type": "entity",
+          "weight": 7.792245864868164
+        },
+        {
+          "form": "studio album",
+          "node_id": 131908,
+          "type": "concept",
+          "weight": 3.442319393157959
+        },
+        {
+          "form": "single",
+          "node_id": 129786,
+          "type": "concept",
+          "weight": 3.370992422103882
+        }
+      ],
+      "p1": "dc9a8f5d8c642c2a",
+      "qid": "5a8baf775542996e8ac889c8",
+      "rank": 19,
+      "score": 14.605557680130005,
+      "unit_id": "4838f7c4cc6240aa"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "she of little faith",
+          "node_id": 78915,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "simpsons",
+          "node_id": 79770,
+          "type": "entity",
+          "weight": 5.398471355438232
+        },
+        {
+          "form": "fox",
+          "node_id": 31319,
+          "type": "entity",
+          "weight": 5.158542156219482
+        },
+        {
+          "form": "united states",
+          "node_id": 89531,
+          "type": "entity",
+          "weight": 2.7048752307891846
+        }
+      ],
+      "p1": "0186f1b388118a04",
+      "qid": "5a8bf6cf5542995e66a47525",
+      "rank": 1,
+      "score": 22.03470540046692,
+      "unit_id": "5f791e33f2926eb7"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "she of little faith",
+          "node_id": 78915,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "simpsons",
+          "node_id": 79770,
+          "type": "entity",
+          "weight": 5.398471355438232
+        },
+        {
+          "form": "fox",
+          "node_id": 31319,
+          "type": "entity",
+          "weight": 5.158542156219482
+        },
+        {
+          "form": "episode",
+          "node_id": 108389,
+          "type": "concept",
+          "weight": 4.3239288330078125
+        },
+        {
+          "form": "united states",
+          "node_id": 89531,
+          "type": "entity",
+          "weight": 2.7048752307891846
+        }
+      ],
+      "p1": "0186f1b388118a04",
+      "qid": "5a8bf6cf5542995e66a47525",
+      "rank": 1,
+      "score": 26.35863423347473,
+      "unit_id": "5f791e33f2926eb7"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "bing crosby",
+          "node_id": 11810,
+          "type": "entity",
+          "weight": 7.792245864868164
+        }
+      ],
+      "p1": "588ab5dff220b699",
+      "qid": "5a8d227a554299585d9e37b1",
+      "rank": 1,
+      "score": 7.792245864868164,
+      "unit_id": "1c8956fd9b8cbe77"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "bing crosby",
+          "node_id": 11810,
+          "type": "entity",
+          "weight": 7.792245864868164
+        }
+      ],
+      "p1": "588ab5dff220b699",
+      "qid": "5a8d227a554299585d9e37b1",
+      "rank": 17,
+      "score": 7.792245864868164,
+      "unit_id": "1c8956fd9b8cbe77"
+    },
+    {
+      "arm": "concept",
+      "hop": "node-hop(p1) concept",
+      "nodes": [
+        {
+          "form": "episode",
+          "node_id": 108389,
+          "type": "concept",
+          "weight": 4.3239288330078125
+        },
+        {
+          "form": "season",
+          "node_id": 128747,
+          "type": "concept",
+          "weight": 3.8340108394622803
+        },
+        {
+          "form": "television series",
+          "node_id": 133170,
+          "type": "concept",
+          "weight": 3.6609489917755127
+        }
+      ],
+      "p1": "f15dccf34410b780",
+      "qid": "5a8dafbd554299068b959da0",
+      "rank": 32,
+      "score": 11.818888664245605,
+      "unit_id": "70b3553d6404488c"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "episode",
+          "node_id": 108389,
+          "type": "concept",
+          "weight": 4.3239288330078125
+        },
+        {
+          "form": "season",
+          "node_id": 128747,
+          "type": "concept",
+          "weight": 3.8340108394622803
+        },
+        {
+          "form": "television series",
+          "node_id": 133170,
+          "type": "concept",
+          "weight": 3.6609489917755127
+        }
+      ],
+      "p1": "f15dccf34410b780",
+      "qid": "5a8dafbd554299068b959da0",
+      "rank": 78,
+      "score": 11.818888664245605,
+      "unit_id": "70b3553d6404488c"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "david gauke",
+          "node_id": 22744,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "8fc5d654df4a05c6",
+      "qid": "5a8db2105542994ba4e3dd04",
+      "rank": 1,
+      "score": 8.77281665802002,
+      "unit_id": "4fb166b3b1d9737a"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "david gauke",
+          "node_id": 22744,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "8fc5d654df4a05c6",
+      "qid": "5a8db2105542994ba4e3dd04",
+      "rank": 4,
+      "score": 8.77281665802002,
+      "unit_id": "4fb166b3b1d9737a"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "alex zanardi",
+          "node_id": 4681,
+          "type": "entity",
+          "weight": 8.485186576843262
+        }
+      ],
+      "p1": "be5839455a1ca7ca",
+      "qid": "5a8dd5f955429917b4a5bcc7",
+      "rank": 2,
+      "score": 8.485186576843262,
+      "unit_id": "80d92aacc6ee2eef"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "alex zanardi",
+          "node_id": 4681,
+          "type": "entity",
+          "weight": 8.485186576843262
+        }
+      ],
+      "p1": "be5839455a1ca7ca",
+      "qid": "5a8dd5f955429917b4a5bcc7",
+      "rank": 4,
+      "score": 8.485186576843262,
+      "unit_id": "80d92aacc6ee2eef"
+    },
+    {
+      "arm": "concept",
+      "hop": "node-hop(p1) concept",
+      "nodes": [
+        {
+          "form": "deep house",
+          "node_id": 105927,
+          "type": "concept",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "9445dba1bf6f6fbf",
+      "qid": "5a8e942b5542995085b3745c",
+      "rank": 13,
+      "score": 8.77281665802002,
+      "unit_id": "a84317deffa92473"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "deep house",
+          "node_id": 105927,
+          "type": "concept",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "9445dba1bf6f6fbf",
+      "qid": "5a8e942b5542995085b3745c",
+      "rank": 13,
+      "score": 8.77281665802002,
+      "unit_id": "a84317deffa92473"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "battle of france",
+          "node_id": 10028,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "italy",
+          "node_id": 42025,
+          "type": "entity",
+          "weight": 4.779840469360352
+        }
+      ],
+      "p1": "1bdf815979338287",
+      "qid": "5a8ed8b955429917b4a5bdd3",
+      "rank": 3,
+      "score": 13.552657127380371,
+      "unit_id": "6fde5b69d35cb7ed"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "battle of france",
+          "node_id": 10028,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "italy",
+          "node_id": 42025,
+          "type": "entity",
+          "weight": 4.779840469360352
+        }
+      ],
+      "p1": "1bdf815979338287",
+      "qid": "5a8ed8b955429917b4a5bdd3",
+      "rank": 8,
+      "score": 13.552657127380371,
+      "unit_id": "6fde5b69d35cb7ed"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "toxics release inventory",
+          "node_id": 87663,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "5533b8b0b203413e",
+      "qid": "5a8f608d5542992414482a94",
+      "rank": 1,
+      "score": 8.77281665802002,
+      "unit_id": "de2bc44c0aaeb2f4"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "toxics release inventory",
+          "node_id": 87663,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "5533b8b0b203413e",
+      "qid": "5a8f608d5542992414482a94",
+      "rank": 2,
+      "score": 8.77281665802002,
+      "unit_id": "de2bc44c0aaeb2f4"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "university of texas at austin",
+          "node_id": 90008,
+          "type": "entity",
+          "weight": 7.386987209320068
+        }
+      ],
+      "p1": "14d9fb696d4cbbf7",
+      "qid": "5a8f73455542997ba9cb3269",
+      "rank": 13,
+      "score": 7.386987209320068,
+      "unit_id": "4a5830807cb58f62"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "university of texas at austin",
+          "node_id": 90008,
+          "type": "entity",
+          "weight": 7.386987209320068
+        }
+      ],
+      "p1": "14d9fb696d4cbbf7",
+      "qid": "5a8f73455542997ba9cb3269",
+      "rank": 35,
+      "score": 7.386987209320068,
+      "unit_id": "4a5830807cb58f62"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "alba longa",
+          "node_id": 4389,
+          "type": "entity",
+          "weight": 8.485186576843262
+        }
+      ],
+      "p1": "ac739721ec84bd35",
+      "qid": "5a8f7a135542992414482adc",
+      "rank": 2,
+      "score": 8.485186576843262,
+      "unit_id": "a8d8e83ef2033880"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "alba longa",
+          "node_id": 4389,
+          "type": "entity",
+          "weight": 8.485186576843262
+        }
+      ],
+      "p1": "ac739721ec84bd35",
+      "qid": "5a8f7a135542992414482adc",
+      "rank": 3,
+      "score": 8.485186576843262,
+      "unit_id": "a8d8e83ef2033880"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "machine gun kelly",
+          "node_id": 54125,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "8449e32f52ca6e4d",
+      "qid": "5a8fdd9c55429916514e73de",
+      "rank": 21,
+      "score": 8.77281665802002,
+      "unit_id": "602ab26080794da9"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "machine gun kelly",
+          "node_id": 54125,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "rapper",
+          "node_id": 126262,
+          "type": "concept",
+          "weight": 5.106664180755615
+        }
+      ],
+      "p1": "8449e32f52ca6e4d",
+      "qid": "5a8fdd9c55429916514e73de",
+      "rank": 30,
+      "score": 13.879480838775635,
+      "unit_id": "602ab26080794da9"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "st. petersburg, florida",
+          "node_id": 82142,
+          "type": "entity",
+          "weight": 8.262094497680664
+        }
+      ],
+      "p1": "7d68ec2fae2ba6d5",
+      "qid": "5a90945755429933b8a2056c",
+      "rank": 2,
+      "score": 8.262094497680664,
+      "unit_id": "c996629a3a9f84f5"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "st. petersburg, florida",
+          "node_id": 82142,
+          "type": "entity",
+          "weight": 8.262094497680664
+        }
+      ],
+      "p1": "7d68ec2fae2ba6d5",
+      "qid": "5a90945755429933b8a2056c",
+      "rank": 2,
+      "score": 8.262094497680664,
+      "unit_id": "c996629a3a9f84f5"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "iguazu national park",
+          "node_id": 40387,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "misiones",
+          "node_id": 59038,
+          "type": "entity",
+          "weight": 7.792245864868164
+        },
+        {
+          "form": "argentina",
+          "node_id": 7449,
+          "type": "entity",
+          "weight": 5.747336387634277
+        }
+      ],
+      "p1": "d443d09d96802f19",
+      "qid": "5a90970d5542995651fb51a5",
+      "rank": 1,
+      "score": 22.31239891052246,
+      "unit_id": "0c5943c7cdb53cf0"
+    },
+    {
+      "arm": "concept",
+      "hop": "node-hop(p1) concept",
+      "nodes": [
+        {
+          "form": "national park",
+          "node_id": 120482,
+          "type": "concept",
+          "weight": 5.848810195922852
+        }
+      ],
+      "p1": "d443d09d96802f19",
+      "qid": "5a90970d5542995651fb51a5",
+      "rank": 11,
+      "score": 5.848810195922852,
+      "unit_id": "0c5943c7cdb53cf0"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "iguazu national park",
+          "node_id": 40387,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "misiones",
+          "node_id": 59038,
+          "type": "entity",
+          "weight": 7.792245864868164
+        },
+        {
+          "form": "national park",
+          "node_id": 120482,
+          "type": "concept",
+          "weight": 5.848810195922852
+        },
+        {
+          "form": "argentina",
+          "node_id": 7449,
+          "type": "entity",
+          "weight": 5.747336387634277
+        }
+      ],
+      "p1": "d443d09d96802f19",
+      "qid": "5a90970d5542995651fb51a5",
+      "rank": 1,
+      "score": 28.161209106445312,
+      "unit_id": "0c5943c7cdb53cf0"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "kerry butler",
+          "node_id": 47907,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "037646cf64600e3a",
+      "qid": "5ab1dcab5542993be8fa985e",
+      "rank": 1,
+      "score": 8.77281665802002,
+      "unit_id": "366a7f710b791d07"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "kerry butler",
+          "node_id": 47907,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "037646cf64600e3a",
+      "qid": "5ab1dcab5542993be8fa985e",
+      "rank": 32,
+      "score": 8.77281665802002,
+      "unit_id": "366a7f710b791d07"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "kaley cuoco",
+          "node_id": 46852,
+          "type": "entity",
+          "weight": 8.485186576843262
+        }
+      ],
+      "p1": "441ae57fa3a219c7",
+      "qid": "5ab2b1e05542997061209685",
+      "rank": 2,
+      "score": 8.485186576843262,
+      "unit_id": "405279a223b66a62"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "kaley cuoco",
+          "node_id": 46852,
+          "type": "entity",
+          "weight": 8.485186576843262
+        }
+      ],
+      "p1": "441ae57fa3a219c7",
+      "qid": "5ab2b1e05542997061209685",
+      "rank": 5,
+      "score": 8.485186576843262,
+      "unit_id": "405279a223b66a62"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "dressmaker",
+          "node_id": 25716,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "3b9294620f2bde04",
+      "qid": "5ab30ebf554299753aec592c",
+      "rank": 1,
+      "score": 8.77281665802002,
+      "unit_id": "940a8d8eff6211e4"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "dressmaker",
+          "node_id": 25716,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "3b9294620f2bde04",
+      "qid": "5ab30ebf554299753aec592c",
+      "rank": 19,
+      "score": 8.77281665802002,
+      "unit_id": "940a8d8eff6211e4"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "flaw",
+          "node_id": 30669,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "14b78ac88bd75fc7",
+      "qid": "5ab31fea554299194fa9356a",
+      "rank": 1,
+      "score": 8.77281665802002,
+      "unit_id": "4029e72dee0e1b01"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "flaw",
+          "node_id": 30669,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "studio album",
+          "node_id": 131908,
+          "type": "concept",
+          "weight": 3.442319393157959
+        }
+      ],
+      "p1": "14b78ac88bd75fc7",
+      "qid": "5ab31fea554299194fa9356a",
+      "rank": 18,
+      "score": 12.215136051177979,
+      "unit_id": "4029e72dee0e1b01"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "fox",
+          "node_id": 31319,
+          "type": "entity",
+          "weight": 5.158542156219482
+        }
+      ],
+      "p1": "f275563125c1d7d8",
+      "qid": "5ab3952e5542992ade7c6de8",
+      "rank": 23,
+      "score": 5.158542156219482,
+      "unit_id": "1e86cad101162977"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "veronica hamel",
+          "node_id": 91024,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "4c0c3f696c50c32c",
+      "qid": "5ab65e1e55429954757d3261",
+      "rank": 2,
+      "score": 8.77281665802002,
+      "unit_id": "24aa85308db9c549"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "veronica hamel",
+          "node_id": 91024,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "4c0c3f696c50c32c",
+      "qid": "5ab65e1e55429954757d3261",
+      "rank": 12,
+      "score": 8.77281665802002,
+      "unit_id": "24aa85308db9c549"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "apollo 14",
+          "node_id": 7135,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "stuart roosa",
+          "node_id": 83393,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "3e145ee88275744c",
+      "qid": "5ab6aa4c55429953192ad359",
+      "rank": 1,
+      "score": 17.54563331604004,
+      "unit_id": "dc3271fa74fdbe9f"
+    },
+    {
+      "arm": "concept",
+      "hop": "node-hop(p1) concept",
+      "nodes": [
+        {
+          "form": "orbit",
+          "node_id": 121937,
+          "type": "concept",
+          "weight": 7.386987209320068
+        },
+        {
+          "form": "experiment",
+          "node_id": 108819,
+          "type": "concept",
+          "weight": 7.232939720153809
+        }
+      ],
+      "p1": "3e145ee88275744c",
+      "qid": "5ab6aa4c55429953192ad359",
+      "rank": 3,
+      "score": 14.619926929473877,
+      "unit_id": "dc3271fa74fdbe9f"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "apollo 14",
+          "node_id": 7135,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "stuart roosa",
+          "node_id": 83393,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "orbit",
+          "node_id": 121937,
+          "type": "concept",
+          "weight": 7.386987209320068
+        },
+        {
+          "form": "experiment",
+          "node_id": 108819,
+          "type": "concept",
+          "weight": 7.232939720153809
+        }
+      ],
+      "p1": "3e145ee88275744c",
+      "qid": "5ab6aa4c55429953192ad359",
+      "rank": 1,
+      "score": 32.165560245513916,
+      "unit_id": "dc3271fa74fdbe9f"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "i feel fine",
+          "node_id": 39890,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "lennon mccartney",
+          "node_id": 51108,
+          "type": "entity",
+          "weight": 8.262094497680664
+        },
+        {
+          "form": "john lennon",
+          "node_id": 45208,
+          "type": "entity",
+          "weight": 6.927815914154053
+        },
+        {
+          "form": "beatles",
+          "node_id": 10362,
+          "type": "entity",
+          "weight": 6.317731857299805
+        }
+      ],
+      "p1": "a086f33bba99bbf9",
+      "qid": "5ab72b5855429928e1fe3828",
+      "rank": 1,
+      "score": 30.28045892715454,
+      "unit_id": "c89f7eb87f0a98d2"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "i feel fine",
+          "node_id": 39890,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "lennon mccartney",
+          "node_id": 51108,
+          "type": "entity",
+          "weight": 8.262094497680664
+        },
+        {
+          "form": "john lennon",
+          "node_id": 45208,
+          "type": "entity",
+          "weight": 6.927815914154053
+        },
+        {
+          "form": "beatles",
+          "node_id": 10362,
+          "type": "entity",
+          "weight": 6.317731857299805
+        },
+        {
+          "form": "song",
+          "node_id": 130445,
+          "type": "concept",
+          "weight": 3.5683791637420654
+        }
+      ],
+      "p1": "a086f33bba99bbf9",
+      "qid": "5ab72b5855429928e1fe3828",
+      "rank": 1,
+      "score": 33.848838090896606,
+      "unit_id": "c89f7eb87f0a98d2"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "p. j. tucker",
+          "node_id": 66567,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "381af54a8f4069a8",
+      "qid": "5ab8723c55429934fafe6dbc",
+      "rank": 4,
+      "score": 8.77281665802002,
+      "unit_id": "ad870a640653d050"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "p. j. tucker",
+          "node_id": 66567,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "381af54a8f4069a8",
+      "qid": "5ab8723c55429934fafe6dbc",
+      "rank": 70,
+      "score": 8.77281665802002,
+      "unit_id": "ad870a640653d050"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "gibbons v. ogden",
+          "node_id": 33799,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "5adc10e25c54979d",
+      "qid": "5abb07ec5542996cc5e49f55",
+      "rank": 1,
+      "score": 8.77281665802002,
+      "unit_id": "9537691729b11dca"
+    },
+    {
+      "arm": "concept",
+      "hop": "node-hop(p1) concept",
+      "nodes": [
+        {
+          "form": "interstate commerce",
+          "node_id": 115366,
+          "type": "concept",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "navigation",
+          "node_id": 120715,
+          "type": "concept",
+          "weight": 7.674514293670654
+        }
+      ],
+      "p1": "5adc10e25c54979d",
+      "qid": "5abb07ec5542996cc5e49f55",
+      "rank": 1,
+      "score": 16.447330951690674,
+      "unit_id": "9537691729b11dca"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "gibbons v. ogden",
+          "node_id": 33799,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "interstate commerce",
+          "node_id": 115366,
+          "type": "concept",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "navigation",
+          "node_id": 120715,
+          "type": "concept",
+          "weight": 7.674514293670654
+        }
+      ],
+      "p1": "5adc10e25c54979d",
+      "qid": "5abb07ec5542996cc5e49f55",
+      "rank": 1,
+      "score": 25.220147609710693,
+      "unit_id": "9537691729b11dca"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "swan lake",
+          "node_id": 84213,
+          "type": "entity",
+          "weight": 8.485186576843262
+        }
+      ],
+      "p1": "1584c799a85b1093",
+      "qid": "5abc091555429965836003f6",
+      "rank": 4,
+      "score": 8.485186576843262,
+      "unit_id": "24ff7156e24a49cf"
+    },
+    {
+      "arm": "concept",
+      "hop": "node-hop(p1) concept",
+      "nodes": [
+        {
+          "form": "ballet",
+          "node_id": 99173,
+          "type": "concept",
+          "weight": 6.694458961486816
+        }
+      ],
+      "p1": "1584c799a85b1093",
+      "qid": "5abc091555429965836003f6",
+      "rank": 21,
+      "score": 6.694458961486816,
+      "unit_id": "24ff7156e24a49cf"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "swan lake",
+          "node_id": 84213,
+          "type": "entity",
+          "weight": 8.485186576843262
+        },
+        {
+          "form": "ballet",
+          "node_id": 99173,
+          "type": "concept",
+          "weight": 6.694458961486816
+        }
+      ],
+      "p1": "1584c799a85b1093",
+      "qid": "5abc091555429965836003f6",
+      "rank": 2,
+      "score": 15.179645538330078,
+      "unit_id": "24ff7156e24a49cf"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "yeah yeah yeahs",
+          "node_id": 95503,
+          "type": "entity",
+          "weight": 8.485186576843262
+        }
+      ],
+      "p1": "ac746773118ac601",
+      "qid": "5abc32cb55429959677d6a40",
+      "rank": 8,
+      "score": 8.485186576843262,
+      "unit_id": "cbee57d60e258127"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "yeah yeah yeahs",
+          "node_id": 95503,
+          "type": "entity",
+          "weight": 8.485186576843262
+        }
+      ],
+      "p1": "ac746773118ac601",
+      "qid": "5abc32cb55429959677d6a40",
+      "rank": 18,
+      "score": 8.485186576843262,
+      "unit_id": "cbee57d60e258127"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "rose mcgowan",
+          "node_id": 75140,
+          "type": "entity",
+          "weight": 7.473946571350098
+        }
+      ],
+      "p1": "f1945fdfe6cb609b",
+      "qid": "5abcc96c5542996583600492",
+      "rank": 1,
+      "score": 7.473946571350098,
+      "unit_id": "57152f738ad991e3"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "rose mcgowan",
+          "node_id": 75140,
+          "type": "entity",
+          "weight": 7.473946571350098
+        }
+      ],
+      "p1": "f1945fdfe6cb609b",
+      "qid": "5abcc96c5542996583600492",
+      "rank": 3,
+      "score": 7.473946571350098,
+      "unit_id": "57152f738ad991e3"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "mike krzyzewski",
+          "node_id": 58499,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "duke university",
+          "node_id": 25933,
+          "type": "entity",
+          "weight": 7.569205284118652
+        }
+      ],
+      "p1": "30cc02e5f5a82356",
+      "qid": "5abccb235542996583600497",
+      "rank": 4,
+      "score": 16.342021942138672,
+      "unit_id": "22fdb751c5cbd9d1"
+    },
+    {
+      "arm": "concept",
+      "hop": "node-hop(p1) concept",
+      "nodes": [
+        {
+          "form": "college basketball",
+          "node_id": 103179,
+          "type": "concept",
+          "weight": 6.159817218780518
+        },
+        {
+          "form": "head coach",
+          "node_id": 112832,
+          "type": "concept",
+          "weight": 4.240334987640381
+        }
+      ],
+      "p1": "30cc02e5f5a82356",
+      "qid": "5abccb235542996583600497",
+      "rank": 34,
+      "score": 10.400152206420898,
+      "unit_id": "22fdb751c5cbd9d1"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "mike krzyzewski",
+          "node_id": 58499,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "duke university",
+          "node_id": 25933,
+          "type": "entity",
+          "weight": 7.569205284118652
+        },
+        {
+          "form": "college basketball",
+          "node_id": 103179,
+          "type": "concept",
+          "weight": 6.159817218780518
+        },
+        {
+          "form": "head coach",
+          "node_id": 112832,
+          "type": "concept",
+          "weight": 4.240334987640381
+        }
+      ],
+      "p1": "30cc02e5f5a82356",
+      "qid": "5abccb235542996583600497",
+      "rank": 1,
+      "score": 26.74217414855957,
+      "unit_id": "22fdb751c5cbd9d1"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "thurgood marshall college fund",
+          "node_id": 86328,
+          "type": "entity",
+          "weight": 7.674514293670654
+        }
+      ],
+      "p1": "b5f1e93543bd5a3d",
+      "qid": "5abcf17655429959677d6b5c",
+      "rank": 2,
+      "score": 7.674514293670654,
+      "unit_id": "a00cbbaeb2b9410f"
+    },
+    {
+      "arm": "concept",
+      "hop": "node-hop(p1) concept",
+      "nodes": [
+        {
+          "form": "member school",
+          "node_id": 118618,
+          "type": "concept",
+          "weight": 8.079824447631836
+        }
+      ],
+      "p1": "b5f1e93543bd5a3d",
+      "qid": "5abcf17655429959677d6b5c",
+      "rank": 4,
+      "score": 8.079824447631836,
+      "unit_id": "a00cbbaeb2b9410f"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "member school",
+          "node_id": 118618,
+          "type": "concept",
+          "weight": 8.079824447631836
+        },
+        {
+          "form": "thurgood marshall college fund",
+          "node_id": 86328,
+          "type": "entity",
+          "weight": 7.674514293670654
+        }
+      ],
+      "p1": "b5f1e93543bd5a3d",
+      "qid": "5abcf17655429959677d6b5c",
+      "rank": 1,
+      "score": 15.75433874130249,
+      "unit_id": "a00cbbaeb2b9410f"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "ppg paints arena",
+          "node_id": 70168,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "pittsburgh",
+          "node_id": 69337,
+          "type": "entity",
+          "weight": 6.438886642456055
+        },
+        {
+          "form": "pennsylvania",
+          "node_id": 68099,
+          "type": "entity",
+          "weight": 5.158542156219482
+        }
+      ],
+      "p1": "966b73f0ed05ee76",
+      "qid": "5abd552555429933744ab776",
+      "rank": 1,
+      "score": 20.370245456695557,
+      "unit_id": "eff2c8d19b116469"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "ppg paints arena",
+          "node_id": 70168,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "pittsburgh",
+          "node_id": 69337,
+          "type": "entity",
+          "weight": 6.438886642456055
+        },
+        {
+          "form": "pennsylvania",
+          "node_id": 68099,
+          "type": "entity",
+          "weight": 5.158542156219482
+        }
+      ],
+      "p1": "966b73f0ed05ee76",
+      "qid": "5abd552555429933744ab776",
+      "rank": 1,
+      "score": 20.370245456695557,
+      "unit_id": "eff2c8d19b116469"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "keith murdoch",
+          "node_id": 47559,
+          "type": "entity",
+          "weight": 8.485186576843262
+        }
+      ],
+      "p1": "bf55d7f37152bb81",
+      "qid": "5abd96fe5542992ac4f382d9",
+      "rank": 1,
+      "score": 8.485186576843262,
+      "unit_id": "7e2b9bb99dedeed9"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "keith murdoch",
+          "node_id": 47559,
+          "type": "entity",
+          "weight": 8.485186576843262
+        }
+      ],
+      "p1": "bf55d7f37152bb81",
+      "qid": "5abd96fe5542992ac4f382d9",
+      "rank": 1,
+      "score": 8.485186576843262,
+      "unit_id": "7e2b9bb99dedeed9"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "sophie monk",
+          "node_id": 80884,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "9b7bb49b7bd96bec",
+      "qid": "5abde4ed5542991f66106097",
+      "rank": 1,
+      "score": 8.77281665802002,
+      "unit_id": "ba646ff6a5c4aca1"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "sophie monk",
+          "node_id": 80884,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "9b7bb49b7bd96bec",
+      "qid": "5abde4ed5542991f66106097",
+      "rank": 5,
+      "score": 8.77281665802002,
+      "unit_id": "ba646ff6a5c4aca1"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "fc st. pauli",
+          "node_id": 29793,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "04b84aa5d955be35",
+      "qid": "5abe024c5542991f661060a2",
+      "rank": 1,
+      "score": 8.77281665802002,
+      "unit_id": "b21db0a3e6b45605"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "fc st. pauli",
+          "node_id": 29793,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "04b84aa5d955be35",
+      "qid": "5abe024c5542991f661060a2",
+      "rank": 8,
+      "score": 8.77281665802002,
+      "unit_id": "b21db0a3e6b45605"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "charlie nicholas",
+          "node_id": 17409,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "celtic",
+          "node_id": 16638,
+          "type": "entity",
+          "weight": 7.674514293670654
+        },
+        {
+          "form": "glasgow",
+          "node_id": 34089,
+          "type": "entity",
+          "weight": 6.262265205383301
+        }
+      ],
+      "p1": "92d532cad950e3ef",
+      "qid": "5abe48675542991f66106119",
+      "rank": 2,
+      "score": 22.709596157073975,
+      "unit_id": "b09cc5c2071e9b37"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "charlie nicholas",
+          "node_id": 17409,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "celtic",
+          "node_id": 16638,
+          "type": "entity",
+          "weight": 7.674514293670654
+        },
+        {
+          "form": "glasgow",
+          "node_id": 34089,
+          "type": "entity",
+          "weight": 6.262265205383301
+        }
+      ],
+      "p1": "92d532cad950e3ef",
+      "qid": "5abe48675542991f66106119",
+      "rank": 4,
+      "score": 22.709596157073975,
+      "unit_id": "b09cc5c2071e9b37"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "great mouse detective",
+          "node_id": 35324,
+          "type": "entity",
+          "weight": 8.485186576843262
+        }
+      ],
+      "p1": "63df854f9b508201",
+      "qid": "5abe822155429976d4830b48",
+      "rank": 1,
+      "score": 8.485186576843262,
+      "unit_id": "7256892e6e6feb5d"
+    },
+    {
+      "arm": "concept",
+      "hop": "node-hop(p1) concept",
+      "nodes": [
+        {
+          "form": "animated film",
+          "node_id": 97847,
+          "type": "concept",
+          "weight": 5.866776943206787
+        }
+      ],
+      "p1": "63df854f9b508201",
+      "qid": "5abe822155429976d4830b48",
+      "rank": 40,
+      "score": 5.866776943206787,
+      "unit_id": "7256892e6e6feb5d"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "great mouse detective",
+          "node_id": 35324,
+          "type": "entity",
+          "weight": 8.485186576843262
+        },
+        {
+          "form": "animated film",
+          "node_id": 97847,
+          "type": "concept",
+          "weight": 5.866776943206787
+        }
+      ],
+      "p1": "63df854f9b508201",
+      "qid": "5abe822155429976d4830b48",
+      "rank": 5,
+      "score": 14.351963520050049,
+      "unit_id": "7256892e6e6feb5d"
+    },
+    {
+      "arm": "concept",
+      "hop": "node-hop(p1) concept",
+      "nodes": [
+        {
+          "form": "territory",
+          "node_id": 133318,
+          "type": "concept",
+          "weight": 6.5405144691467285
+        }
+      ],
+      "p1": "b38b806f053ca677",
+      "qid": "5abec90a5542994516f45438",
+      "rank": 18,
+      "score": 6.5405144691467285,
+      "unit_id": "5648cfa06be0c7e5"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "territory",
+          "node_id": 133318,
+          "type": "concept",
+          "weight": 6.5405144691467285
+        }
+      ],
+      "p1": "b38b806f053ca677",
+      "qid": "5abec90a5542994516f45438",
+      "rank": 18,
+      "score": 6.5405144691467285,
+      "unit_id": "5648cfa06be0c7e5"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "greek alphabet",
+          "node_id": 35447,
+          "type": "entity",
+          "weight": 8.485186576843262
+        }
+      ],
+      "p1": "9a023ed5618a4e48",
+      "qid": "5abf1a6b5542997ec76fd3c1",
+      "rank": 10,
+      "score": 8.485186576843262,
+      "unit_id": "fb2acb118259fec0"
+    },
+    {
+      "arm": "concept",
+      "hop": "node-hop(p1) concept",
+      "nodes": [
+        {
+          "form": "alphabet",
+          "node_id": 97515,
+          "type": "concept",
+          "weight": 7.569205284118652
+        },
+        {
+          "form": "letter",
+          "node_id": 116740,
+          "type": "concept",
+          "weight": 6.694458961486816
+        }
+      ],
+      "p1": "9a023ed5618a4e48",
+      "qid": "5abf1a6b5542997ec76fd3c1",
+      "rank": 4,
+      "score": 14.263664245605469,
+      "unit_id": "fb2acb118259fec0"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "greek alphabet",
+          "node_id": 35447,
+          "type": "entity",
+          "weight": 8.485186576843262
+        },
+        {
+          "form": "alphabet",
+          "node_id": 97515,
+          "type": "concept",
+          "weight": 7.569205284118652
+        },
+        {
+          "form": "letter",
+          "node_id": 116740,
+          "type": "concept",
+          "weight": 6.694458961486816
+        }
+      ],
+      "p1": "9a023ed5618a4e48",
+      "qid": "5abf1a6b5542997ec76fd3c1",
+      "rank": 2,
+      "score": 22.74885082244873,
+      "unit_id": "fb2acb118259fec0"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "joachim trier",
+          "node_id": 44513,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "louder than bombs",
+          "node_id": 53137,
+          "type": "entity",
+          "weight": 8.485186576843262
+        }
+      ],
+      "p1": "cf9ea6680901c5e7",
+      "qid": "5abff65c5542994516f45551",
+      "rank": 1,
+      "score": 17.25800323486328,
+      "unit_id": "95b419ab48a37d9b"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "joachim trier",
+          "node_id": 44513,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "louder than bombs",
+          "node_id": 53137,
+          "type": "entity",
+          "weight": 8.485186576843262
+        },
+        {
+          "form": "screenwriter",
+          "node_id": 128666,
+          "type": "concept",
+          "weight": 4.335381507873535
+        },
+        {
+          "form": "actor",
+          "node_id": 96802,
+          "type": "concept",
+          "weight": 3.317875385284424
+        }
+      ],
+      "p1": "cf9ea6680901c5e7",
+      "qid": "5abff65c5542994516f45551",
+      "rank": 1,
+      "score": 24.91126012802124,
+      "unit_id": "95b419ab48a37d9b"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "grandmaster",
+          "node_id": 35171,
+          "type": "entity",
+          "weight": 8.485186576843262
+        }
+      ],
+      "p1": "59719a6fca148de8",
+      "qid": "5ac017945542997d642959bc",
+      "rank": 2,
+      "score": 8.485186576843262,
+      "unit_id": "1fd90188516431e9"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "grandmaster",
+          "node_id": 35171,
+          "type": "entity",
+          "weight": 8.485186576843262
+        }
+      ],
+      "p1": "59719a6fca148de8",
+      "qid": "5ac017945542997d642959bc",
+      "rank": 98,
+      "score": 8.485186576843262,
+      "unit_id": "1fd90188516431e9"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "alain resnais",
+          "node_id": 4261,
+          "type": "entity",
+          "weight": 7.09951114654541
+        }
+      ],
+      "p1": "4a24c6be9ab168e4",
+      "qid": "5ac03b395542992a796decce",
+      "rank": 7,
+      "score": 7.09951114654541,
+      "unit_id": "c39315930966c99b"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "icahn enterprises",
+          "node_id": 40200,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "8cde890253bb40b1",
+      "qid": "5ac05fb55542997d64295a0b",
+      "rank": 15,
+      "score": 8.77281665802002,
+      "unit_id": "d91fc1b4e8d9bb5c"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "icahn enterprises",
+          "node_id": 40200,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "8cde890253bb40b1",
+      "qid": "5ac05fb55542997d64295a0b",
+      "rank": 46,
+      "score": 8.77281665802002,
+      "unit_id": "d91fc1b4e8d9bb5c"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "sabrina carpenter",
+          "node_id": 76044,
+          "type": "entity",
+          "weight": 7.569205284118652
+        }
+      ],
+      "p1": "1415eca508265b8a",
+      "qid": "5ac29cf8554299218029dac2",
+      "rank": 8,
+      "score": 7.569205284118652,
+      "unit_id": "065336dbc7867d05"
+    },
+    {
+      "arm": "concept",
+      "hop": "node-hop(p1) concept",
+      "nodes": [
+        {
+          "form": "sport",
+          "node_id": 130961,
+          "type": "concept",
+          "weight": 6.023550510406494
+        }
+      ],
+      "p1": "eab27a96f4bcff37",
+      "qid": "5ac2bcf55542990b17b1546e",
+      "rank": 19,
+      "score": 6.023550510406494,
+      "unit_id": "7434d223c957ed4b"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "sport",
+          "node_id": 130961,
+          "type": "concept",
+          "weight": 6.023550510406494
+        }
+      ],
+      "p1": "eab27a96f4bcff37",
+      "qid": "5ac2bcf55542990b17b1546e",
+      "rank": 23,
+      "score": 6.023550510406494,
+      "unit_id": "7434d223c957ed4b"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "cradle of filth",
+          "node_id": 21024,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "dani filth",
+          "node_id": 22120,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "62498a9d247d596a",
+      "qid": "5ac300905542996773102682",
+      "rank": 1,
+      "score": 17.54563331604004,
+      "unit_id": "b20e9eeff5fb944d"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "cradle of filth",
+          "node_id": 21024,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "dani filth",
+          "node_id": 22120,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "vocalist",
+          "node_id": 135917,
+          "type": "concept",
+          "weight": 4.90886926651001
+        }
+      ],
+      "p1": "62498a9d247d596a",
+      "qid": "5ac300905542996773102682",
+      "rank": 1,
+      "score": 22.45450258255005,
+      "unit_id": "b20e9eeff5fb944d"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "division of sydney",
+          "node_id": 24759,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "f8250f128b15076c",
+      "qid": "5ac3e01d5542997ea680c969",
+      "rank": 1,
+      "score": 8.77281665802002,
+      "unit_id": "17f1cd80c9931a99"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "division of sydney",
+          "node_id": 24759,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "f8250f128b15076c",
+      "qid": "5ac3e01d5542997ea680c969",
+      "rank": 4,
+      "score": 8.77281665802002,
+      "unit_id": "17f1cd80c9931a99"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "boyzone",
+          "node_id": 13272,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "c8c471a9d5d6462b",
+      "qid": "5ac3e5de554299204fd21ebc",
+      "rank": 1,
+      "score": 8.77281665802002,
+      "unit_id": "d3a3854de4cf6f3e"
+    },
+    {
+      "arm": "concept",
+      "hop": "node-hop(p1) concept",
+      "nodes": [
+        {
+          "form": "boy band",
+          "node_id": 100388,
+          "type": "concept",
+          "weight": 6.262265205383301
+        }
+      ],
+      "p1": "c8c471a9d5d6462b",
+      "qid": "5ac3e5de554299204fd21ebc",
+      "rank": 56,
+      "score": 6.262265205383301,
+      "unit_id": "d3a3854de4cf6f3e"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "boyzone",
+          "node_id": 13272,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "boy band",
+          "node_id": 100388,
+          "type": "concept",
+          "weight": 6.262265205383301
+        }
+      ],
+      "p1": "c8c471a9d5d6462b",
+      "qid": "5ac3e5de554299204fd21ebc",
+      "rank": 1,
+      "score": 15.03508186340332,
+      "unit_id": "d3a3854de4cf6f3e"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "ian mckellen",
+          "node_id": 40132,
+          "type": "entity",
+          "weight": 7.92572546005249
+        }
+      ],
+      "p1": "64b2a20f86c59fac",
+      "qid": "5ac45b23554299204fd21f31",
+      "rank": 7,
+      "score": 7.92572546005249,
+      "unit_id": "96248028634ce2d9"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "ian mckellen",
+          "node_id": 40132,
+          "type": "entity",
+          "weight": 7.92572546005249
+        }
+      ],
+      "p1": "64b2a20f86c59fac",
+      "qid": "5ac45b23554299204fd21f31",
+      "rank": 8,
+      "score": 7.92572546005249,
+      "unit_id": "96248028634ce2d9"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "take a bow",
+          "node_id": 84667,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "rihanna",
+          "node_id": 73689,
+          "type": "entity",
+          "weight": 6.376469135284424
+        }
+      ],
+      "p1": "0023a06bfebb2b52",
+      "qid": "5adca8375542990d50227cd4",
+      "rank": 1,
+      "score": 15.149285793304443,
+      "unit_id": "94d34cb826f816c2"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "take a bow",
+          "node_id": 84667,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "rihanna",
+          "node_id": 73689,
+          "type": "entity",
+          "weight": 6.376469135284424
+        },
+        {
+          "form": "song",
+          "node_id": 130445,
+          "type": "concept",
+          "weight": 3.5683791637420654
+        }
+      ],
+      "p1": "0023a06bfebb2b52",
+      "qid": "5adca8375542990d50227cd4",
+      "rank": 10,
+      "score": 18.71766495704651,
+      "unit_id": "94d34cb826f816c2"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "maria brink",
+          "node_id": 55286,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "7a6ace701fa2aa15",
+      "qid": "5adcf8155542990d50227d6a",
+      "rank": 1,
+      "score": 8.77281665802002,
+      "unit_id": "8395a25ac830afc3"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "maria brink",
+          "node_id": 55286,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "7a6ace701fa2aa15",
+      "qid": "5adcf8155542990d50227d6a",
+      "rank": 13,
+      "score": 8.77281665802002,
+      "unit_id": "8395a25ac830afc3"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "oregon",
+          "node_id": 65944,
+          "type": "entity",
+          "weight": 5.9227118492126465
+        }
+      ],
+      "p1": "9cd860c73175d8ea",
+      "qid": "5add673e5542992ae4cec54d",
+      "rank": 36,
+      "score": 5.9227118492126465,
+      "unit_id": "5b7ca3ad1fab310f"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "oregon",
+          "node_id": 65944,
+          "type": "entity",
+          "weight": 5.9227118492126465
+        },
+        {
+          "form": "college football",
+          "node_id": 103195,
+          "type": "concept",
+          "weight": 4.715484142303467
+        }
+      ],
+      "p1": "9cd860c73175d8ea",
+      "qid": "5add673e5542992ae4cec54d",
+      "rank": 41,
+      "score": 10.638195991516113,
+      "unit_id": "5b7ca3ad1fab310f"
+    },
+    {
+      "arm": "concept",
+      "hop": "node-hop(p1) concept",
+      "nodes": [
+        {
+          "form": "dynasty",
+          "node_id": 107422,
+          "type": "concept",
+          "weight": 6.159817218780518
+        },
+        {
+          "form": "emperor",
+          "node_id": 108023,
+          "type": "concept",
+          "weight": 6.159817218780518
+        }
+      ],
+      "p1": "294220690b71207f",
+      "qid": "5add6f975542992200553b18",
+      "rank": 7,
+      "score": 12.319634437561035,
+      "unit_id": "5c8be6a0fc541adb"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "dynasty",
+          "node_id": 107422,
+          "type": "concept",
+          "weight": 6.159817218780518
+        },
+        {
+          "form": "emperor",
+          "node_id": 108023,
+          "type": "concept",
+          "weight": 6.159817218780518
+        }
+      ],
+      "p1": "294220690b71207f",
+      "qid": "5add6f975542992200553b18",
+      "rank": 7,
+      "score": 12.319634437561035,
+      "unit_id": "5c8be6a0fc541adb"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "alliance union universe",
+          "node_id": 5224,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "c. j. cherryh",
+          "node_id": 14916,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "3d00374278efdd3b",
+      "qid": "5adf490a5542993a75d26488",
+      "rank": 1,
+      "score": 17.54563331604004,
+      "unit_id": "424e9ae8d38252f4"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "alliance union universe",
+          "node_id": 5224,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "c. j. cherryh",
+          "node_id": 14916,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "3d00374278efdd3b",
+      "qid": "5adf490a5542993a75d26488",
+      "rank": 1,
+      "score": 17.54563331604004,
+      "unit_id": "424e9ae8d38252f4"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "christopher pyne",
+          "node_id": 18529,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "dda42e5922333c8e",
+      "qid": "5adf715b5542992d7e9f9354",
+      "rank": 1,
+      "score": 8.77281665802002,
+      "unit_id": "0b583429004a9ce0"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "christopher pyne",
+          "node_id": 18529,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "dda42e5922333c8e",
+      "qid": "5adf715b5542992d7e9f9354",
+      "rank": 1,
+      "score": 8.77281665802002,
+      "unit_id": "0b583429004a9ce0"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "salmon fishing in the yemen",
+          "node_id": 76392,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "14801c0ce29d451a",
+      "qid": "5adf8a065542992d7e9f9392",
+      "rank": 2,
+      "score": 8.77281665802002,
+      "unit_id": "5de755ee8fa85159"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "salmon fishing in the yemen",
+          "node_id": 76392,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "14801c0ce29d451a",
+      "qid": "5adf8a065542992d7e9f9392",
+      "rank": 7,
+      "score": 8.77281665802002,
+      "unit_id": "5de755ee8fa85159"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "lexington, virginia",
+          "node_id": 51540,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "2390ad481aa6a276",
+      "qid": "5adfa73b55429942ec259ad8",
+      "rank": 1,
+      "score": 8.77281665802002,
+      "unit_id": "7c4c16523c65e720"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "lexington, virginia",
+          "node_id": 51540,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "2390ad481aa6a276",
+      "qid": "5adfa73b55429942ec259ad8",
+      "rank": 2,
+      "score": 8.77281665802002,
+      "unit_id": "7c4c16523c65e720"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "conor mcgregor",
+          "node_id": 20348,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "john kavanagh",
+          "node_id": 45173,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "c279868ce0fcd836",
+      "qid": "5adfd01f55429925eb1afa9f",
+      "rank": 1,
+      "score": 17.54563331604004,
+      "unit_id": "9ce89bf763d1373c"
+    },
+    {
+      "arm": "concept",
+      "hop": "node-hop(p1) concept",
+      "nodes": [
+        {
+          "form": "fighter",
+          "node_id": 109675,
+          "type": "concept",
+          "weight": 7.92572546005249
+        },
+        {
+          "form": "mixed martial arts",
+          "node_id": 119370,
+          "type": "concept",
+          "weight": 6.8765740394592285
+        }
+      ],
+      "p1": "c279868ce0fcd836",
+      "qid": "5adfd01f55429925eb1afa9f",
+      "rank": 4,
+      "score": 14.802299499511719,
+      "unit_id": "9ce89bf763d1373c"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "conor mcgregor",
+          "node_id": 20348,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "john kavanagh",
+          "node_id": 45173,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "fighter",
+          "node_id": 109675,
+          "type": "concept",
+          "weight": 7.92572546005249
+        },
+        {
+          "form": "mixed martial arts",
+          "node_id": 119370,
+          "type": "concept",
+          "weight": 6.8765740394592285
+        }
+      ],
+      "p1": "c279868ce0fcd836",
+      "qid": "5adfd01f55429925eb1afa9f",
+      "rank": 1,
+      "score": 32.34793281555176,
+      "unit_id": "9ce89bf763d1373c"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "steve moore",
+          "node_id": 82917,
+          "type": "entity",
+          "weight": 8.485186576843262
+        },
+        {
+          "form": "colorado avalanche",
+          "node_id": 19832,
+          "type": "entity",
+          "weight": 8.079824447631836
+        },
+        {
+          "form": "national hockey league",
+          "node_id": 61627,
+          "type": "entity",
+          "weight": 5.866776943206787
+        }
+      ],
+      "p1": "514ce9032c3d4bfb",
+      "qid": "5ae0ab7755429945ae959407",
+      "rank": 1,
+      "score": 22.431787967681885,
+      "unit_id": "2873ad46b617d8d6"
+    },
+    {
+      "arm": "concept",
+      "hop": "node-hop(p1) concept",
+      "nodes": [
+        {
+          "form": "ice hockey",
+          "node_id": 114183,
+          "type": "concept",
+          "weight": 6.159817218780518
+        }
+      ],
+      "p1": "514ce9032c3d4bfb",
+      "qid": "5ae0ab7755429945ae959407",
+      "rank": 27,
+      "score": 6.159817218780518,
+      "unit_id": "2873ad46b617d8d6"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "steve moore",
+          "node_id": 82917,
+          "type": "entity",
+          "weight": 8.485186576843262
+        },
+        {
+          "form": "colorado avalanche",
+          "node_id": 19832,
+          "type": "entity",
+          "weight": 8.079824447631836
+        },
+        {
+          "form": "ice hockey",
+          "node_id": 114183,
+          "type": "concept",
+          "weight": 6.159817218780518
+        },
+        {
+          "form": "national hockey league",
+          "node_id": 61627,
+          "type": "entity",
+          "weight": 5.866776943206787
+        }
+      ],
+      "p1": "514ce9032c3d4bfb",
+      "qid": "5ae0ab7755429945ae959407",
+      "rank": 1,
+      "score": 28.591605186462402,
+      "unit_id": "2873ad46b617d8d6"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "dave thomas",
+          "node_id": 22608,
+          "type": "entity",
+          "weight": 8.485186576843262
+        },
+        {
+          "form": "wendy's",
+          "node_id": 92938,
+          "type": "entity",
+          "weight": 8.485186576843262
+        }
+      ],
+      "p1": "7c70e54afbd9d532",
+      "qid": "5ae0b2f25542993d6555ec1c",
+      "rank": 5,
+      "score": 16.970373153686523,
+      "unit_id": "ac16aae98b9b7970"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "dave thomas",
+          "node_id": 22608,
+          "type": "entity",
+          "weight": 8.485186576843262
+        },
+        {
+          "form": "wendy's",
+          "node_id": 92938,
+          "type": "entity",
+          "weight": 8.485186576843262
+        }
+      ],
+      "p1": "7c70e54afbd9d532",
+      "qid": "5ae0b2f25542993d6555ec1c",
+      "rank": 9,
+      "score": 16.970373153686523,
+      "unit_id": "ac16aae98b9b7970"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "curious case of benjamin button",
+          "node_id": 21525,
+          "type": "entity",
+          "weight": 8.079824447631836
+        }
+      ],
+      "p1": "fa3749def0f962cc",
+      "qid": "5ae0c1be5542993d6555ec42",
+      "rank": 5,
+      "score": 8.079824447631836,
+      "unit_id": "aa8d3c6555695464"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "spike lee",
+          "node_id": 81566,
+          "type": "entity",
+          "weight": 8.485186576843262
+        }
+      ],
+      "p1": "662a61346dc75099",
+      "qid": "5ae1681b554299422ee9967c",
+      "rank": 8,
+      "score": 8.485186576843262,
+      "unit_id": "de4ea530bca1dd2f"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "spike lee",
+          "node_id": 81566,
+          "type": "entity",
+          "weight": 8.485186576843262
+        },
+        {
+          "form": "actor",
+          "node_id": 96802,
+          "type": "concept",
+          "weight": 3.317875385284424
+        }
+      ],
+      "p1": "662a61346dc75099",
+      "qid": "5ae1681b554299422ee9967c",
+      "rank": 2,
+      "score": 11.803061962127686,
+      "unit_id": "de4ea530bca1dd2f"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "international space station",
+          "node_id": 41325,
+          "type": "entity",
+          "weight": 8.262094497680664
+        }
+      ],
+      "p1": "1f88bb2cfe96a79d",
+      "qid": "5ae1e80b5542997f29b3c197",
+      "rank": 2,
+      "score": 8.262094497680664,
+      "unit_id": "2457484ad71e4249"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "international space station",
+          "node_id": 41325,
+          "type": "entity",
+          "weight": 8.262094497680664
+        }
+      ],
+      "p1": "1f88bb2cfe96a79d",
+      "qid": "5ae1e80b5542997f29b3c197",
+      "rank": 6,
+      "score": 8.262094497680664,
+      "unit_id": "2457484ad71e4249"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "don delillo",
+          "node_id": 25038,
+          "type": "entity",
+          "weight": 8.485186576843262
+        }
+      ],
+      "p1": "f050535e81462e3a",
+      "qid": "5ae1f8235542997f29b3c1cf",
+      "rank": 6,
+      "score": 8.485186576843262,
+      "unit_id": "7add456db4d809ad"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "don delillo",
+          "node_id": 25038,
+          "type": "entity",
+          "weight": 8.485186576843262
+        }
+      ],
+      "p1": "f050535e81462e3a",
+      "qid": "5ae1f8235542997f29b3c1cf",
+      "rank": 14,
+      "score": 8.485186576843262,
+      "unit_id": "7add456db4d809ad"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "ulysses",
+          "node_id": 89234,
+          "type": "entity",
+          "weight": 8.262094497680664
+        },
+        {
+          "form": "nasa",
+          "node_id": 61318,
+          "type": "entity",
+          "weight": 6.5768303871154785
+        }
+      ],
+      "p1": "66c8eda7ca78f1bd",
+      "qid": "5ae20cd25542997283cd2376",
+      "rank": 1,
+      "score": 14.838924884796143,
+      "unit_id": "1f13e947101346fe"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "ulysses",
+          "node_id": 89234,
+          "type": "entity",
+          "weight": 8.262094497680664
+        },
+        {
+          "form": "nasa",
+          "node_id": 61318,
+          "type": "entity",
+          "weight": 6.5768303871154785
+        }
+      ],
+      "p1": "66c8eda7ca78f1bd",
+      "qid": "5ae20cd25542997283cd2376",
+      "rank": 1,
+      "score": 14.838924884796143,
+      "unit_id": "1f13e947101346fe"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "robert e. howard",
+          "node_id": 74167,
+          "type": "entity",
+          "weight": 7.792245864868164
+        }
+      ],
+      "p1": "6880e1aa1a6bcf13",
+      "qid": "5ae2b83c5542992decbdcd7f",
+      "rank": 1,
+      "score": 7.792245864868164,
+      "unit_id": "0830203ce7f1ec98"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "robert e. howard",
+          "node_id": 74167,
+          "type": "entity",
+          "weight": 7.792245864868164
+        }
+      ],
+      "p1": "6880e1aa1a6bcf13",
+      "qid": "5ae2b83c5542992decbdcd7f",
+      "rank": 62,
+      "score": 7.792245864868164,
+      "unit_id": "0830203ce7f1ec98"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "michael leunig",
+          "node_id": 57952,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "d98e89bda3228868",
+      "qid": "5ae39e9c5542990afbd1e195",
+      "rank": 1,
+      "score": 8.77281665802002,
+      "unit_id": "b3a365884e1f9469"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "michael leunig",
+          "node_id": 57952,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "d98e89bda3228868",
+      "qid": "5ae39e9c5542990afbd1e195",
+      "rank": 24,
+      "score": 8.77281665802002,
+      "unit_id": "b3a365884e1f9469"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "soha ali khan",
+          "node_id": 80589,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "0f44d7f6ece2516e",
+      "qid": "5ae4c5595542990ba0bbb123",
+      "rank": 1,
+      "score": 8.77281665802002,
+      "unit_id": "74fe05deeb9f6935"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "soha ali khan",
+          "node_id": 80589,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "0f44d7f6ece2516e",
+      "qid": "5ae4c5595542990ba0bbb123",
+      "rank": 9,
+      "score": 8.77281665802002,
+      "unit_id": "74fe05deeb9f6935"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "little richard",
+          "node_id": 52297,
+          "type": "entity",
+          "weight": 8.079824447631836
+        }
+      ],
+      "p1": "fa3db80201c5418f",
+      "qid": "5ae50eff55429908b6326500",
+      "rank": 3,
+      "score": 8.079824447631836,
+      "unit_id": "074df024f0f22a08"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "little richard",
+          "node_id": 52297,
+          "type": "entity",
+          "weight": 8.079824447631836
+        }
+      ],
+      "p1": "fa3db80201c5418f",
+      "qid": "5ae50eff55429908b6326500",
+      "rank": 13,
+      "score": 8.079824447631836,
+      "unit_id": "074df024f0f22a08"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "brittany snow",
+          "node_id": 14044,
+          "type": "entity",
+          "weight": 7.792245864868164
+        }
+      ],
+      "p1": "046933d8f6de894e",
+      "qid": "5ae531a95542990ba0bbb1fc",
+      "rank": 14,
+      "score": 7.792245864868164,
+      "unit_id": "c456548430c3d4e0"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "brittany snow",
+          "node_id": 14044,
+          "type": "entity",
+          "weight": 7.792245864868164
+        }
+      ],
+      "p1": "046933d8f6de894e",
+      "qid": "5ae531a95542990ba0bbb1fc",
+      "rank": 95,
+      "score": 7.792245864868164,
+      "unit_id": "c456548430c3d4e0"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "alinta energy",
+          "node_id": 4982,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "8f60f5dac701f26c",
+      "qid": "5ae532365542992663a4f150",
+      "rank": 2,
+      "score": 8.77281665802002,
+      "unit_id": "fa48e147973d8682"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "alinta energy",
+          "node_id": 4982,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "8f60f5dac701f26c",
+      "qid": "5ae532365542992663a4f150",
+      "rank": 3,
+      "score": 8.77281665802002,
+      "unit_id": "fa48e147973d8682"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "act naturally",
+          "node_id": 3305,
+          "type": "entity",
+          "weight": 8.485186576843262
+        }
+      ],
+      "p1": "115aa1a7e1e45e6b",
+      "qid": "5ae547f85542990ba0bbb254",
+      "rank": 3,
+      "score": 8.485186576843262,
+      "unit_id": "77fbcdc7815deac9"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "act naturally",
+          "node_id": 3305,
+          "type": "entity",
+          "weight": 8.485186576843262
+        },
+        {
+          "form": "song",
+          "node_id": 130445,
+          "type": "concept",
+          "weight": 3.5683791637420654
+        }
+      ],
+      "p1": "115aa1a7e1e45e6b",
+      "qid": "5ae547f85542990ba0bbb254",
+      "rank": 14,
+      "score": 12.053565740585327,
+      "unit_id": "77fbcdc7815deac9"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "chicago bears",
+          "node_id": 17802,
+          "type": "entity",
+          "weight": 6.694458961486816
+        },
+        {
+          "form": "national football league",
+          "node_id": 61587,
+          "type": "entity",
+          "weight": 4.888403415679932
+        }
+      ],
+      "p1": "c83792b8c9aea754",
+      "qid": "5ae552bb55429908b63265d9",
+      "rank": 13,
+      "score": 11.582862377166748,
+      "unit_id": "1c8b45bf2c5a185f"
+    },
+    {
+      "arm": "concept",
+      "hop": "node-hop(p1) concept",
+      "nodes": [
+        {
+          "form": "quarterback",
+          "node_id": 125873,
+          "type": "concept",
+          "weight": 5.903715133666992
+        }
+      ],
+      "p1": "c83792b8c9aea754",
+      "qid": "5ae552bb55429908b63265d9",
+      "rank": 62,
+      "score": 5.903715133666992,
+      "unit_id": "1c8b45bf2c5a185f"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "chicago bears",
+          "node_id": 17802,
+          "type": "entity",
+          "weight": 6.694458961486816
+        },
+        {
+          "form": "quarterback",
+          "node_id": 125873,
+          "type": "concept",
+          "weight": 5.903715133666992
+        },
+        {
+          "form": "national football league",
+          "node_id": 61587,
+          "type": "entity",
+          "weight": 4.888403415679932
+        }
+      ],
+      "p1": "c83792b8c9aea754",
+      "qid": "5ae552bb55429908b63265d9",
+      "rank": 12,
+      "score": 17.48657751083374,
+      "unit_id": "1c8b45bf2c5a185f"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "madrid",
+          "node_id": 54288,
+          "type": "entity",
+          "weight": 6.827835559844971
+        },
+        {
+          "form": "spain",
+          "node_id": 81386,
+          "type": "entity",
+          "weight": 5.073533058166504
+        }
+      ],
+      "p1": "f486b1411c6d2e8c",
+      "qid": "5ae5b06e554299546bf82f2a",
+      "rank": 14,
+      "score": 11.901368618011475,
+      "unit_id": "eda7fd39eb0e7d19"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "madrid",
+          "node_id": 54288,
+          "type": "entity",
+          "weight": 6.827835559844971
+        },
+        {
+          "form": "spain",
+          "node_id": 81386,
+          "type": "entity",
+          "weight": 5.073533058166504
+        }
+      ],
+      "p1": "f486b1411c6d2e8c",
+      "qid": "5ae5b06e554299546bf82f2a",
+      "rank": 19,
+      "score": 11.901368618011475,
+      "unit_id": "eda7fd39eb0e7d19"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "oakland raiders",
+          "node_id": 64785,
+          "type": "entity",
+          "weight": 7.674514293670654
+        },
+        {
+          "form": "national football league",
+          "node_id": 61587,
+          "type": "entity",
+          "weight": 4.888403415679932
+        }
+      ],
+      "p1": "627fa3d783f420e0",
+      "qid": "5ae5d06a55429929b08079b4",
+      "rank": 18,
+      "score": 12.562917709350586,
+      "unit_id": "50123cbf773107a0"
+    },
+    {
+      "arm": "concept",
+      "hop": "node-hop(p1) concept",
+      "nodes": [
+        {
+          "form": "quarterback",
+          "node_id": 125873,
+          "type": "concept",
+          "weight": 5.903715133666992
+        },
+        {
+          "form": "head coach",
+          "node_id": 112832,
+          "type": "concept",
+          "weight": 4.240334987640381
+        }
+      ],
+      "p1": "627fa3d783f420e0",
+      "qid": "5ae5d06a55429929b08079b4",
+      "rank": 40,
+      "score": 10.144050121307373,
+      "unit_id": "4543e1a47944a1a8"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "oakland raiders",
+          "node_id": 64785,
+          "type": "entity",
+          "weight": 7.674514293670654
+        },
+        {
+          "form": "national football league",
+          "node_id": 61587,
+          "type": "entity",
+          "weight": 4.888403415679932
+        },
+        {
+          "form": "head coach",
+          "node_id": 112832,
+          "type": "concept",
+          "weight": 4.240334987640381
+        }
+      ],
+      "p1": "627fa3d783f420e0",
+      "qid": "5ae5d06a55429929b08079b4",
+      "rank": 22,
+      "score": 16.803252696990967,
+      "unit_id": "50123cbf773107a0"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "quarterback",
+          "node_id": 125873,
+          "type": "concept",
+          "weight": 5.903715133666992
+        },
+        {
+          "form": "national football league",
+          "node_id": 61587,
+          "type": "entity",
+          "weight": 4.888403415679932
+        },
+        {
+          "form": "head coach",
+          "node_id": 112832,
+          "type": "concept",
+          "weight": 4.240334987640381
+        }
+      ],
+      "p1": "627fa3d783f420e0",
+      "qid": "5ae5d06a55429929b08079b4",
+      "rank": 30,
+      "score": 15.032453536987305,
+      "unit_id": "4543e1a47944a1a8"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "last of the mohicans",
+          "node_id": 50368,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "fa191fb76d916739",
+      "qid": "5ae676915542995703ce8b66",
+      "rank": 1,
+      "score": 8.77281665802002,
+      "unit_id": "bc6a3572df46a8d1"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "last of the mohicans",
+          "node_id": 50368,
+          "type": "entity",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "fa191fb76d916739",
+      "qid": "5ae676915542995703ce8b66",
+      "rank": 2,
+      "score": 8.77281665802002,
+      "unit_id": "bc6a3572df46a8d1"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "bart sells his soul",
+          "node_id": 9811,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "simpsons",
+          "node_id": 79770,
+          "type": "entity",
+          "weight": 5.398471355438232
+        }
+      ],
+      "p1": "eb67c13225bb8a93",
+      "qid": "5ae7281c5542991e8301cb69",
+      "rank": 1,
+      "score": 14.171288013458252,
+      "unit_id": "a4527566a7cec0bf"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "bart sells his soul",
+          "node_id": 9811,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "simpsons",
+          "node_id": 79770,
+          "type": "entity",
+          "weight": 5.398471355438232
+        }
+      ],
+      "p1": "eb67c13225bb8a93",
+      "qid": "5ae7281c5542991e8301cb69",
+      "rank": 3,
+      "score": 14.171288013458252,
+      "unit_id": "a4527566a7cec0bf"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "port adelaide",
+          "node_id": 69932,
+          "type": "entity",
+          "weight": 7.473946571350098
+        },
+        {
+          "form": "south australian national football league",
+          "node_id": 81014,
+          "type": "entity",
+          "weight": 7.232939720153809
+        },
+        {
+          "form": "south australia",
+          "node_id": 81007,
+          "type": "entity",
+          "weight": 5.981980800628662
+        }
+      ],
+      "p1": "7757cf0e5cca28c9",
+      "qid": "5ae7690c5542995703ce8c22",
+      "rank": 4,
+      "score": 20.68886709213257,
+      "unit_id": "db36782f969a67f6"
+    },
+    {
+      "arm": "concept",
+      "hop": "node-hop(p1) concept",
+      "nodes": [
+        {
+          "form": "australian rules football",
+          "node_id": 98825,
+          "type": "concept",
+          "weight": 6.235648155212402
+        }
+      ],
+      "p1": "7757cf0e5cca28c9",
+      "qid": "5ae7690c5542995703ce8c22",
+      "rank": 34,
+      "score": 6.235648155212402,
+      "unit_id": "db36782f969a67f6"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "port adelaide",
+          "node_id": 69932,
+          "type": "entity",
+          "weight": 7.473946571350098
+        },
+        {
+          "form": "south australian national football league",
+          "node_id": 81014,
+          "type": "entity",
+          "weight": 7.232939720153809
+        },
+        {
+          "form": "australian rules football",
+          "node_id": 98825,
+          "type": "concept",
+          "weight": 6.235648155212402
+        },
+        {
+          "form": "south australia",
+          "node_id": 81007,
+          "type": "entity",
+          "weight": 5.981980800628662
+        }
+      ],
+      "p1": "7757cf0e5cca28c9",
+      "qid": "5ae7690c5542995703ce8c22",
+      "rank": 5,
+      "score": 26.92451524734497,
+      "unit_id": "db36782f969a67f6"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "western india",
+          "node_id": 93248,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "maharashtra",
+          "node_id": 54428,
+          "type": "entity",
+          "weight": 6.827835559844971
+        }
+      ],
+      "p1": "0f38f8871840de79",
+      "qid": "5ae7a5f05542993210983ece",
+      "rank": 2,
+      "score": 15.60065221786499,
+      "unit_id": "475f6f91b9058859"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "western india",
+          "node_id": 93248,
+          "type": "entity",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "maharashtra",
+          "node_id": 54428,
+          "type": "entity",
+          "weight": 6.827835559844971
+        }
+      ],
+      "p1": "0f38f8871840de79",
+      "qid": "5ae7a5f05542993210983ece",
+      "rank": 2,
+      "score": 15.60065221786499,
+      "unit_id": "475f6f91b9058859"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "robert aldrich",
+          "node_id": 74102,
+          "type": "entity",
+          "weight": 8.079824447631836
+        }
+      ],
+      "p1": "8bd473b5c4b48a20",
+      "qid": "5ae7ac495542993210983eee",
+      "rank": 3,
+      "score": 8.079824447631836,
+      "unit_id": "ab959f988ef27c2e"
+    },
+    {
+      "arm": "entity",
+      "hop": "node-hop(p1) entity",
+      "nodes": [
+        {
+          "form": "monty stratton",
+          "node_id": 59718,
+          "type": "entity",
+          "weight": 8.485186576843262
+        },
+        {
+          "form": "stratton story",
+          "node_id": 83285,
+          "type": "entity",
+          "weight": 8.485186576843262
+        }
+      ],
+      "p1": "1073232ff9dd2cbc",
+      "qid": "5ae8027d5542993210984031",
+      "rank": 1,
+      "score": 16.970373153686523,
+      "unit_id": "0b2f29a02629c945"
+    },
+    {
+      "arm": "concept",
+      "hop": "node-hop(p1) concept",
+      "nodes": [
+        {
+          "form": "hunting accident",
+          "node_id": 114046,
+          "type": "concept",
+          "weight": 8.77281665802002
+        }
+      ],
+      "p1": "1073232ff9dd2cbc",
+      "qid": "5ae8027d5542993210984031",
+      "rank": 7,
+      "score": 8.77281665802002,
+      "unit_id": "0b2f29a02629c945"
+    },
+    {
+      "arm": "entity+concept",
+      "hop": "node-hop(p1) entity+concept",
+      "nodes": [
+        {
+          "form": "hunting accident",
+          "node_id": 114046,
+          "type": "concept",
+          "weight": 8.77281665802002
+        },
+        {
+          "form": "monty stratton",
+          "node_id": 59718,
+          "type": "entity",
+          "weight": 8.485186576843262
+        },
+        {
+          "form": "stratton story",
+          "node_id": 83285,
+          "type": "entity",
+          "weight": 8.485186576843262
+        }
+      ],
+      "p1": "1073232ff9dd2cbc",
+      "qid": "5ae8027d5542993210984031",
+      "rank": 1,
+      "score": 25.743189811706543,
+      "unit_id": "0b2f29a02629c945"
+    }
+  ]
+}

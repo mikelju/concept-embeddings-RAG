@@ -1,0 +1,54 @@
+{
+  "anomalies": [],
+  "digest": "be482abcb318526caac0087de0ac783f3c7a1571150dd7ebd6a6ee2f32855c90",
+  "hop_run_digest": "49847f3cedb635406416bbb15dfa1913f4fa10782ed07a6461ccd56d5ded246a",
+  "metric": {
+    "alpha": 0.05,
+    "comparator": "bm25-question",
+    "depth": 10,
+    "test": "paired sign test over pilot questions on hit@10; ties dropped; one-sided exact binomial (scipy.stats.binomtest, p = 0.5, alternative='greater'); no discordant question gives p = 1",
+    "unit": "question"
+  },
+  "n_questions": 152,
+  "outcome": "NAMES_ONLY",
+  "reported": {
+    "C beats BM25": {
+      "against": "bm25-question",
+      "hop": "node-hop(p1) concept",
+      "losses": 66,
+      "p_value": 0.9999999999999996,
+      "passed": false,
+      "ties": 81,
+      "wins": 5
+    }
+  },
+  "tests": {
+    "E beats BM25": {
+      "against": "bm25-question",
+      "hop": "node-hop(p1) entity",
+      "losses": 24,
+      "p_value": 0.0002257586359574054,
+      "passed": true,
+      "ties": 72,
+      "wins": 56
+    },
+    "EC beats BM25": {
+      "against": "bm25-question",
+      "hop": "node-hop(p1) entity+concept",
+      "losses": 37,
+      "p_value": 0.3671710165149233,
+      "passed": false,
+      "ties": 74,
+      "wins": 41
+    },
+    "EC beats E": {
+      "against": "node-hop(p1) entity",
+      "hop": "node-hop(p1) entity+concept",
+      "losses": 29,
+      "p_value": 0.9999999990686774,
+      "passed": false,
+      "ties": 122,
+      "wins": 1
+    }
+  }
+}

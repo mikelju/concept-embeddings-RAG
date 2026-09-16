@@ -58,6 +58,25 @@ data/traces/
 !data/diagnostics/
 data/diagnostics/*
 !data/diagnostics/*.json
+# Phase 5: the frozen pilot and the navigation run (hop run, traces, gate decision).
+# Small and versioned, like every freeze and result before them. Both are full of
+# content-hash unit ids, which is why .secrets.baseline excludes them by path (D12).
+!data/pilot/
+data/pilot/*
+!data/pilot/*.json
+!data/navigation/
+data/navigation/*
+!data/navigation/*.json
+# The extraction sample report of Phase 5: the measured figures deviation 5.1 rests on.
+# Only the report; the extraction archive's versioning is decided in T13 (plan D7).
+!data/extraction/
+data/extraction/*
+!data/extraction/sample-report.json
+# T13 (plan D7): the extraction archive is the non-reproducible record of what the pilot
+# measured, versioned because it compresses to 2.5 MB; its summary carries the digest the
+# archive is verified against. The batch state is operational and stays out.
+!data/extraction/extraction-*.jsonl.gz
+!data/extraction/extraction-*.json
 .cache/
 models/
 output/

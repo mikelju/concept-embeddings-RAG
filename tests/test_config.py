@@ -251,3 +251,91 @@ def test_ensure_directories_creates_the_phase_4_directories(tmp_path, monkeypatc
 
     assert config.EXPANSION_DIR.is_dir()
     assert config.TRACES_DIR.is_dir()
+
+
+# --- Phase 5: text-derived concepts, navigation pilot ------------------------
+
+
+def test_phase_5_directories_are_absolute_and_under_data():
+    for path in (
+        config.PILOT_DIR,
+        config.EXTRACTION_DIR,
+        config.NODES_DIR,
+        config.NAVIGATION_DIR,
+    ):
+        assert isinstance(path, Path)
+        assert path.is_absolute()
+        assert config.DATA_DIR in path.parents
+
+
+def test_the_second_hop_protocol_is_the_diagnostics():
+    """HU-5: the pilot reuses the diagnostic's read depth and its two depths, unchanged."""
+    assert config.PILOT_READ_DEPTH == 10
+    assert config.SECOND_HOP_DEPTHS == (10, 100)
+
+
+def test_the_extractor_and_its_rates_are_declared_before_any_call():
+    """Decided in the spec conversation: Sonnet 5, at half price through the Batches API."""
+    assert config.EXTRACTION_MODEL == "claude-sonnet-5"
+    assert config.EXTRACTION_INPUT_USD_PER_MTOK == 2.00
+    assert config.EXTRACTION_OUTPUT_USD_PER_MTOK == 10.00
+    assert config.BATCH_PRICE_FACTOR == 0.5
+    assert config.EXTRACTION_MAX_TOKENS == 1024
+
+
+def test_the_extraction_bounds_are_declared_and_exceeding_them_is_a_failure():
+    """Decision D3: bounds are enforced client-side, and an answer outside them is not truncated."""
+    assert config.MAX_NODES_PER_TYPE == 50
+    assert config.MAX_NODE_CHARS == 120
+
+
+def test_the_cost_guards_are_declared_before_money_is_spent():
+    """HU-2 and D4: a sample first, a margin on its estimate, and a ceiling above which it stops."""
+    assert config.EXTRACTION_SAMPLE_SIZE == 20
+    assert config.EXTRACTION_ESTIMATE_MARGIN == 1.5
+    # Raised from 25.0 by deviation 5.1, after the sample measured 33.17 USD with its margin.
+    assert config.EXTRACTION_COST_CEILING_USD == 35.0
+    assert config.EXTRACTION_BATCH_SIZE == 5000
+    assert config.EXTRACTION_FAILURE_FINDING == 0.01
+
+
+def test_node_types_and_arms_separate_names_from_concepts():
+    """HU-4: two node types, three arms, and nothing else."""
+    assert config.NODE_TYPES == ("entity", "concept")
+    assert config.NAVIGATION_ARMS == ("entity", "concept", "entity+concept")
+    assert config.NORMALIZATION_VERSION == "normalization-v1"
+
+
+def test_the_gate_is_declared_in_config_exactly_as_the_spec_writes_it():
+    """HU-7: hit@10 per question, one-sided p < 0.05, BM25 on the question as the comparator."""
+    assert config.GATE_METRIC_DEPTH == 10
+    assert config.GATE_METRIC_DEPTH in config.SECOND_HOP_DEPTHS
+    assert config.GATE_ALPHA == 0.05
+    assert config.GATE_COMPARATOR == "bm25-question"
+
+
+def test_the_reporting_constants_decide_only_what_a_human_reads():
+    assert config.TRACES_READ_PER_ARM == 5
+    assert config.REFERENCE_CONCEPT_K == 512
+    assert config.REFERENCE_CONCEPT_K in config.CONCEPT_K_SWEEP
+
+
+def test_ensure_directories_creates_the_phase_5_directories(tmp_path, monkeypatch):
+    for name in ("PILOT_DIR", "EXTRACTION_DIR", "NODES_DIR", "NAVIGATION_DIR"):
+        monkeypatch.setattr(config, name, tmp_path / "data" / name.lower())
+    for name in (
+        "DATA_DIR",
+        "CACHE_DIR",
+        "RESULTS_DIR",
+        "CONCEPTS_DIR",
+        "SELECTION_DIR",
+        "QUESTION_CACHE_DIR",
+        "EXPANSION_DIR",
+        "TRACES_DIR",
+    ):
+        monkeypatch.setattr(config, name, tmp_path / "other" / name.lower())
+
+    config.ensure_directories()
+
+    for name in ("PILOT_DIR", "EXTRACTION_DIR", "NODES_DIR", "NAVIGATION_DIR"):
+        assert getattr(config, name).is_dir()

@@ -254,6 +254,64 @@ TRACE_TOP_CONCEPTS: Final[int] = 10
 TRACE_TOP_UNITS: Final[int] = 10
 
 
+# --- Text-derived concepts: navigation pilot (Phase 5) ----------------------
+# Declared before any extraction runs or any hop is measured. The spec settles the
+# choices; `5.0_text_derived_concepts.md` gives the reason for each value below.
+
+PILOT_DIR: Final[Path] = DATA_DIR / "pilot"
+EXTRACTION_DIR: Final[Path] = DATA_DIR / "extraction"
+NODES_DIR: Final[Path] = DATA_DIR / "nodes"
+NAVIGATION_DIR: Final[Path] = DATA_DIR / "navigation"
+
+# The second-hop protocol of the Phase 4 diagnostic, reused unchanged (HU-5): a reader
+# has read dense's top-10, and a hop is scored at these two depths.
+PILOT_READ_DEPTH: Final[int] = 10
+SECOND_HOP_DEPTHS: Final[tuple[int, ...]] = (10, 100)
+
+# The extractor. Sonnet 5 was chosen in the specification conversation: the task is
+# structured extraction, and vocabulary consistency is the normalization's job rather
+# than a larger model's. Published per-token rates, and the Batches API's discount.
+EXTRACTION_MODEL: Final[str] = "claude-sonnet-5"
+EXTRACTION_INPUT_USD_PER_MTOK: Final[float] = 2.00
+EXTRACTION_OUTPUT_USD_PER_MTOK: Final[float] = 10.00
+BATCH_PRICE_FACTOR: Final[float] = 0.5
+# A ceiling, not an expectation: the estimate is taken from the sample (D4).
+EXTRACTION_MAX_TOKENS: Final[int] = 1024
+
+# Bounds on what an answer may hold, enforced client-side because structured outputs
+# cannot express them. An answer outside them is a failure, never truncated (D3).
+MAX_NODES_PER_TYPE: Final[int] = 50
+MAX_NODE_CHARS: Final[int] = 120
+
+# Cost guards (D4, D5). The margin exists because the Phase 2 labelling ran 45% over
+# its forecast. The ceiling was 25 USD in the approved spec; deviation 5.1 raised it to
+# 35 USD after the sample measured 779.4 input tokens per request and an estimate of 33.17
+# USD. Nothing else in these guards changed with it.
+EXTRACTION_SAMPLE_SIZE: Final[int] = 20
+EXTRACTION_ESTIMATE_MARGIN: Final[float] = 1.5
+EXTRACTION_COST_CEILING_USD: Final[float] = 35.0
+EXTRACTION_BATCH_SIZE: Final[int] = 5000
+# Above this share of the pool, failed extractions are a finding that stops the phase.
+EXTRACTION_FAILURE_FINDING: Final[float] = 0.01
+
+# Two node types and three arms, so that navigating by names can be told apart from
+# navigating by concepts (HU-4).
+NODE_TYPES: Final[tuple[str, ...]] = ("entity", "concept")
+NAVIGATION_ARMS: Final[tuple[str, ...]] = ("entity", "concept", "entity+concept")
+NORMALIZATION_VERSION: Final[str] = "normalization-v1"
+
+# The gate of HU-7, exactly as the spec writes it: hit@10 per question, a one-sided
+# paired sign test at this level, against a comparator frozen before measuring.
+GATE_METRIC_DEPTH: Final[int] = 10
+GATE_ALPHA: Final[float] = 0.05
+GATE_COMPARATOR: Final[str] = "bm25-question"
+
+# Reporting only: how many traces the report reads per arm, and which pooled-embedding
+# space the reference concept hop uses (the one Phase 3 selected).
+TRACES_READ_PER_ARM: Final[int] = 5
+REFERENCE_CONCEPT_K: Final[int] = 512
+
+
 def ensure_directories() -> None:
     """Create the data directories if they do not exist yet."""
     for path in (
@@ -265,5 +323,9 @@ def ensure_directories() -> None:
         QUESTION_CACHE_DIR,
         EXPANSION_DIR,
         TRACES_DIR,
+        PILOT_DIR,
+        EXTRACTION_DIR,
+        NODES_DIR,
+        NAVIGATION_DIR,
     ):
         path.mkdir(parents=True, exist_ok=True)

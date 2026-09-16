@@ -16,9 +16,13 @@ written; later audits add rows below, not documents.
 
 ## Open findings
 
-None **of the phases that have been audited**, which are Phases 1 and 2. Every finding from the
-three passes is closed, each held closed by a regression test, and neither phase has blocking
-security work outstanding. Phases 3 and 4 have not been audited — see "Deferred audits" below.
+**Four, all from Phase 5, none blocking** (one Medium, three Low): SEC-020 to SEC-023. Every one
+needs a change under `src/`, and the author closed Phase 5 to source changes for that round, so they
+are reported and catalogued rather than fixed — the decision is recorded in the Phase 5 section
+below. No Critical and no High finding exists in any audited phase.
+
+Phases 1 and 2 have nothing outstanding: every finding of their three passes is closed and held
+closed by a regression test. Phases 3 and 4 have not been audited — see "Deferred audits" below.
 
 ### Phase 1 — 2026-09-08
 
@@ -75,6 +79,58 @@ in `docs/plans/phase_2/2.results.md` stand.
 **Phase closure: no Critical and no High finding, so the phase may close.** The three Medium
 findings are fixed and held closed by regression tests, so no `fix-N` document is owed.
 
+### Phase 5 — 2026-09-16
+
+Scope: the three modules `nodes/` adds (`extraction.py`, `normalization.py`, `index.py`), the four
+`evaluation/` modules of the pilot (`pilot.py`, `navigation.py`, `second_hop.py`, `gate.py`), the
+four new CLI stages (`pilot`, `extract`, `nodes`, `navigate`), and the Phase 5 constants. The
+sensitive surface is the one `CLAUDE.md` names for this phase: an LLM's answers parsed and bounded
+(external input), five new artifact kinds read back from disk (deserialization), a new API client
+over an existing dependency, and a stage that reads a credential.
+
+What the scanners said: `ruff` including the whole `S` selection, clean over the scope; `mypy src`
+clean; `detect-secrets-hook` clean against the baseline; `pip-audit` over the environment synced
+with `--group security --group labeling`, no known vulnerabilities, `torch` skipped as always. No
+`pickle`, no `eval`, no `exec`, no `subprocess`, no `yaml.load` anywhere in `src/`; every `np.load`
+of the phase passes `allow_pickle=False`.
+
+One theme runs through the four findings, and it is the theme of Phases 1 and 2 again in a new
+place: the artifacts this phase *measures* from — the pilot, the node index, the hop run, the
+traces, the gate, the extraction archive — all carry a digest and verify it on load, while the
+artifacts it *runs* from — the sample report, the extraction summary, the batch state — carry none
+and are trusted.
+
+| ID | Severity | Title | Status |
+|---|---|---|---|
+| SEC-020 | Medium | The sample report is read back with no integrity check, and its token means are what the cost ceiling is tested against | Open — fix specified, not applied |
+| SEC-021 | Low | The extraction summary is trusted on load, and its `finding` flag is the gate that stops a failed extraction | Open — fix specified, not applied |
+| SEC-022 | Low | A value from that unverified summary reaches a file path unshaped, so the node index can be sought outside its directory | Open — fix specified, not applied |
+| SEC-023 | Low | The resumable batch state is reloaded unvalidated and decides which batch's answers enter the extraction cache | Open — fix specified, not applied |
+
+**Why they are open.** The audit protocol fixes its findings in the same session, each with a
+regression test. For this round the author forbade any change under `src/` and `data/`, so each
+finding was written up with its `file:line`, its exploitability and the fix it needs, and none was
+applied. None is Critical or High, so none blocks the phase; the work is carried deliberately, not
+overlooked. Two of them (SEC-020, SEC-021) also have a `data/` component, because giving an existing
+artifact a digest means rewriting the artifact — unless the Phase 2 pattern is reused, writing the
+field always and verifying it only when present, which leaves the committed files valid and
+unverified.
+
+Accepted rather than fixed: **OBS-007** — the extraction prompt interpolates corpus text, so a
+paragraph can address the model directly (CWE-1427). It is accepted for structural reasons, not by
+omission: the corpus is the hash-frozen public subset of Phase 1, the answer is schema-constrained
+at the API and re-validated and bounded locally, it is never evaluated, executed or interpolated
+into a shell, and node forms are never printed. What an injection buys is a wrong node in the index,
+which is a measurement error of the kind the failure counters and fragmentation figures already
+report. Written down so a future corpus — which may be neither frozen nor public — inherits the
+reasoning instead of the silence. **OBS-008** — `load_extraction` re-hydrates records without
+re-applying the bounds `read_cached` applies, so a string where a list belongs would become a tuple
+of characters; accepted because the archive is verified against its digest before any record is
+built from it.
+
+**Phase closure: no Critical and no High finding, so the phase may close** with the four open Low
+and Medium findings carried as recorded above.
+
 ## Deferred audits
 
 An audit that was not run is a decision on record here, never a gap nobody noticed.
@@ -123,14 +179,30 @@ uv sync --group security --group labeling
 uv run pip-audit --desc
 ```
 
-**Last run: 2026-09-09 — 0 known vulnerabilities**, over an environment containing `anthropic`
-1.4.0 and `python-dotenv` 1.2.3 (2026-09-08's run did not).
+**Last run: 2026-09-16 — 0 known vulnerabilities**, over the 85 packages of the environment synced
+with `--group security --group labeling`, `anthropic` and `python-dotenv` included. Phase 5 added no
+dependency: `pyproject.toml` and `uv.lock` are unchanged against `main`, and the extraction client
+is new code over the SDK the `labeling` group already provided. Two packages were skipped and both
+skips are expected — `torch`, for the reason below, and the project itself, which is not on PyPI.
+(Previous run: 2026-09-09, also clean.)
 
 One caveat worth knowing before reading a future clean result: `pip-audit` **skips `torch`**,
 because the pinned `2.13.0+cpu` carries a local version identifier PyPI does not recognise. It
 prints the skip in a separate table under "No known vulnerabilities found", which is easy to read
 as coverage it does not have. The upstream release was checked separately against OSV and is
 clean. Any future scan needs the same second step for `torch`.
+
+The second step was run again on 2026-09-16, against the GitHub Advisory Database rather than
+osv.dev — OSV's query API takes a POST and the tooling available in that session could only issue a
+GET, while the GitHub database is one of OSV's own feeds and is reachable with the CLI already
+authenticated here:
+
+```bash
+gh api "/advisories?ecosystem=pip&affects=torch@2.13.0" --jq '.[] | "\(.ghsa_id) \(.severity)"'
+```
+
+It returned nothing, and the same query on a deliberately old pin (`torch@2.0.0`) returns five
+advisories, so the empty answer is coverage and not a broken query.
 
 A clean scan is a statement about the day it ran, not a property of the code.
 
@@ -163,6 +235,49 @@ code an audit is looking at. And a baseline regenerated on this Windows machine 
 with backslashes while the job runs on ubuntu: normalise them to forward slashes, or the hook
 reads its own audited findings as new ones. `tests/test_security_gate.py` holds both closed.
 
+Regenerated again 2026-09-15 with the research-line closure (commit `360927d`): 111 findings, the
+28 above kept and 83 added. Every added one was read before committing, and every one is a digest
+of public configuration or artifacts, a dictionary key, the pinned model commit, a fixture digest or
+a HotpotQA question id.
+
+Extended 2026-09-15 by Phase 5 deviation 5.1, which versions `data/extraction/sample-report.json`:
+14 findings added, 125 in total. All 14 were read: one is the extraction prompt digest and 13 are
+unit ids of the 20 sampled paragraphs, content hashes of the public corpus. The path exclusion below
+was deliberately **not** widened to cover the report: one small file is audited entry by entry.
+
+Extended 2026-09-16 by Phase 5 task T13, which versions the extraction archive and its summary:
+2 findings added, 127 in total. Both are in `data/extraction/extraction-0107de3ae9b4e4a3.json`: the
+sha256 digest of the archive and the extraction prompt digest. The `.jsonl.gz` archive is binary and
+raises no finding; it holds the entities and concepts the model read from the public corpus, and no
+credential, key or request header was ever written into it.
+
+### Path exclusion for id-bearing pipeline artifacts (Phase 5, decision D12)
+
+Phase 5 versions artifacts whose content is mostly unit ids and question ids — content hashes of
+the public corpus. detect-secrets flags each one as a high-entropy string: the frozen pilot alone
+raised **1,385** findings. Auditing thousands of machine-written ids one by one would bury the 111
+findings that were read, which is the opposite of what a baseline is for.
+
+So the baseline carries one `should_exclude_file` filter, and it is deliberately narrow:
+
+```
+^data[\\/](pilot|navigation)[\\/][^\\/]+[.]json$
+```
+
+Only `.json` files directly inside `data/pilot/` and `data/navigation/` are skipped. Both are
+written by the pipeline, verified on load by digest, and hold no text beyond ids, figures and
+configuration. The pattern accepts either separator, so the check run on this Windows machine is the
+check CI runs on ubuntu. Verified before committing: the full tracked tree passes, a hex string in a
+file outside those directories still fails, and the same string inside them is skipped.
+`tests/test_security_gate.py` holds the pattern to exactly that scope.
+
+**When regenerating**, pass the filter again, or it is silently dropped with the old baseline:
+
+```bash
+uv run detect-secrets scan --exclude-files '^data[\\/](pilot|navigation)[\\/][^\\/]+[.]json$' \
+  $(git ls-files --cached --others --exclude-standard) > .secrets.baseline
+```
+
 ## Conventions
 
 - This file is the whole paperwork of an audit: one row per finding, with id, severity, title and
@@ -170,6 +285,6 @@ reads its own audited findings as new ones. `tests/test_security_gate.py` holds 
 - Every Critical or High finding is resolved with a `fix-N` in `docs/plans/fixes/` before the
   phase closes, or the decision to defer it is recorded in the master plan with its reason.
 - Finding ids are unique per project: continue the `SEC-NNN` sequence rather than restarting it
-  per audit. Next free id: **SEC-020** (`OBS-NNN` for observations: next free is **OBS-007**).
+  per audit. Next free id: **SEC-024** (`OBS-NNN` for observations: next free is **OBS-009**).
 - A phase exempted from the audit (the command's escape hatch) is recorded here too, with its
   reason: an exempt phase is a decision on record, not a phase nobody looked at.

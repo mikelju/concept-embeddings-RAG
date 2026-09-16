@@ -8,6 +8,10 @@
     label     name the concepts of one space, for the report only (Phase 2)
     select    choose the space on dev and freeze the configuration (Phase 3)
     expand    sweep the expansion grid on dev and freeze the cell (Phase 4)
+    pilot     freeze the navigation pilot's dev questions by rule (Phase 5)
+    extract   read entities and concepts out of every paragraph, offline (Phase 5)
+    nodes     normalize the extraction into typed nodes over the pool (Phase 5)
+    navigate  run every second hop over the pilot, once (Phase 5)
 
 Each stage is idempotent and refuses to run if its input is missing, saying which
 stage to run first rather than failing somewhere deep inside numpy.
@@ -17,13 +21,14 @@ import argparse
 import json
 import sys
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import NoReturn
 
 import numpy as np
+from scipy import sparse
 
 from concept_embeddings_rag import __version__, config
 from concept_embeddings_rag.concepts.coding import (
@@ -58,6 +63,7 @@ from concept_embeddings_rag.concepts.labeling import (
     REQUEST_SHAPE,
     AnthropicLabelingClient,
     LabelingClient,
+    LabelingError,
     MissingAPIKey,
     build_prompt,
     estimate_cost_usd,
@@ -103,7 +109,24 @@ from concept_embeddings_rag.evaluation.expansion_selection import (
     save_expansion_selection,
     sweep_expansion,
 )
+from concept_embeddings_rag.evaluation.gate import compute_gate, save_gate
 from concept_embeddings_rag.evaluation.harness import evaluate_retriever
+from concept_embeddings_rag.evaluation.navigation import (
+    HOP_RUN_FILENAME,
+    diagnostic_mismatches,
+    load_hop_run,
+    run_navigation,
+    save_navigation,
+)
+from concept_embeddings_rag.evaluation.pilot import (
+    PilotError,
+    build_pilot,
+    check_pilot_against,
+    load_pilot,
+    pilot_digest,
+    pilot_path,
+    save_pilot,
+)
 from concept_embeddings_rag.evaluation.selection import (
     DEV_SPLIT,
     SelectionError,
@@ -119,6 +142,25 @@ from concept_embeddings_rag.evaluation.selection import (
     save_selection,
     selection_digest,
     sweep_space,
+)
+from concept_embeddings_rag.nodes.extraction import (
+    AnthropicBatchClient,
+    AnthropicSyncClient,
+    BatchClient,
+    ExtractionError,
+    SyncClient,
+    load_extraction,
+    load_extraction_summary,
+    load_sample_report,
+    run_full,
+    run_sample,
+)
+from concept_embeddings_rag.nodes.index import (
+    NodeIndexError,
+    build_node_index,
+    fragmentation,
+    load_node_index,
+    save_node_index,
 )
 from concept_embeddings_rag.retrieval.base import Retriever
 from concept_embeddings_rag.retrieval.bm25 import BM25Retriever
@@ -1293,6 +1335,385 @@ def cmd_expand(
     return path
 
 
+def cmd_pilot(
+    data_dir: Path = config.DATA_DIR,
+    cache_dir: Path = config.CACHE_DIR,
+    question_cache_dir: Path = config.QUESTION_CACHE_DIR,
+    pilot_dir: Path = config.PILOT_DIR,
+    backend: EmbeddingBackend | None = None,
+) -> Path:
+    """Freeze the Phase 5 pilot: the dev questions dense leaves a gold paragraph outside top-10.
+
+    HU-1 of the Phase 5 spec. Nothing here reads a concept, an extraction or a test
+    question, and nothing is measured: the stage records where every hop will start and
+    what it will have to find, once, before any text-derived node exists.
+    """
+    data_dir = Path(data_dir)
+    pool_path = data_dir / POOL_NAME
+    if not pool_path.exists():
+        _die("no pool found: run 'build' first")
+    # Checked before the work rather than at the write: the pilot freezes once.
+    if pilot_path(pilot_dir).exists():
+        _die(
+            f"a pilot is already frozen at {pilot_path(pilot_dir)}; this phase writes one and "
+            "never overwrites it. Move it aside deliberately if a second freeze is meant"
+        )
+
+    units, questions = load_pool(pool_path)
+    _check_pool_against_manifest(units, data_dir / MANIFEST_NAME)
+    unit_ids = [unit.unit_id for unit in units]
+    pool_hash = unit_set_hash(unit_ids)
+
+    backend = backend if backend is not None else SentenceTransformerBackend()
+    corpus = EmbeddingCache(Path(cache_dir)).load(
+        _cache_key_for(backend, units), expected_unit_ids=unit_ids
+    )
+    if corpus is None:
+        _die("embeddings are not cached for this pool: run 'embed' first")
+    vectors, cached_unit_ids = corpus
+
+    dev = [question for question in questions if question.split == DEV_SPLIT]
+    if not dev:
+        _die(f"the pool holds no {DEV_SPLIT} questions: run 'build' first")
+    query_backend = build_query_backend(dev, backend, EmbeddingCache(Path(question_cache_dir)))
+
+    try:
+        pilot = build_pilot(
+            dev,
+            unit_ids=cached_unit_ids,
+            vectors=vectors,
+            query_backend=query_backend,
+            model=backend.name,
+            revision=backend.revision,
+            unit_set_hash=pool_hash,
+        )
+        if not pilot.questions:
+            _die(
+                f"no {DEV_SPLIT} question leaves a gold paragraph outside dense's top-"
+                f"{pilot.read_depth}; there is nothing for a second hop to find"
+            )
+        check_pilot_against(pilot, questions)
+        path = save_pilot(pilot, pilot_dir)
+    except PilotError as error:
+        _die(str(error))
+
+    print(
+        f"[OK] pilot frozen: {len(pilot.questions)} of {len(dev)} {DEV_SPLIT} questions miss "
+        f"{pilot.n_missing} gold paragraphs outside dense top-{pilot.read_depth} -> {path}"
+    )
+    return path
+
+
+def cmd_extract(
+    sample: bool = False,
+    data_dir: Path = config.DATA_DIR,
+    cache_dir: Path = config.CACHE_DIR,
+    extraction_dir: Path = config.EXTRACTION_DIR,
+    client: SyncClient | None = None,
+    batch_client: BatchClient | None = None,
+    wait: Callable[[], None] | None = None,
+) -> None:
+    """Read entities and concepts out of every paragraph, offline (Phase 5, HU-2).
+
+    `--sample` extracts the 20 lowest unit ids synchronously and reports what they cost and
+    how long they are beside the corpus. Without it, the whole pool goes through batches -
+    only after a sample exists and only under the ceiling, both checked before anything is
+    submitted. This is the second stage after `label` that spends money, and the key it
+    needs is read from `.env` when a real client is built, never before.
+    """
+    data_dir = Path(data_dir)
+    pool_path = data_dir / POOL_NAME
+    tokens_path = data_dir / TOKENS_NAME
+    if not pool_path.exists():
+        _die("no pool found: run 'build' first")
+    if not tokens_path.exists():
+        _die("no token counts found: run 'embed' first")
+    units, _ = load_pool(pool_path)
+    _check_pool_against_manifest(units, data_dir / MANIFEST_NAME)
+    token_counts = json.loads(tokens_path.read_text(encoding="utf-8"))
+
+    try:
+        if sample:
+            if client is None:
+                read_api_key()
+                client = AnthropicSyncClient()
+            report = run_sample(
+                units,
+                client,
+                cache_dir=cache_dir,
+                extraction_dir=extraction_dir,
+                token_counts=token_counts,
+            )
+            failed = {unit: status for unit, status in report.statuses.items() if status != "ok"}
+            print(
+                f"[INFO] sample: {report.n_ok} of {len(report.unit_ids)} paragraphs extracted "
+                f"within the schema and bounds"
+                + (f"; failures {sorted(failed.values())}" if failed else "")
+            )
+            print(
+                f"[INFO] tokens per request: {report.mean_input_tokens:.1f} in, "
+                f"{report.mean_output_tokens:.1f} out; the sample cost {report.sample_usd:.4f} USD"
+            )
+            for name, lengths in (
+                ("sample", report.sample_lengths),
+                ("corpus", report.corpus_lengths),
+            ):
+                print(
+                    f"[INFO] {name} paragraph length (tokens): mean {lengths['mean']:.1f}, "
+                    f"median {lengths['median']:.1f}, min {lengths['min']:.0f}, "
+                    f"max {lengths['max']:.0f}"
+                )
+            print(
+                f"[INFO] estimate for the full run: {report.estimated_full_usd:.2f} USD at batch "
+                f"rates, output margin {config.EXTRACTION_ESTIMATE_MARGIN}; ceiling "
+                f"{report.ceiling_usd:.2f} USD"
+            )
+            print("[OK] sample written; the full run is `cer extract`, after the spend is approved")
+            return
+
+        try:
+            load_sample_report(extraction_dir)
+        except ExtractionError:
+            _die("no sample report found: run 'extract --sample' first, and read its estimate")
+        if batch_client is None:
+            read_api_key()
+            batch_client = AnthropicBatchClient()
+        summary = run_full(
+            units,
+            batch_client,
+            cache_dir=cache_dir,
+            extraction_dir=extraction_dir,
+            wait=wait if wait is not None else _poll_pause,
+        )
+    except MissingAPIKey as error:
+        _die(str(error))
+    except (ExtractionError, LabelingError) as error:
+        _die(str(error))
+
+    print(
+        f"[INFO] {summary.n_units} paragraphs: {summary.calls} requested, {summary.cached} already "
+        f"cached, {summary.resubmissions} resubmitted once"
+    )
+    print(
+        f"[INFO] cost: {summary.actual_usd:.2f} USD actual against {summary.estimated_usd:.2f} USD "
+        "estimated"
+    )
+    if summary.finding:
+        print(
+            f"[WARN] {summary.failure_rate:.2%} of the pool failed extraction "
+            f"({summary.failures}), above the {config.EXTRACTION_FAILURE_FINDING:.0%} finding "
+            "threshold: stop here, write the finding, and build no nodes"
+        )
+    elif summary.failures:
+        print(f"[INFO] failures {summary.failures} ({summary.failure_rate:.2%} of the pool)")
+    print(f"[OK] extraction written to {extraction_dir}")
+
+
+def cmd_nodes(
+    data_dir: Path = config.DATA_DIR,
+    extraction_dir: Path = config.EXTRACTION_DIR,
+    nodes_dir: Path = config.NODES_DIR,
+) -> Path:
+    """Normalize the extraction into typed nodes and index them over the pool (Phase 5, HU-3).
+
+    Refuses an extraction whose failures are a finding (plan D5, task T13): above 1% of the
+    pool, the finding is written and no node is built from it. Refuses one that does not
+    cover every pool unit. Prints the fragmentation figures and never a node form, which is
+    corpus text and has no place in a log.
+    """
+    data_dir = Path(data_dir)
+    pool_path = data_dir / POOL_NAME
+    if not pool_path.exists():
+        _die("no pool found: run 'build' first")
+    units, _ = load_pool(pool_path)
+    _check_pool_against_manifest(units, data_dir / MANIFEST_NAME)
+    unit_ids = [unit.unit_id for unit in units]
+
+    try:
+        summary = load_extraction_summary(extraction_dir)
+        if summary["finding"]:
+            _die(
+                f"the extraction failed on {summary['failure_rate']:.2%} of the pool "
+                f"({summary['failures']}), a finding above the "
+                f"{config.EXTRACTION_FAILURE_FINDING:.0%} threshold: write the finding; no nodes "
+                "are built from this extraction"
+            )
+        records = load_extraction(extraction_dir, expected_unit_ids=unit_ids)
+        index = build_node_index(records, unit_ids, extraction_digest=str(summary["digest"]))
+    except (ExtractionError, NodeIndexError) as error:
+        _die(str(error))
+    path = save_node_index(index, nodes_dir)
+
+    print(
+        f"[INFO] {len(unit_ids)} paragraphs, {index.failed_units} with a failed extraction, "
+        f"{len(index.nodes)} nodes ({config.NORMALIZATION_VERSION})"
+    )
+    for node_type, figures in fragmentation(index).items():
+        per_node = figures["paragraphs_per_node"]
+        per_paragraph = figures["nodes_per_paragraph"]
+        print(
+            f"[INFO] {node_type}: {figures['distinct_nodes']} distinct, "
+            f"{figures['singleton_share']:.1%} in a single paragraph; paragraphs per node mean "
+            f"{per_node['mean']:.2f}, median {per_node['median']:.1f}, max {per_node['max']}; "
+            f"nodes per paragraph mean {per_paragraph['mean']:.2f}; "
+            f"{figures['paragraphs_without_node']} paragraphs without one; "
+            f"{index.dropped_empty[node_type]} forms empty after normalization"
+        )
+    print(f"[OK] node index written -> {path}")
+    return path
+
+
+def cmd_navigate(
+    data_dir: Path = config.DATA_DIR,
+    cache_dir: Path = config.CACHE_DIR,
+    question_cache_dir: Path = config.QUESTION_CACHE_DIR,
+    concepts_dir: Path = config.CONCEPTS_DIR,
+    pilot_dir: Path = config.PILOT_DIR,
+    extraction_dir: Path = config.EXTRACTION_DIR,
+    nodes_dir: Path = config.NODES_DIR,
+    navigation_dir: Path = config.NAVIGATION_DIR,
+    backend: EmbeddingBackend | None = None,
+) -> Path:
+    """Run every second hop over the frozen pilot, once (Phase 5, HU-5 and HU-6).
+
+    Everything it reads is frozen and verified first: the pilot, the extraction summary,
+    the node index and the pooled-embedding space. It refuses to measure a second time
+    before doing any work, because the gate may not be computed from a second measurement.
+    """
+    navigation_dir = Path(navigation_dir)
+    if (navigation_dir / HOP_RUN_FILENAME).exists():
+        _die(
+            f"a navigation run is already written in {navigation_dir}; this phase measures once, "
+            "and the gate may not be re-run on a second measurement"
+        )
+    data_dir = Path(data_dir)
+    pool_path = data_dir / POOL_NAME
+    if not pool_path.exists():
+        _die("no pool found: run 'build' first")
+    units, questions = load_pool(pool_path)
+    _check_pool_against_manifest(units, data_dir / MANIFEST_NAME)
+    unit_ids = [unit.unit_id for unit in units]
+    pool_hash = unit_set_hash(unit_ids)
+
+    try:
+        pilot = load_pilot(pilot_dir, expected_unit_set_hash=pool_hash)
+        check_pilot_against(pilot, questions)
+    except PilotError as error:
+        _die(f"{error}; run 'pilot' first if none is frozen")
+
+    try:
+        summary = load_extraction_summary(extraction_dir)
+        if summary["finding"]:
+            _die("the extraction's failures are a finding: no navigation is measured on it")
+        index = load_node_index(
+            nodes_dir, extraction_digest=str(summary["digest"]), expected_unit_ids=unit_ids
+        )
+    except ExtractionError as error:
+        _die(f"{error}")
+    except NodeIndexError as error:
+        _die(f"{error}; run 'nodes' first")
+
+    backend = backend if backend is not None else SentenceTransformerBackend()
+    corpus = EmbeddingCache(Path(cache_dir)).load(
+        _cache_key_for(backend, units), expected_unit_ids=unit_ids
+    )
+    if corpus is None:
+        _die("embeddings are not cached for this pool: run 'embed' first")
+    vectors, _ = corpus
+    by_id = {question.qid: question for question in questions}
+    pilot_questions = [by_id[entry.qid] for entry in pilot.questions]
+    query_backend = build_query_backend(
+        pilot_questions, backend, EmbeddingCache(Path(question_cache_dir))
+    )
+
+    reference_key = dictionary_key(
+        k=config.REFERENCE_CONCEPT_K,
+        seed=config.CONCEPT_SEED,
+        alpha=config.INDUCTION_ALPHA,
+        unit_set_hash=pool_hash,
+        model=config.EMBEDDING_MODEL,
+        revision=config.EMBEDDING_REVISION,
+        merge_threshold=config.MERGE_COSINE_THRESHOLD,
+    )
+    try:
+        reference = load_matrix(
+            reference_key, Path(concepts_dir), view="raw", expected_unit_ids=unit_ids
+        ).X
+    except ConceptArtifactError as error:
+        _die(f"the reference concept space is not on disk ({error}): run 'induce'")
+    reference = sparse.csr_matrix(reference, dtype=np.float64)
+
+    run = run_navigation(
+        pilot,
+        by_id,
+        unit_ids=unit_ids,
+        texts=[unit.indexable_text for unit in units],
+        vectors=vectors,
+        query_backend=query_backend,
+        bm25=BM25Retriever(units),
+        index=index,
+        concept_matrix=reference,
+        concept_weights=rarity_weights(concept_support(reference), reference.shape[0]),
+        provenance={
+            "pilot_digest": pilot_digest(pilot),
+            "node_index_digest": index.digest,
+            "normalization_version": index.normalization_version,
+            "extraction_digest": str(summary["digest"]),
+            "extraction_model": str(summary["model"]),
+            "prompt_digest": str(summary["prompt_digest"]),
+            "unit_set_hash": pool_hash,
+            "model": backend.name,
+            "revision": backend.revision,
+            "reference_dictionary_key": reference_key,
+            "code_version": __version__,
+            "stochastic": False,
+        },
+    )
+    run_path, traces_path = save_navigation(run, navigation_dir)
+
+    print(f"[INFO] {len(pilot.questions)} pilot questions, {pilot.n_missing} missing paragraphs")
+    print(f"[INFO] {'hop':<34} {'q@10':>6} {'q@100':>6} {'p@10':>6} {'p@100':>6}")
+    for hop, figures in run.payload["aggregates"].items():
+        q, p = figures["per_question"], figures["per_paragraph"]
+        print(f"[INFO] {hop:<34} {q['10']:6.3f} {q['100']:6.3f} {p['10']:6.3f} {p['100']:6.3f}")
+
+    diagnostic_path = data_dir / "diagnostics" / "second_hop-dev.json"
+    if diagnostic_path.exists():
+        mismatches = diagnostic_mismatches(
+            load_hop_run(navigation_dir), json.loads(diagnostic_path.read_text(encoding="utf-8"))
+        )
+        if mismatches:
+            for mismatch in mismatches:
+                print(f"[WARN] continuity with the Phase 4 diagnostic: {mismatch}")
+        else:
+            print("[OK] the non-concept hops reproduce the Phase 4 diagnostic exactly")
+    print(f"[OK] navigation run -> {run_path}; traces -> {traces_path}")
+
+    # The gate reads the run as written and verified, never the object in memory.
+    decision = compute_gate(load_hop_run(navigation_dir))
+    gate_path = save_gate(decision, navigation_dir)
+    for name, test in decision["tests"].items():
+        print(
+            f"[INFO] gate test '{name}': {test['wins']} wins, {test['losses']} losses, "
+            f"{test['ties']} ties, p = {test['p_value']:.4g} -> "
+            f"{'passed' if test['passed'] else 'not passed'}"
+        )
+    for name, test in decision["reported"].items():
+        print(
+            f"[INFO] reported only '{name}': {test['wins']} wins, {test['losses']} losses, "
+            f"p = {test['p_value']:.4g}"
+        )
+    for anomaly in decision["anomalies"]:
+        print(f"[WARN] anomaly: {anomaly}")
+    print(f"[OK] gate outcome: {decision['outcome']} -> {gate_path}")
+    return run_path
+
+
+def _poll_pause() -> None:
+    """How long the full run waits between two looks at a batch. Most end within an hour."""
+    time.sleep(60)
+
+
 def _check_pool_against_manifest(units: Sequence[IndexingUnit], manifest_path: Path) -> None:
     """Refuse to run on a pool the manifest does not recognise.
 
@@ -1364,6 +1785,26 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser(
         "expand", help="sweep the expansion grid on dev and freeze the cell it chose"
     )
+    subparsers.add_parser(
+        "pilot", help="freeze the Phase 5 navigation pilot's dev questions by rule"
+    )
+    subparsers.add_parser(
+        "nodes", help="normalize the extraction into typed nodes and index them over the pool"
+    )
+    subparsers.add_parser("navigate", help="run every second hop over the frozen pilot, once")
+    extraction = subparsers.add_parser(
+        "extract", help="read entities and concepts out of every paragraph (spends money)"
+    )
+    # Decision D4 of Phase 5: the full run refuses without the sample, whose measured
+    # estimate is what the author approves before anything else is spent.
+    extraction.add_argument(
+        "--sample",
+        action="store_true",
+        help=(
+            f"extract only the {config.EXTRACTION_SAMPLE_SIZE} lowest unit ids and report "
+            "the estimate"
+        ),
+    )
     return parser
 
 
@@ -1387,6 +1828,14 @@ def main(argv: list[str] | None = None) -> int:
         cmd_select()
     elif args.command == "expand":
         cmd_expand()
+    elif args.command == "pilot":
+        cmd_pilot()
+    elif args.command == "extract":
+        cmd_extract(sample=args.sample)
+    elif args.command == "nodes":
+        cmd_nodes()
+    elif args.command == "navigate":
+        cmd_navigate()
     return 0
 
 
