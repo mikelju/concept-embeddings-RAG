@@ -43,8 +43,8 @@ docs/plans/
 | 2 | Concept space: dictionary + matrix X | Available | **Complete** |
 | 3 | Hybrid conceptual retrieval (System B) | Available | **Complete** |
 | 4 | Query-aware iterative expansion (System C) | Available | **Complete — negative result** |
-| 5 | Text-derived concepts: navigation pilot | Available | **Measured — gate: NAMES ONLY** |
-| 6 | Comparative evaluation and verdict | Pending | **Not opened** — the Phase 5 gate did not open it |
+| 5 | Text-derived concepts: navigation pilot | Available | **Complete — gate: NAMES ONLY** |
+| 6 | Dense + Entity Navigation: end-to-end comparison | Pending | **Open by the author's decision** — awaits `/4-especificar` |
 | 7 | Exploratory extensions (conditional) | Pending | Not opened |
 
 **The first research line is closed** (2026-09-15): concepts induced from pooled embeddings, tested
@@ -56,8 +56,14 @@ the proposal actually described. See [`phase_4/4.1_research_line_closure.md`](ph
 entities and concepts from the text of all 19,366 paragraphs and measured one hop over each. The
 pre-declared gate returned **NAMES ONLY** — entities beat the frozen comparator decisively, concepts
 are the weakest hop this project has measured, and adding concepts to entities makes the joint hop
-worse. **Phase 6 is not opened and the founding decisions table is unchanged**; the result and its
-scope are in [`phase_5/5.results.md`](phase_5/5.results.md).
+worse. **The concept hypothesis is closed and the founding decisions table is unchanged**; the
+result and its scope are in [`phase_5/5.results.md`](phase_5/5.results.md).
+
+**Phase 6 was then redefined, on the author's decision and not by the gate** (2026-09-16). The gate
+opens Phase 6 only on GO, and it did not; what opens the phase below is the author's reading of the
+entity finding — the positive half of a NAMES ONLY — as worth measuring end to end. The phase the
+plan used to carry there, a comparative evaluation of the pooled-embedding concept representation,
+is gone with the line it belonged to.
 
 ---
 
@@ -278,7 +284,8 @@ cannot reach. Its ceiling is reachability — 118 of 158 missing paragraphs shar
 
 **What the stop closes.** §7 item 1 of the research-line closure — *concepts extracted from the text
 rather than directions found in a pooled embedding* — is no longer open in the form this pilot tested
-it: that reading of "concept" is the weaker of the two measured.
+it: that reading of "concept" is the weaker of the two measured. **The concept hypothesis stays
+closed**, and nothing below reopens it.
 
 **What it does not close.** HotpotQA bridges are built around an entity named in one paragraph and
 described in another, so an entity win is close to a property of the benchmark, as the Phase 4
@@ -293,23 +300,78 @@ synonymy this one leaves (measured and declared as working against the concept a
 only once a phase has verified an alternative, and this pilot verified none: it measured one and
 found it worse than what it replaced.
 
-`/7-verificar` and `/8-auditar` still close the phase — the audit is mandatory here, since the code
-takes external LLM output and deserializes new artifact kinds.
+### Phase 5 is complete
 
-## Phase 6: Comparative evaluation and verdict
+**Verified** (2026-09-16): 1,386 tests pass with no failure and no skip, `ruff` and `mypy` clean, and
+**47 of 47 acceptance criteria verified**, none failing and none uncovered. Verification reported six
+divergences before ticking anything; all six are settled, the two substantive ones by correcting
+documents rather than code — an arithmetically wrong cost note in
+[`5.results.md`](phase_5/5.results.md), and two data contracts in
+[`5.spec.md`](phase_5/5.spec.md) that had fallen behind the artifacts they describe.
 
-**Opened only if Phase 5 passes its gate. It did not: the gate returned NAMES ONLY, so this phase
-stays closed** and nothing below is scheduled. It would have been the phase that answers the
-hypothesis for the representation that reached it; no representation did. Its output would have been
-a report, not code.
+**Audited** (2026-09-16): `/8-auditar fase 5` over `nodes/`, the pilot's four `evaluation/` modules
+and the four new CLI stages. **No Critical and no High finding**, so the phase closes. Four findings
+stand open — one Medium and three Low, SEC-020 to SEC-023 — because each needs a change under `src/`
+and the author closed this round to source changes; they are catalogued with their fixes in
+[`docs/security/README.md`](../security/README.md), which also records that decision. Phases 3 and 4
+remain unaudited, as the same file records under "Deferred audits".
 
-- [ ] Full bench on the same split and seed, **at equal context budget**: BM25, dense, dense+BM25, the
-      pooled-embedding concept space (numbers already on file from Phases 3-4), the text-derived
-      space, and its iterative expansion
-- [ ] Ablations of the text-derived representation, declared in its spec
-- [ ] Cost per query: tokens sent, latency, number of iterations (§73 demands the gain not be paid in noise or tokens)
-- [ ] Cross-validation on a second benchmark (MuSiQue) to rule out overfitting to the first
-- [ ] Report with an explicit verdict on §69 and on the document's second hypothesis, including the negative verdict where warranted
+**`/9-documentar` has not been run.** The phase's flow is `/7-verificar` → `/8-auditar` →
+`/9-documentar`, and the author chose to close after the audit. That step is outstanding and is
+recorded here rather than assumed done.
+
+## Phase 6: Dense + Entity Navigation — end-to-end comparison
+
+**Opened by the author's decision on the entity finding, not by the gate.** The Phase 5 gate opens a
+phase only on GO; it returned NAMES ONLY, which by its own table opens nothing. What opens this phase
+is a choice: the entity hop is the strongest shallow second hop this project has measured — 0.6579
+hit@10 per question against the frozen comparator's 0.4441, 56 wins to 24 with p = 0.000226 — and the
+author decided that a positive finding of that size is worth measuring as a system rather than
+leaving as one number in a pilot. **The concept hypothesis stays closed**, in both its readings, and
+nothing here reopens it.
+
+**Not yet specified.** The next action in this repository is `/4-especificar` for this phase. Nothing
+below is a design decision: the questions, the protocol and the gate belong to the spec, and the
+pilot's cautions are recorded here so that the spec inherits them rather than rediscovering them.
+
+**The question**, narrower than §69 by construction: does a second retrieval stage that navigates
+from dense's first paragraph over text-derived **entity** nodes improve supporting-fact recall **at
+equal context budget** over dense, and over the dense+BM25 control that is the real bar — 0.8643 Full
+Support on test @2,048, the figure Phase 4 was judged against? A win over dense that does not clear
+the control is a result, to be reported as exactly that.
+
+**What Phase 5 hands it, and what it withholds.** The entity arm's ceiling is reachability: 118 of
+158 missing paragraphs share an entity node with `p1`, and it finds 116 of those 118, so no depth
+buys the other 40. At hit@100 it is already **behind** BM25 on `p1`'s text (0.7434 against 0.7533):
+it finds paragraphs sooner, not paragraphs the older hops cannot reach. And all of it was measured on
+**dev only**, over **one hop**, on HotpotQA bridges built around a name — which is why the entity win
+is close to a property of the benchmark, as the Phase 4 closure said before the pilot ran.
+
+- [ ] The entity-navigation system measured end to end in the existing harness, **at equal context
+      budget** rather than at fixed K, against BM25, dense and the dense+BM25 control, on a
+      configuration frozen before the test split is read once
+- [ ] Cost per query: tokens sent, latency, extraction cost amortized over the corpus (§73 demands
+      the gain not be paid in noise or tokens)
+- [ ] Cross-validation on a second benchmark (**MuSiQue**) to rule out overfitting to the first —
+      which this phase needs more than its predecessor did, because the pilot's own verdict is that
+      an entity hop suits nominal bridges
+- [ ] Ablations declared in its spec, of the navigation system and not of the closed representation:
+      at minimum the hop's origin, its depth and whether the entity stage adds anything BM25 on
+      `p1`'s text does not — the hop it loses to at depth 100
+- [ ] A report with an explicit verdict on **this** question, negative verdict included
+
+**Carried over from the Phase 6 this replaces**: measurement at equal context budget, cost per query,
+and MuSiQue as a guard against overfitting to one benchmark. Those three were never about the concept
+space; they are how this project compares anything.
+
+**Dropped, and why.** The full bench of concept systems and the ablations of the text-derived
+representation: both the representations they would have benched are closed — the pooled-embedding
+space by Phases 3-4 and its closure, the text-derived concept space by the Phase 5 gate — and
+benching a closed representation measures nothing. Its iterative expansion: Phase 4 measured
+diffusion over `X` and the walk never promotes a new paragraph. The explicit verdict on §69: it has
+been answered twice, negatively and with bounds, and this phase does not re-ask it — the project's
+answer to §69 stands where the closure and the pilot left it, and what is being measured here is a
+narrower claim about names.
 
 ## Phase 7: Exploratory extensions (conditional)
 
@@ -366,7 +428,9 @@ No phase of this project can therefore claim, or refute, that the system discove
 
 ## Project success criterion
 
-The project succeeds if, at the end of Phase 6 — or at the Phase 5 gate, if the pilot says STOP — there exists a **defensible and reproducible** answer to the hypothesis of §69, with its numbers, its ablations and its cost. A negative result documented rigorously — that iterative conceptual expansion does not improve recall at equal token budget — is a valid result and closes the project just as well as the opposite.
+The project succeeds if there exists a **defensible and reproducible** answer to the hypothesis of §69, with its numbers, its ablations and its cost. A negative result documented rigorously — that iterative conceptual expansion does not improve recall at equal token budget — is a valid result and closes the project just as well as the opposite.
+
+**That criterion is already met, and it was met before Phase 6 was redefined.** The wording used to read "at the end of Phase 6 — or at the Phase 5 gate, if the pilot says STOP", written when Phase 6 was the comparative evaluation of the concept representation. The pilot did not say STOP, it said NAMES ONLY, and the redefined Phase 6 does not answer §69 at all: it measures a narrower claim about navigating by names. So §69's answer stands where the research-line closure and the Phase 5 pilot left it, and Phase 6 adds to the project without being what decides it.
 
 The first research line has such an answer for its own operationalization (see the closure under Phase 4), and the Phase 5 pilot has one for the reading that closure left open — concepts extracted from the text, which measured worse than the representation it was meant to replace. Both answers are negative, both are bounded, and both are reproducible from versioned artifacts. What neither answers is §69 in general: every measurement of this project is on HotpotQA's Type B bridges, where the second paragraph is reached by a name, and the Type C setting the proposal promises most for is still the declared gap below.
 
