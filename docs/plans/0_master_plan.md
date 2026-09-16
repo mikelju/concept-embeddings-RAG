@@ -43,21 +43,21 @@ docs/plans/
 | 2 | Concept space: dictionary + matrix X | Available | **Complete** |
 | 3 | Hybrid conceptual retrieval (System B) | Available | **Complete** |
 | 4 | Query-aware iterative expansion (System C) | Available | **Complete — negative result** |
-| 5 | Text-derived concepts: navigation pilot | Available | **Measured — gate: NAMES ONLY** |
-| 6 | Comparative evaluation and verdict | Pending | **Not opened** — the Phase 5 gate did not open it |
-| 7 | Exploratory extensions (conditional) | Pending | Not opened |
+| 5 | Text-derived concepts: navigation pilot | Available | **Complete — NAMES ONLY** |
+| 6 | Dense + Entity Navigation — end-to-end comparison | Pending | **Not opened** — new research line from the Phase 5 entity finding |
+| 7 | Entity canonicalization / resolution | Pending | **Conditional** — only if Phase 6 justifies it |
+| 8 | Conditional extensions and combinations | Pending | **Not opened** |
 
 **The first research line is closed** (2026-09-15): concepts induced from pooled embeddings, tested
 through Phases 2-4, gave a negative and bounded result. The original Phase 5 — a comparative
 evaluation of that method — was not run; the plan was renumbered so Phase 5 tests the representation
 the proposal actually described. See [`phase_4/4.1_research_line_closure.md`](phase_4/4.1_research_line_closure.md).
 
-**The second reading of "concept" has now been tested too** (2026-09-16): the Phase 5 pilot extracted
-entities and concepts from the text of all 19,366 paragraphs and measured one hop over each. The
-pre-declared gate returned **NAMES ONLY** — entities beat the frozen comparator decisively, concepts
-are the weakest hop this project has measured, and adding concepts to entities makes the joint hop
-worse. **Phase 6 is not opened and the founding decisions table is unchanged**; the result and its
-scope are in [`phase_5/5.results.md`](phase_5/5.results.md).
+**Phase 5 is now measured and closed at the pilot gate:** text-derived entities produce a strong
+positive second-hop signal on the HotpotQA bridge diagnostic, while text-derived concepts do not.
+The gate returned **NAMES ONLY**. This does not establish an end-to-end improvement over dense+BM25;
+it opens a new research line focused first on whether entity navigation can replace the BM25 component.
+Canonicalization is a separate conditional line, not part of that first comparison.
 
 ---
 
@@ -180,146 +180,101 @@ point measured below it, collapses to 0.0117. Whether anything survives between 
 gap, listed by the closure as an untested lever rather than scheduled work.
 
 **One thing Phase 3 named survives.** The questions the concept space uniquely answers really are
-conjunctions of two topics: all four the conceptual arm gains over dense are — a Florida place *and*
-baseball, a magazine *and* politics, an Irish biography *and* combat sports, an opera *and* its
-singer — and three of them are the same questions Phase 3 read, reached by a different mechanism.
-The signal is real and reproducible. It is worth about four questions in 600, and diffusion with
-restart cannot convert it into retrieval.
+conjunctions of two topics: all four the conceptual arm gains over dense are — a Florida place *and* baseball, a magazine *and* politics, an Irish biography *and* combat sports, an opera *and* its singer — and three of them are the same questions Phase 3 read, reached by a different mechanism. The signal is real and reproducible. It is worth about four questions in 600, and diffusion with restart cannot convert it into retrieval.
 
 ### Research line closed — negative result, limited scope
 
-Recorded in [`phase_4/4.1_research_line_closure.md`](phase_4/4.1_research_line_closure.md), which
-reads every figure from a versioned artifact.
+Recorded in [`phase_4/4.1_research_line_closure.md`](phase_4/4.1_research_line_closure.md), which reads every figure from a versioned artifact.
 
-**What it establishes.** A concept space induced by sparse coding of pooled paragraph embeddings adds
-no measurable retrieval value over dense on HotpotQA — not by conceptual retrieval, not by score
-fusion, not by diffusion — and a dense+BM25 control is clearly stronger. An exploratory dev-only
-diagnostic adds that a hop through those concepts is the weakest second hop tested at every K, below
-simply reading further down the dense list.
+**What it establishes.** A concept space induced by sparse coding of pooled paragraph embeddings adds no measurable retrieval value over dense on HotpotQA — not by conceptual retrieval, not by score fusion, not by diffusion — and a dense+BM25 control is clearly stronger. An exploratory dev-only diagnostic adds that a hop through those concepts is the weakest second hop tested at every K, below simply reading further down the dense list.
 
-**What it does not establish.** It does not test the architecture the proposal describes, in which
-concepts are extracted from the text of each unit. A pooled embedding recoded as sparse atoms is a
-lossy copy of the vector the dense baseline already uses; that operationalization is what failed,
-and it is the variable the next phase changes.
+**What it does not establish.** It does not test the architecture the proposal describes, in which concepts are extracted from the text of each unit. A pooled embedding recoded as sparse atoms is a lossy copy of the vector the dense baseline already uses; that operationalization is what failed, and it is the variable the next phase changes.
 
-**What became of this plan's Phase 5.** The full bench, the fusion and expansion ablations, the K
-sweep and the cost per query were already measured by Phases 3 and 4. The non-negativity and pruning
-ablations were not run and are listed as untested levers. MuSiQue moves to Phase 6.
+**What became of this plan's Phase 5.** The full bench, the fusion and expansion ablations, the K sweep and the cost per query were already measured by Phases 3 and 4. The non-negativity and pruning ablations were not run and are listed as untested levers. MuSiQue moves to Phase 6.
 
 ## Phase 5: Text-derived concepts — navigation pilot
 
-Opened by the closure above. Specified in [`phase_5/5.spec.md`](phase_5/5.spec.md) and planned in
-[`phase_5/5.0_text_derived_concepts.md`](phase_5/5.0_text_derived_concepts.md), which fix every
-choice below before a number exists: **the whole corpus extracted offline by Sonnet 5**, **all 152
-dev questions** the Phase 4 diagnostic defined, a hop from dense's first paragraph over
-**entity-only, concept-only and entity + concept** nodes, the **question** as the statistical unit,
-and **BM25 on the question** as the frozen comparator. The gate: GO if entity + concept beats both
-the comparator and entity-only; NAMES ONLY if entity-only itself beats the comparator; STOP
-otherwise.
+Opened by the Phase 4 closure and now **complete**. Specified in [`phase_5/5.spec.md`](phase_5/5.spec.md) and planned in [`phase_5/5.0_text_derived_concepts.md`](phase_5/5.0_text_derived_concepts.md). The phase extracted entities and concepts from the text of the full pool, then measured one-hop navigation from dense's first paragraph on the 152-question diagnostic defined by Phase 4.
 
-The question: **do concepts and entities extracted from the text give a more useful navigation
-structure than atoms induced from pooled embeddings?** Concretely, when dense has found the first
-paragraph of a bridge and missed the second, can a hop over text-derived nodes recover it better than
-reading further down the dense list, or than BM25?
+- [x] Whole-corpus extraction of entities and concepts, offline with `claude-sonnet-5`; failures recorded, with no post-hoc repair or re-extraction
+- [x] Deterministic normalization and a node index covering the 19,366-paragraph pool
+- [x] Entity-only, concept-only and entity+concept node hops, with BM25-question as the frozen comparator
+- [x] Continuity check against all inherited non-concept hops from the Phase 4 diagnostic
+- [x] Pre-declared GO / NAMES ONLY / STOP gate, computed from per-question hit@10
 
-- [x] Specified with `/4-especificar` before any extraction runs: the pilot question set, drawn from
-      dev by a deterministic rule and never hand-picked; the node types; the hops compared; the
-      metrics; and a GO/STOP gate declared before the first number exists
-- [x] The extractor (LLM or otherwise) builds the representation **offline**; it never sits inside
-      the retrieval loop, by the same founding decision that governed Phase 4
-- [x] Everything else held fixed: corpus, indexing unit, embedding model, both baselines, budgets
-- [x] A design that can tell "concepts navigate" apart from "names navigate": an entity-only win
-      answers a narrower question than §69 — and that is the win the gate found
-- [x] A documented GO/STOP decision - scale to the full corpus and iterative expansion, or close the
-      hypothesis
+### What Phase 5 found
 
-### What the pilot found, and the stop it records
+The extraction covered all **19,366 paragraphs**. The final artifact records **25.98 USD** for the full run, 8 bounds failures (0.0413%, below the 1% finding threshold), and full pool coverage. Normalization produced **96,416 entity nodes**, **40,846 concept nodes**, and **137,262 nodes** total. The node index was highly fragmented: 82.7% of entity forms and 68.9% of concept forms occur in only one paragraph. The eight extraction failures did not include any of the 158 missing-gold paragraphs; one was the `p1` of one pilot question and was retained as an explicitly documented conservative limitation.
 
-Every figure below is read from a versioned artifact and listed with its command in
-[`phase_5/5.results.md`](phase_5/5.results.md). The representation was built by extracting entities
-and concepts from **all 19,366 paragraphs** with `claude-sonnet-5`, offline, for **25.98 USD** and
-8 failures in 19,366 (0.0413%, below the 1% finding threshold) — the ceiling having been raised from
-25 to 35 USD at the measured-sample checkpoint, [deviation 5.1](phase_5/5.1_extraction_cost_ceiling.md).
-Normalization v1 turned that into a node index of **137,262 nodes**. `uv run cer navigate` then ran
-every hop once over the frozen pilot of 152 dev questions and 158 missing paragraphs.
-
-**The gate returned `NAMES_ONLY`**, computed by code from the per-question hit@10 scores, with
-`anomalies` empty:
+The gate returned **NAMES ONLY** on the frozen 152-question pilot:
 
 | Test | Wins | Losses | Ties | p | Passed |
 |---|---:|---:|---:|---:|---|
-| E beats BM25-on-question | **56** | 24 | 72 | **0.000226** | **yes** |
-| EC beats BM25-on-question | 41 | 37 | 74 | 0.3672 | no |
-| EC beats E | 1 | 29 | 122 | ≈ 1.0 | no |
-| *C beats BM25-on-question* (reported only) | 5 | 66 | 81 | ≈ 1.0 | no |
+| **Entity hop vs BM25-question** | **56** | 24 | 72 | **0.000226** | **yes** |
+| Entity+concept hop vs BM25-question | 41 | 37 | 74 | 0.3672 | no |
+| Entity+concept hop vs entity hop | 1 | 29 | 122 | approx. 1.0 | no |
+| *Concept hop vs BM25-question* (reported only) | 5 | 66 | 81 | approx. 1.0 | no |
 
-**Entities navigate.** Hit@10 per question: **0.6579** for the entity hop against 0.4441 for BM25 on
-the question, 0.4507 for BM25 on `p1`'s text, and 0.3026 for reading further down the dense list. It
-places **18 missing paragraphs** in its top 10 that lie outside both baselines' own reach. It is the
-strongest shallow second hop this project has measured.
+At hit@10 per question, entity navigation scored **0.6579**, versus 0.4441 for BM25 on the question. At hit@100 it scored 0.7434 versus 0.7533 for BM25 on `p1` text: the entity result is therefore a shallow ranking advantage, not evidence of greater ultimate reach. Concepts scored 0.0592 at hit@10 and 0.1743 at hit@100, and combining concepts with entities reduced the entity-only hit@10 to 0.4803.
 
-**Concepts read from the text do not.** 0.0592 hit@10 and 0.1743 hit@100 per question — **below the
-pooled-embedding concept hop the first research line already closed as negative** (0.0789 / 0.3684 on
-the same questions), and below every other hop at both depths. Only **47 of the 158 missing
-paragraphs share a single concept node with `p1`**, against 118 for entities: the arm mostly cannot
-reach, and where it reaches it ranks badly.
+**What this establishes:** text-derived entities are a strong second-hop navigation signal on this HotpotQA bridge diagnostic. **What it does not establish:** that an end-to-end dense + entity system beats the existing dense+BM25 system, or that concepts provide useful satellite-context discovery. The founding decisions remain unchanged. Full provenance and scope are in [`phase_5/5.results.md`](phase_5/5.results.md).
 
-**Joining the two makes the hop worse, which is the failure the gate was built to detect.** EC scores
-0.4803 hit@10 against E's 0.6579. The union can never lower the gold paragraph's own score — it
-raises every competitor's more: the candidate field grows from a median of 34.5 paragraphs to 391.5,
-and of the 108 paragraphs both arms find, EC ranks 72 worse and drops **23 out of the top 10**. A hop
-that finds the *Moby* paragraph at rank 1 on the name `moby` cannot find it within a hundred once
-generic concepts join the sum.
+## Phase 6: Dense + Entity Navigation — end-to-end comparison
 
-**The headline is a depth-10 result and is stated as one.** At hit@100 the entity hop (0.7434) is
-**behind BM25 on `p1`'s text** (0.7533): it finds paragraphs *sooner*, not paragraphs the older hops
-cannot reach. Its ceiling is reachability — 118 of 158 missing paragraphs share an entity node with
-`p1`, and it finds 116 of those 118.
+This is a **new research line derived from Phase 5's positive entity finding**. It replaces the old conditional Phase 6 that was intended to evaluate the text-derived concept hypothesis. The first question is deliberately narrow:
 
-**What the stop closes.** §7 item 1 of the research-line closure — *concepts extracted from the text
-rather than directions found in a pooled embedding* — is no longer open in the form this pilot tested
-it: that reading of "concept" is the weaker of the two measured.
+> **Can an entity-navigation second hop replace the BM25 component of the existing dense+BM25 system without reducing retrieval quality?**
 
-**What it does not close.** HotpotQA bridges are built around an entity named in one paragraph and
-described in another, so an entity win is close to a property of the benchmark, as the Phase 4
-closure said before this pilot ran. Untested and still open: a corpus whose bridges are thematic
-rather than nominal (Type C, §72, the declared gap below); multi-round expansion and any hop but the
-single one specified; relation and attribute nodes, which this spec's anti-goals excluded and which
-are the node type most likely to carry a non-nominal bridge; a normalization that resolves the
-synonymy this one leaves (measured and declared as working against the concept arm); and the levers
-§7 of the closure already lists.
+The first comparison is therefore:
 
-**The founding decisions on the concept engine and the concept embedding are unchanged.** They change
-only once a phase has verified an alternative, and this pilot verified none: it measured one and
-found it worse than what it replaced.
+```
+A: Dense -> BM25
+B: Dense -> Entity Hop
+```
 
-`/7-verificar` and `/8-auditar` still close the phase — the audit is mandatory here, since the code
-takes external LLM output and deserializes new artifact kinds.
+The evaluation must use the same end-to-end benchmark protocol that produced the existing dense+BM25 control, including the same split, seed, context budget, primary metric and evaluation population. The historical **0.8643 Full Support @2,048** dense+BM25 result remains the reference bar from Phase 4, but Phase 6 must measure both systems under one explicitly frozen protocol rather than compare unlike metrics from Phase 5's second-hop diagnostic.
 
-## Phase 6: Comparative evaluation and verdict
+Initial scope deliberately excludes concept nodes, entity canonicalization, relation/attribute nodes, multi-round expansion, and a three-way `Dense + BM25 + Entity` combination. Those are separate research questions and are not introduced until the basic replacement test is understood.
 
-**Opened only if Phase 5 passes its gate. It did not: the gate returned NAMES ONLY, so this phase
-stays closed** and nothing below is scheduled. It would have been the phase that answers the
-hypothesis for the representation that reached it; no representation did. Its output would have been
-a report, not code.
+- [ ] Functional spec approved before planning
+- [ ] End-to-end Dense + BM25 control frozen under the Phase 6 protocol
+- [ ] Dense + Entity Hop implemented with no canonicalization or other new signal
+- [ ] Same-budget comparison run on the declared evaluation population
+- [ ] Result reviewed and decision recorded: continue to canonicalization / combinations, or stop
 
-- [ ] Full bench on the same split and seed, **at equal context budget**: BM25, dense, dense+BM25, the
-      pooled-embedding concept space (numbers already on file from Phases 3-4), the text-derived
-      space, and its iterative expansion
-- [ ] Ablations of the text-derived representation, declared in its spec
-- [ ] Cost per query: tokens sent, latency, number of iterations (§73 demands the gain not be paid in noise or tokens)
-- [ ] Cross-validation on a second benchmark (MuSiQue) to rule out overfitting to the first
-- [ ] Report with an explicit verdict on §69 and on the document's second hypothesis, including the negative verdict where warranted
+## Phase 7: Entity canonicalization / resolution
 
-## Phase 7: Exploratory extensions (conditional)
+**Conditional on Phase 6.** The question is whether independently extracted entity mentions can be canonicalized so that genuine aliases and naming variants share a stable node, without merging distinct entities. The observed singleton rate in Phase 5 motivates this line, but does not by itself imply that singletons should be removed.
 
-**Not opened unless the Phase 6 results justify it.** The decision is documented either way.
+The baseline comparison should be:
 
-- [ ] Documented decision to open the phase or not, grounded in the Phase 6 numbers
-- [ ] Document hierarchy as a fourth scoring signal (§34, §56)
-- [ ] Variable resolution of the concept dictionary (§48)
-- [ ] Graph derived from X, only if the emergent associations prove useful (§58)
-- [ ] Token-level or multi-vector concept representations, finer than one vector per unit
+```
+Raw Entity Hop
+vs
+Canonicalized Entity Hop
+```
+
+Candidate techniques may include embedding-based candidate generation followed by an explicit resolution step. Simple clustering or deleting every entity with document frequency 1 is not assumed to be valid: a genuine one-off entity can still be retrieval-critical. The phase should measure both node compression and retrieval effect, and preserve an auditable mapping from raw mentions to canonical nodes.
+
+- [ ] Open only after a Phase 6 decision justifies it
+- [ ] Define canonicalization spec before implementation
+- [ ] Freeze the raw entity baseline and candidate-generation/resolution procedure on dev
+- [ ] Measure the effect on Entity Hop with the same end-to-end evaluation protocol
+- [ ] Record whether canonicalization improves, leaves unchanged, or harms retrieval
+
+## Phase 8: Conditional extensions and combinations
+
+**Not opened unless Phase 6 and/or Phase 7 justify further work.** This phase collects the remaining open research questions from the original plan and from the Phase 5 findings. Possible directions are:
+
+- [ ] Dense + BM25 + Entity, if the two-signal replacement test shows complementary value worth studying
+- [ ] Multi-round entity navigation or query-aware expansion, after the one-hop mechanism is established
+- [ ] Relation and attribute nodes for bridges that are not carried by shared names
+- [ ] A benchmark or evaluation set for thematic / satellite-context questions (Type C), rather than only entity-linked HotpotQA bridges
+- [ ] Document hierarchy or book-like corpora, where hierarchical context can actually be evaluated
+- [ ] Cross-benchmark evaluation (for example MuSiQue) to test whether any successful mechanism generalizes
+- [ ] Graph or higher-order structures only if the simpler entity representation demonstrates durable value
+
+The old exploratory Phase 7 items — hierarchy, variable resolution, graph derivation and finer-grained representations — belong here now, rather than being assumed to follow from a successful concept-space experiment.
 
 ---
 
@@ -354,27 +309,25 @@ Development runs on **Windows on ARM (`win_arm64`)**, which rules out part of th
 - Available: `numpy`, `scipy`, `scikit-learn`, `sentence-transformers`, `transformers`, `tokenizers`, `onnxruntime`, `faiss-cpu`, `model2vec`.
 - Python pinned to 3.12 (`>=3.12,<3.13`).
 
+
 ---
 
 ## Declared limitation
 
-Multi-hop benchmarks measure **Type B** questions from §72 (multi-concept, with the hops already laid out by the annotator). **Type C** — the 200 km training plan that never mentions nutrition or pacing — is where the proposal promises most, and no standard benchmark measures it: there, satellite knowledge would have to emerge from the corpus rather than from annotation.
+Phase 5's positive entity result is specific to a HotpotQA bridge diagnostic: questions are selected when dense misses a supporting fact outside its top-10, and the missing fact is often linked through a shared named entity. It therefore does not by itself establish the broader Type C claim from §72, where satellite knowledge such as nutrition, pacing or recovery is not explicit in the query. A separate evaluation population is required for that claim.
 
-No phase of this project can therefore claim, or refute, that the system discovers satellite context, absent a separately built set of Type C questions. This is a declared gap, not a filled one. Covering it is Phase 7 material and requires first deciding how to build such a set without fabricating convenient ground truth. It applies unchanged to both negative results: the Phase 5 pilot's entity win and concept loss are measured on Type B bridges, where the second paragraph is reached by a name, and neither figure transfers to Type C.
+The current entity hop also has a reachability ceiling: only 118 of the 158 missing paragraphs share an entity node with `p1`, and it finds 116 of those 118 by depth 100. The canonicalization problem is open, and the high singleton rate in Phase 5 may partly reflect legitimate one-off entities and partly naming variation; the experiment has not yet separated those causes.
 
-**A second limitation of the same family:** the indexing unit is chosen by complete meaning rather than length, but the benchmark offers only a shallow three-level hierarchy (article → paragraph → sentence). A real document hierarchy — chapter, section, subsection — does not exist in Wikipedia and cannot be exercised here. That is why hierarchy is Phase 7 material and not a Phase 3 signal, and why a corpus of books would be the natural setting for that part. A point of precision: RAPTOR does not read document structure either — it starts from fixed-length chunks and **fabricates** the tree by recursive clustering and summarization.
+The corpus itself remains Wikipedia-style and offers no genuine chapter/section hierarchy. Any claim about hierarchical retrieval therefore belongs to a later phase on a corpus where that structure exists.
 
 ## Project success criterion
 
-The project succeeds if, at the end of Phase 6 — or at the Phase 5 gate, if the pilot says STOP — there exists a **defensible and reproducible** answer to the hypothesis of §69, with its numbers, its ablations and its cost. A negative result documented rigorously — that iterative conceptual expansion does not improve recall at equal token budget — is a valid result and closes the project just as well as the opposite.
+The project succeeds by producing **defensible, reproducible answers to the active research question**, with its numbers, controls, limitations and provenance. The original pooled-concept research line is closed with a negative, bounded result. Phase 5 has separately established a positive entity-navigation signal but has not yet shown that it improves the complete dense+BM25 system.
 
-The first research line has such an answer for its own operationalization (see the closure under Phase 4), and the Phase 5 pilot has one for the reading that closure left open — concepts extracted from the text, which measured worse than the representation it was meant to replace. Both answers are negative, both are bounded, and both are reproducible from versioned artifacts. What neither answers is §69 in general: every measurement of this project is on HotpotQA's Type B bridges, where the second paragraph is reached by a name, and the Type C setting the proposal promises most for is still the declared gap below.
+The immediate success criterion for the new line is therefore Phase 6: determine under one comparable end-to-end protocol whether Entity Hop can replace BM25 in the dense+BM25 pipeline. Phase 7 and Phase 8 are conditional follow-ups rather than prerequisites for declaring Phase 6 complete.
 
 ---
 
 ## Corrective fixes
 
-- **[fix-1](fixes/fix-1_audit_phase_1_findings.md)** — the ten findings of the Phase 1 security
-  audit, all of them integrity controls that existed in the code and were never exercised by the
-  pipeline. Closed with 15 regression tests; the full evaluation was re-run and all 60 recorded
-  metrics reproduce exactly, so the Phase 1 numbers are unaffected.
+- **[fix-1](fixes/fix-1_audit_phase_1_findings.md)** — the ten findings of the Phase 1 security audit, all of them integrity controls that existed in the code and were never exercised by the pipeline. Closed with 15 regression tests; the full evaluation was re-run and all 60 recorded metrics reproduce exactly, so the Phase 1 numbers are unaffected.
