@@ -220,14 +220,16 @@ def build_readout(
     }
 
 
-def readout_path(directory: Path | str, split: str) -> Path:
+def readout_path(directory: Path | str, split: str, index: int = 1) -> Path:
+    """`readout-{split}.json`, or `-{index}` under a superseding freeze (OI-4)."""
     if not SAFE_NAME.match(split):
         raise ReadoutError(f"split {split!r} is not usable in a filename")
-    return Path(directory) / f"readout-{split}.json"
+    name = f"readout-{split}.json" if index == 1 else f"readout-{split}-{index}.json"
+    return Path(directory) / name
 
 
-def save_readout(readout: Mapping[str, Any], directory: Path | str) -> Path:
-    path = readout_path(directory, str(readout["split"]))
+def save_readout(readout: Mapping[str, Any], directory: Path | str, index: int = 1) -> Path:
+    path = readout_path(directory, str(readout["split"]), index)
     if path.exists():
         raise ReadoutError(f"{path} already exists; the readout is written once")
     path.parent.mkdir(parents=True, exist_ok=True)

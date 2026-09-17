@@ -15,6 +15,7 @@ that both hybrids are measured and fitted with the same keywords (D10); `cli.py`
 call. Every door that takes questions takes dev questions only.
 """
 
+import hashlib
 import importlib.metadata
 import json
 from collections.abc import Callable, Mapping, Sequence
@@ -23,10 +24,16 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from concept_embeddings_rag import __version__, config
+from concept_embeddings_rag import __version__, config, decision_parameters
 from concept_embeddings_rag.artifacts import write_text_atomic
 from concept_embeddings_rag.corpus.pool import Question
 from concept_embeddings_rag.embeddings.backend import EmbeddingBackend
+from concept_embeddings_rag.embeddings.cache import (
+    EmbeddingCache,
+    build_query_backend,
+    question_cache_key,
+    question_set_hash,
+)
 from concept_embeddings_rag.evaluation.continuity import (
     ContinuityCheck,
     ContinuityReport,
@@ -37,6 +44,7 @@ from concept_embeddings_rag.evaluation.control_reproduction import (
     REUSED,
     Check,
     ReproductionReport,
+    compare_test_reproduction,
     dev_reproduction,
 )
 from concept_embeddings_rag.evaluation.entity_diagnostics import (
@@ -54,8 +62,16 @@ from concept_embeddings_rag.evaluation.outcomes import (
     save_outcomes,
 )
 from concept_embeddings_rag.evaluation.readout import build_readout, save_readout
+from concept_embeddings_rag.evaluation.replacement_decision import (
+    DECISION_FILENAME,
+    DecisionError,
+    check_parameters,
+    compute_decision,
+    save_decision,
+)
 from concept_embeddings_rag.evaluation.replacement_freeze import (
     FREEZE_PATTERN,
+    FreezeError,
     MeasuredFit,
     Phase6Freeze,
     build_freeze,
@@ -77,11 +93,14 @@ from concept_embeddings_rag.evaluation.second_hop import node_weights
 from concept_embeddings_rag.evaluation.selection import (
     DEV_SPLIT,
     FusionFit,
+    SelectionError,
     check_dev_only,
+    check_freeze_precedes,
     digest_of_payload,
     fit_fusion_weight,
     serialize_payload,
 )
+from concept_embeddings_rag.evaluation.tango import TangoError, require_published_example
 from concept_embeddings_rag.nodes.extraction import OK
 from concept_embeddings_rag.retrieval.base import Retriever
 from concept_embeddings_rag.retrieval.bm25 import BM25Retriever
@@ -634,10 +653,31 @@ def run_freeze(
     *,
     control_mode: str | None = None,
     deviation: str | None = None,
+    supersede: bool = False,
 ) -> StageResult:
-    """D11 steps 4-8 on dev: fit B, measure it, check reproducibility, freeze, dev readings."""
+    """D11 steps 4-8 on dev: fit B, measure it, check reproducibility, freeze, dev readings.
+
+    `supersede` is the one way back to dev after test (D14, OI-4): after a stop at step 5 whose
+    cause invalidates the dev fit, a re-measured control and a new freeze superseding the valid
+    one, named by an existing deviation document.
+    """
     directory = Path(environment.replacement_dir)
-    if _existing_freeze(directory):
+    supersedes: str | None = None
+    if supersede:
+        if not _existing_freeze(directory):
+            raise ReplacementRunError("there is no freeze to supersede")
+        if control_mode != REMEASURED or deviation is None or not _resolve_existing(deviation):
+            raise ReplacementRunError(
+                "a superseding freeze needs --control-mode re-measured and an existing deviation "
+                "document naming the cause"
+            )
+        try:
+            supersedes = load_freeze(directory).digest
+        except FreezeError as error:
+            raise ReplacementRunError(
+                f"the freeze to supersede does not verify: {error}"
+            ) from error
+    elif _existing_freeze(directory):
         raise ReplacementRunError(
             f"a freeze already exists in {directory}; the freeze is written once, and a "
             "superseding one only on the deviation branch of D14"
@@ -656,7 +696,7 @@ def run_freeze(
         )
     control_deviation: str | None = None
     if mode == REMEASURED:
-        if checked_mode == REUSED:
+        if checked_mode == REUSED and not supersede:
             raise ReplacementRunError(
                 "every control check passed; re-measured applies only after a failed check"
             )
@@ -779,6 +819,8 @@ def run_freeze(
         seed=inputs.pins.seed,
         code_version=__version__,
         control_deviation=control_deviation,
+        supersedes=supersedes,
+        deviation=deviation if supersede else None,
     )
     freeze_path = save_freeze(freeze, directory)
     frozen = load_freeze(directory)
@@ -795,6 +837,7 @@ def run_freeze(
         control=(control_result, control_outcomes),
         entity_measured=(entity_run.result, entity_run.outcomes),
         dense_measured=(dense_result, dense_outcomes),
+        index=len(_existing_freeze(directory)),
     )
     return StageResult(True, freeze_path, f"frozen in {mode} mode; commit it before replace-test")
 
@@ -810,6 +853,7 @@ def write_dev_readings(
     control: tuple[RunResult, PerQuestionOutcomes],
     entity_measured: tuple[RunResult, PerQuestionOutcomes],
     dense_measured: tuple[RunResult, PerQuestionOutcomes],
+    index: int = 1,
 ) -> None:
     b_records = records_of(entity, questions)
     diagnostics, traces = build_diagnostics_and_traces(
@@ -827,7 +871,7 @@ def write_dev_readings(
         node_index_digest=inputs.node_index.digest,
         extraction_digest=inputs.pins.extraction_digest,
     )
-    save_diagnostics_and_traces(diagnostics, traces, directory)
+    save_diagnostics_and_traces(diagnostics, traces, directory, index)
     readout = build_readout(
         split=DEV_SPLIT,
         outcomes={DENSE: dense_measured[1], CONTROL: control[1], ENTITY: entity_measured[1]},
@@ -844,9 +888,334 @@ def write_dev_readings(
         freeze={**frozen.payload, "digest": frozen.digest},
         pilot_qids=[entry.qid for entry in inputs.pilot.questions],
     )
-    save_readout(readout, directory)
+    save_readout(readout, directory, index)
     comparison = readout["subgroup"]["pilot_comparison"]
     print(
         f"[INFO] dev bridge-like subgroup: {readout['subgroup']['n_questions']} questions; equal "
         f"to the pilot's: {comparison['equal']}"
     )
+
+
+# --- replace-test -----------------------------------------------------------------------------
+
+TEST_REPRODUCTION_FILENAME = "test-reproduction.json"
+HELD_OUT = decision_parameters.DECISION_SPLIT
+COUNT_TOLERANCE = 1e-9
+
+
+def read_historical_test_figures(frozen: Phase6Freeze, results_dir: Path) -> dict[str, Any]:
+    """The only reader of the historical test figures (D2), called once, at step 5 of D14.
+
+    It takes the loaded, verified freeze and re-checks each file's bytes against the sha256 the
+    freeze recorded before returning a figure.
+    """
+    if not isinstance(frozen, Phase6Freeze):
+        raise ReplacementRunError("the historical test figures are read only under a loaded freeze")
+    recorded = frozen.payload["control"]["historical_files"]
+    figures: dict[str, Any] = {}
+    for system in (DENSE, CONTROL):
+        identity = recorded[f"{system}/{HELD_OUT}"]
+        path = Path(results_dir) / str(identity["name"])
+        raw = path.read_bytes()
+        if hashlib.sha256(raw).hexdigest() != identity["sha256"]:
+            raise ReplacementRunError(
+                f"{identity['name']} no longer has the sha256 the freeze recorded"
+            )
+        document = json.loads(raw.decode("utf-8"))
+        if document.get("system") != system or document.get("split") != HELD_OUT:
+            raise ReplacementRunError(f"{identity['name']} is not the {system} {HELD_OUT} result")
+        figures[system] = {"metrics": document["metrics"], "cost": document["cost"]}
+    return figures
+
+
+def confirm_delta_source(figures: Mapping[str, Any], parameters: Mapping[str, Any]) -> dict:
+    """D13: the frozen M1 checked against its recorded source, as integer counts, never decimals."""
+    budget, metric, n = int(parameters["budget"]), str(parameters["metric"]), int(parameters["n"])
+    details: dict[str, Any] = {}
+    consistent = True
+    for system in (CONTROL, DENSE):
+        mean = float(figures[system]["metrics"][f"budget_{budget}"][metric])
+        n_questions = figures[system]["cost"].get("n_questions")
+        raw = mean * n
+        count = round(raw)
+        integral = abs(raw - count) <= COUNT_TOLERANCE
+        details[system] = {
+            "mean": mean,
+            "n_questions": n_questions,
+            "count": count,
+            "integral": integral,
+        }
+        consistent = consistent and integral and n_questions == n
+    difference = details[CONTROL]["count"] - details[DENSE]["count"]
+    delta = parameters["delta"]
+    passed = (
+        consistent
+        and difference == int(delta["m1_numerator"])
+        and int(delta["m1_denominator"]) == n
+    )
+    return {
+        "control_count": details[CONTROL]["count"],
+        "dense_count": details[DENSE]["count"],
+        "difference": difference,
+        "expected_difference": int(delta["m1_numerator"]),
+        "n": n,
+        "details": details,
+        "passed": passed,
+    }
+
+
+def _files(directory: Path, pattern: str) -> list[Path]:
+    return sorted(directory.glob(pattern)) if directory.exists() else []
+
+
+def _next_free(directory: Path, filename: str) -> Path:
+    path = directory / filename
+    index = 2
+    while path.exists():
+        path = directory / filename.replace(".json", f"-{index}.json")
+        index += 1
+    return path
+
+
+def _check_inputs_against_freeze(inputs: VerifiedInputs, frozen: Phase6Freeze) -> None:
+    payload = frozen.payload
+    for label, identity in payload["control"]["historical_files"].items():
+        system, split = label.split("/")
+        current = inputs.historical[(system, split)]
+        if current.sha256 != identity["sha256"] or current.name != identity["name"]:
+            raise ReplacementRunError(
+                f"the historical file {label} is not the one the freeze bound"
+            )
+    protocol = payload["protocol"]
+    expected = {
+        "unit_set_hash": inputs.pool_hash,
+        "token_counts_sha256": inputs.token_counts_sha256,
+        "question_set_hashes": dict(inputs.question_set_hashes),
+    }
+    for key, value in expected.items():
+        if protocol[key] != value:
+            raise ReplacementRunError(f"the input {key} differs from the one the freeze recorded")
+    component = payload["entity_component"]
+    if component["node_index_digest"] != inputs.node_index.digest:
+        raise ReplacementRunError("the node index differs from the one the freeze recorded")
+    if component["extraction_digest"] != inputs.pins.extraction_digest:
+        raise ReplacementRunError("the extraction differs from the one the freeze recorded")
+
+
+def held_out_query_backend(
+    inputs: VerifiedInputs, environment: StageEnvironment
+) -> tuple[Any, str]:
+    """The held-out question vectors, from the cache only; built here and nowhere earlier."""
+    questions = [question for question in inputs.questions if question.split == HELD_OUT]
+    qids = [question.qid for question in questions]
+    pins = inputs.pins
+    key = question_cache_key(pins.model, pins.revision, question_set_hash(qids), HELD_OUT, True)
+    cache = EmbeddingCache(Path(environment.paths.question_cache_dir))
+    if cache.load(key, expected_unit_ids=qids) is None:
+        raise ReplacementRunError(f"the {HELD_OUT} question embeddings are not cached ({key})")
+    return build_query_backend(questions, environment.backend, cache), key
+
+
+def run_test(
+    environment: StageEnvironment,
+    *,
+    control_mode: str | None = None,
+    deviation: str | None = None,
+) -> StageResult:
+    """The ordered protocol of D14, once: dense, A, the reproduction check, then B and the state."""
+    directory = Path(environment.replacement_dir)
+
+    # Step 1: the valid freeze, its parameters, the inputs it bound, the published example.
+    try:
+        frozen = load_freeze(directory)
+    except FreezeError as error:
+        raise ReplacementRunError(f"replace-test requires a verified freeze: {error}") from error
+    parameters = frozen.payload["decision_parameters"]
+    try:
+        check_parameters(parameters)
+    except DecisionError as error:
+        raise ReplacementRunError(str(error)) from error
+    inputs = verified_inputs(environment)
+    _check_inputs_against_freeze(inputs, frozen)
+    try:
+        require_published_example()
+    except TangoError as error:
+        raise ReplacementRunError(str(error)) from error
+    if (directory / DECISION_FILENAME).exists():
+        raise ReplacementRunError(f"{DECISION_FILENAME} exists; the decision is computed once")
+    if _files(directory, f"run-{ENTITY}-{HELD_OUT}-*.json") or _files(
+        directory, f"outcomes-{ENTITY}-{HELD_OUT}*.json"
+    ):
+        raise ReplacementRunError(f"a {ENTITY} {HELD_OUT} file exists; B is evaluated once")
+
+    # Step 2: the mode, and the one admissible re-read of dense and A.
+    freeze_mode = frozen.control_mode
+    mode = freeze_mode if control_mode is None else control_mode
+    if mode not in (REUSED, REMEASURED):
+        raise ReplacementRunError(f"unknown control mode {mode!r}")
+    if mode == REUSED and freeze_mode != REUSED:
+        raise ReplacementRunError("the freeze records a re-measured control")
+    if control_mode == REMEASURED and (deviation is None or not _resolve_existing(deviation)):
+        raise ReplacementRunError("re-measured on test needs an existing deviation document")
+    existing = [
+        *_files(directory, f"run-{DENSE}-{HELD_OUT}-*.json"),
+        *_files(directory, f"run-{CONTROL}-{HELD_OUT}-*.json"),
+    ]
+    if existing and control_mode != REMEASURED:
+        raise ReplacementRunError(
+            f"a {HELD_OUT} result of dense or A already exists ({existing[0].name}); a re-read "
+            "needs --control-mode re-measured --deviation <existing document>"
+        )
+
+    # Step 3: dense on test. The held-out question backend is built here and nowhere earlier.
+    questions = [question for question in inputs.questions if question.split == HELD_OUT]
+    query_backend, question_key = held_out_query_backend(inputs, environment)
+    dense, bm25, stage = build_components(inputs, query_backend)
+    run_config = {
+        **base_config(inputs, question_key),
+        "freeze_digest": frozen.digest,
+        "frozen_at": frozen.frozen_at,
+    }
+
+    def precedes(result: RunResult) -> None:
+        try:
+            check_freeze_precedes(frozen, result)
+        except SelectionError as error:
+            raise ReplacementRunError(str(error)) from error
+
+    dense_run = measure(
+        dense,
+        questions=questions,
+        split=HELD_OUT,
+        token_counts=inputs.token_counts,
+        run_config=run_config,
+        directory=directory,
+        freeze_digest=frozen.digest,
+        before_save=precedes,
+    )
+
+    # Step 4: A at the frozen configuration.
+    control_fit = frozen.payload["control"]["fit"]
+    control = build_hybrid(dense, bm25, control_fit["winning_scheme"], control_fit["weights"])
+    control_run = measure(
+        control,
+        questions=questions,
+        split=HELD_OUT,
+        token_counts=inputs.token_counts,
+        run_config=hybrid_config(run_config, control, control_mode=mode),
+        directory=directory,
+        freeze_digest=frozen.digest,
+        before_save=precedes,
+    )
+
+    # Step 5: the historical test figures, first read here; delta's source; the reproduction.
+    historical = read_historical_test_figures(frozen, inputs.paths.results_dir)
+    delta_record = confirm_delta_source(historical, parameters)
+    record: dict[str, Any] = {
+        "split": HELD_OUT,
+        "freeze_digest": frozen.digest,
+        "mode": mode,
+        "delta_confirmation": delta_record,
+        "observed_runs": {
+            DENSE: dense_run.run_path.name,
+            CONTROL: control_run.run_path.name,
+        },
+    }
+    reproduction_path = _next_free(directory, TEST_REPRODUCTION_FILENAME)
+    if not delta_record["passed"]:
+        _write_once(
+            reproduction_path, {**record, "checks": None, "passed": False, "stops_run": True}
+        )
+        return StageResult(
+            False,
+            reproduction_path,
+            "the historical Full Support counts do not confirm the frozen delta's source; the run "
+            "stops before B, in either mode, and a deviation document identifies the cause",
+        )
+    held_out = compare_test_reproduction(
+        {
+            DENSE: {"metrics": dense_run.result.metrics, "cost": dense_run.result.cost},
+            CONTROL: {"metrics": control_run.result.metrics, "cost": control_run.result.cost},
+        },
+        historical,
+        mode=mode,
+    )
+    reproduction = held_out.as_payload()
+    _write_once(reproduction_path, {**record, **reproduction})
+    if held_out.stops_run:
+        return StageResult(
+            False,
+            reproduction_path,
+            f"{sum(1 for c in held_out.checks if not c.passed)} test reproduction check(s) failed "
+            "in reused mode; no B figure exists. Write the deviation document before any re-run",
+        )
+
+    # Step 6: B on test, once.
+    entity_fit = frozen.payload["entity_fit"]
+    entity = build_hybrid(dense, stage, entity_fit["winning_scheme"], entity_fit["weights"])
+    entity_run = measure(
+        entity,
+        questions=questions,
+        split=HELD_OUT,
+        token_counts=inputs.token_counts,
+        run_config=hybrid_config(run_config, entity, entity_component=entity_identity(inputs)),
+        directory=directory,
+        freeze_digest=frozen.digest,
+        before_save=precedes,
+    )
+
+    # Step 7: diagnostics and traces from the recorded lists; no second retrieval.
+    b_records = records_of(entity, questions)
+    diagnostics, traces = build_diagnostics_and_traces(
+        split=HELD_OUT,
+        questions=questions,
+        b_records=b_records,
+        a_records=records_of(control, questions),
+        b_outcomes=entity_run.outcomes,
+        a_outcomes=control_run.outcomes,
+        token_counts=inputs.token_counts,
+        failed_units=failed_extractions(inputs),
+        b_scheme=entity.scheme,
+        freeze_digest=frozen.digest,
+        run_digests={
+            CONTROL: run_digest(control_run.result),
+            ENTITY: run_digest(entity_run.result),
+        },
+        node_index_digest=inputs.node_index.digest,
+        extraction_digest=inputs.pins.extraction_digest,
+    )
+    save_diagnostics_and_traces(diagnostics, traces, directory)
+
+    # Step 8: the decision, from the three outcome artifacts as read back from disk.
+    order = [question.qid for question in questions]
+    outcomes = {
+        system: load_outcomes(measured.outcomes.path, split_order=order, run_dir=directory)
+        for system, measured in ((DENSE, dense_run), (CONTROL, control_run), (ENTITY, entity_run))
+    }
+    decision_freeze = {
+        **frozen.payload,
+        "digest": frozen.digest,
+        "control": {**frozen.payload["control"], "mode": mode},
+    }
+    decision = compute_decision(decision_freeze, outcomes, reproduction)
+    decision_path = save_decision(decision, directory)
+
+    # Step 9: the readout, descriptive only.
+    readout = build_readout(
+        split=HELD_OUT,
+        outcomes=outcomes,
+        questions=questions,
+        read_lists={
+            record.qid: [unit for unit, _ in record.dense[: config.PILOT_READ_DEPTH]]
+            for record in b_records
+        },
+        costs={
+            DENSE: dense_run.result.cost,
+            CONTROL: control_run.result.cost,
+            ENTITY: entity_run.result.cost,
+        },
+        freeze=decision_freeze,
+    )
+    save_readout(readout, directory)
+    route = decision["route"] or "-"
+    return StageResult(True, decision_path, f"state {decision['state']}, route {route}")

@@ -394,16 +394,19 @@ def aggregate_diagnostics(per_question: Sequence[Mapping[str, Any]], scheme: str
 # --- Writing and loading ----------------------------------------------------------------------
 
 
-def diagnostics_path(directory: Path | str, split: str) -> Path:
+def _indexed(stem: str, split: str, index: int) -> str:
     if not SAFE_NAME.match(split):
         raise DiagnosticsError(f"split {split!r} is not usable in a filename")
-    return Path(directory) / f"diagnostics-{split}.json"
+    return f"{stem}-{split}.json" if index == 1 else f"{stem}-{split}-{index}.json"
 
 
-def traces_path(directory: Path | str, split: str) -> Path:
-    if not SAFE_NAME.match(split):
-        raise DiagnosticsError(f"split {split!r} is not usable in a filename")
-    return Path(directory) / f"traces-{split}.json"
+def diagnostics_path(directory: Path | str, split: str, index: int = 1) -> Path:
+    """`diagnostics-{split}.json`, or `-{index}` under a superseding freeze (OI-4)."""
+    return Path(directory) / _indexed("diagnostics", split, index)
+
+
+def traces_path(directory: Path | str, split: str, index: int = 1) -> Path:
+    return Path(directory) / _indexed("traces", split, index)
 
 
 def _save_once(path: Path, payload: Mapping[str, Any]) -> Path:
@@ -417,12 +420,15 @@ def _save_once(path: Path, payload: Mapping[str, Any]) -> Path:
 
 
 def save_diagnostics_and_traces(
-    diagnostics: Mapping[str, Any], traces: Mapping[str, Any], directory: Path | str
+    diagnostics: Mapping[str, Any],
+    traces: Mapping[str, Any],
+    directory: Path | str,
+    index: int = 1,
 ) -> tuple[Path, Path]:
     split = str(diagnostics["split"])
     return (
-        _save_once(diagnostics_path(directory, split), diagnostics),
-        _save_once(traces_path(directory, split), traces),
+        _save_once(diagnostics_path(directory, split, index), diagnostics),
+        _save_once(traces_path(directory, split, index), traces),
     )
 
 

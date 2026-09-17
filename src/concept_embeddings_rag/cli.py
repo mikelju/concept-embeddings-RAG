@@ -14,6 +14,7 @@
     navigate  run every second hop over the pilot, once (Phase 5)
     replace-check   verify inputs, continuity and the control's reproduction on dev (Phase 6)
     replace-freeze  fit B on dev, check reproducibility, write the freeze (Phase 6)
+    replace-test    the ordered test protocol, once, under the freeze: the state (Phase 6)
 
 Each stage is idempotent and refuses to run if its input is missing, saying which
 stage to run first rather than failing somewhere deep inside numpy.
@@ -139,6 +140,7 @@ from concept_embeddings_rag.evaluation.replacement_run import (
     StageEnvironment,
     run_check,
     run_freeze,
+    run_test,
 )
 from concept_embeddings_rag.evaluation.selection import (
     DEV_SPLIT,
@@ -1753,6 +1755,7 @@ def cmd_replace_freeze(
     environment: StageEnvironment | None = None,
     control_mode: str | None = None,
     deviation: str | None = None,
+    supersede: bool = False,
 ) -> int:
     """Phase 6, D11 steps 4-8 on dev: B's fit and selected run, reproducibility, the freeze.
 
@@ -1765,12 +1768,37 @@ def cmd_replace_freeze(
             environment or replacement_environment(),
             control_mode=control_mode,
             deviation=deviation,
+            supersede=supersede,
         )
     except ReplacementRunError as error:
         print(f"[ERROR] {error}")
         return 1
     print(f"[OK] {result.message} -> {result.path}")
     return 0
+
+
+def cmd_replace_test(
+    environment: StageEnvironment | None = None,
+    control_mode: str | None = None,
+    deviation: str | None = None,
+) -> int:
+    """Phase 6, D14 on test, once: dense, A, the reproduction check, B, the decision.
+
+    Prints the state and the route, never the recorded texts (D21). Exits non-zero on any
+    refusal or stop; a stop before B leaves no B figure.
+    """
+    try:
+        result = run_test(
+            environment or replacement_environment(),
+            control_mode=control_mode,
+            deviation=deviation,
+        )
+    except ReplacementRunError as error:
+        print(f"[ERROR] {error}")
+        return 1
+    status = "OK" if result.passed else "ERROR"
+    print(f"[{status}] {result.message} -> {result.path}")
+    return 0 if result.passed else 1
 
 
 def _poll_pause() -> None:
@@ -1869,9 +1897,17 @@ def build_parser() -> argparse.ArgumentParser:
         "--control-mode", choices=("reused", "re-measured"), default=None, dest="control_mode"
     )
     freezing.add_argument("--deviation", default=None, help="path of the 6.Y deviation document")
-    subparsers.add_parser(
+    # OI-4: the one way back to dev after test, and only with a deviation document.
+    freezing.add_argument(
+        "--supersede", action="store_true", help="write a freeze superseding the valid one"
+    )
+    testing = subparsers.add_parser(
         "replace-test", help="Phase 6 on test, once, under the freeze: the ordered protocol"
     )
+    testing.add_argument(
+        "--control-mode", choices=("reused", "re-measured"), default=None, dest="control_mode"
+    )
+    testing.add_argument("--deviation", default=None, help="path of the 6.Y deviation document")
     extraction = subparsers.add_parser(
         "extract", help="read entities and concepts out of every paragraph (spends money)"
     )
@@ -1919,10 +1955,11 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == "replace-check":
         return cmd_replace_check()
     elif args.command == "replace-freeze":
-        return cmd_replace_freeze(control_mode=args.control_mode, deviation=args.deviation)
+        return cmd_replace_freeze(
+            control_mode=args.control_mode, deviation=args.deviation, supersede=args.supersede
+        )
     elif args.command == "replace-test":
-        print(f"[ERROR] {args.command} is not implemented yet")
-        return 1
+        return cmd_replace_test(control_mode=args.control_mode, deviation=args.deviation)
     return 0
 
 

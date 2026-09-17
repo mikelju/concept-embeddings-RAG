@@ -297,7 +297,10 @@ def build_freeze(
 
     if control_mode not in MODES:
         raise FreezeError(f"unknown control mode {control_mode!r}")
-    if control_mode != reproduction.mode:
+    # OI-4: after a test-side mismatch the mode becomes re-measured whatever the dev checks gave;
+    # only a superseding freeze may record that.
+    superseding_remeasure = supersedes is not None and control_mode == REMEASURED
+    if control_mode != reproduction.mode and not superseding_remeasure:
         raise FreezeError(
             f"the control mode {control_mode!r} disagrees with the dev checks, which give "
             f"{reproduction.mode!r}"

@@ -471,3 +471,402 @@ def test_the_loaded_freeze_refuses_tampering(after_check):
     rewrite_json(path, lambda p: p.update({"seed": 7}))
     with pytest.raises(FreezeError, match="digest"):
         load_freeze(after_check.replacement_dir)
+
+
+# --- replace-test -----------------------------------------------------------------------------
+
+from concept_embeddings_rag.evaluation.outcomes import PerQuestionOutcomes  # noqa: E402
+from concept_embeddings_rag.evaluation.replacement_freeze import Phase6Freeze  # noqa: E402
+from concept_embeddings_rag.evaluation.replacement_run import (  # noqa: E402
+    TEST_REPRODUCTION_FILENAME,
+    confirm_delta_source,
+    read_historical_test_figures,
+    run_test,
+)
+from concept_embeddings_rag.evaluation.selection import digest_of_payload  # noqa: E402
+
+N_TEST = 1400
+
+
+def frozen_copy(source: ToyPipeline, root: Path) -> ToyPipeline:
+    pipeline = relocated(source, root)
+    return pipeline
+
+
+@pytest.fixture(scope="module")
+def frozen_small(checked, tmp_path_factory) -> ToyPipeline:
+    pipeline = relocated(checked, tmp_path_factory.mktemp("frozen-small") / "toy")
+    assert run_freeze(environment(pipeline)).passed
+    return pipeline
+
+
+@pytest.fixture(scope="module")
+def frozen_full(tmp_path_factory) -> ToyPipeline:
+    """A toy whose test split holds the decision's whole population of 1,400 questions."""
+    pipeline = build_toy_pipeline(tmp_path_factory.mktemp("full") / "toy", n_test=N_TEST)
+    assert run_check(environment(pipeline)).passed
+    assert run_freeze(environment(pipeline)).passed
+    return pipeline
+
+
+@pytest.fixture
+def small(frozen_small, tmp_path) -> ToyPipeline:
+    return relocated(frozen_small, tmp_path / "toy")
+
+
+@pytest.fixture
+def full(frozen_full, tmp_path) -> ToyPipeline:
+    return relocated(frozen_full, tmp_path / "toy")
+
+
+def publish_example(monkeypatch) -> None:
+    """Inject a worked example for the test only; `tango.PUBLISHED_EXAMPLE` stays empty."""
+    monkeypatch.setattr(
+        replacement_run, "require_published_example", lambda: {"source": "toy injection"}
+    )
+
+
+def delta_confirmed(monkeypatch) -> None:
+    """The toy's historical counts are not 1,210 and 1,155; the check itself is tested apart."""
+    monkeypatch.setattr(
+        replacement_run,
+        "confirm_delta_source",
+        lambda figures, parameters: {"passed": True, "note": "toy injection"},
+    )
+
+
+def b_files(directory: Path) -> list[Path]:
+    return [
+        *files(directory, "run-hybrid-entity-hop-test-*.json"),
+        *files(directory, "outcomes-hybrid-entity-hop-test*.json"),
+        *files(directory, "diagnostics-test*.json"),
+        *files(directory, "traces-test*.json"),
+        *files(directory, "decision.json"),
+    ]
+
+
+def a_deviation(pipeline: ToyPipeline, name: str = "6.2_test_mismatch.md") -> str:
+    path = pipeline.root / name
+    path.write_text("# toy deviation", encoding="utf-8")
+    return str(path)
+
+
+# --- Step 1 refusals --------------------------------------------------------------------------
+
+
+def test_replace_test_refuses_without_a_verified_freeze(after_check, monkeypatch):
+    publish_example(monkeypatch)
+    with pytest.raises(ReplacementRunError, match="freeze"):
+        run_test(environment(after_check))
+
+
+def test_replace_test_refuses_an_altered_decision_parameter_copy(small, monkeypatch):
+    publish_example(monkeypatch)
+    path = small.replacement_dir / "freeze.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["decision_parameters"]["alpha"] = 0.025
+    payload["digest"] = digest_of_payload(payload)
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    with pytest.raises(ReplacementRunError, match="decision parameters"):
+        run_test(environment(small))
+
+
+def test_replace_test_refuses_while_the_published_example_slot_is_empty(small, monkeypatch):
+    read: list[Any] = []
+    monkeypatch.setattr(
+        replacement_run, "read_historical_test_figures", lambda *a, **k: read.append(a)
+    )
+    with pytest.raises(ReplacementRunError, match="published"):
+        run_test(environment(small))
+    assert read == []
+    assert not files(small.replacement_dir, "*-test-*.json")
+
+
+@pytest.mark.parametrize(
+    "planted", ["decision.json", "run-hybrid-entity-hop-test-20260917T000000+0000.json"]
+)
+def test_replace_test_refuses_when_a_decision_or_a_b_test_file_exists(small, monkeypatch, planted):
+    publish_example(monkeypatch)
+    (small.replacement_dir / planted).write_text("{}", encoding="utf-8")
+    with pytest.raises(ReplacementRunError, match="exists"):
+        run_test(environment(small))
+    assert not files(small.replacement_dir, "run-dense-test-*.json")
+
+
+# --- The only reader of historical test figures -----------------------------------------------
+
+
+def test_the_reader_refuses_without_a_freeze(small):
+    with pytest.raises(ReplacementRunError, match="freeze"):
+        read_historical_test_figures({"control": {}}, small.paths.results_dir)  # type: ignore[arg-type]
+
+
+def test_the_reader_refuses_bytes_that_differ_from_the_freeze_record(small):
+    frozen = load_freeze(small.replacement_dir)
+    name = small.pins.historical_test_files["dense"]
+    path = small.paths.results_dir / name
+    path.write_bytes(path.read_bytes() + b" ")
+    with pytest.raises(ReplacementRunError, match="sha256"):
+        read_historical_test_figures(frozen, small.paths.results_dir)
+
+
+def test_the_reader_returns_the_two_test_files_figures_under_the_freeze(small):
+    frozen = load_freeze(small.replacement_dir)
+    assert isinstance(frozen, Phase6Freeze)
+    figures = read_historical_test_figures(frozen, small.paths.results_dir)
+    assert set(figures) == {"dense", "hybrid-bm25"}
+    assert "budget_2048" in figures["dense"]["metrics"]
+
+
+# --- The delta confirmation -------------------------------------------------------------------
+
+
+def historical_pair(control: int, dense: int, n: int = N_TEST) -> dict[str, dict]:
+    def one(count: int) -> dict:
+        return {
+            "metrics": {"budget_2048": {"full_support": count / n}},
+            "cost": {"n_questions": n},
+        }
+
+    return {"hybrid-bm25": one(control), "dense": one(dense)}
+
+
+def parameters() -> dict:
+    from concept_embeddings_rag.evaluation.replacement_decision import parameters_payload
+
+    return json.loads(json.dumps(parameters_payload()))
+
+
+def test_the_delta_source_is_confirmed_when_the_pair_differs_by_m1():
+    record = confirm_delta_source(historical_pair(1210, 1155), parameters())
+    assert record["passed"] is True
+    assert (record["control_count"], record["dense_count"], record["difference"]) == (
+        1210,
+        1155,
+        55,
+    )
+
+
+@pytest.mark.parametrize(("control", "dense"), [(1209, 1155), (1210, 1154), (1000, 1000)])
+def test_a_pair_whose_difference_is_not_m1_is_not_confirmed(control, dense):
+    assert confirm_delta_source(historical_pair(control, dense), parameters())["passed"] is False
+
+
+def test_a_pair_whose_mean_is_not_a_count_of_the_population_is_not_confirmed():
+    pair = historical_pair(1210, 1155)
+    pair["dense"]["metrics"]["budget_2048"]["full_support"] += 1e-6
+    assert confirm_delta_source(pair, parameters())["passed"] is False
+
+
+@pytest.mark.parametrize("mode", [None, "re-measured"])
+def test_an_unconfirmed_delta_source_stops_before_b_in_both_modes(small, monkeypatch, mode):
+    publish_example(monkeypatch)
+    deviation = a_deviation(small) if mode else None
+    result = run_test(environment(small), control_mode=mode, deviation=deviation)
+
+    assert result.passed is False
+    assert "delta" in result.message
+    assert b_files(small.replacement_dir) == []
+    record = json.loads((small.replacement_dir / TEST_REPRODUCTION_FILENAME).read_text("utf-8"))
+    assert record["delta_confirmation"]["passed"] is False
+
+
+# --- The ordered protocol ---------------------------------------------------------------------
+
+
+def test_a_failed_reproduction_in_reused_mode_stops_with_no_b_figure(small, monkeypatch):
+    publish_example(monkeypatch)
+    delta_confirmed(monkeypatch)
+    original = replacement_run.read_historical_test_figures
+
+    def nudged(frozen, results_dir):
+        figures = original(frozen, results_dir)
+        figures["dense"]["metrics"]["recall_at_2"] += 1e-9
+        return figures
+
+    monkeypatch.setattr(replacement_run, "read_historical_test_figures", nudged)
+    result = run_test(environment(small))
+
+    assert result.passed is False
+    record = json.loads((small.replacement_dir / TEST_REPRODUCTION_FILENAME).read_text("utf-8"))
+    assert record["stops_run"] is True
+    assert b_files(small.replacement_dir) == []
+    assert cli.cmd_replace_test(environment(small)) == 1
+
+
+def test_the_call_order_is_dense_a_reader_reproduction_then_b(full, monkeypatch):
+    publish_example(monkeypatch)
+    delta_confirmed(monkeypatch)
+    order: list[str] = []
+    original_measure = replacement_run.measure
+    original_reader = replacement_run.read_historical_test_figures
+    original_compare = replacement_run.compare_test_reproduction
+
+    def measure(retriever, **kwargs):
+        measured = original_measure(retriever, **kwargs)
+        assert measured.run_path.exists() and measured.outcomes.path.exists()
+        order.append(retriever.name)
+        return measured
+
+    def reader(frozen, results_dir):
+        assert order == ["dense", "hybrid-bm25"], "the reader ran before dense and A were written"
+        order.append("historical test figures")
+        return original_reader(frozen, results_dir)
+
+    def compare(*args, **kwargs):
+        order.append("reproduction check")
+        return original_compare(*args, **kwargs)
+
+    monkeypatch.setattr(replacement_run, "measure", measure)
+    monkeypatch.setattr(replacement_run, "read_historical_test_figures", reader)
+    monkeypatch.setattr(replacement_run, "compare_test_reproduction", compare)
+
+    # Re-measured, because the toy's A - dense on test is not 55 questions: in reused mode the
+    # decision would rightly refuse it (m1_check, D13).
+    result = run_test(environment(full), control_mode="re-measured", deviation=a_deviation(full))
+
+    assert result.passed, result.message
+    assert order == [
+        "dense",
+        "hybrid-bm25",
+        "historical test figures",
+        "reproduction check",
+        "hybrid-entity-hop",
+    ]
+    directory = full.replacement_dir
+    for name in ("decision.json", "diagnostics-test.json", "traces-test.json", "readout-test.json"):
+        assert (directory / name).exists(), name
+    assert len(files(directory, "run-hybrid-entity-hop-test-*.json")) == 1
+
+
+def test_every_test_result_carries_the_freeze_and_the_identities(full, monkeypatch):
+    publish_example(monkeypatch)
+    delta_confirmed(monkeypatch)
+    deviation = a_deviation(full)
+    assert run_test(environment(full), control_mode="re-measured", deviation=deviation).passed
+    frozen = load_freeze(full.replacement_dir)
+    results = files(full.replacement_dir, "run-*-test-*.json")
+    assert {json.loads(p.read_text("utf-8"))["system"] for p in results} == {
+        "dense",
+        "hybrid-bm25",
+        "hybrid-entity-hop",
+    }
+    for path in results:
+        result = json.loads(path.read_text(encoding="utf-8"))
+        config = result["config"]
+        assert config["freeze_digest"] == frozen.digest
+        assert config["frozen_at"] == frozen.frozen_at
+        assert config["unit_set_hash"] == full.pins.unit_set_hash
+        assert config["dense_identity"]["question_cache_key"]
+        assert config["bm25_identity"]["stopwords"] == "en"
+        assert config["code_version"] and config["phase"] == 6
+        assert result["created_at"] >= frozen.frozen_at
+        if result["system"] == "hybrid-entity-hop":
+            assert config["entity_component"]["node_index_digest"] == full.pins.node_index_digest
+        if result["system"] == "hybrid-bm25":
+            assert config["control_mode"] == "re-measured"
+
+
+def test_the_decision_is_computed_from_outcomes_read_back_from_disk(full, monkeypatch):
+    publish_example(monkeypatch)
+    delta_confirmed(monkeypatch)
+    seen: dict[str, Any] = {}
+    original = replacement_run.compute_decision
+
+    def spy(freeze, outcomes, test_reproduction):
+        seen.update(outcomes)
+        return original(freeze, outcomes, test_reproduction)
+
+    monkeypatch.setattr(replacement_run, "compute_decision", spy)
+    deviation = a_deviation(full)
+    assert run_test(environment(full), control_mode="re-measured", deviation=deviation).passed
+
+    assert set(seen) == {"dense", "hybrid-bm25", "hybrid-entity-hop"}
+    for artifact in seen.values():
+        assert isinstance(artifact, PerQuestionOutcomes)
+        assert artifact.path.exists()
+        on_disk = json.loads(artifact.path.read_text(encoding="utf-8"))
+        assert on_disk["digest"] == artifact.digest
+    decision = json.loads((full.replacement_dir / "decision.json").read_text(encoding="utf-8"))
+    assert decision["outcome_digests"] == {system: a.digest for system, a in seen.items()}
+    assert decision["primary"]["n"] == N_TEST
+
+
+def test_a_second_run_refuses_on_the_existing_dense_test_result(small, monkeypatch):
+    publish_example(monkeypatch)
+    assert run_test(environment(small)).passed is False  # stops at the delta confirmation
+    assert files(small.replacement_dir, "run-dense-test-*.json")
+    with pytest.raises(ReplacementRunError, match="exists"):
+        run_test(environment(small))
+
+
+def test_re_measured_with_a_deviation_re_reads_dense_and_a_into_second_files_and_evaluates_b_once(
+    full, monkeypatch
+):
+    publish_example(monkeypatch)
+    first = run_test(environment(full))
+    assert first.passed is False, "the toy's historical counts are not a 55-question difference"
+
+    delta_confirmed(monkeypatch)
+    deviation = a_deviation(full)
+    result = run_test(environment(full), control_mode="re-measured", deviation=deviation)
+
+    assert result.passed, result.message
+    directory = full.replacement_dir
+    assert files(directory, "outcomes-dense-test-2.json")
+    assert files(directory, "outcomes-hybrid-bm25-test-2.json")
+    assert len(files(directory, "outcomes-hybrid-entity-hop-test*.json")) == 1
+    decision = json.loads((directory / "decision.json").read_text(encoding="utf-8"))
+    assert decision["control_mode"] == "re-measured"
+    assert files(directory, "test-reproduction-2.json")
+
+
+def test_re_measured_without_an_existing_deviation_is_refused(small, monkeypatch):
+    publish_example(monkeypatch)
+    run_test(environment(small))
+    with pytest.raises(ReplacementRunError, match="deviation"):
+        run_test(environment(small), control_mode="re-measured", deviation="missing.md")
+
+
+# --- The superseding freeze (OI-4) ------------------------------------------------------------
+
+
+def test_the_superseding_freeze_branch(small, monkeypatch):
+    publish_example(monkeypatch)
+    assert run_test(environment(small)).passed is False
+    first = load_freeze(small.replacement_dir)
+    deviation = a_deviation(small)
+
+    with pytest.raises(ReplacementRunError, match="deviation"):
+        run_freeze(environment(small), supersede=True, control_mode="re-measured")
+    superseding = run_freeze(
+        environment(small), supersede=True, control_mode="re-measured", deviation=deviation
+    )
+
+    assert superseding.passed, superseding.message
+    assert superseding.path.name == "freeze-2.json"
+    valid = load_freeze(small.replacement_dir)
+    assert valid.payload["supersedes"] == first.digest
+    assert valid.payload["deviation"] == deviation
+    assert valid.control_mode == "re-measured"
+
+    again = run_test(environment(small), control_mode="re-measured", deviation=deviation)
+    assert again.passed is False  # the toy's delta source again, before B
+    re_read = json.loads(
+        (small.replacement_dir / "outcomes-dense-test-2.json").read_text(encoding="utf-8")
+    )
+    assert re_read["freeze_digest"] == valid.digest
+    assert b_files(small.replacement_dir) == []
+
+
+def test_the_cli_test_command_reports_a_refusal(small):
+    assert cli.cmd_replace_test(environment(small)) == 1
+
+
+def test_the_cli_test_stage_takes_the_re_measured_branch_options():
+    args = cli.build_parser().parse_args(
+        ["replace-test", "--control-mode", "re-measured", "--deviation", "docs/x.md"]
+    )
+    assert (args.control_mode, args.deviation) == ("re-measured", "docs/x.md")
+    args = cli.build_parser().parse_args(["replace-freeze", "--supersede"])
+    assert args.supersede is True
