@@ -1905,7 +1905,14 @@ def build_parser() -> argparse.ArgumentParser:
         "replace-test", help="Phase 6 on test, once, under the freeze: the ordered protocol"
     )
     testing.add_argument(
-        "--control-mode", choices=("reused", "re-measured"), default=None, dest="control_mode"
+        "--control-mode",
+        choices=("reused", "re-measured"),
+        default=None,
+        dest="control_mode",
+        help=(
+            "re-measured only on the deviation branch of D14: after a reused test run stopped on "
+            "a failed reproduction and a superseding freeze was written"
+        ),
     )
     testing.add_argument("--deviation", default=None, help="path of the 6.Y deviation document")
     extraction = subparsers.add_parser(

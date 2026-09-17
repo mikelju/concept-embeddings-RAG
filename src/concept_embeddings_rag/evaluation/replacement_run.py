@@ -987,6 +987,100 @@ def _next_free(directory: Path, filename: str) -> Path:
     return path
 
 
+def load_test_reproductions(directory: Path) -> list[dict[str, Any]]:
+    """Every `test-reproduction*.json` record in the directory, each verified against its digest."""
+    records: list[dict[str, Any]] = []
+    for path in _files(directory, "test-reproduction*.json"):
+        payload: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+        if payload.get("digest") != digest_of_payload(payload):
+            raise ReplacementRunError(f"{path.name} does not match its digest; it was modified")
+        records.append(payload)
+    return records
+
+
+def _stopped_by_a_failed_reproduction(record: Mapping[str, Any]) -> bool:
+    """A reused test run that confirmed delta's source, then failed its reproduction before B."""
+    checks = record.get("checks")
+    delta = record.get("delta_confirmation") or {}
+    return (
+        record.get("mode") == REUSED
+        and delta.get("passed") is True
+        and isinstance(checks, list)
+        and any(check.get("passed") is False for check in checks)
+        and record.get("passed") is False
+        and record.get("stops_run") is True
+    )
+
+
+def check_deviation_branch(
+    directory: Path,
+    frozen: Phase6Freeze,
+    *,
+    control_mode: str | None,
+    deviation: str | None,
+) -> None:
+    """`--control-mode re-measured` on test, admitted only on the deviation branch of D14 (OI-4).
+
+    Admitted if and only if every one of these holds:
+
+    - the valid freeze supersedes an earlier freeze (and so names an existing deviation, which
+      `load_freeze` verifies);
+    - a test run under that earlier freeze, in reused mode, confirmed delta's source, failed its
+      reproduction and stopped before B, and the dense and A results it wrote still exist;
+    - nothing has been read on test under the superseding freeze yet;
+    - the deviation document passed exists.
+
+    A superseding freeze is read on test in no other way, with or without the flag. A freeze that
+    is re-measured because replace-check found the control incompatible on dev (HU-2) supersedes
+    nothing: its first test read takes the mode from the freeze, and the flag is refused there.
+    """
+    superseded = frozen.payload.get("supersedes")
+    requested = control_mode == REMEASURED
+    if superseded is None:
+        if requested:
+            raise ReplacementRunError(
+                "--control-mode re-measured on test is admitted only on the deviation branch of "
+                "D14 (OI-4): the valid freeze supersedes no earlier freeze, so no test run has "
+                "stopped on a failed reproduction under a freeze it replaces"
+            )
+        return
+    if not requested:
+        raise ReplacementRunError(
+            "the valid freeze supersedes an earlier one: it is read on test only with "
+            "--control-mode re-measured --deviation <document>, on the deviation branch of D14"
+        )
+    if deviation is None or not _resolve_existing(deviation):
+        raise ReplacementRunError("re-measured on test needs an existing deviation document")
+    records = load_test_reproductions(directory)
+    if any(record.get("freeze_digest") == frozen.digest for record in records):
+        raise ReplacementRunError(
+            "the superseding freeze has already been read on test; a further re-read needs a new "
+            "deviation document and a new superseding freeze"
+        )
+    stopped = [
+        record
+        for record in records
+        if record.get("freeze_digest") == superseded and _stopped_by_a_failed_reproduction(record)
+    ]
+    if not stopped:
+        raise ReplacementRunError(
+            "re-measured on test needs a reused test run under the superseded freeze that "
+            "confirmed delta's source and stopped on a failed reproduction before B; none is "
+            "recorded"
+        )
+    observed = stopped[-1].get("observed_runs") or {}
+    missing = [
+        system
+        for system in (DENSE, CONTROL)
+        if not observed.get(system) or not (directory / str(observed[system])).exists()
+    ]
+    if missing:
+        raise ReplacementRunError(
+            f"the {HELD_OUT} results of the stopped run are missing for {missing}; the deviation "
+            "branch re-reads a run that exists"
+        )
+
+
 def _check_inputs_against_freeze(inputs: VerifiedInputs, frozen: Phase6Freeze) -> None:
     payload = frozen.payload
     for label, identity in payload["control"]["historical_files"].items():
@@ -1063,10 +1157,9 @@ def run_test(
     mode = freeze_mode if control_mode is None else control_mode
     if mode not in (REUSED, REMEASURED):
         raise ReplacementRunError(f"unknown control mode {mode!r}")
+    check_deviation_branch(directory, frozen, control_mode=control_mode, deviation=deviation)
     if mode == REUSED and freeze_mode != REUSED:
         raise ReplacementRunError("the freeze records a re-measured control")
-    if control_mode == REMEASURED and (deviation is None or not _resolve_existing(deviation)):
-        raise ReplacementRunError("re-measured on test needs an existing deviation document")
     existing = [
         *_files(directory, f"run-{DENSE}-{HELD_OUT}-*.json"),
         *_files(directory, f"run-{CONTROL}-{HELD_OUT}-*.json"),

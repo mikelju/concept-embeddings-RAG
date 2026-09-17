@@ -572,19 +572,8 @@ def full_on_the_branch(frozen_full, tmp_path_factory) -> ToyPipeline:
     """The full toy on D14's deviation branch (OI-4): a reused test run stopped by a failed
     reproduction before B, a deviation document, and a superseding re-measured freeze."""
     pipeline = relocated(frozen_full, tmp_path_factory.mktemp("branch") / "toy")
-    with pytest.MonkeyPatch.context() as patch:
-        publish_example(patch)
-        delta_confirmed(patch)
-        nudge_test_reproduction(patch)
-        stopped = run_test(environment(pipeline))
-    assert stopped.passed is False and "reproduction" in stopped.message
-    superseding = run_freeze(
-        environment(pipeline),
-        supersede=True,
-        control_mode="re-measured",
-        deviation=a_deviation(pipeline),
-    )
-    assert superseding.passed, superseding.message
+    stop_on_a_failed_reproduction(pipeline)
+    write_superseding_freeze(pipeline)
     return pipeline
 
 
@@ -707,16 +696,34 @@ def test_a_pair_whose_mean_is_not_a_count_of_the_population_is_not_confirmed():
     assert confirm_delta_source(pair, parameters())["passed"] is False
 
 
-@pytest.mark.parametrize("mode", [None, "re-measured"])
-def test_an_unconfirmed_delta_source_stops_before_b_in_both_modes(small, monkeypatch, mode):
+def test_an_unconfirmed_delta_source_stops_before_b_in_reused_mode(small, monkeypatch):
     publish_example(monkeypatch)
-    deviation = a_deviation(small) if mode else None
-    result = run_test(environment(small), control_mode=mode, deviation=deviation)
+    result = run_test(environment(small))
 
     assert result.passed is False
     assert "delta" in result.message
     assert b_files(small.replacement_dir) == []
     record = json.loads((small.replacement_dir / TEST_REPRODUCTION_FILENAME).read_text("utf-8"))
+    assert record["delta_confirmation"]["passed"] is False
+
+
+def test_an_unconfirmed_delta_source_stops_before_b_on_the_deviation_branch_too(
+    on_the_branch, monkeypatch
+):
+    publish_example(monkeypatch)
+    result = run_test(
+        environment(on_the_branch),
+        control_mode="re-measured",
+        deviation=branch_deviation(on_the_branch),
+    )
+
+    assert result.passed is False
+    assert "delta" in result.message
+    assert b_files(on_the_branch.replacement_dir) == []
+    record = json.loads(
+        (on_the_branch.replacement_dir / "test-reproduction-2.json").read_text("utf-8")
+    )
+    assert record["mode"] == "re-measured"
     assert record["delta_confirmation"]["passed"] is False
 
 
@@ -736,7 +743,7 @@ def test_a_failed_reproduction_in_reused_mode_stops_with_no_b_figure(small, monk
     assert cli.cmd_replace_test(environment(small)) == 1
 
 
-def test_the_call_order_is_dense_a_reader_reproduction_then_b(full, monkeypatch):
+def test_the_call_order_is_dense_a_reader_reproduction_then_b(on_the_branch, monkeypatch):
     publish_example(monkeypatch)
     delta_confirmed(monkeypatch)
     order: list[str] = []
@@ -763,9 +770,13 @@ def test_the_call_order_is_dense_a_reader_reproduction_then_b(full, monkeypatch)
     monkeypatch.setattr(replacement_run, "read_historical_test_figures", reader)
     monkeypatch.setattr(replacement_run, "compare_test_reproduction", compare)
 
-    # Re-measured, because the toy's A - dense on test is not 55 questions: in reused mode the
-    # decision would rightly refuse it (m1_check, D13).
-    result = run_test(environment(full), control_mode="re-measured", deviation=a_deviation(full))
+    # On the deviation branch, because the toy's A - dense on test is not 55 questions: in reused
+    # mode the decision would rightly refuse it (m1_check, D13).
+    result = run_test(
+        environment(on_the_branch),
+        control_mode="re-measured",
+        deviation=branch_deviation(on_the_branch),
+    )
 
     assert result.passed, result.message
     assert order == [
@@ -775,41 +786,52 @@ def test_the_call_order_is_dense_a_reader_reproduction_then_b(full, monkeypatch)
         "reproduction check",
         "hybrid-entity-hop",
     ]
-    directory = full.replacement_dir
+    directory = on_the_branch.replacement_dir
     for name in ("decision.json", "diagnostics-test.json", "traces-test.json", "readout-test.json"):
         assert (directory / name).exists(), name
     assert len(files(directory, "run-hybrid-entity-hop-test-*.json")) == 1
 
 
-def test_every_test_result_carries_the_freeze_and_the_identities(full, monkeypatch):
+def test_every_test_result_carries_the_freeze_and_the_identities(on_the_branch, monkeypatch):
     publish_example(monkeypatch)
     delta_confirmed(monkeypatch)
-    deviation = a_deviation(full)
-    assert run_test(environment(full), control_mode="re-measured", deviation=deviation).passed
-    frozen = load_freeze(full.replacement_dir)
-    results = files(full.replacement_dir, "run-*-test-*.json")
-    assert {json.loads(p.read_text("utf-8"))["system"] for p in results} == {
+    deviation = branch_deviation(on_the_branch)
+    assert run_test(
+        environment(on_the_branch), control_mode="re-measured", deviation=deviation
+    ).passed
+    frozen = load_freeze(on_the_branch.replacement_dir)
+    superseded = frozen.payload["supersedes"]
+    everything = [
+        json.loads(path.read_text(encoding="utf-8"))
+        for path in files(on_the_branch.replacement_dir, "run-*-test-*.json")
+    ]
+    # The stopped run's dense and A were read under the superseded freeze; nothing else was.
+    assert {result["config"]["freeze_digest"] for result in everything} == {
+        superseded,
+        frozen.digest,
+    }
+    results = [r for r in everything if r["config"]["freeze_digest"] == frozen.digest]
+    assert sorted(result["system"] for result in results) == [
         "dense",
         "hybrid-bm25",
         "hybrid-entity-hop",
-    }
-    for path in results:
-        result = json.loads(path.read_text(encoding="utf-8"))
+    ]
+    for result in results:
         config = result["config"]
-        assert config["freeze_digest"] == frozen.digest
         assert config["frozen_at"] == frozen.frozen_at
-        assert config["unit_set_hash"] == full.pins.unit_set_hash
+        assert config["unit_set_hash"] == on_the_branch.pins.unit_set_hash
         assert config["dense_identity"]["question_cache_key"]
         assert config["bm25_identity"]["stopwords"] == "en"
         assert config["code_version"] and config["phase"] == 6
         assert result["created_at"] >= frozen.frozen_at
         if result["system"] == "hybrid-entity-hop":
-            assert config["entity_component"]["node_index_digest"] == full.pins.node_index_digest
+            pins = on_the_branch.pins
+            assert config["entity_component"]["node_index_digest"] == pins.node_index_digest
         if result["system"] == "hybrid-bm25":
             assert config["control_mode"] == "re-measured"
 
 
-def test_the_decision_is_computed_from_outcomes_read_back_from_disk(full, monkeypatch):
+def test_the_decision_is_computed_from_outcomes_read_back_from_disk(on_the_branch, monkeypatch):
     publish_example(monkeypatch)
     delta_confirmed(monkeypatch)
     seen: dict[str, Any] = {}
@@ -820,8 +842,10 @@ def test_the_decision_is_computed_from_outcomes_read_back_from_disk(full, monkey
         return original(freeze, outcomes, test_reproduction)
 
     monkeypatch.setattr(replacement_run, "compute_decision", spy)
-    deviation = a_deviation(full)
-    assert run_test(environment(full), control_mode="re-measured", deviation=deviation).passed
+    deviation = branch_deviation(on_the_branch)
+    assert run_test(
+        environment(on_the_branch), control_mode="re-measured", deviation=deviation
+    ).passed
 
     assert set(seen) == {"dense", "hybrid-bm25", "hybrid-entity-hop"}
     for artifact in seen.values():
@@ -829,7 +853,8 @@ def test_the_decision_is_computed_from_outcomes_read_back_from_disk(full, monkey
         assert artifact.path.exists()
         on_disk = json.loads(artifact.path.read_text(encoding="utf-8"))
         assert on_disk["digest"] == artifact.digest
-    decision = json.loads((full.replacement_dir / "decision.json").read_text(encoding="utf-8"))
+    directory = on_the_branch.replacement_dir
+    decision = json.loads((directory / "decision.json").read_text(encoding="utf-8"))
     assert decision["outcome_digests"] == {system: a.digest for system, a in seen.items()}
     assert decision["primary"]["n"] == N_TEST
 
@@ -842,40 +867,59 @@ def test_a_second_run_refuses_on_the_existing_dense_test_result(small, monkeypat
         run_test(environment(small))
 
 
-def test_re_measured_with_a_deviation_re_reads_dense_and_a_into_second_files_and_evaluates_b_once(
-    full, monkeypatch
+def test_re_measured_on_the_deviation_branch_re_reads_dense_and_a_and_evaluates_b_once(
+    on_the_branch, monkeypatch
 ):
     publish_example(monkeypatch)
-    first = run_test(environment(full))
-    assert first.passed is False, "the toy's historical counts are not a 55-question difference"
-
     delta_confirmed(monkeypatch)
-    deviation = a_deviation(full)
-    result = run_test(environment(full), control_mode="re-measured", deviation=deviation)
+    deviation = branch_deviation(on_the_branch)
+    result = run_test(environment(on_the_branch), control_mode="re-measured", deviation=deviation)
 
     assert result.passed, result.message
-    directory = full.replacement_dir
+    directory = on_the_branch.replacement_dir
     assert files(directory, "outcomes-dense-test-2.json")
     assert files(directory, "outcomes-hybrid-bm25-test-2.json")
     assert len(files(directory, "outcomes-hybrid-entity-hop-test*.json")) == 1
     decision = json.loads((directory / "decision.json").read_text(encoding="utf-8"))
     assert decision["control_mode"] == "re-measured"
-    assert files(directory, "test-reproduction-2.json")
+    second = json.loads((directory / "test-reproduction-2.json").read_text(encoding="utf-8"))
+    assert second["mode"] == "re-measured"
+    assert second["freeze_digest"] == load_freeze(directory).digest
 
 
-def test_re_measured_without_an_existing_deviation_is_refused(small, monkeypatch):
+def test_re_measured_without_an_existing_deviation_is_refused(on_the_branch, monkeypatch):
     publish_example(monkeypatch)
-    run_test(environment(small))
-    with pytest.raises(ReplacementRunError, match="deviation"):
-        run_test(environment(small), control_mode="re-measured", deviation="missing.md")
+    with pytest.raises(ReplacementRunError, match="deviation document"):
+        run_test(environment(on_the_branch), control_mode="re-measured", deviation="missing.md")
+    with pytest.raises(ReplacementRunError, match="deviation document"):
+        run_test(environment(on_the_branch), control_mode="re-measured")
+    assert not files(on_the_branch.replacement_dir, "*-test-2.json")
 
 
 # --- The superseding freeze (OI-4) ------------------------------------------------------------
 
 
+def stop_on_a_failed_reproduction(pipeline: ToyPipeline) -> None:
+    """A reused test run that confirms delta's source, then fails its reproduction before B."""
+    with pytest.MonkeyPatch.context() as patch:
+        publish_example(patch)
+        delta_confirmed(patch)
+        nudge_test_reproduction(patch)
+        stopped = run_test(environment(pipeline))
+    assert stopped.passed is False and "reproduction" in stopped.message
+
+
+def write_superseding_freeze(pipeline: ToyPipeline) -> str:
+    deviation = a_deviation(pipeline)
+    superseding = run_freeze(
+        environment(pipeline), supersede=True, control_mode="re-measured", deviation=deviation
+    )
+    assert superseding.passed, superseding.message
+    return deviation
+
+
 def test_the_superseding_freeze_branch(small, monkeypatch):
-    publish_example(monkeypatch)
-    assert run_test(environment(small)).passed is False
+    stop_on_a_failed_reproduction(small)
     first = load_freeze(small.replacement_dir)
     deviation = a_deviation(small)
 
@@ -892,13 +936,148 @@ def test_the_superseding_freeze_branch(small, monkeypatch):
     assert valid.payload["deviation"] == deviation
     assert valid.control_mode == "re-measured"
 
+    publish_example(monkeypatch)
     again = run_test(environment(small), control_mode="re-measured", deviation=deviation)
-    assert again.passed is False  # the toy's delta source again, before B
+    assert again.passed is False  # the toy's delta source this time, before B
     re_read = json.loads(
         (small.replacement_dir / "outcomes-dense-test-2.json").read_text(encoding="utf-8")
     )
     assert re_read["freeze_digest"] == valid.digest
     assert b_files(small.replacement_dir) == []
+
+    # The superseding freeze has now been read on test: a further re-read needs a new deviation
+    # and a new superseding freeze, not the same flag again.
+    with pytest.raises(ReplacementRunError, match="already been read"):
+        run_test(environment(small), control_mode="re-measured", deviation=deviation)
+    assert not files(small.replacement_dir, "*-test-3.json")
+
+
+# --- re-measured on test: only on the deviation branch of D14 (OI-4) ---------------------------
+
+
+def held_out_files(directory: Path) -> list[Path]:
+    return files(directory, "*-test-*.json")
+
+
+def test_a_first_replace_test_with_re_measured_is_refused(small, monkeypatch):
+    publish_example(monkeypatch)
+    delta_confirmed(monkeypatch)
+    deviation = a_deviation(small)
+
+    with pytest.raises(ReplacementRunError, match="deviation branch"):
+        run_test(environment(small), control_mode="re-measured", deviation=deviation)
+    assert held_out_files(small.replacement_dir) == []
+    assert not (small.replacement_dir / TEST_REPRODUCTION_FILENAME).exists()
+
+
+def test_re_measured_is_refused_after_a_reproduction_failure_without_a_superseding_freeze(
+    small, monkeypatch
+):
+    stop_on_a_failed_reproduction(small)
+    publish_example(monkeypatch)
+    delta_confirmed(monkeypatch)
+    before = held_out_files(small.replacement_dir)
+
+    with pytest.raises(ReplacementRunError, match="supersedes no earlier freeze"):
+        run_test(environment(small), control_mode="re-measured", deviation=a_deviation(small))
+    assert held_out_files(small.replacement_dir) == before
+
+
+def test_re_measured_is_refused_when_the_stop_was_the_delta_source_not_the_reproduction(
+    small, monkeypatch
+):
+    publish_example(monkeypatch)
+    stopped = run_test(environment(small))
+    assert stopped.passed is False and "delta" in stopped.message
+    deviation = write_superseding_freeze(small)
+    delta_confirmed(monkeypatch)
+    before = held_out_files(small.replacement_dir)
+
+    with pytest.raises(ReplacementRunError, match="failed reproduction"):
+        run_test(environment(small), control_mode="re-measured", deviation=deviation)
+    assert held_out_files(small.replacement_dir) == before
+
+
+def test_a_superseding_freeze_with_no_stopped_test_run_is_never_read_on_test(small, monkeypatch):
+    deviation = write_superseding_freeze(small)
+    publish_example(monkeypatch)
+    delta_confirmed(monkeypatch)
+
+    with pytest.raises(ReplacementRunError, match="failed reproduction"):
+        run_test(environment(small), control_mode="re-measured", deviation=deviation)
+    with pytest.raises(ReplacementRunError, match="supersedes an earlier"):
+        run_test(environment(small))
+    assert held_out_files(small.replacement_dir) == []
+
+
+@pytest.mark.parametrize("mode", [None, "reused"])
+def test_a_superseding_freeze_is_read_on_test_only_with_re_measured(
+    on_the_branch, monkeypatch, mode
+):
+    publish_example(monkeypatch)
+    delta_confirmed(monkeypatch)
+    before = held_out_files(on_the_branch.replacement_dir)
+
+    with pytest.raises(ReplacementRunError, match="supersedes an earlier"):
+        run_test(
+            environment(on_the_branch),
+            control_mode=mode,
+            deviation=branch_deviation(on_the_branch),
+        )
+    assert held_out_files(on_the_branch.replacement_dir) == before
+
+
+def test_re_measured_is_refused_when_the_stopped_runs_results_are_missing(
+    on_the_branch, monkeypatch
+):
+    publish_example(monkeypatch)
+    delta_confirmed(monkeypatch)
+    for path in files(on_the_branch.replacement_dir, "run-dense-test-*.json"):
+        path.unlink()
+
+    with pytest.raises(ReplacementRunError, match="stopped run"):
+        run_test(
+            environment(on_the_branch),
+            control_mode="re-measured",
+            deviation=branch_deviation(on_the_branch),
+        )
+
+
+def test_a_modified_record_of_the_stopped_run_is_refused(on_the_branch, monkeypatch):
+    publish_example(monkeypatch)
+    delta_confirmed(monkeypatch)
+    record = on_the_branch.replacement_dir / TEST_REPRODUCTION_FILENAME
+    payload = json.loads(record.read_text(encoding="utf-8"))
+    payload["observed_runs"]["dense"] = "run-dense-test-elsewhere.json"
+    record.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+
+    with pytest.raises(ReplacementRunError, match="digest"):
+        run_test(
+            environment(on_the_branch),
+            control_mode="re-measured",
+            deviation=branch_deviation(on_the_branch),
+        )
+
+
+def test_a_dev_branch_freeze_is_read_on_test_without_the_flag_and_refuses_it(toy, monkeypatch):
+    """The other re-measured control of the spec (HU-2, incompatible at dev): the freeze itself is
+    re-measured and supersedes nothing. Its first test read takes the mode from the freeze; the
+    explicit flag stays reserved to the deviation branch of D14."""
+    nudge_historical_dev_precision(toy)
+    assert run_check(environment(toy)).passed is False
+    deviation = toy.root / "6.1_control_mismatch.md"
+    deviation.write_text("# 6.1 toy deviation", encoding="utf-8")
+    assert run_freeze(environment(toy), control_mode="re-measured", deviation=str(deviation)).passed
+    publish_example(monkeypatch)
+
+    with pytest.raises(ReplacementRunError, match="deviation branch"):
+        run_test(environment(toy), control_mode="re-measured", deviation=str(deviation))
+    assert held_out_files(toy.replacement_dir) == []
+
+    result = run_test(environment(toy))
+    assert result.passed is False and "delta" in result.message  # past the gate, the toy's delta
+    record = json.loads((toy.replacement_dir / TEST_REPRODUCTION_FILENAME).read_text("utf-8"))
+    assert record["mode"] == "re-measured"
 
 
 def test_the_cli_test_command_reports_a_refusal(small):
