@@ -6,11 +6,13 @@ real one. Nothing here reads or writes the real `data/`.
 """
 
 import ast
+import importlib.util
 import json
+import re
 import sys
 from collections.abc import Iterator, Mapping
 from pathlib import Path
-from types import MappingProxyType
+from types import MappingProxyType, ModuleType
 from typing import Any
 
 import numpy as np
@@ -553,6 +555,49 @@ def a_deviation(pipeline: ToyPipeline, name: str = "6.2_test_mismatch.md") -> st
     return str(path)
 
 
+def nudge_test_reproduction(patch: pytest.MonkeyPatch) -> None:
+    """One historical test figure off by 1e-9: the reused reproduction fails as a real one would."""
+    original = replacement_run.read_historical_test_figures
+
+    def nudged(frozen, results_dir):
+        figures = original(frozen, results_dir)
+        figures["dense"]["metrics"]["recall_at_2"] += 1e-9
+        return figures
+
+    patch.setattr(replacement_run, "read_historical_test_figures", nudged)
+
+
+@pytest.fixture(scope="module")
+def full_on_the_branch(frozen_full, tmp_path_factory) -> ToyPipeline:
+    """The full toy on D14's deviation branch (OI-4): a reused test run stopped by a failed
+    reproduction before B, a deviation document, and a superseding re-measured freeze."""
+    pipeline = relocated(frozen_full, tmp_path_factory.mktemp("branch") / "toy")
+    with pytest.MonkeyPatch.context() as patch:
+        publish_example(patch)
+        delta_confirmed(patch)
+        nudge_test_reproduction(patch)
+        stopped = run_test(environment(pipeline))
+    assert stopped.passed is False and "reproduction" in stopped.message
+    superseding = run_freeze(
+        environment(pipeline),
+        supersede=True,
+        control_mode="re-measured",
+        deviation=a_deviation(pipeline),
+    )
+    assert superseding.passed, superseding.message
+    return pipeline
+
+
+@pytest.fixture
+def on_the_branch(full_on_the_branch, tmp_path) -> ToyPipeline:
+    return relocated(full_on_the_branch, tmp_path / "toy")
+
+
+def branch_deviation(pipeline: ToyPipeline) -> str:
+    """The deviation document the superseding freeze names."""
+    return str(load_freeze(pipeline.replacement_dir).payload["deviation"])
+
+
 # --- Step 1 refusals --------------------------------------------------------------------------
 
 
@@ -681,14 +726,7 @@ def test_an_unconfirmed_delta_source_stops_before_b_in_both_modes(small, monkeyp
 def test_a_failed_reproduction_in_reused_mode_stops_with_no_b_figure(small, monkeypatch):
     publish_example(monkeypatch)
     delta_confirmed(monkeypatch)
-    original = replacement_run.read_historical_test_figures
-
-    def nudged(frozen, results_dir):
-        figures = original(frozen, results_dir)
-        figures["dense"]["metrics"]["recall_at_2"] += 1e-9
-        return figures
-
-    monkeypatch.setattr(replacement_run, "read_historical_test_figures", nudged)
+    nudge_test_reproduction(monkeypatch)
     result = run_test(environment(small))
 
     assert result.passed is False
@@ -874,3 +912,57 @@ def test_the_cli_test_stage_takes_the_re_measured_branch_options():
     assert (args.control_mode, args.deviation) == ("re-measured", "docs/x.md")
     args = cli.build_parser().parse_args(["replace-freeze", "--supersede"])
     assert args.supersede is True
+
+
+# --- The secrets gate's allowlist, reconciled with these writers (T20, D20) --------------------
+
+SECRETS_FILTER = Path(__file__).resolve().parents[1] / ".github" / "detect_secrets_filters.py"
+HEX_KEYED_LINE = re.compile(r'^\s*"(?P<key>[^"]+)": "(?P<hex>[0-9a-f]{16,})",?\s*$')
+HEX_BARE_LINE = re.compile(r'^\s*"(?P<hex>[0-9a-f]{16,})",?\s*$')
+
+
+def secrets_filter() -> ModuleType:
+    spec = importlib.util.spec_from_file_location("detect_secrets_filters", SECRETS_FILTER)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_the_secrets_allowlist_is_exactly_the_hex_keys_these_writers_emit(
+    on_the_branch, monkeypatch
+):
+    """Every artifact the three stages write on the deviation branch - the first freeze, the
+    stopped test run, the superseding freeze, the re-measured run and the decision - is read.
+    The (key, length) pairs holding a lowercase hex value must be the allowlist, no more and no
+    less; the one exception is a key detect-secrets' own id heuristic already skips (`unit_id`)."""
+    heuristic = pytest.importorskip("detect_secrets.filters.heuristic")
+    publish_example(monkeypatch)
+    delta_confirmed(monkeypatch)
+    result = run_test(
+        environment(on_the_branch),
+        control_mode="re-measured",
+        deviation=branch_deviation(on_the_branch),
+    )
+    assert result.passed, result.message
+
+    emitted: set[tuple[str, int]] = set()
+    left_to_the_heuristic: set[tuple[str, int]] = set()
+    bare_lengths: set[int] = set()
+    for path in files(on_the_branch.replacement_dir, "*.json"):
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if (keyed := HEX_KEYED_LINE.match(line)) is not None:
+                pair = (keyed["key"], len(keyed["hex"]))
+                if heuristic.is_likely_id_string(keyed["hex"], line):
+                    left_to_the_heuristic.add(pair)
+                else:
+                    emitted.add(pair)
+            elif (bare := HEX_BARE_LINE.match(line)) is not None:
+                bare_lengths.add(len(bare["hex"]))
+
+    module = secrets_filter()
+    allowlisted = {(key, length) for key, lengths in module.ALLOWLIST.items() for length in lengths}
+    assert emitted - allowlisted == set(), "hex keys the writers emit that the gate would report"
+    assert allowlisted - emitted == set(), "allowlisted keys no writer emits"
+    assert left_to_the_heuristic == {("unit_id", 16)}
+    assert bare_lengths <= module.BARE_LENGTHS

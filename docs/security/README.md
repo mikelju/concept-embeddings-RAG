@@ -313,10 +313,22 @@ so CI applies it. It skips a finding **if and only if all four hold**:
    `[0-9a-f]` only.
 4. **Value**: the flagged secret equals that `<hex>`.
 
-**The allowlist**, the key names of the spec's data contracts with these shapes: `qid` (24); `p1`,
-`unit_set_hash`, `prompt_digest` (16); `revision` (40); `digest`, `freeze_digest`,
-`node_index_digest`, `extraction_digest`, `pilot_digest`, `hop_run_digest`, `traces_digest`,
-`run_digest`, `sha256` (64).
+**The allowlist** is exactly the set of (key, length) pairs under which the Phase 6 writers put a
+lowercase hex value the detector flags, measured on a run of the three stages (completed on
+2026-09-17, before T21):
+- **24:** `qid`.
+- **16:** `p1`, `unit_set_hash`, `prompt_digest`, `corpus_cache_key`, `question_cache_key`,
+  `dev_question_cache_key`, and the question-set hashes under `dev` / `test`.
+- **40:** `revision`, `resolved_revision`.
+- **64:** `digest`, `freeze_digest`, `supersedes`, `node_index_digest`, `extraction_digest`,
+  `pilot_digest`, `hop_run_digest`, `traces_digest`, `run_digest`, `outcomes_digest`,
+  `first_digest`, `second_digest`, `sha256`, `manifest_sha256`, `token_counts_sha256`, and the
+  digests keyed by system name, `dense`, `hybrid-bm25`, `hybrid-entity-hop`.
+- **16 or 40:** `expected` / `observed` of the reproduction checks whose figure is itself an id
+  (`unit_set_hash`, `revision`).
+
+`unit_id` is deliberately absent: detect-secrets' own `is_likely_id_string` heuristic already skips
+it. Keys may contain `-`, for the system names.
 
 **What stays scanned inside `data/replacement/`**: every finding of every other detector; hex values
 of any other length or with uppercase letters; a hex value under a key off the list; any line
@@ -332,17 +344,23 @@ cases for every allowed and refused shape, an end-to-end run of the real scanner
 real baseline in a repository-shaped temporary tree, and structural checks), and a change to the
 module is reviewed the way a baseline change is.
 
-**Reconciled with the writers at T21-T23, not before.** The allowlist starts from the contract's key
-names only. A data-dependent test, skipped while `data/replacement/` holds no JSON, requires every
-allowlisted key to occur there. A key the hook flags when the T21, T22 or T23 artifacts are staged is
-added only by a reviewed change to the module and its test, committed on its own before the
-artifacts, never by regenerating the baseline. Measured on 2026-09-17 on a toy run of the three
-stages (not on real data), the writers also emit hex values under keys off the list, which the gate
-will therefore report when real artifacts are staged: `corpus_cache_key`, `question_cache_key` and
-the question-set hashes under `dev` / `test` (16); `resolved_revision` (40); `token_counts_sha256`,
-`outcomes_digest`, `first_digest`, `second_digest`, and digests keyed by system name (`dense`,
-`hybrid-bm25`, `hybrid-entity-hop`) (64); and `expected` / `observed` values of reproduction checks
-whose figure is itself an id (16 or 40). Deciding which of them to allowlist is that review's.
+**Reconciled with the writers before T21.** The first allowlist held the contract's key names only.
+A toy run of the three stages then showed hex values under keys off the list, which the gate would
+have reported on the first real artifacts. The review that D20 calls for completed the list from the
+writers themselves.
+
+The completion ran through the whole deviation branch: first freeze, a reused test run stopped by a
+failed reproduction, superseding freeze, re-measured test run. On that run it takes every hex-bearing
+key, confirms each one in the writers' source, and adds none that no writer emits.
+
+Two tests hold it there:
+- `tests/test_cli_replacement.py` repeats that run on the toy pipeline and requires the emitted
+  (key, length) pairs to equal the allowlist, no more and no less (`unit_id` excepted, see above);
+- `tests/test_security_gate.py` checks every key at its lengths and at every other length, the refused
+  shapes for the new keys, and that no exclusion of the baseline was widened.
+
+A data-dependent test still requires every allowlisted key to occur in the real `data/replacement/`
+once T21-T23 have written it.
 
 **Inline audits outside `data/replacement/`.** The Phase 6 source and tests hold hex literals the
 gate flags and the filter, by design, does not cover: the six pinned digests of D2 in `config.py`

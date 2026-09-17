@@ -223,23 +223,86 @@ ALLOWED = {
     "p1": (16,),
     "unit_set_hash": (16,),
     "prompt_digest": (16,),
+    "corpus_cache_key": (16,),
+    "question_cache_key": (16,),
+    "dev_question_cache_key": (16,),
+    "dev": (16,),
+    "test": (16,),
     "revision": (40,),
+    "resolved_revision": (40,),
+    "manifest_sha256": (64,),
+    "token_counts_sha256": (64,),
+    "sha256": (64,),
+    "expected": (16, 40),
+    "observed": (16, 40),
     "digest": (64,),
     "freeze_digest": (64,),
+    "supersedes": (64,),
     "node_index_digest": (64,),
     "extraction_digest": (64,),
     "pilot_digest": (64,),
     "hop_run_digest": (64,),
     "traces_digest": (64,),
     "run_digest": (64,),
-    "sha256": (64,),
+    "outcomes_digest": (64,),
+    "first_digest": (64,),
+    "second_digest": (64,),
+    "dense": (64,),
+    "hybrid-bm25": (64,),
+    "hybrid-entity-hop": (64,),
 }
+
+# The keys added on 2026-09-17, once the writers existed and had been run on the toy pipeline.
+ADDED_FROM_THE_WRITERS = (
+    "corpus_cache_key",
+    "question_cache_key",
+    "dev_question_cache_key",
+    "dev",
+    "test",
+    "resolved_revision",
+    "manifest_sha256",
+    "token_counts_sha256",
+    "expected",
+    "observed",
+    "supersedes",
+    "outcomes_digest",
+    "first_digest",
+    "second_digest",
+    "dense",
+    "hybrid-bm25",
+    "hybrid-entity-hop",
+)
+HEX_LENGTHS = (16, 24, 32, 40, 64)
 
 
 def test_the_allowlist_is_the_one_d20_declares():
     assert {
         key: tuple(sorted(lengths)) for key, lengths in the_filter().ALLOWLIST.items()
     } == ALLOWED
+    assert set(ADDED_FROM_THE_WRITERS) <= set(ALLOWED)
+
+
+def test_unit_id_is_not_allowlisted_because_detect_secrets_already_skips_it():
+    """Not added "just in case": the scanner's own id heuristic never flags a `unit_id` line."""
+    heuristic = pytest.importorskip("detect_secrets.filters.heuristic")
+    value = hex_of(16, "unit_id")
+
+    assert "unit_id" not in the_filter().ALLOWLIST
+    assert heuristic.is_likely_id_string(value, keyed("unit_id", value))
+
+
+@pytest.mark.parametrize(
+    ("key", "length"),
+    [
+        (key, length)
+        for key, lengths in ALLOWED.items()
+        for length in HEX_LENGTHS
+        if length not in lengths
+    ],
+)
+def test_every_allowlisted_key_at_any_other_length_is_reported(key, length):
+    value = hex_of(length, f"{key}-other")
+    assert not skips("data/replacement/freeze.json", keyed(key, value), value)
 
 
 @pytest.mark.parametrize(
@@ -281,6 +344,9 @@ def test_the_same_line_anywhere_else_is_reported(filename):
     ("line_of", "length"),
     [
         (lambda v: keyed("outcomes_digest_extra", v), 64),  # a key off the list
+        (lambda v: keyed("hybrid-conceptual", v), 64),  # a hyphenated key off the list
+        (lambda v: keyed("unit_id", v), 16),  # left to detect-secrets' own heuristic
+        (lambda v: keyed("dev-", v), 16),
         (lambda v: keyed("digest", v), 40),  # a wrong length for the key
         (lambda v: keyed("qid", v), 16),
         (lambda v: keyed("secret", v), 64),
@@ -293,34 +359,63 @@ def test_a_key_off_the_list_a_wrong_length_or_a_long_bare_element_is_reported(li
     assert not skips("data/replacement/freeze.json", line_of(value), value)
 
 
-def test_uppercase_hex_is_reported():
-    value = hex_of(64, "upper").upper()
-    assert not skips("data/replacement/freeze.json", keyed("digest", value), value)
+# One allowed shape per group of the allowlist, the new keys among them, for the refusal checks.
+SAMPLED = [
+    ("digest", 64),
+    ("corpus_cache_key", 16),
+    ("dev", 16),
+    ("resolved_revision", 40),
+    ("token_counts_sha256", 64),
+    ("expected", 40),
+    ("observed", 16),
+    ("hybrid-bm25", 64),
+    ("supersedes", 64),
+]
 
 
+@pytest.mark.parametrize(("key", "length"), SAMPLED)
+def test_uppercase_hex_is_reported(key, length):
+    value = hex_of(length, f"{key}-upper").upper()
+    assert not skips("data/replacement/freeze.json", keyed(key, value), value)
+
+
+@pytest.mark.parametrize(("key", "length"), SAMPLED)
 @pytest.mark.parametrize(
     "line_of",
     [
-        lambda v: keyed("digest", v) + ' "password": "hunter2"',
-        lambda v: f'    "digest": "{v}", "form": "an entity"',
-        lambda v: f'    "note": "digest {v}"',
-        lambda v: f'    "digest": "{v}x"',
+        lambda k, v: keyed(k, v) + ' "password": "hunter2"',
+        lambda k, v: f'    "{k}": "{v}", "form": "an entity"',
+        lambda k, v: f'    "note": "{k} {v}"',
+        lambda k, v: f'    "{k}": "{v}x"',
     ],
 )
-def test_a_line_holding_anything_more_is_reported(line_of):
-    value = hex_of(64, "extra")
-    assert not skips("data/replacement/traces-dev.json", line_of(value), value)
+def test_a_line_holding_anything_more_is_reported(key, length, line_of):
+    value = hex_of(length, f"{key}-extra")
+    assert not skips("data/replacement/traces-dev.json", line_of(key, value), value)
 
 
-def test_another_detector_on_an_allowed_line_is_reported():
-    value = hex_of(64, "detector")
-    line = keyed("digest", value)
+@pytest.mark.parametrize(("key", "length"), SAMPLED)
+def test_another_detector_on_an_allowed_line_is_reported(key, length):
+    value = hex_of(length, f"{key}-detector")
+    line = keyed(key, value)
     assert not skips("data/replacement/freeze.json", line, value, plugin=KeywordDetector())
 
 
-def test_a_secret_other_than_the_lines_value_is_reported():
-    value, other = hex_of(64, "value"), hex_of(64, "other")
-    assert not skips("data/replacement/freeze.json", keyed("digest", value), other)
+@pytest.mark.parametrize(("key", "length"), SAMPLED)
+def test_a_secret_other_than_the_lines_value_is_reported(key, length):
+    value, other = hex_of(length, f"{key}-value"), hex_of(length, f"{key}-other")
+    assert not skips("data/replacement/freeze.json", keyed(key, value), other)
+
+
+@pytest.mark.parametrize(("key", "length"), SAMPLED)
+@pytest.mark.parametrize(
+    "filename",
+    ["data/replacement/nested/freeze.json", "data/replacement/x.py", "data/results/x.json"],
+)
+def test_a_new_key_is_skipped_only_inside_the_replacement_directory(key, length, filename):
+    value = hex_of(length, f"{key}-path")
+    assert skips("data/replacement/freeze.json", keyed(key, value), value)
+    assert not skips(filename, keyed(key, value), value)
 
 
 def test_the_filter_module_imports_only_the_standard_library():
@@ -353,6 +448,18 @@ def test_no_path_exclusion_covers_the_replacement_directory():
     assert not exclusion.search(r"data\replacement\traces-test.json")
 
 
+def test_completing_the_allowlist_widened_no_exclusion_of_the_baseline():
+    """The allowlist grew; the baseline's exclusions did not: one path pattern, Phase 5's, and no
+    line or secret exclusion that would reach beyond the content filter."""
+    filters = json.loads(BASELINE.read_text(encoding="utf-8"))["filters_used"]
+    paths = [entry["path"] for entry in filters]
+
+    assert paths.count("detect_secrets.filters.regex.should_exclude_file") == 1
+    assert "detect_secrets.filters.regex.should_exclude_line" not in paths
+    assert "detect_secrets.filters.regex.should_exclude_secret" not in paths
+    assert excluded_file_patterns() == ["^data[\\\\/](pilot|navigation)[\\\\/][^\\\\/]+[.]json$"]
+
+
 def test_every_allowlisted_key_occurs_in_a_real_replacement_artifact():
     """Reconciled with the writers once T21-T23 have written them; skipped until then."""
     artifacts = sorted(REPLACEMENT.glob("*.json")) if REPLACEMENT.exists() else []
@@ -378,6 +485,9 @@ def test_the_real_scanner_reports_exactly_the_cases_that_must_stay_reported(tmp_
         "data/replacement/outcomes-dense-dev.json": keyed("qid", hex_of(24, "e2e-qid")),
         "data/replacement/traces-dev.json": bare(hex_of(16, "e2e-unit")),
         "data/replacement/checks-dev.json": keyed("revision", hex_of(40, "e2e-rev")),
+        "data/replacement/decision.json": keyed("hybrid-entity-hop", hex_of(64, "e2e-system")),
+        "data/replacement/freeze-2.json": keyed("expected", hex_of(40, "e2e-expected")),
+        "data/replacement/run-dense-dev.json": keyed("corpus_cache_key", hex_of(16, "e2e-cache")),
     }
     reported = {
         "data/replacement/nested/freeze.json": keyed("digest", hex_of(64, "e2e-nested")),
@@ -388,6 +498,10 @@ def test_the_real_scanner_reports_exactly_the_cases_that_must_stay_reported(tmp_
         "data/replacement/wrong-length.json": keyed("digest", hex_of(40, "e2e-len")),
         "data/replacement/extra.json": keyed("digest", hex_of(64, "e2e-extra")) + ' "x": 1',
         "data/replacement/bare-64.json": bare(hex_of(64, "e2e-bare")),
+        "data/replacement/off-list-system.json": keyed("hybrid-conceptual", hex_of(64, "e2e-sys")),
+        "data/replacement/expected-64.json": keyed("expected", hex_of(64, "e2e-exp64")),
+        "data/replacement/upper.json": keyed("dense", hex_of(64, "e2e-upper").upper()),
+        "data/results/run-dense-dev.json": keyed("corpus_cache_key", hex_of(16, "e2e-results")),
     }
     for relative, line in {**skipped, **reported}.items():
         path = tmp_path / relative
