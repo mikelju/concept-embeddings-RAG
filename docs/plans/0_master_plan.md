@@ -44,7 +44,7 @@ docs/plans/
 | 3 | Hybrid conceptual retrieval (System B) | Available | **Complete** |
 | 4 | Query-aware iterative expansion (System C) | Available | **Complete — negative result** |
 | 5 | Text-derived concepts: navigation pilot | Available | **Complete — NAMES ONLY** |
-| 6 | Dense + Entity Navigation — end-to-end comparison | Pending | **Not opened** — new research line from the Phase 5 entity finding |
+| 6 | Dense + Entity Navigation — end-to-end comparison | Available | **Not opened** — new research line from the Phase 5 entity finding |
 | 7 | Entity canonicalization / resolution | Pending | **Conditional** — only if Phase 6 justifies it |
 | 8 | Conditional extensions and combinations | Pending | **Not opened** |
 
@@ -243,6 +243,8 @@ B: Dense -> Entity Hop
 The evaluation must use the same end-to-end benchmark protocol that produced the existing dense+BM25 control, including the same split, seed, context budget, primary metric and evaluation population. The historical **0.8643 Full Support @2,048** dense+BM25 result remains the reference bar from Phase 4, but Phase 6 must measure both systems under one explicitly frozen protocol rather than compare unlike metrics from Phase 5's second-hop diagnostic.
 
 Initial scope deliberately excludes concept nodes, entity canonicalization, relation/attribute nodes, multi-round expansion, and a three-way `Dense + BM25 + Entity` combination. Those are separate research questions and are not introduced until the basic replacement test is understood.
+
+Specified in [`phase_6/6.spec.md`](phase_6/6.spec.md) and planned in [`phase_6/6.0_dense_entity_navigation.md`](phase_6/6.0_dense_entity_navigation.md), with the atomic tasks in [`phase_6/6.tasks.md`](phase_6/6.tasks.md). The plan declares every design decision, the dev-then-test sequence and the decision parameters before a single Phase 6 number is measured, and records four items against the spec that the author decided on 2026-09-17 without amending it.
 
 - [ ] Functional spec approved before planning
 - [ ] End-to-end Dense + BM25 control frozen under the Phase 6 protocol
