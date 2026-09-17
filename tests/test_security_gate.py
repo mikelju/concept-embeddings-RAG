@@ -460,14 +460,111 @@ def test_completing_the_allowlist_widened_no_exclusion_of_the_baseline():
     assert excluded_file_patterns() == ["^data[\\\\/](pilot|navigation)[\\\\/][^\\\\/]+[.]json$"]
 
 
-def test_every_allowlisted_key_occurs_in_a_real_replacement_artifact():
-    """Reconciled with the writers once T21-T23 have written them; skipped until then."""
-    artifacts = sorted(REPLACEMENT.glob("*.json")) if REPLACEMENT.exists() else []
+# Which real artifacts carry each allowlisted key, taken from the writers. A key is required only
+# once one of its artifacts exists, because the three stages write them in turn: `checks-dev.json`
+# and the dev runs and outcomes at T21, the freeze and the dev readings at T22, the test readings
+# and the decision at T23. `supersedes` carries a digest only in a superseding freeze, so it is
+# required only on the deviation branch of D14 (OI-4).
+IDENTITY_FILES = ("checks-dev.json", "freeze.json", "freeze-*.json")
+RUN_FILES = ("run-*.json",)
+ENTITY_FILES = ("run-hybrid-entity-hop-*.json", "diagnostics-*.json", "traces-*.json")
+PER_QUESTION_FILES = ("outcomes-*.json", "diagnostics-*.json", "traces-*.json", "readout-*.json")
+BOUND_FILES = (
+    "diagnostics-*.json",
+    "traces-*.json",
+    "readout-*.json",
+    "outcomes-*-test*.json",
+    "run-*-test-*.json",
+    "decision.json",
+    "test-reproduction*.json",
+)
+SYSTEM_DIGEST_FILES = ("readout-*.json", "diagnostics-*.json", "traces-*.json", "decision.json")
+WRITTEN_IN: dict[str, tuple[str, ...]] = {
+    "qid": PER_QUESTION_FILES,
+    "p1": ("diagnostics-*.json", "traces-*.json"),
+    "unit_set_hash": IDENTITY_FILES + RUN_FILES,
+    "prompt_digest": IDENTITY_FILES + ("run-hybrid-entity-hop-*.json",),
+    "corpus_cache_key": IDENTITY_FILES + RUN_FILES,
+    "question_cache_key": IDENTITY_FILES + RUN_FILES,
+    "dev_question_cache_key": IDENTITY_FILES,
+    "dev": IDENTITY_FILES,
+    "test": IDENTITY_FILES,
+    "revision": IDENTITY_FILES + RUN_FILES,
+    "resolved_revision": IDENTITY_FILES + RUN_FILES,
+    "manifest_sha256": ("checks-dev.json",),
+    "token_counts_sha256": IDENTITY_FILES,
+    "sha256": IDENTITY_FILES,
+    "expected": IDENTITY_FILES,
+    "observed": IDENTITY_FILES,
+    "digest": ("*.json",),
+    "freeze_digest": BOUND_FILES,
+    "supersedes": ("freeze-*.json",),
+    "node_index_digest": ("freeze.json", "freeze-*.json") + ENTITY_FILES,
+    "extraction_digest": ("freeze.json", "freeze-*.json") + ENTITY_FILES,
+    "pilot_digest": IDENTITY_FILES,
+    "hop_run_digest": IDENTITY_FILES,
+    "traces_digest": IDENTITY_FILES,
+    "run_digest": ("checks-dev.json",),
+    "outcomes_digest": IDENTITY_FILES,
+    "first_digest": ("freeze.json", "freeze-*.json"),
+    "second_digest": ("freeze.json", "freeze-*.json"),
+    "dense": SYSTEM_DIGEST_FILES,
+    "hybrid-bm25": SYSTEM_DIGEST_FILES,
+    "hybrid-entity-hop": SYSTEM_DIGEST_FILES,
+}
+
+
+def test_every_allowlisted_key_is_declared_with_the_artifacts_that_write_it():
+    """A key added to the allowlist has to say which artifact emits it, or this fails."""
+    assert set(WRITTEN_IN) == set(ALLOWED)
+    assert all(patterns for patterns in WRITTEN_IN.values())
+
+
+def real_artifacts(patterns: tuple[str, ...]) -> list[Path]:
+    if not REPLACEMENT.exists():
+        return []
+    return sorted({path for pattern in patterns for path in REPLACEMENT.glob(pattern)})
+
+
+@pytest.mark.parametrize("key", sorted(ALLOWED))
+def test_an_allowlisted_key_occurs_in_its_real_artifacts_once_they_exist(key):
+    """Reconciled with the real artifacts as the stages write them (T21, T22, T23).
+
+    The key is required only when one of the artifacts that writes it is on disk; a key no
+    existing artifact emits fails, which is what keeps the allowlist from growing on guesses.
+    """
+    artifacts = real_artifacts(WRITTEN_IN[key])
+    if not artifacts:
+        pytest.skip(f"no artifact of {key} exists yet: {WRITTEN_IN[key]}")
+    carriers = [
+        path.name for path in artifacts if f'"{key}": "' in path.read_text(encoding="utf-8")
+    ]
+    assert carriers, f"{key} is allowlisted but absent from {[p.name for p in artifacts]}"
+
+
+def test_the_real_artifacts_hold_no_hex_shape_the_allowlist_does_not_cover():
+    """The direction the gate depends on: every hex id the stages really wrote is covered."""
+    heuristic = pytest.importorskip("detect_secrets.filters.heuristic")
+    artifacts = real_artifacts(("*.json",))
     if not artifacts:
         pytest.skip("data/replacement/ holds no JSON artifact yet")
-    text = "\n".join(path.read_text(encoding="utf-8") for path in artifacts)
-    unused = [key for key in ALLOWED if f'"{key}": "' not in text]
-    assert unused == [], f"allowlisted keys no writer emits: {unused}"
+    module = the_filter()
+    keyed_line = re.compile(r'^\s*"(?P<key>[^"]+)": "(?P<hex>[0-9a-f]{16,})",?\s*$')
+    bare_line = re.compile(r'^\s*"(?P<hex>[0-9a-f]{16,})",?\s*$')
+    uncovered: set[tuple[str, int]] = set()
+    bare_lengths: set[int] = set()
+    for path in artifacts:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if (keyed_match := keyed_line.match(line)) is not None:
+                shape = (keyed_match["key"], len(keyed_match["hex"]))
+                covered = len(keyed_match["hex"]) in module.ALLOWLIST.get(shape[0], frozenset())
+                if not covered and not heuristic.is_likely_id_string(keyed_match["hex"], line):
+                    uncovered.add(shape)
+            elif (bare_match := bare_line.match(line)) is not None:
+                bare_lengths.add(len(bare_match["hex"]))
+
+    assert uncovered == set(), f"hex shapes the gate would report: {sorted(uncovered)}"
+    assert bare_lengths <= module.BARE_LENGTHS
 
 
 def test_the_real_scanner_reports_exactly_the_cases_that_must_stay_reported(tmp_path, monkeypatch):

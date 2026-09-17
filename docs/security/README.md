@@ -359,8 +359,17 @@ Two tests hold it there:
 - `tests/test_security_gate.py` checks every key at its lengths and at every other length, the refused
   shapes for the new keys, and that no exclusion of the baseline was widened.
 
-A data-dependent test still requires every allowlisted key to occur in the real `data/replacement/`
-once T21-T23 have written it.
+**Reconciled against the real artifacts, one stage at a time.** Each allowlisted key declares, from
+the writers, which artifacts carry it: `checks-dev.json` and the dev runs and outcomes at T21, the
+freeze and the dev readings at T22, the test readings and the decision at T23. A data-dependent test
+requires the key to occur as soon as one of its artifacts exists, and skips while none does, so a key
+no existing artifact emits fails rather than passing unnoticed; a second test requires every hex shape
+the real artifacts hold to be covered by the allowlist. Adding a key without declaring where it comes
+from fails a third test. `supersedes` carries a digest only in a superseding freeze, so it is required
+only if the deviation branch of D14 has produced one.
+
+Verified on the T21 artifacts (2026-09-17): every hex shape written is covered, and the keys whose
+artifacts T22 and T23 still have to write are recorded as skipped.
 
 **Inline audits outside `data/replacement/`.** The Phase 6 source and tests hold hex literals the
 gate flags and the filter, by design, does not cover: the six pinned digests of D2 in `config.py`
