@@ -12,12 +12,14 @@ any reference value:
 - the decision uses the exact fraction delta and `L > -delta` strictly, and a disagreement
   between the statistic rule and the limit rule is refused.
 
-The published worked example (T11) is not here: its values come from the paper and nowhere
-else, and `PUBLISHED_EXAMPLE` stays empty until then.
+T11 adds the paper itself: the statistic is compared term by term with equations (24)-(26) of
+Tango (1998), and the worked example of its section 6.1 is reproduced at the printed precision.
+The example's values come from the paper and nowhere else.
 """
 
 import math
 from fractions import Fraction
+from types import MappingProxyType
 
 import pytest
 from scipy.optimize import minimize_scalar
@@ -247,19 +249,104 @@ def test_ties_stay_in_n_and_enter_only_through_it():
     assert fewer_ties.statistic != more_ties.statistic
 
 
-# --- The declared gap ----------------------------------------------------------------------
+# --- The paper: equations (24)-(26) and the worked example (T11) ---------------------------
 
 
-def test_the_published_example_slot_exists_and_is_empty():
-    assert len(PUBLISHED_EXAMPLE) == 0
+def tango_1998_statistic(b: int, c: int, n: int, margin: float) -> float:
+    """Equations (24)-(26) of Tango (1998), p. 895, transcribed as printed.
+
+    `Z(b, c; n, Delta) = (b - c + n Delta) / sqrt(n (2 q21 - Delta (Delta + 1)))`, where `q21` is
+    the larger root of `A x^2 + B x + C = 0`, `A = 2n`, `B = -b - c - (2n - b + c) Delta` and
+    `C = c Delta (Delta + 1)`. The paper's `Delta > 0` is the margin of its hypothesis (17).
+    """
+    a_coef = 2 * n
+    b_coef = -b - c - (2 * n - b + c) * margin
+    c_coef = c * margin * (margin + 1)
+    q21 = (math.sqrt(b_coef**2 - 4 * a_coef * c_coef) - b_coef) / (2 * a_coef)
+    return (b - c + n * margin) / math.sqrt(n * (2 * q21 - margin * (margin + 1)))
+
+
+@pytest.mark.parametrize("margin", [0.05, 0.1, 0.2, float(dp.DELTA)])
+@pytest.mark.parametrize(
+    ("b", "c", "n"),
+    [(b, c, n) for n in (44, 60, 1400) for b in (0, 1, 13) for c in (0, 1, 21) if b + c <= n],
+)
+def test_the_statistic_is_tangos_equations_24_to_26_at_minus_the_margin(b, c, n, margin):
+    """D15's formula at `D0 = -Delta` is the paper's `Z(b, c; n, Delta)`, term by term."""
+    assert score_statistic(b, c, n, -margin) == pytest.approx(
+        tango_1998_statistic(b, c, n, margin), rel=1e-12
+    )
+
+
+def test_the_published_example_names_its_source_location():
+    example = require_published_example()
+
+    assert "Tango" in str(example["source"]) and "891-908" in str(example["source"])
+    assert example["section"] == "6.1 Cross-over Clinical Trials on Soft Contact Lenses"
+    assert example["table"] == "Table V"
+    assert (example["equations"], example["equations_page"]) == ("(24)-(26)", 895)
+    assert (example["values_page"], example["table_page"]) == (902, 903)
+
+
+def test_the_published_example_is_table_v_as_printed():
+    """Table V, p. 903: rows hydrogen peroxide (new), columns thermal (standard), n = 44.
+
+    Table (15), p. 894, puts `b` at row 1, column 2 (new-only successes) and `c` at row 2,
+    column 1 (standard-only successes): the spec's `b` and `c`.
+    """
+    example = PUBLISHED_EXAMPLE
+    cells = (example["a"], example["b"], example["c"], example["d"])
+
+    assert cells == (43, 0, 1, 0)
+    assert example["n"] == sum(cells) == 44
+
+
+def printed(value: float, example) -> str:
+    """A computed value at the precision the paper prints."""
+    return f"{value:.{example['decimals']}f}"
+
+
+def test_the_implementation_reproduces_the_published_contact_lens_example():
+    """Section 6.1, p. 902: `Z = 1.709 > Z_0.05 = 1.645` (one-tailed p = 0.044), and the 90 per
+    cent lower limit -0.096 > -Delta = -0.1, so the two methods are concluded equivalent.
+
+    Compared at the printed precision: our value rounded to the printed decimals must be the
+    printed string. The formula is never adjusted to make this pass (T11).
+    """
+    example = PUBLISHED_EXAMPLE
+    b, c, n = example["b"], example["c"], example["n"]
+    margin = Fraction(str(example["delta"]))
+    z = float(norm.ppf(1.0 - float(example["alpha"])))
+
+    result = non_inferiority(b, c, n, delta=margin, alpha=float(example["alpha"]))
+
+    assert printed(z, example) == example["z_alpha"]
+    assert printed(result.statistic, example) == example["statistic"]
+    assert printed(result.p_value, example) == example["one_sided_p"]
+    assert printed(result.lower_limit, example) == example["lower_limit_90"]
+    assert result.passed is True
+
+
+def test_the_published_lower_limit_fixes_which_cell_is_b():
+    """Swapping the off-diagonal cells moves the published limit to the other side of zero."""
+    swapped = lower_limit(1, 0, 44, float(norm.ppf(0.95)))
+
+    assert f"{swapped:.3f}" != PUBLISHED_EXAMPLE["lower_limit_90"]
+    assert f"{upper_limit(1, 0, 44, float(norm.ppf(0.95))):.3f}" == "0.096"
+
+
+def test_the_published_example_slot_is_read_only():
     with pytest.raises(TypeError):
         PUBLISHED_EXAMPLE["b"] = 1  # type: ignore[index]
 
 
-def test_requiring_the_published_example_refuses_while_the_slot_is_empty():
+def test_requiring_the_published_example_still_refuses_an_empty_slot(monkeypatch):
+    monkeypatch.setattr(tango, "PUBLISHED_EXAMPLE", MappingProxyType({}))
     with pytest.raises(TangoError, match="published"):
         require_published_example()
 
 
-def test_the_module_says_the_paper_equation_was_not_checked_in_this_session():
-    assert "not verified against the paper" in (tango.__doc__ or "")
+def test_the_module_records_the_paper_check_and_its_equation_numbers():
+    doc = tango.__doc__ or ""
+    assert "not verified against the paper" not in doc
+    assert "(24)-(26)" in doc and "p. 895" in doc

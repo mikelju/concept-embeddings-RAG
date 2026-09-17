@@ -12,18 +12,29 @@ documentation cites Tango (1998), and rewritten in this notation:
     q    = (sqrt(pb^2 - 8n * pc) - pb) / (4n)
     T(D0) = (b - c - n * D0) / sqrt(n * (2q + D0 * (1 - D0)))
 
-**Source status: not verified against the paper.** T10 asked for the formula to be checked
-against the paper's own equation and for its number to be recorded here. The paper was not
-available to this session (the planning session could not retrieve it either), so no equation
-number is recorded, and none is written from memory. What was checked instead, independently
-of any reference value: `q` is the restricted maximum-likelihood estimate of `p_c` under
-`p_b - p_c = D0` - setting the derivative of `b log(q + D0) + c log q + (n - b - c)
-log(1 - 2q - D0)` to zero gives `2n q^2 + pb q + pc = 0`, whose non-negative root is `q` above -
-and `n (2q + D0 (1 - D0))` is the variance of `b - c` under that estimate. At `D0 = 0` the
-statistic is McNemar's `(b - c) / sqrt(b + c)`. The tests hold these properties, and agreement
-with an independent bisection over the likelihood. The comparison with the paper, its equation
-number and its worked example remain for T11, and `replace-test` refuses until
-`PUBLISHED_EXAMPLE` holds that example.
+**Source: checked against the paper (T11).** Tango, T. (1998), "Equivalence test and confidence
+interval for the difference in proportions for the paired-sample design", Statistics in Medicine
+17(8), 891-908, equations (24)-(26), p. 895:
+
+    Z(b, c; n, Delta) = (b - c + n Delta) / sqrt(n (2 q21 - Delta (Delta + 1)))      (24)
+    q21 = (sqrt(B^2 - 4AC) - B) / (2A)                                              (25)
+    A = 2n,  B = -b - c - (2n - b + c) Delta,  C = c Delta (Delta + 1)                (26)
+
+The paper's `Delta > 0` is the margin of its hypothesis (17), p. 894, `H0: pi_N = pi_S - Delta`
+against `H1: pi_N > pi_S - Delta`. At `D0 = -Delta` the formula above is (24)-(26) term by term:
+`pb = B`, `pc = C`, `q = q21`, and the variance and numerator coincide. Table (15), p. 894, puts
+`b` at row 1, column 2 (new-only successes) and `c` at row 2, column 1 (standard-only), which
+are the spec's `b` and `c`. The check was made on 2026-09-17 against a copy of the article; the
+tests compare the two forms over a grid of counts and margins.
+
+What T10 checked independently of the paper still holds: `q` is the restricted
+maximum-likelihood estimate of `p_c` under `p_b - p_c = D0` (the score equation of `b log(q + D0)
++ c log q + (n - b - c) log(1 - 2q - D0)` is `2n q^2 + pb q + pc = 0`), and at `D0 = 0` the
+statistic is McNemar's `(b - c) / sqrt(b + c)`, as the paper's section 6.2 also notes.
+
+**The worked example** is section 6.1 of the paper, reproduced in `PUBLISHED_EXAMPLE` with the
+values the paper prints. The author read them from the paper, and this session checked them
+against its copy of the article.
 
 **The decision reads the statistic.** N passes if and only if `T(-delta) > z`, with `delta` the
 exact fraction and `z = norm.ppf(1 - alpha)`. The lower limit `L` of the two-sided
@@ -49,9 +60,36 @@ from scipy.stats import norm
 
 METHOD: Final[str] = "Tango (1998) score test for paired proportions"
 
-# T11's slot: the worked example of Tango (1998), transcribed from the paper with the table or
-# page it comes from. Empty until then, and read-only so no test can fill it by accident.
-PUBLISHED_EXAMPLE: Final[Mapping[str, object]] = MappingProxyType({})
+# T11: the worked example of Tango (1998), section 6.1, as the paper prints it. Cells of Table V
+# (rows hydrogen peroxide, the new system; columns thermal, the standard): a = both effective,
+# b = new-only, c = standard-only, d = neither. Printed figures are kept as the printed strings,
+# so the precision they were published at travels with them. Read-only.
+PUBLISHED_EXAMPLE: Final[Mapping[str, object]] = MappingProxyType(
+    {
+        "source": (
+            "Tango, T. (1998). Equivalence test and confidence interval for the difference in "
+            "proportions for the paired-sample design. Statistics in Medicine 17(8), 891-908"
+        ),
+        "section": "6.1 Cross-over Clinical Trials on Soft Contact Lenses",
+        "values_page": 902,
+        "table": "Table V",
+        "table_page": 903,
+        "equations": "(24)-(26)",
+        "equations_page": 895,
+        "a": 43,
+        "b": 0,
+        "c": 1,
+        "d": 0,
+        "n": 44,
+        "delta": "0.1",
+        "alpha": "0.05",
+        "z_alpha": "1.645",
+        "statistic": "1.709",
+        "one_sided_p": "0.044",
+        "lower_limit_90": "-0.096",
+        "decimals": 3,
+    }
+)
 
 # How close to the parameter-space boundary the bracket starts. The statistic diverges there
 # whenever the observed difference is inside the space; a bracket that does not straddle the

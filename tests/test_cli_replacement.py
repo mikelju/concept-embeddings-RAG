@@ -10,6 +10,7 @@ import json
 import sys
 from collections.abc import Iterator, Mapping
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 
 import numpy as np
@@ -36,6 +37,7 @@ from concept_embeddings_rag.evaluation import (  # noqa: E402
     replacement_inputs,
     replacement_run,
     selection,
+    tango,
 )
 from concept_embeddings_rag.evaluation.replacement_run import (  # noqa: E402
     CHECKS_FILENAME,
@@ -520,7 +522,7 @@ def full(frozen_full, tmp_path) -> ToyPipeline:
 
 
 def publish_example(monkeypatch) -> None:
-    """Inject a worked example for the test only; `tango.PUBLISHED_EXAMPLE` stays empty."""
+    """Stub the example check for the toy; the real `tango.PUBLISHED_EXAMPLE` is not touched."""
     monkeypatch.setattr(
         replacement_run, "require_published_example", lambda: {"source": "toy injection"}
     )
@@ -572,6 +574,8 @@ def test_replace_test_refuses_an_altered_decision_parameter_copy(small, monkeypa
 
 
 def test_replace_test_refuses_while_the_published_example_slot_is_empty(small, monkeypatch):
+    # T11 filled the real slot; the refusal is still the stage's, so the slot is emptied here.
+    monkeypatch.setattr(tango, "PUBLISHED_EXAMPLE", MappingProxyType({}))
     read: list[Any] = []
     monkeypatch.setattr(
         replacement_run, "read_historical_test_figures", lambda *a, **k: read.append(a)
