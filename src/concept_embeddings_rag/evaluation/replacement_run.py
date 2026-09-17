@@ -270,7 +270,17 @@ def measure(
     freeze_digest: str | None,
     before_save: Callable[[RunResult], None] | None = None,
 ) -> Measured:
-    """The one harness call of the stages: result and outcomes, written and verified."""
+    """The one harness call of the stages: result and outcomes, written and verified.
+
+    Every question must be on the split the call names: a test question handed to a dev
+    measurement, or hidden among dev ones, is refused before anything is retrieved.
+    """
+    intruders = sorted({question.split for question in questions if question.split != split})
+    if intruders or not questions:
+        raise ReplacementRunError(
+            f"a {split} measurement was handed questions of split(s) {intruders or ['none']}; it "
+            "measures the split it names and nothing else"
+        )
     records: list[QuestionOutcome] = []
     started = datetime.now(UTC)
     result = evaluate_retriever(
