@@ -1,0 +1,74 @@
+{
+  "config": {
+    "bm25_identity": {
+      "bm25s": "0.3.11",
+      "stopwords": "en",
+      "unit_set_hash": "101f564fdcca620c"
+    },
+    "code_version": "0.1.0",
+    "control_mode": "reused",
+    "dense_identity": {
+      "corpus_cache_key": "bacd74e7f468f0d4",
+      "model": "BAAI/bge-small-en-v1.5",
+      "question_cache_key": "929960573a40c0e2",
+      "revision": "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a"
+    },
+    "fitted_on": "dev",
+    "freeze_digest": "d03ccfe49ee7f99b0989787ca49c99882de07c5ef26d316548db9fa13d954dfe",
+    "frozen_at": "2026-09-17T21:23:05+00:00",
+    "fusion_scheme": "weighted",
+    "fusion_weights": {
+      "bm25": 0.5,
+      "dense": 0.5
+    },
+    "libraries": {
+      "bm25s": "0.3.11",
+      "numpy": "2.5.2",
+      "scipy": "1.18.1",
+      "tokenizers": "0.23.1",
+      "transformers": "5.16.1"
+    },
+    "model": "BAAI/bge-small-en-v1.5",
+    "n_units": 19366,
+    "phase": 6,
+    "resolved_revision": "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a",
+    "revision": "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a",
+    "seed": 42,
+    "tokenizer": "BAAI/bge-small-en-v1.5",
+    "top_k": 100,
+    "unit_set_hash": "101f564fdcca620c"
+  },
+  "cost": {
+    "mean_latency_ms": 1.5079266428282219,
+    "mean_units_included": 33.642857142857146,
+    "n_questions": 1400
+  },
+  "created_at": "2026-09-17T21:52:16+00:00",
+  "metrics": {
+    "budget_1024": {
+      "full_support": 0.7907142857142857,
+      "gold_recall": 0.8932142857142857,
+      "precision": 0.19012711838814778
+    },
+    "budget_2048": {
+      "full_support": 0.8642857142857143,
+      "gold_recall": 0.9314285714285714,
+      "precision": 0.10798958974335779
+    },
+    "budget_4096": {
+      "full_support": 0.9042857142857142,
+      "gold_recall": 0.9517857142857142,
+      "precision": 0.057457381064348854
+    },
+    "budget_512": {
+      "full_support": 0.6764285714285714,
+      "gold_recall": 0.8325,
+      "precision": 0.3162223252937539
+    },
+    "recall_at_10": 0.9025,
+    "recall_at_2": 0.6964285714285714,
+    "recall_at_5": 0.8339285714285715
+  },
+  "split": "test",
+  "system": "hybrid-bm25"
+}

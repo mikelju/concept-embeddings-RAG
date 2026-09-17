@@ -1,0 +1,86 @@
+{
+  "config": {
+    "bm25_identity": {
+      "bm25s": "0.3.11",
+      "stopwords": "en",
+      "unit_set_hash": "101f564fdcca620c"
+    },
+    "code_version": "0.1.0",
+    "dense_identity": {
+      "corpus_cache_key": "bacd74e7f468f0d4",
+      "model": "BAAI/bge-small-en-v1.5",
+      "question_cache_key": "929960573a40c0e2",
+      "revision": "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a"
+    },
+    "entity_component": {
+      "dense_order": "descending score, ties by unit id (DenseRetriever)",
+      "extraction_digest": "8e59854118ae5f4d83d88ce967098801f9f922309d7beb6b3e3deaf06fb1f12f",
+      "max_depth": 100,
+      "node_index_digest": "b498f99418389b2f7849c680cda1749ea58700a9997fbfed7ce474d3b0a0559a",
+      "normalization_version": "normalization-v1",
+      "prompt_digest": "0107de3ae9b4e4a3",
+      "read_depth": 10,
+      "types": [
+        "entity"
+      ],
+      "weight_rule": "log(1 + N / (1 + df)) over binary node incidence (second_hop.node_weights)"
+    },
+    "fitted_on": "dev",
+    "freeze_digest": "d03ccfe49ee7f99b0989787ca49c99882de07c5ef26d316548db9fa13d954dfe",
+    "frozen_at": "2026-09-17T21:23:05+00:00",
+    "fusion_scheme": "weighted",
+    "fusion_weights": {
+      "dense": 0.7,
+      "entity-hop": 0.30000000000000004
+    },
+    "libraries": {
+      "bm25s": "0.3.11",
+      "numpy": "2.5.2",
+      "scipy": "1.18.1",
+      "tokenizers": "0.23.1",
+      "transformers": "5.16.1"
+    },
+    "model": "BAAI/bge-small-en-v1.5",
+    "n_units": 19366,
+    "phase": 6,
+    "resolved_revision": "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a",
+    "revision": "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a",
+    "seed": 42,
+    "tokenizer": "BAAI/bge-small-en-v1.5",
+    "top_k": 100,
+    "unit_set_hash": "101f564fdcca620c"
+  },
+  "cost": {
+    "mean_latency_ms": 10.447030928210422,
+    "mean_units_included": 32.581428571428575,
+    "n_questions": 1400
+  },
+  "created_at": "2026-09-17T21:52:31+00:00",
+  "metrics": {
+    "budget_1024": {
+      "full_support": 0.8107142857142857,
+      "gold_recall": 0.8982142857142857,
+      "precision": 0.20161370772085055
+    },
+    "budget_2048": {
+      "full_support": 0.89,
+      "gold_recall": 0.9403571428571429,
+      "precision": 0.1133669739523457
+    },
+    "budget_4096": {
+      "full_support": 0.9221428571428572,
+      "gold_recall": 0.9585714285714285,
+      "precision": 0.05975727644423177
+    },
+    "budget_512": {
+      "full_support": 0.6785714285714286,
+      "gold_recall": 0.8260714285714286,
+      "precision": 0.3337171459492888
+    },
+    "recall_at_10": 0.9142857142857143,
+    "recall_at_2": 0.6892857142857143,
+    "recall_at_5": 0.8360714285714286
+  },
+  "split": "test",
+  "system": "hybrid-entity-hop"
+}
