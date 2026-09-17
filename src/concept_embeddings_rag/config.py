@@ -337,22 +337,22 @@ ENTITY_HOP_MAX_DEPTH: Final[int] = EVALUATION_TOP_K
 # equal. Loading derives file paths from these constants, never from a summary on disk.
 PHASE_1_UNIT_SET_HASH: Final[str] = "101f564fdcca620c"
 PINNED_SELECTION_DIGEST: Final[str] = (
-    "91daa10ef0a75b6eba377d18a55ac868467b01b09fb7284c7835a84d4e4e602d"
+    "91daa10ef0a75b6eba377d18a55ac868467b01b09fb7284c7835a84d4e4e602d"  # pragma: allowlist secret
 )
 PINNED_SELECTION_FROZEN_AT: Final[str] = "2026-09-11T13:30:36+00:00"
 PINNED_PILOT_DIGEST: Final[str] = "e0f0af8f468dbf3332d9311948f416b75e4e5bf0d9971a0bd332b04acff2c364"
 PINNED_HOP_RUN_DIGEST: Final[str] = (
-    "49847f3cedb635406416bbb15dfa1913f4fa10782ed07a6461ccd56d5ded246a"
+    "49847f3cedb635406416bbb15dfa1913f4fa10782ed07a6461ccd56d5ded246a"  # pragma: allowlist secret
 )
 PINNED_NAVIGATION_TRACES_DIGEST: Final[str] = (
-    "163777a044e1d6fcded400495a6e8f9917411e614978aa1aa43427a6cc8d5925"
+    "163777a044e1d6fcded400495a6e8f9917411e614978aa1aa43427a6cc8d5925"  # pragma: allowlist secret
 )
 PINNED_EXTRACTION_DIGEST: Final[str] = (
-    "8e59854118ae5f4d83d88ce967098801f9f922309d7beb6b3e3deaf06fb1f12f"
+    "8e59854118ae5f4d83d88ce967098801f9f922309d7beb6b3e3deaf06fb1f12f"  # pragma: allowlist secret
 )
 PINNED_EXTRACTION_PROMPT_DIGEST: Final[str] = "0107de3ae9b4e4a3"
 PINNED_NODE_INDEX_DIGEST: Final[str] = (
-    "b498f99418389b2f7849c680cda1749ea58700a9997fbfed7ce474d3b0a0559a"
+    "b498f99418389b2f7849c680cda1749ea58700a9997fbfed7ce474d3b0a0559a"  # pragma: allowlist secret
 )
 PINNED_NORMALIZATION_VERSION: Final[str] = NORMALIZATION_VERSION
 

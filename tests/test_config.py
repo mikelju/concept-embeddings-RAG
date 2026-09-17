@@ -367,35 +367,34 @@ def test_the_entity_hop_depth_is_the_depth_every_component_is_asked_for():
     assert config.PILOT_READ_DEPTH == 10
 
 
+# D2's full digests, as literals. Each is the sha256 of a public, pipeline-written artifact; the
+# inline pragma records that the secret scanner's finding on it was audited (T20).
+PINNED_DIGEST_LITERALS = (
+    "91daa10ef0a75b6eba377d18a55ac868467b01b09fb7284c7835a84d4e4e602d",  # pragma: allowlist secret
+    "e0f0af8f468dbf3332d9311948f416b75e4e5bf0d9971a0bd332b04acff2c364",  # pragma: allowlist secret
+    "49847f3cedb635406416bbb15dfa1913f4fa10782ed07a6461ccd56d5ded246a",  # pragma: allowlist secret
+    "163777a044e1d6fcded400495a6e8f9917411e614978aa1aa43427a6cc8d5925",  # pragma: allowlist secret
+    "8e59854118ae5f4d83d88ce967098801f9f922309d7beb6b3e3deaf06fb1f12f",  # pragma: allowlist secret
+    "b498f99418389b2f7849c680cda1749ea58700a9997fbfed7ce474d3b0a0559a",  # pragma: allowlist secret
+)
+
+
 def test_the_inherited_artifacts_are_pinned_by_their_full_digests():
     """D2: the spec quotes each by prefix; config holds the whole value, copied once."""
-    pins = {
-        config.PINNED_SELECTION_DIGEST: (
-            "91daa10ef0a75b6eba377d18a55ac868467b01b09fb7284c7835a84d4e4e602d"
-        ),
-        config.PINNED_PILOT_DIGEST: (
-            "e0f0af8f468dbf3332d9311948f416b75e4e5bf0d9971a0bd332b04acff2c364"
-        ),
-        config.PINNED_HOP_RUN_DIGEST: (
-            "49847f3cedb635406416bbb15dfa1913f4fa10782ed07a6461ccd56d5ded246a"
-        ),
-        config.PINNED_NAVIGATION_TRACES_DIGEST: (
-            "163777a044e1d6fcded400495a6e8f9917411e614978aa1aa43427a6cc8d5925"
-        ),
-        config.PINNED_EXTRACTION_DIGEST: (
-            "8e59854118ae5f4d83d88ce967098801f9f922309d7beb6b3e3deaf06fb1f12f"
-        ),
-        config.PINNED_NODE_INDEX_DIGEST: (
-            "b498f99418389b2f7849c680cda1749ea58700a9997fbfed7ce474d3b0a0559a"
-        ),
-    }
-    for pinned, literal in pins.items():
-        assert pinned == literal
-    assert config.PINNED_EXTRACTION_PROMPT_DIGEST == "0107de3ae9b4e4a3"
+    pinned = (
+        config.PINNED_SELECTION_DIGEST,
+        config.PINNED_PILOT_DIGEST,
+        config.PINNED_HOP_RUN_DIGEST,
+        config.PINNED_NAVIGATION_TRACES_DIGEST,
+        config.PINNED_EXTRACTION_DIGEST,
+        config.PINNED_NODE_INDEX_DIGEST,
+    )
+    assert pinned == PINNED_DIGEST_LITERALS
+    assert config.PINNED_EXTRACTION_PROMPT_DIGEST == "0107de3ae9b4e4a3"  # pragma: allowlist secret
     assert config.PINNED_NORMALIZATION_VERSION == "normalization-v1"
     assert config.PINNED_NORMALIZATION_VERSION == config.NORMALIZATION_VERSION
     assert config.PINNED_SELECTION_FROZEN_AT == "2026-09-11T13:30:36+00:00"
-    assert config.PHASE_1_UNIT_SET_HASH == "101f564fdcca620c"
+    assert config.PHASE_1_UNIT_SET_HASH == "101f564fdcca620c"  # pragma: allowlist secret
 
 
 def test_the_pinned_digests_are_the_prefixes_the_spec_quotes():

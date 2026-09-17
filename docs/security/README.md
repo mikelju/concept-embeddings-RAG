@@ -278,6 +278,89 @@ uv run detect-secrets scan --exclude-files '^data[\\/](pilot|navigation)[\\/][^\
   $(git ls-files --cached --others --exclude-standard) > .secrets.baseline
 ```
 
+### Content filter for deterministic hex ids (Phase 6, decision D20)
+
+Phase 6 versions its artifacts flat under `data/replacement/`: the dev checks, the freeze, run
+results, per-question outcomes, diagnostics, traces, readouts, the test reproduction record and the
+decision. Like Phase 5's, they are full of machine-written lowercase hex ids.
+
+**The measurement.** The scanner, run with its default settings and no exclusion over Phase 5's id
+artifacts (`pilot.json`, `hop-run.json`, `traces.json`, `gate-decision.json`), reports **1,906**
+findings: 1,385 in `pilot.json`, 294 in `hop-run.json`, 225 in `traces.json`, 2 in
+`gate-decision.json`. Re-measured on 2026-09-17 with detect-secrets 1.5.0: every one is
+`HexHighEntropyString`, and every one is a lowercase hex string of 16, 24, 40 or 64 characters standing
+alone as a JSON value (unit ids and short keys; HotpotQA question ids; the resolved model commit;
+sha256 digests). `unit_id` lines raise nothing: the scanner's own `is_likely_id_string` skips them.
+Phase 6's files carry the same shapes over 600 dev and 1,400 test questions.
+
+**Why not a path exclusion.** Every Phase 6 file mixes those ids with content the scanner must keep
+reading: entity forms that came out of an LLM extraction (traces), verbatim texts and file names
+(freeze, decision), configuration (run results). A path exclusion would stop scanning all of it.
+Phase 5's exclusion above stays byte-identical, is not extended, and covers no Phase 6 file.
+
+**The filter.** `.github/detect_secrets_filters.py::is_deterministic_replacement_id`, standard
+library only, registered in `.secrets.baseline` `filters_used` as
+`file://.github/detect_secrets_filters.py::is_deterministic_replacement_id` (the one entry added to
+the baseline; its results were not regenerated). The hook configures its filters from the baseline,
+so CI applies it. It skips a finding **if and only if all four hold**:
+
+1. **Path**: the file name, with `\` normalized to `/`, fully matches
+   `data/replacement/[^/]+[.]json` - directly inside the directory, `.json` only.
+2. **Detector**: the finding comes from `HexHighEntropyString`.
+3. **Line shape**: the line, surrounding whitespace stripped (JSON indentation included), is exactly
+   `"<key>": "<hex>"` with an optional trailing comma, `<key>` on the allowlist with `<hex>` of an
+   allowed length; or a bare list element `"<hex>"`, optional comma, of length 16 or 24. `<hex>` is
+   `[0-9a-f]` only.
+4. **Value**: the flagged secret equals that `<hex>`.
+
+**The allowlist**, the key names of the spec's data contracts with these shapes: `qid` (24); `p1`,
+`unit_set_hash`, `prompt_digest` (16); `revision` (40); `digest`, `freeze_digest`,
+`node_index_digest`, `extraction_digest`, `pilot_digest`, `hop_run_digest`, `traces_digest`,
+`run_digest`, `sha256` (64).
+
+**What stays scanned inside `data/replacement/`**: every finding of every other detector; hex values
+of any other length or with uppercase letters; a hex value under a key off the list; any line
+holding more than that one key and value, so an appended string, a text, an entity form or a file
+name is always read; bare 40- or 64-character elements; nested files and non-JSON files. Outside
+`data/replacement/` nothing changes.
+
+**How it fails.** detect-secrets 1.5.0 loads a file filter when it scans; if the file or the
+function is missing it logs a warning and applies no filter (`settings.get_filters`). A broken
+filter brings the findings back and fails the gate; it cannot silence anything. The opposite risk,
+the module edited to skip too much, is what `tests/test_security_gate.py` guards (function-level
+cases for every allowed and refused shape, an end-to-end run of the real scanner configured from the
+real baseline in a repository-shaped temporary tree, and structural checks), and a change to the
+module is reviewed the way a baseline change is.
+
+**Reconciled with the writers at T21-T23, not before.** The allowlist starts from the contract's key
+names only. A data-dependent test, skipped while `data/replacement/` holds no JSON, requires every
+allowlisted key to occur there. A key the hook flags when the T21, T22 or T23 artifacts are staged is
+added only by a reviewed change to the module and its test, committed on its own before the
+artifacts, never by regenerating the baseline. Measured on 2026-09-17 on a toy run of the three
+stages (not on real data), the writers also emit hex values under keys off the list, which the gate
+will therefore report when real artifacts are staged: `corpus_cache_key`, `question_cache_key` and
+the question-set hashes under `dev` / `test` (16); `resolved_revision` (40); `token_counts_sha256`,
+`outcomes_digest`, `first_digest`, `second_digest`, and digests keyed by system name (`dense`,
+`hybrid-bm25`, `hybrid-entity-hop`) (64); and `expected` / `observed` values of reproduction checks
+whose figure is itself an id (16 or 40). Deciding which of them to allowlist is that review's.
+
+**Inline audits outside `data/replacement/`.** The Phase 6 source and tests hold hex literals the
+gate flags and the filter, by design, does not cover: the six pinned digests of D2 in `config.py`
+(sha256 digests of public, pipeline-written artifacts) and their copies in `tests/test_config.py`,
+the Phase 1 pool hash and the extraction prompt digest in that test, and the toy model revision in
+`tests/evaluation/replacement_fixtures.py`. Each carries an inline `# pragma: allowlist secret`
+rather than a new baseline entry, so the audit sits on the line it covers and the baseline's results
+stay as they were. Verified on 2026-09-17: `detect-secrets-hook --baseline .secrets.baseline
+$(git ls-files --cached --others --exclude-standard)` passes over the tracked tree and the new files.
+
+**When regenerating**, pass both filters again, or they are silently dropped with the old baseline:
+
+```bash
+uv run detect-secrets scan --exclude-files '^data[\\/](pilot|navigation)[\\/][^\\/]+[.]json$' \
+  --filter 'file://.github/detect_secrets_filters.py::is_deterministic_replacement_id' \
+  $(git ls-files --cached --others --exclude-standard) > .secrets.baseline
+```
+
 ## Conventions
 
 - This file is the whole paperwork of an audit: one row per finding, with id, severity, title and

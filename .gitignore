@@ -77,6 +77,13 @@ data/extraction/*
 # archive is verified against. The batch state is operational and stays out.
 !data/extraction/extraction-*.jsonl.gz
 !data/extraction/extraction-*.json
+# Phase 6 (plan D1, D20): the checks, the freeze, results, per-question outcomes, diagnostics,
+# traces, readouts and the decision, flat in one directory and never under data/results/. Their
+# deterministic hex ids are skipped by the content filter in .github/detect_secrets_filters.py,
+# not by a path exclusion, so the scanner keeps reading everything else they hold.
+!data/replacement/
+data/replacement/*
+!data/replacement/*.json
 .cache/
 models/
 output/

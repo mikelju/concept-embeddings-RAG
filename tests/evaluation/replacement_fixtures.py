@@ -53,7 +53,7 @@ from concept_embeddings_rag.retrieval.dense import DenseRetriever
 from concept_embeddings_rag.retrieval.fusion import FusedRetriever
 
 TOY_MODEL = "toy-model"
-TOY_REVISION = "0123456789abcdef0123456789abcdef01234567"
+TOY_REVISION = "0123456789abcdef0123456789abcdef01234567"  # pragma: allowlist secret
 TOY_TOKENIZER = "toy-tokenizer"
 TOY_PROMPT = "0123456789abcdef"
 TOY_EXTRACTOR = "toy-extractor"
