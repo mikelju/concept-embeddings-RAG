@@ -172,6 +172,8 @@ def test_ensure_directories_creates_the_phase_3_directories(tmp_path, monkeypatc
     monkeypatch.setattr(config, "CONCEPTS_DIR", tmp_path / "data" / "concepts")
     monkeypatch.setattr(config, "SELECTION_DIR", tmp_path / "data" / "selection")
     monkeypatch.setattr(config, "QUESTION_CACHE_DIR", tmp_path / "data" / "cache" / "questions")
+    # Phase 6 added a directory; patched so this test writes nothing under the real data/.
+    monkeypatch.setattr(config, "REPLACEMENT_DIR", tmp_path / "data" / "replacement")
 
     config.ensure_directories()
 
@@ -246,6 +248,7 @@ def test_ensure_directories_creates_the_phase_4_directories(tmp_path, monkeypatc
     monkeypatch.setattr(config, "QUESTION_CACHE_DIR", tmp_path / "data" / "cache" / "questions")
     monkeypatch.setattr(config, "EXPANSION_DIR", tmp_path / "data" / "expansion")
     monkeypatch.setattr(config, "TRACES_DIR", tmp_path / "data" / "traces")
+    monkeypatch.setattr(config, "REPLACEMENT_DIR", tmp_path / "data" / "replacement")
 
     config.ensure_directories()
 
@@ -323,6 +326,7 @@ def test_the_reporting_constants_decide_only_what_a_human_reads():
 def test_ensure_directories_creates_the_phase_5_directories(tmp_path, monkeypatch):
     for name in ("PILOT_DIR", "EXTRACTION_DIR", "NODES_DIR", "NAVIGATION_DIR"):
         monkeypatch.setattr(config, name, tmp_path / "data" / name.lower())
+    monkeypatch.setattr(config, "REPLACEMENT_DIR", tmp_path / "other" / "replacement")
     for name in (
         "DATA_DIR",
         "CACHE_DIR",
@@ -339,3 +343,117 @@ def test_ensure_directories_creates_the_phase_5_directories(tmp_path, monkeypatc
 
     for name in ("PILOT_DIR", "EXTRACTION_DIR", "NODES_DIR", "NAVIGATION_DIR"):
         assert getattr(config, name).is_dir()
+
+
+# --- Phase 6: dense + entity navigation, end to end ----------------------------
+
+
+def test_phase_6_writes_to_its_own_directory_under_data_and_not_to_results():
+    """D1: a Phase 6 result under data/results/ would become the Phase 3 control for a reader."""
+    assert config.REPLACEMENT_DIR == config.DATA_DIR / "replacement"
+    assert config.REPLACEMENT_DIR.is_absolute()
+    assert config.REPLACEMENT_DIR != config.RESULTS_DIR
+
+
+def test_the_phase_6_system_and_component_names_follow_the_hybrid_naming_rule():
+    assert config.ENTITY_HOP_NAME == "entity-hop"
+    assert config.ENTITY_HOP_TYPES == ("entity",)
+    assert config.PHASE_6_SYSTEMS == ("dense", "hybrid-bm25", "hybrid-entity-hop")
+    assert config.PHASE_6_SYSTEMS[2] == f"hybrid-{config.ENTITY_HOP_NAME}"
+
+
+def test_the_entity_hop_depth_is_the_depth_every_component_is_asked_for():
+    assert config.ENTITY_HOP_MAX_DEPTH == config.EVALUATION_TOP_K == 100
+    assert config.PILOT_READ_DEPTH == 10
+
+
+def test_the_inherited_artifacts_are_pinned_by_their_full_digests():
+    """D2: the spec quotes each by prefix; config holds the whole value, copied once."""
+    pins = {
+        config.PINNED_SELECTION_DIGEST: (
+            "91daa10ef0a75b6eba377d18a55ac868467b01b09fb7284c7835a84d4e4e602d"
+        ),
+        config.PINNED_PILOT_DIGEST: (
+            "e0f0af8f468dbf3332d9311948f416b75e4e5bf0d9971a0bd332b04acff2c364"
+        ),
+        config.PINNED_HOP_RUN_DIGEST: (
+            "49847f3cedb635406416bbb15dfa1913f4fa10782ed07a6461ccd56d5ded246a"
+        ),
+        config.PINNED_NAVIGATION_TRACES_DIGEST: (
+            "163777a044e1d6fcded400495a6e8f9917411e614978aa1aa43427a6cc8d5925"
+        ),
+        config.PINNED_EXTRACTION_DIGEST: (
+            "8e59854118ae5f4d83d88ce967098801f9f922309d7beb6b3e3deaf06fb1f12f"
+        ),
+        config.PINNED_NODE_INDEX_DIGEST: (
+            "b498f99418389b2f7849c680cda1749ea58700a9997fbfed7ce474d3b0a0559a"
+        ),
+    }
+    for pinned, literal in pins.items():
+        assert pinned == literal
+    assert config.PINNED_EXTRACTION_PROMPT_DIGEST == "0107de3ae9b4e4a3"
+    assert config.PINNED_NORMALIZATION_VERSION == "normalization-v1"
+    assert config.PINNED_NORMALIZATION_VERSION == config.NORMALIZATION_VERSION
+    assert config.PINNED_SELECTION_FROZEN_AT == "2026-09-11T13:30:36+00:00"
+    assert config.PHASE_1_UNIT_SET_HASH == "101f564fdcca620c"
+
+
+def test_the_pinned_digests_are_the_prefixes_the_spec_quotes():
+    assert config.PINNED_SELECTION_DIGEST.startswith("91daa10e")
+    assert config.PINNED_PILOT_DIGEST.startswith("e0f0af8f")
+    assert config.PINNED_HOP_RUN_DIGEST.startswith("49847f3c")
+    assert config.PINNED_NAVIGATION_TRACES_DIGEST.startswith("163777a0")
+    assert config.PINNED_EXTRACTION_DIGEST.startswith("8e598541")
+    assert config.PINNED_NODE_INDEX_DIGEST.startswith("b498f994")
+
+
+def test_the_four_historical_result_files_are_pinned_by_name():
+    assert config.HISTORICAL_DEV_RESULT_FILES == {
+        "dense": "run-dense-dev-20260911T133154+0000.json",
+        "hybrid-bm25": "run-hybrid-bm25-dev-20260911T133156+0000.json",
+    }
+    assert config.HISTORICAL_TEST_RESULT_FILES == {
+        "dense": "run-dense-test-20260911T133159+0000.json",
+        "hybrid-bm25": "run-hybrid-bm25-test-20260911T133204+0000.json",
+    }
+    assert config.HISTORICAL_CONFIG_KEYS == (
+        "unit_set_hash",
+        "tokenizer",
+        "seed",
+        "top_k",
+        "model",
+        "revision",
+    )
+    assert config.HISTORICAL_HYBRID_CONFIG_KEYS == ("fusion_scheme", "fusion_weights")
+
+
+def test_the_expected_counts_are_the_ones_the_spec_quotes():
+    assert config.EXPECTED_N_UNITS == 19366
+    assert config.EXPECTED_ENTITY_NODES == 96416
+    assert config.EXPECTED_FAILED_EXTRACTIONS == 8
+    assert config.EXPECTED_UNITS_WITHOUT_ENTITY_NODE == 163
+    assert config.EXPECTED_PILOT_QUESTIONS == 152
+    assert config.EXPECTED_ENTITY_TRACES == 116
+
+
+def test_ensure_directories_creates_the_phase_6_directory(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "REPLACEMENT_DIR", tmp_path / "data" / "replacement")
+    for name in (
+        "DATA_DIR",
+        "CACHE_DIR",
+        "RESULTS_DIR",
+        "CONCEPTS_DIR",
+        "SELECTION_DIR",
+        "QUESTION_CACHE_DIR",
+        "EXPANSION_DIR",
+        "TRACES_DIR",
+        "PILOT_DIR",
+        "EXTRACTION_DIR",
+        "NODES_DIR",
+        "NAVIGATION_DIR",
+    ):
+        monkeypatch.setattr(config, name, tmp_path / "other" / name.lower())
+
+    config.ensure_directories()
+
+    assert config.REPLACEMENT_DIR.is_dir()

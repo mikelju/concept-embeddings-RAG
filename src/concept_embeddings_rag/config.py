@@ -218,7 +218,7 @@ SEED_ARMS: Final[tuple[str, ...]] = ("dense", "conceptual")
 # First free parameter: how much of the mass returns to the seed's own signal at
 # every round. The endpoints are deliberately absent - 1.0 is the seed itself and
 # is asserted by a test rather than paid for with a dev evaluation, and 0.0 is the
-# declared failure mode of §52-§53, measured once after the choice is made.
+# declared failure mode of sections 52-53, measured once after the choice is made.
 RESTART_GRID: Final[tuple[float, ...]] = (0.2, 0.4, 0.6, 0.8)
 
 # Second free parameter: how the propagation operator is normalized (decision D3).
@@ -312,6 +312,87 @@ TRACES_READ_PER_ARM: Final[int] = 5
 REFERENCE_CONCEPT_K: Final[int] = 512
 
 
+# --- Dense + entity navigation, end to end (Phase 6) -------------------------
+# Declared before any Phase 6 number exists. The spec (`6.spec.md`) fixes every value;
+# `6.0_dense_entity_navigation.md` gives the reason for each (decisions D1, D2, D20). The
+# decision parameters of the statistical convention live beside this module, in
+# `decision_parameters.py`: they name the test split, and this module is imported by the
+# Phase 3 selection, whose guard forbids naming any split but dev.
+
+# D1: everything the phase writes lives here, flat, and nothing under RESULTS_DIR. A
+# Phase 6 `run-hybrid-bm25-test-*.json` there would become the Phase 3 control for the
+# comparison reader, which takes the newest file of each system.
+REPLACEMENT_DIR: Final[Path] = DATA_DIR / "replacement"
+
+# The second-stage component and the three systems, by the hybrid naming rule:
+# `hybrid-` plus the second component's name.
+ENTITY_HOP_NAME: Final[str] = "entity-hop"
+ENTITY_HOP_TYPES: Final[tuple[str, ...]] = ("entity",)
+PHASE_6_SYSTEMS: Final[tuple[str, ...]] = ("dense", "hybrid-bm25", "hybrid-entity-hop")
+# The entity list is cut at the depth every fusion component is asked for.
+ENTITY_HOP_MAX_DEPTH: Final[int] = EVALUATION_TOP_K
+
+# D2: the inherited artifacts, pinned by their full digests. The spec quotes each by
+# prefix; these were copied once from the artifacts and a data-dependent test holds them
+# equal. Loading derives file paths from these constants, never from a summary on disk.
+PHASE_1_UNIT_SET_HASH: Final[str] = "101f564fdcca620c"
+PINNED_SELECTION_DIGEST: Final[str] = (
+    "91daa10ef0a75b6eba377d18a55ac868467b01b09fb7284c7835a84d4e4e602d"
+)
+PINNED_SELECTION_FROZEN_AT: Final[str] = "2026-09-11T13:30:36+00:00"
+PINNED_PILOT_DIGEST: Final[str] = "e0f0af8f468dbf3332d9311948f416b75e4e5bf0d9971a0bd332b04acff2c364"
+PINNED_HOP_RUN_DIGEST: Final[str] = (
+    "49847f3cedb635406416bbb15dfa1913f4fa10782ed07a6461ccd56d5ded246a"
+)
+PINNED_NAVIGATION_TRACES_DIGEST: Final[str] = (
+    "163777a044e1d6fcded400495a6e8f9917411e614978aa1aa43427a6cc8d5925"
+)
+PINNED_EXTRACTION_DIGEST: Final[str] = (
+    "8e59854118ae5f4d83d88ce967098801f9f922309d7beb6b3e3deaf06fb1f12f"
+)
+PINNED_EXTRACTION_PROMPT_DIGEST: Final[str] = "0107de3ae9b4e4a3"
+PINNED_NODE_INDEX_DIGEST: Final[str] = (
+    "b498f99418389b2f7849c680cda1749ea58700a9997fbfed7ce474d3b0a0559a"
+)
+PINNED_NORMALIZATION_VERSION: Final[str] = NORMALIZATION_VERSION
+
+# The four historical result files of the Phase 3 control. They carry no digest, so they
+# are pinned by name, their configuration is checked key by key (HU-2), and the sha256 of
+# their bytes is recorded at the dev stage. Before the test stage, the two test files are
+# identified and never read for their figures.
+# Keyed by system and grouped by role rather than by split name: this module is on the
+# Phase 3 selection path, whose guard forbids any string naming a split other than dev.
+HISTORICAL_DEV_RESULT_FILES: Final[dict[str, str]] = {
+    "dense": "run-dense-dev-20260911T133154+0000.json",
+    "hybrid-bm25": "run-hybrid-bm25-dev-20260911T133156+0000.json",
+}
+HISTORICAL_TEST_RESULT_FILES: Final[dict[str, str]] = {
+    "dense": "run-dense-test-20260911T133159+0000.json",
+    "hybrid-bm25": "run-hybrid-bm25-test-20260911T133204+0000.json",
+}
+HISTORICAL_CONFIG_KEYS: Final[tuple[str, ...]] = (
+    "unit_set_hash",
+    "tokenizer",
+    "seed",
+    "top_k",
+    "model",
+    "revision",
+)
+HISTORICAL_HYBRID_CONFIG_KEYS: Final[tuple[str, ...]] = ("fusion_scheme", "fusion_weights")
+
+# Counts the spec quotes. Checked on load, and a mismatch stops with both numbers.
+EXPECTED_N_UNITS: Final[int] = 19366
+EXPECTED_ENTITY_NODES: Final[int] = 96416
+EXPECTED_FAILED_EXTRACTIONS: Final[int] = 8
+EXPECTED_UNITS_WITHOUT_ENTITY_NODE: Final[int] = 163
+EXPECTED_PILOT_QUESTIONS: Final[int] = 152
+EXPECTED_ENTITY_TRACES: Final[int] = 116
+
+# OI-2, decided: the node hop's own test tolerance, a relative tolerance applied to a
+# `math.fsum` of the shared nodes' weights against the recorded score.
+TRACE_WEIGHT_REL_TOL: Final[float] = 1e-12
+
+
 def ensure_directories() -> None:
     """Create the data directories if they do not exist yet."""
     for path in (
@@ -327,5 +408,6 @@ def ensure_directories() -> None:
         EXTRACTION_DIR,
         NODES_DIR,
         NAVIGATION_DIR,
+        REPLACEMENT_DIR,
     ):
         path.mkdir(parents=True, exist_ok=True)
