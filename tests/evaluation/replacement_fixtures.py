@@ -130,8 +130,8 @@ def _units() -> list[IndexingUnit]:
     return sorted(units, key=lambda unit: unit.unit_id)
 
 
-def _questions(units: Sequence[IndexingUnit]) -> list[Question]:
-    qids = [_qid(index) for index in range(N_QUESTIONS)]
+def _questions(units: Sequence[IndexingUnit], n_questions: int) -> list[Question]:
+    qids = [_qid(index) for index in range(n_questions)]
     splits = split_questions([{"_id": qid} for qid in qids], n_dev=N_DEV, seed=config.DEFAULT_SEED)
     label = {entry["_id"]: split for split, entries in splits.items() for entry in entries}
     questions = []
@@ -168,8 +168,9 @@ def _record_line(record: ExtractionRecord) -> str:
     )
 
 
-def build_toy_pipeline(root: Path) -> ToyPipeline:
+def build_toy_pipeline(root: Path, n_test: int = N_QUESTIONS - N_DEV) -> ToyPipeline:
     """Write every inherited input under `root` and return where it is and what pins it."""
+    n_questions = N_DEV + n_test
     paths = InputPaths(
         data_dir=root / "data",
         cache_dir=root / "data" / "cache",
@@ -197,7 +198,7 @@ def build_toy_pipeline(root: Path) -> ToyPipeline:
     units = _units()
     unit_ids = [unit.unit_id for unit in units]
     pool_hash = unit_set_hash(unit_ids)
-    questions = _questions(units)
+    questions = _questions(units, n_questions)
     save_pool(units, questions, paths.data_dir / "pool.json")
     CorpusManifest(
         dataset="toy",
@@ -205,8 +206,8 @@ def build_toy_pipeline(root: Path) -> ToyPipeline:
         sha256="0" * 64,
         downloaded_at="2026-09-01T00:00:00+00:00",
         seed=config.DEFAULT_SEED,
-        n_questions=N_QUESTIONS,
-        split_sizes={"dev": N_DEV, "test": N_QUESTIONS - N_DEV},
+        n_questions=n_questions,
+        split_sizes={"dev": N_DEV, "test": n_test},
         n_units=N_UNITS,
         unit_set_hash=pool_hash,
     ).save(paths.data_dir / "manifest.json")
@@ -461,3 +462,18 @@ def rewrite_json(path: Path, change) -> None:
 
 def mapping_copy(mapping: Mapping) -> dict:
     return json.loads(json.dumps(mapping))
+
+
+def relocated(pipeline: ToyPipeline, root: Path) -> ToyPipeline:
+    """A copy of a written toy pipeline under `root`, with its paths pointing at the copy."""
+    import shutil
+
+    shutil.copytree(pipeline.root, root)
+
+    def moved(path: Path) -> Path:
+        return root / path.relative_to(pipeline.root)
+
+    paths = InputPaths(**{name: moved(value) for name, value in vars(pipeline.paths).items()})
+    return replace(
+        pipeline, root=root, paths=paths, replacement_dir=moved(pipeline.replacement_dir)
+    )

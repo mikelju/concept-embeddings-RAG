@@ -12,6 +12,7 @@
     extract   read entities and concepts out of every paragraph, offline (Phase 5)
     nodes     normalize the extraction into typed nodes over the pool (Phase 5)
     navigate  run every second hop over the pilot, once (Phase 5)
+    replace-check   verify inputs, continuity and the control's reproduction on dev (Phase 6)
 
 Each stage is idempotent and refuses to run if its input is missing, saying which
 stage to run first rather than failing somewhere deep inside numpy.
@@ -126,6 +127,16 @@ from concept_embeddings_rag.evaluation.pilot import (
     pilot_digest,
     pilot_path,
     save_pilot,
+)
+from concept_embeddings_rag.evaluation.replacement_inputs import (
+    InputPaths,
+    InputPins,
+    offline_token_counter,
+)
+from concept_embeddings_rag.evaluation.replacement_run import (
+    ReplacementRunError,
+    StageEnvironment,
+    run_check,
 )
 from concept_embeddings_rag.evaluation.selection import (
     DEV_SPLIT,
@@ -1709,6 +1720,33 @@ def cmd_navigate(
     return run_path
 
 
+def replacement_environment() -> StageEnvironment:
+    """The real inputs, pins and output directory of Phase 6, all read from `config`."""
+    return StageEnvironment(
+        paths=InputPaths.from_config(),
+        pins=InputPins.from_config(),
+        replacement_dir=config.REPLACEMENT_DIR,
+        backend=SentenceTransformerBackend(),
+        token_counter=offline_token_counter(),
+    )
+
+
+def cmd_replace_check(environment: StageEnvironment | None = None) -> int:
+    """Phase 6, D11 steps 1-3 on dev: inputs, continuity, control reproduction. No B figure.
+
+    Exits non-zero on any mismatch, after writing `checks-dev.json`; the deviation document is
+    the author's to write before anything further runs.
+    """
+    try:
+        result = run_check(environment or replacement_environment())
+    except ReplacementRunError as error:
+        print(f"[ERROR] {error}")
+        return 1
+    status = "OK" if result.passed else "ERROR"
+    print(f"[{status}] {result.message} -> {result.path}")
+    return 0 if result.passed else 1
+
+
 def _poll_pause() -> None:
     """How long the full run waits between two looks at a batch. Most end within an hour."""
     time.sleep(60)
@@ -1792,6 +1830,16 @@ def build_parser() -> argparse.ArgumentParser:
         "nodes", help="normalize the extraction into typed nodes and index them over the pool"
     )
     subparsers.add_parser("navigate", help="run every second hop over the frozen pilot, once")
+    subparsers.add_parser(
+        "replace-check",
+        help="Phase 6 on dev: verify inputs and continuity, reproduce the control; no B figure",
+    )
+    subparsers.add_parser(
+        "replace-freeze", help="Phase 6 on dev: fit B, check reproducibility, write the freeze"
+    )
+    subparsers.add_parser(
+        "replace-test", help="Phase 6 on test, once, under the freeze: the ordered protocol"
+    )
     extraction = subparsers.add_parser(
         "extract", help="read entities and concepts out of every paragraph (spends money)"
     )
@@ -1836,6 +1884,11 @@ def main(argv: list[str] | None = None) -> int:
         cmd_nodes()
     elif args.command == "navigate":
         cmd_navigate()
+    elif args.command == "replace-check":
+        return cmd_replace_check()
+    elif args.command in ("replace-freeze", "replace-test"):
+        print(f"[ERROR] {args.command} is not implemented yet")
+        return 1
     return 0
 
 
