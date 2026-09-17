@@ -13,6 +13,7 @@
     nodes     normalize the extraction into typed nodes over the pool (Phase 5)
     navigate  run every second hop over the pilot, once (Phase 5)
     replace-check   verify inputs, continuity and the control's reproduction on dev (Phase 6)
+    replace-freeze  fit B on dev, check reproducibility, write the freeze (Phase 6)
 
 Each stage is idempotent and refuses to run if its input is missing, saying which
 stage to run first rather than failing somewhere deep inside numpy.
@@ -137,6 +138,7 @@ from concept_embeddings_rag.evaluation.replacement_run import (
     ReplacementRunError,
     StageEnvironment,
     run_check,
+    run_freeze,
 )
 from concept_embeddings_rag.evaluation.selection import (
     DEV_SPLIT,
@@ -1747,6 +1749,30 @@ def cmd_replace_check(environment: StageEnvironment | None = None) -> int:
     return 0 if result.passed else 1
 
 
+def cmd_replace_freeze(
+    environment: StageEnvironment | None = None,
+    control_mode: str | None = None,
+    deviation: str | None = None,
+) -> int:
+    """Phase 6, D11 steps 4-8 on dev: B's fit and selected run, reproducibility, the freeze.
+
+    Refuses without a passing `checks-dev.json`, or, after a failed one, without
+    `--control-mode re-measured --deviation <existing document>`. The freeze is written once and
+    must be committed before `replace-test` runs.
+    """
+    try:
+        result = run_freeze(
+            environment or replacement_environment(),
+            control_mode=control_mode,
+            deviation=deviation,
+        )
+    except ReplacementRunError as error:
+        print(f"[ERROR] {error}")
+        return 1
+    print(f"[OK] {result.message} -> {result.path}")
+    return 0
+
+
 def _poll_pause() -> None:
     """How long the full run waits between two looks at a batch. Most end within an hour."""
     time.sleep(60)
@@ -1834,9 +1860,15 @@ def build_parser() -> argparse.ArgumentParser:
         "replace-check",
         help="Phase 6 on dev: verify inputs and continuity, reproduce the control; no B figure",
     )
-    subparsers.add_parser(
+    freezing = subparsers.add_parser(
         "replace-freeze", help="Phase 6 on dev: fit B, check reproducibility, write the freeze"
     )
+    # D12: re-measuring the control is admissible only after a failed check, and only with the
+    # deviation document that records the mismatch.
+    freezing.add_argument(
+        "--control-mode", choices=("reused", "re-measured"), default=None, dest="control_mode"
+    )
+    freezing.add_argument("--deviation", default=None, help="path of the 6.Y deviation document")
     subparsers.add_parser(
         "replace-test", help="Phase 6 on test, once, under the freeze: the ordered protocol"
     )
@@ -1886,7 +1918,9 @@ def main(argv: list[str] | None = None) -> int:
         cmd_navigate()
     elif args.command == "replace-check":
         return cmd_replace_check()
-    elif args.command in ("replace-freeze", "replace-test"):
+    elif args.command == "replace-freeze":
+        return cmd_replace_freeze(control_mode=args.control_mode, deviation=args.deviation)
+    elif args.command == "replace-test":
         print(f"[ERROR] {args.command} is not implemented yet")
         return 1
     return 0
