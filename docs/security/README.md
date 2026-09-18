@@ -16,11 +16,12 @@ written; later audits add rows below, not documents.
 
 ## Open findings
 
-**Eleven, none blocking**: four from Phase 5 (one Medium, three Low), SEC-020 to SEC-023, and
-seven Low from Phase 6, SEC-024 to SEC-030. Every one needs a change under `src/`, `.github/` or
-the workflow, and the author closed both rounds to source changes, so they are reported and
-catalogued rather than fixed — the decision is recorded in each phase's section below. No Critical
-and no High finding exists in any audited phase.
+**Thirteen, none blocking**: four from Phase 5 (one Medium, three Low), SEC-020 to SEC-023,
+seven Low from Phase 6, SEC-024 to SEC-030, and two Low from Phase 7, SEC-031 and SEC-032. Every
+one of the first eleven needs a change under `src/`, `.github/` or the workflow, and the author
+closed both rounds to source changes, so they are reported and catalogued rather than fixed — the
+decision is recorded in each phase's section below. The two Phase 7 rows are catalogued for the
+reasons given in that section. No Critical and no High finding exists in any audited phase.
 
 Phases 1 and 2 have nothing outstanding: every finding of their three passes is closed and held
 closed by a regression test. Phases 3 and 4 have not been audited — see "Deferred audits" below.
@@ -202,6 +203,67 @@ implied.
 
 **Phase closure: no Critical and no High finding, so the phase may close** with the seven open Low
 findings carried as recorded above.
+
+### Phase 7 — 2026-09-18 (targeted review, three surfaces only)
+
+Scope, exactly as `7.spec.md` §Security and plan step S6 set it, and nothing wider: **the new
+dependencies**, **model download and identity**, and **deserialization / model loading**. This is
+not a Phase 6-scale audit of the repository, and no other surface was opened. The phase adds no
+network API, no subprocess, no credential and no untrusted user input: the extractors read the
+frozen pool and write a local artifact.
+
+**Surface 1 — the new dependencies.** The `phase7` group is `gliner==0.2.29`, `spacy==3.8.16`, the
+pinned `en_core_web_sm` 3.8.0 release wheel and `protobuf>=4.25`. `uv run --group security
+pip-audit` over the environment with the group installed reports **no known vulnerabilities**; the
+only skips are the two already on record, `concept-embeddings-rag` itself and `torch 2.13.0+cpu`
+(SEC-011, the local PyTorch index). `uv.lock` pins every artifact by hash, including the spaCy model
+wheel (`sha256:1932429d…`), so the plan's D5 claim that the wheel's digest is recorded is satisfied
+by the lock rather than by a separate step. CI already audits the group: the `pip-audit` job syncs
+`--group security --group labeling --group phase7`, so a new advisory against either extractor fails
+the gate rather than passing unnoticed. `gliner` pulls a wide transitive tree through
+`transformers` 5.x (`typer`, `rich`, `click`, `shellingham`, `pygments`) for a pass that never opens
+a socket after the model download — recorded as OBS-012, not as a defect.
+
+**Surface 2 — model download and identity.** `download_gliner` calls
+`huggingface_hub.snapshot_download` twice with an explicit pinned commit (`40ec4193…` for the
+checkpoint, `8ccc9b6f…` for the DeBERTa tokenizer) and an `allow_patterns` list, never `main` and
+never a bare `snapshot_download(repo_id)`. The allow-lists admit five files in total —
+`gliner_config.json`, `model.safetensors`, `config.json`, `spm.model`, `tokenizer_config.json` —
+and therefore exclude `pytorch_model.bin`, `tf_model.h5` and `rust_model.ot`, all three of which
+those repositories publish. `_refuse_executable_weights` then walks the download directory and
+raises if anything with a `.bin/.pt/.pth/.pkl/.ckpt/.h5/.ot` suffix arrived, so the allow-list is
+verified rather than trusted. Checked on the real download (2026-09-18): the directory holds exactly
+`config.json`, `gliner_config.json`, `model.safetensors`, `spm.model`, `tokenizer_config.json` and
+`huggingface_hub`'s own `.cache`. No credential is used or required — the Hub call is
+unauthenticated against public repositories, and no `ANTHROPIC_API_KEY` reaches this path.
+
+**Surface 3 — deserialization and model loading.** GLiNER resolves `model_dir / "model.safetensors"`
+first and falls back to `pytorch_model.bin` only if that file is absent
+(`gliner/model.py:875-877`); the safetensors branch of `_load_state_dict` opens it with
+`safetensors.safe_open` (`model.py:1295-1303`), and the pickle branch it never reaches is itself
+`torch.load(..., weights_only=True)` (`model.py:1315`). Combined with the allow-list, **no pickle
+archive exists on disk for this phase to deserialize**. The tokenizer is a SentencePiece
+`spm.model`, parsed by C++ protobuf, not by `pickle`. spaCy is the opposite case and is recorded as
+such: its pipeline arrives as an **installed Python package**, so installing and loading it executes
+the publisher's code by construction — pinned version, official release wheel, hash in `uv.lock`,
+and no way to reduce it further without dropping the candidate. Elsewhere the phase reads only
+digest-verified JSON and `np.load` over `.npz` (no `allow_pickle`).
+
+| ID | Severity | Title | Status |
+|---|---|---|---|
+| SEC-031 | Low | The extraction manifest names model, revision and library versions but records no digest of the weight file actually loaded, so the artifact cannot prove which bytes produced it | Open, catalogued |
+| SEC-032 | Low | `spacy.load` of `en_core_web_sm` executes publisher code: the pipeline is an installed Python package, not a data file | Open, accepted (pinned version, official wheel, hash in `uv.lock`) |
+
+**OBS-012** — `gliner` drags `typer`, `rich`, `click`, `shellingham` and `pygments` into the project
+environment through `transformers` 5.x, for an extraction pass that opens no socket after the model
+download. The group is optional and CI audits it; recorded as footprint, not as a defect, and it is
+one of the inputs the selection rule's "smaller dependency and operational footprint" tie-break
+would read if it were ever reached.
+
+**No Critical and no High finding on the three surfaces reviewed.** SEC-031 is the only one with a
+cheap remedy (hash `model.safetensors` into the manifest beside the revision); it is catalogued
+rather than fixed because no Phase 7 extraction artifact exists yet and the fix belongs with the run
+that writes one, not with a review.
 
 ## Deferred audits
 
@@ -499,6 +561,6 @@ byte-identical and covers no Phase 6 file.
 - Every Critical or High finding is resolved with a `fix-N` in `docs/plans/fixes/` before the
   phase closes, or the decision to defer it is recorded in the master plan with its reason.
 - Finding ids are unique per project: continue the `SEC-NNN` sequence rather than restarting it
-  per audit. Next free id: **SEC-031** (`OBS-NNN` for observations: next free is **OBS-012**).
+  per audit. Next free id: **SEC-033** (`OBS-NNN` for observations: next free is **OBS-013**).
 - A phase exempted from the audit (the command's escape hatch) is recorded here too, with its
   reason: an exempt phase is a decision on record, not a phase nobody looked at.
