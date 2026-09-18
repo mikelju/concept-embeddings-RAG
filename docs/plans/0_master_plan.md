@@ -44,7 +44,7 @@ docs/plans/
 | 3 | Hybrid conceptual retrieval (System B) | Available | **Complete** |
 | 4 | Query-aware iterative expansion (System C) | Available | **Complete — negative result** |
 | 5 | Text-derived concepts: navigation pilot | Available | **Complete — NAMES ONLY** |
-| 6 | Dense + Entity Navigation — end-to-end comparison | Available | **Not opened** — new research line from the Phase 5 entity finding |
+| 6 | Dense + Entity Navigation — end-to-end comparison | Available | **Complete — ENTITY_REPLACEMENT_SUPPORTED** |
 | 7 | Entity canonicalization / resolution | Pending | **Conditional** — only if Phase 6 justifies it |
 | 8 | Conditional extensions and combinations | Pending | **Not opened** |
 
@@ -58,6 +58,12 @@ positive second-hop signal on the HotpotQA bridge diagnostic, while text-derived
 The gate returned **NAMES ONLY**. This does not establish an end-to-end improvement over dense+BM25;
 it opens a new research line focused first on whether entity navigation can replace the BM25 component.
 Canonicalization is a separate conditional line, not part of that first comparison.
+
+**Phase 6 is now measured and closed** (2026-09-17): under one protocol frozen and committed before
+the test split was opened, and read exactly once, `data/replacement/decision.json` records the state
+**`ENTITY_REPLACEMENT_SUPPORTED`** with no anomaly and no open question. The Entity Hop replaces the
+BM25 component of the dense hybrid **without loss of retrieval quality**, and the resulting system
+also improves on dense alone. See [`phase_6/6.results.md`](phase_6/6.results.md).
 
 ---
 
@@ -229,7 +235,7 @@ At hit@10 per question, entity navigation scored **0.6579**, versus 0.4441 for B
 
 ## Phase 6: Dense + Entity Navigation — end-to-end comparison
 
-This is a **new research line derived from Phase 5's positive entity finding**. It replaces the old conditional Phase 6 that was intended to evaluate the text-derived concept hypothesis. The first question is deliberately narrow:
+A **new research line derived from Phase 5's positive entity finding**, now **complete**. It replaces the old conditional Phase 6 that was intended to evaluate the text-derived concept hypothesis. The first question is deliberately narrow:
 
 > **Can an entity-navigation second hop replace the BM25 component of the existing dense+BM25 system without reducing retrieval quality?**
 
@@ -246,11 +252,37 @@ Initial scope deliberately excludes concept nodes, entity canonicalization, rela
 
 Specified in [`phase_6/6.spec.md`](phase_6/6.spec.md) and planned in [`phase_6/6.0_dense_entity_navigation.md`](phase_6/6.0_dense_entity_navigation.md), with the atomic tasks in [`phase_6/6.tasks.md`](phase_6/6.tasks.md). The plan declares every design decision, the dev-then-test sequence and the decision parameters before a single Phase 6 number is measured, and records four items against the spec that the author decided on 2026-09-17 without amending it.
 
-- [ ] Functional spec approved before planning
-- [ ] End-to-end Dense + BM25 control frozen under the Phase 6 protocol
-- [ ] Dense + Entity Hop implemented with no canonicalization or other new signal
-- [ ] Same-budget comparison run on the declared evaluation population
-- [ ] Result reviewed and decision recorded: continue to canonicalization / combinations, or stop
+- [x] Functional spec approved before planning
+- [x] End-to-end Dense + BM25 control frozen under the Phase 6 protocol
+- [x] Dense + Entity Hop implemented with no canonicalization or other new signal
+- [x] Same-budget comparison run on the declared evaluation population
+- [x] Result reviewed and decision recorded: continue to canonicalization / combinations, or stop
+
+### What Phase 6 found
+
+The decision procedure — the metric, the budget, the margin, α, the methods and the population — was frozen in `data/replacement/freeze.json` and **committed before the test split was opened**. `cer replace-test` then ran **once**, with no flags, in the order dense → A → first read of the historical test figures → reproduction check → B. The historical dense and dense+BM25 test figures reproduced exactly (32 checks, 0 failed), so the control was reused rather than re-measured, and the margin's source was confirmed from those files at 1,210 − 1,155 = 55 questions over n = 1,400.
+
+At Full Support @2,048 on the 1,400 test questions: **dense 0.8250** (1,155), **A = Dense + BM25 0.8643** (1,210), **B = Dense + Entity Hop 0.8900** (1,246). B's fusion (`weighted`, `{dense: 0.7, entity-hop: 0.3}`) was selected on dev only and frozen.
+
+| Preregistered test | Result | Passed |
+|---|---|---|
+| **S** — B beats dense | 103 wins, 12 losses, 1,285 ties, p = 1.676e-19 | yes |
+| **V** — A beats dense (assay sensitivity) | 85 wins, 30 losses, 1,285 ties, p = 1.430e-07 | yes |
+| **N** — B non-inferior to A at δ = 55/2800 | b = 96, c = 60, n = 1,400, Tango 4.9464, lower limit +0.011135 > −0.019643, p = 3.780e-07 | yes |
+
+**State: `ENTITY_REPLACEMENT_SUPPORTED`**, no route, no anomalies, no open question (`data/replacement/decision.json`).
+
+**What this establishes:** under the Phase 6 protocol, an entity-navigation second hop **replaces BM25 in the dense hybrid without reducing retrieval quality**, and the resulting system improves on dense alone. The mechanism is auditable: all 103 questions B supports and dense does not carry at least one paragraph the entity hop introduced, 67 of them with no reordering of dense's own list at all.
+
+**What it does not establish:** the phase asked a replacement question, and B's 2.57-point Full Support margin over A is recorded as **descriptive and deciding nothing** — it is not a superiority finding and does not become a new hypothesis here. The result does not establish the Type C claim, does not validate the wider concept-embeddings architecture, and does not speak to canonicalization: it uses Phase 5's raw uncanonicalized entities. It is specific to HotpotQA, to this frozen corpus and protocol, and it costs roughly 7x the control's retrieval latency (10.4 ms against 1.5 ms per query). The founding decisions remain unchanged. Full provenance, limitations and declared gaps are in [`phase_6/6.results.md`](phase_6/6.results.md).
+
+**This does not reopen the first research line.** Phase 4's negative result concerned concepts *induced from pooled paragraph embeddings*; Phase 6 measures a second-stage generator over entity names *read from the text*. They are different representations, and the Phase 4 closure stands exactly as scoped.
+
+### How the phase closed, and what it leaves open
+
+`/7-verificar`, `/8-auditar` (**mandatory** for this phase: nine artifact types read back from disk and a loader path into Phase 5's node index) and `/9-documentar` have **not** been run. The phase is closed on its numbers and its results document; the audit and the project documentation are still pending, and Phases 3 and 4 remain unaudited as `docs/security/README.md` records.
+
+**No follow-up phase is opened by this result.** Phase 7 stays conditional and Phase 8 stays closed; whether the decision justifies opening either is the author's to decide.
 
 ## Phase 7: Entity canonicalization / resolution
 
@@ -328,13 +360,15 @@ Phase 5's positive entity result is specific to a HotpotQA bridge diagnostic: qu
 
 The current entity hop also has a reachability ceiling: only 118 of the 158 missing paragraphs share an entity node with `p1`, and it finds 116 of those 118 by depth 100. The canonicalization problem is open, and the high singleton rate in Phase 5 may partly reflect legitimate one-off entities and partly naming variation; the experiment has not yet separated those causes.
 
+Phase 6's end-to-end result inherits that scope. It is measured on HotpotQA, on the frozen Phase 1 pool, with Phase 5's raw uncanonicalized entities, under one frozen protocol whose metric, budget, margin, α, method and population cannot be varied on the same test split. It establishes replacement of the BM25 component under that protocol; it does not establish the Type C claim, does not validate the wider concept-embeddings architecture, and says nothing about what canonicalization would add. Its retrieval cost is roughly 7x the control's per query.
+
 The corpus itself remains Wikipedia-style and offers no genuine chapter/section hierarchy. Any claim about hierarchical retrieval therefore belongs to a later phase on a corpus where that structure exists.
 
 ## Project success criterion
 
-The project succeeds by producing **defensible, reproducible answers to the active research question**, with its numbers, controls, limitations and provenance. The original pooled-concept research line is closed with a negative, bounded result. Phase 5 has separately established a positive entity-navigation signal but has not yet shown that it improves the complete dense+BM25 system.
+The project succeeds by producing **defensible, reproducible answers to the active research question**, with its numbers, controls, limitations and provenance. The original pooled-concept research line is closed with a negative, bounded result. Phase 5 separately established a positive entity-navigation signal, and Phase 6 has now shown end to end that it improves on the complete dense+BM25 system's own terms.
 
-The immediate success criterion for the new line is therefore Phase 6: determine under one comparable end-to-end protocol whether Entity Hop can replace BM25 in the dense+BM25 pipeline. Phase 7 and Phase 8 are conditional follow-ups rather than prerequisites for declaring Phase 6 complete.
+The immediate success criterion for the new line was Phase 6: determine under one comparable end-to-end protocol whether Entity Hop can replace BM25 in the dense+BM25 pipeline. **It is met, and the answer is recorded as `ENTITY_REPLACEMENT_SUPPORTED`.** Phase 7 and Phase 8 remain conditional follow-ups rather than prerequisites; opening either is the author's decision, and this result does not open them.
 
 ---
 
