@@ -1733,9 +1733,8 @@ def test_cheap_eval_test_reads_the_held_out_split_once_for_the_selected_extracto
     assert payload["split"] == "test"
     assert payload["n_questions"] == 1
     assert payload["extractor_id"] == "gliner"
-    assert payload["config"]["question_cache_key"] != json.loads(
-        (tmp_path / "phase7" / "gliner" / "dev.json").read_text()
-    )["config"]["question_cache_key"]
+    dev = json.loads((tmp_path / "phase7" / "gliner" / "dev.json").read_text())
+    assert payload["config"]["question_cache_key"] != dev["config"]["question_cache_key"]
     with pytest.raises(SystemExit, match="read once"):
         cmd_cheap_eval(**arguments, test=True)
 

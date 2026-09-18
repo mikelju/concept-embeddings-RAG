@@ -72,7 +72,7 @@ From Phase 7 onward:
 | 4 | Query-aware iterative expansion (System C) | Available | **Complete — negative result** |
 | 5 | Text-derived concepts: navigation pilot | Available | **Complete — NAMES ONLY** |
 | 6 | Dense + Entity Navigation — end-to-end comparison | Available | **Complete — ENTITY_REPLACEMENT_SUPPORTED** |
-| 7 | Cheap entity extraction | Pending | **Planned** |
+| 7 | Cheap entity extraction | Available | **Implemented, not measured** — apparatus, CLI and security review done; no extraction pass run, so no dev figure, no selection and no test figure ([7.results.md](phase_7/7.results.md)) |
 | 8 | Strong Dense + Entity Hop | Pending | **Planned after Phase 7** |
 | 9 | HotpotQA FullWiki at literature-comparable scale | Pending | **Planned after Phases 7–8** |
 
