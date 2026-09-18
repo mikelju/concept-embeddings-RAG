@@ -84,6 +84,28 @@ data/extraction/*
 !data/replacement/
 data/replacement/*
 !data/replacement/*.json
+
+# Phase 7: cheap entity extraction.
+# Keep the measured extraction record and evaluation artifacts; models and
+# regenerable node-index files remain ignored.
+!data/phase7/
+data/phase7/*
+
+!data/phase7/gliner/
+data/phase7/gliner/*
+!data/phase7/gliner/records.jsonl.gz
+!data/phase7/gliner/extraction.json
+!data/phase7/gliner/dev.json
+
+!data/phase7/spacy/
+data/phase7/spacy/*
+!data/phase7/spacy/records.jsonl.gz
+!data/phase7/spacy/extraction.json
+!data/phase7/spacy/dev.json
+
+!data/phase7/selection.json
+!data/phase7/test.json
+
 .cache/
 models/
 output/
