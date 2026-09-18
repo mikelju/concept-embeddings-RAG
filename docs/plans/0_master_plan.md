@@ -4,34 +4,61 @@
 
 A research experiment that puts to the test the hypothesis in `docs/refs/descripcion-proyecto.md` §69: that a document corpus can be represented in a sparse semantic space whose dimensions are **concepts discovered from the corpus itself**, and that expanding retrieval iteratively through those concepts recovers context a conventional dense RAG never reaches.
 
-No application is being built. **The deliverable is measured evidence**: comparable systems (BM25, dense, conceptual hybrid, iterative expansion) evaluated on a multi-hop benchmark with annotated ground truth, and an explicit verdict on the hypothesis — including the negative verdict if the numbers say so.
+No application is being built. **The deliverable is measured evidence**: comparable retrieval systems evaluated on multi-hop benchmarks with annotated ground truth, together with explicit positive, negative or inconclusive findings.
+
+The project has evolved through evidence. The original concept-space line produced a bounded negative result. A second line, based on entities extracted directly from text, produced a strong positive result: a one-hop entity-navigation signal can complement dense retrieval and replace the BM25 component of the existing dense hybrid under the Phase 6 protocol.
+
+The current research question is therefore narrower and more empirical:
+
+> **What is the minimum structural signal that Dense retrieval needs in order to recover multi-hop evidence that semantic similarity alone does not express?**
 
 > Source documents in `docs/refs/` are in Spanish and stay that way: they are the author's material. Everything this project produces — plans, specs, code, reports — is written in English.
 
+The longer-term research roadmap, including work that is deliberately **not yet scheduled as a phase**, lives in [`research_roadmap.md`](research_roadmap.md).
+
+---
+
 ## Documentation convention
 
-Every modification, improvement or fix follows this protocol before touching code:
+The project keeps a lightweight written record of what each phase asks, how it will answer it and what it found.
 
-```
+```text
 docs/plans/
 ├── 0_master_plan.md           # This file - global view
+├── research_roadmap.md        # Longer-term research directions
 ├── phase_1/
-│   ├── 1.spec.md              # Functional spec (WHAT + WHY) - /4-especificar
-│   ├── 1.0_phase_name.md      # Implementation plan (HOW) - /5-planear
-│   ├── 1.tasks.md             # (Optional) Atomic tasks - complex phases only
-│   └── 1.Y_name.md            # Deviation/problem, sequential (Y = 1, 2, 3...)
+│   ├── 1.spec.md              # Functional spec (WHAT + WHY)
+│   ├── 1.0_phase_name.md      # Implementation plan (HOW)
+│   ├── 1.tasks.md             # Optional; only when genuinely useful
+│   └── 1.Y_name.md            # Deviation/problem, if one is actually needed
 ├── phase_2/
 │   └── ...
 └── fixes/
-    └── fix-N_name.md          # One-off bug fix (globally sequential)
+    └── fix-N_name.md
 ```
 
-- **`X.spec.md`** → Functional spec. Created with `/4-especificar` BEFORE planning.
-- **`X.0`** → Implementation plan. Created with `/5-planear` AFTER the spec.
-- **`X.tasks.md`** → Atomic tasks. Optional, only if the phase has >10 steps.
-- **`X.Y`** → Deviation, unexpected problem or off-plan adjustment (Y sequential).
+The historical workflow has been:
 
-**Per-phase workflow:** `/4-especificar` → `/5-planear` → `/6-implementar` → `/7-verificar` → `/8-auditar` → `/9-documentar`
+`/4-especificar` → `/5-planear` → `/6-implementar` → `/7-verificar` → `/8-auditar` → `/9-documentar`
+
+That workflow remains available, but **from Phase 7 onward it must be applied proportionally rather than mechanically**.
+
+### Simplification rule from Phase 7 onward
+
+Phase 6 demonstrated that experimental engineering can itself become a major cost: roughly 2,500 tests, 24 implementation tasks and substantial machinery were required to answer one comparatively narrow research question.
+
+From Phase 7 onward:
+
+1. **One main scientific question per phase.**
+2. Prefer **5–8 implementation steps**, not dozens.
+3. Do not create a `tasks.md` unless the phase genuinely needs one.
+4. Reuse existing infrastructure instead of generalizing it pre-emptively.
+5. Do not build branches, guards, artifact systems or abstractions for hypothetical situations that have not occurred.
+6. Add tests for new code that can materially change the experimental result; do not exhaustively encode every process invariant as a test.
+7. Keep the essential experimental discipline — dev for choices, explicit configuration, reproducible results and honest limitations — without recreating Phase 6's full protocol machinery.
+8. Treat implementation complexity, runtime, storage and preprocessing cost as research costs in their own right.
+9. When a simple experiment can answer the question, prefer it over a more comprehensive framework.
+10. A phase is finished when its research question has been answered well enough to decide the next experiment; it does not need to become a reusable platform.
 
 ---
 
@@ -45,25 +72,17 @@ docs/plans/
 | 4 | Query-aware iterative expansion (System C) | Available | **Complete — negative result** |
 | 5 | Text-derived concepts: navigation pilot | Available | **Complete — NAMES ONLY** |
 | 6 | Dense + Entity Navigation — end-to-end comparison | Available | **Complete — ENTITY_REPLACEMENT_SUPPORTED** |
-| 7 | Entity canonicalization / resolution | Pending | **Conditional** — only if Phase 6 justifies it |
-| 8 | Conditional extensions and combinations | Pending | **Not opened** |
+| 7 | Cheap entity extraction | Pending | **Planned** |
+| 8 | Strong Dense + Entity Hop | Pending | **Planned after Phase 7** |
+| 9 | HotpotQA FullWiki at literature-comparable scale | Pending | **Planned after Phases 7–8** |
 
-**The first research line is closed** (2026-09-15): concepts induced from pooled embeddings, tested
-through Phases 2-4, gave a negative and bounded result. The original Phase 5 — a comparative
-evaluation of that method — was not run; the plan was renumbered so Phase 5 tests the representation
-the proposal actually described. See [`phase_4/4.1_research_line_closure.md`](phase_4/4.1_research_line_closure.md).
+**The first research line is closed** (2026-09-15): concepts induced from pooled embeddings, tested through Phases 2-4, gave a negative and bounded result. The original Phase 5 — a comparative evaluation of that method — was not run; the plan was renumbered so Phase 5 tests the representation the proposal actually described. See [`phase_4/4.1_research_line_closure.md`](phase_4/4.1_research_line_closure.md).
 
-**Phase 5 is now measured and closed at the pilot gate:** text-derived entities produce a strong
-positive second-hop signal on the HotpotQA bridge diagnostic, while text-derived concepts do not.
-The gate returned **NAMES ONLY**. This does not establish an end-to-end improvement over dense+BM25;
-it opens a new research line focused first on whether entity navigation can replace the BM25 component.
-Canonicalization is a separate conditional line, not part of that first comparison.
+**Phase 5 is measured and closed at the pilot gate:** text-derived entities produce a strong positive second-hop signal on the HotpotQA bridge diagnostic, while text-derived concepts do not. The gate returned **NAMES ONLY**.
 
-**Phase 6 is now measured and closed** (2026-09-17): under one protocol frozen and committed before
-the test split was opened, and read exactly once, `data/replacement/decision.json` records the state
-**`ENTITY_REPLACEMENT_SUPPORTED`** with no anomaly and no open question. The Entity Hop replaces the
-BM25 component of the dense hybrid **without loss of retrieval quality**, and the resulting system
-also improves on dense alone. See [`phase_6/6.results.md`](phase_6/6.results.md).
+**Phase 6 is measured and closed** (2026-09-17): under one protocol frozen and committed before the test split was opened, and read exactly once, `data/replacement/decision.json` records the state **`ENTITY_REPLACEMENT_SUPPORTED`** with no anomaly and no open question. The Entity Hop replaces the BM25 component of the dense hybrid without loss of retrieval quality, and the resulting system also improves on dense alone. See [`phase_6/6.results.md`](phase_6/6.results.md).
+
+The next three phases deliberately do **not** try to improve the Entity Hop with canonicalization, relations, multiple seeds or additional hops. They ask whether the simple mechanism already discovered can be made cheap, survive a substantially stronger dense retriever, and scale to the standard FullWiki setting used by the literature.
 
 ---
 
@@ -85,290 +104,573 @@ Builds the corpus's own semantic space. It stands on its own even before retriev
 
 Four spaces were induced (K = 512, 1,024, 2,048, 4,096) and **none of them is chosen here**: the choice of K belongs to Phase 3 and is made against dev recall. The numbers, read from the artifacts rather than recomputed for the report, live in [`phase_2/2.results.md`](phase_2/2.results.md). The security audit closed with no Critical and no High finding; its eight findings and one observation are catalogued in [`docs/security/README.md`](../security/README.md).
 
-- [x] Dictionary induced by **non-negative sparse coding** over the embeddings (`MiniBatchDictionaryLearning` with `positive_code=True` and `positive_dict=False`), fixed seed. The dictionary constraint was dropped on measured evidence, see decision D1 of [`phase_2/2.0_concept_space.md`](phase_2/2.0_concept_space.md): half the energy of the embeddings is negative, so a non-negative dictionary drives the space to one activation per unit - the very regime that disqualified clustering
-- [x] Matrix `X = chunks × concepts` as the direct output of that coding: multi-activation with continuous, non-negative weights, **with the score semantics written down** (§3: what exactly 0.73 means)
-- [x] Each concept's embedding taken from its own dictionary atom: it already lives in the query's space, with no detour through a generated name
+- [x] Dictionary induced by **non-negative sparse coding** over the embeddings (`MiniBatchDictionaryLearning` with `positive_code=True` and `positive_dict=False`), fixed seed. The dictionary constraint was dropped on measured evidence, see decision D1 of [`phase_2/2.0_concept_space.md`](phase_2/2.0_concept_space.md): half the energy of the embeddings is negative, so a non-negative dictionary drives the space to one activation per unit — the very regime that disqualified clustering
+- [x] Matrix `X = chunks × concepts` as the direct output of that coding: multi-activation with continuous, non-negative weights, **with the score semantics written down**
+- [x] Each concept's embedding taken from its own dictionary atom
 - [x] Concept labelling via LLM **for interpretability and reporting only**, outside the retrieval critical path
-- [x] Dictionary normalization and deduplication (§47), with an explicit, auditable merge criterion
-- [x] Structural inspection of the space: activations per chunk, chunks per concept, orphan
-      concepts, dead atoms, co-activation
-- [x] **Dictionary quality measured, not assumed**: per-concept semantic coherence over the units
-      that activate it most, read against a random-unit null baseline measured on this same pool -
-      the absolute cosine means nothing in an anisotropic embedding space - plus the alignment of a
-      concept with its own evidence and the concentration of its activation mass. Concepts are
-      ranked by it so the report reads the worst ones rather than the average. **Diagnostic only:
-      no concept is pruned in this phase**
+- [x] Dictionary normalization and deduplication
+- [x] Structural inspection of the space: activations per chunk, chunks per concept, orphan concepts, dead atoms, co-activation
+- [x] **Dictionary quality measured, not assumed**: per-concept semantic coherence against a random-unit null baseline, atom alignment and activation-mass concentration
 
 ## Phase 3: Hybrid conceptual retrieval (System B)
 
-Uses the concept space to retrieve, and measures it. Answers the first half of the hypothesis: does the interpretable representation retrieve at least as well as the dense one? Specified in [`phase_3/3.spec.md`](phase_3/3.spec.md) and planned in [`phase_3/3.0_hybrid_conceptual_retrieval.md`](phase_3/3.0_hybrid_conceptual_retrieval.md), which declares every parameter of the phase before a single number is measured.
+Uses the concept space to retrieve and measures it. Answers the first half of the hypothesis: does the interpretable representation retrieve at least as well as the dense one?
 
-- [x] Query → concepts mapping by dot product against the dictionary (§6-§7, §50), no textual intermediaries
-- [x] Chunk scoring over the active dimensions of X, with the invariant that a unit whose row is all
-      zeros is unreachable through this system and is not silently rescued
-- [x] **K, view and query operator chosen against dev recall** over the four Phase 2 spaces, and
-      frozen in a versioned selection artifact before the test split is read even once. This is the
-      choice Phase 2 deliberately left open, and Phases 4 and 5 inherit it
-- [x] Fusion of dense and conceptual signals into System B, with weights fitted on dev rather than
-      eyeballed, and a parameter-free reference scheme measured beside them
-- [x] **A dense + BM25 control** built by the same fusion code and fitted the same way, so that a
-      System B win can be attributed to the concept space rather than to hybridization as such
-- [x] Hub damping by a rarity weight declared in advance, measured as a variant against the
-      undamped system. Concept **pruning** stays out of this phase and remains a declared ablation
-- [x] System B measured in the same harness and against both baselines (dense and BM25)
+- [x] Query → concepts mapping by dot product against the dictionary, no textual intermediary
+- [x] Chunk scoring over the active dimensions of `X`
+- [x] K, view and query operator chosen against dev recall and frozen before test
+- [x] Fusion of dense and conceptual signals into System B
+- [x] A **Dense + BM25 control** built through the same fusion machinery
+- [x] IDF rarity damping measured
+- [x] System B measured against dense and BM25
 
-### What Phase 4 inherits, and the verdict it inherits it with
+### What Phase 3 found
 
-Recorded here because Phase 4 starts from these three and cannot make them for itself. The numbers and
-their artifacts are in [`phase_3/3.results.md`](phase_3/3.results.md).
+The selected concept space was K = 512, `raw`, `projection_full`, with IDF damping.
 
-| Inherited | Value |
-|---|---|
-| **K** | **512**, dictionary `d84c327aa8af0cdc` (chosen on dev recall; the structural tie-break kept it over K = 2,048 when the margin proved smaller than 600 questions can resolve) |
-| **View of `X`** | **`raw`** (wins at K = 512; `row_normalized` wins at the other three, so this belongs to the space and not to the method) |
-| **Damping** | **`idf`**, the rarity weight declared in advance (+0.043 on the selected space, positive on three of the four) |
-| Query operator | `projection_full` - the unclipped projection, which wins in all eight (K, view) cells |
+The decisive result was negative: System B's fitted fusion weight was `w = 1.0`, all weight on dense and none on the concept space. The conceptual signal added no measurable value in the fused retriever.
 
-**The verdict is negative and attributable.** System B's fusion weight was fitted at `w = 1.0`: all
-the weight on dense, none on the concept space, so System B *is* dense to four decimals at every
-budget on both splits. The dense+BM25 control, built by the same code and fitted by the same
-procedure, gains +3.9 points of Full Support on test - so the headroom was real and a cheap lexical
-signal took it while the concept space did not.
+The Dense + BM25 control, fitted by the same procedure, did improve on dense:
 
-**One result opens the door Phase 4 walks through.** Conceptual-only retrieval answers 5 dev questions
-dense does not, 4 of them among the 72 that defeat both baselines. The complementary signal exists and
-score-level fusion cannot reach it, which is precisely the gap diffusion over `X` is meant to close.
+- Dense Full Support @2,048 test: **0.8250**
+- Dense + BM25: **0.8643**
 
-Read through the labels, those five have a shape: **every one is a conjunction of two topics** - a
-Florida place *and* baseball, an Irish biography *and* combat sports, a magazine *and* politics. A
-dense query is one point and must land near one paragraph; a concept vector can ask for the paragraph
-that is about both subjects at once, which is the shape of a bridge. Five questions are a hypothesis,
-not a result, but it points Phase 4 at the conjunctions rather than at retrieval quality in general.
+The control therefore established that useful complementary signal existed; the concept representation simply was not providing it.
+
+A small complementary conceptual signal remained: conceptual-only retrieval answered five dev questions dense did not, four of them among the questions both dense and BM25 failed. That motivated Phase 4.
+
+---
 
 ## Phase 4: Query-aware iterative expansion (System C)
 
-The leap of §8: stop following the question and start navigating the corpus. It is the distinctive part of the proposal and the one most likely to fail. Specified in [`phase_4/4.spec.md`](phase_4/4.spec.md) and planned in [`phase_4/4.0_query_aware_iterative_expansion.md`](phase_4/4.0_query_aware_iterative_expansion.md), which declares the operator, the stopping rule and both parameter grids before a single number is measured.
+Phase 4 tested the distinctive part of the original proposal: instead of stopping after the first retrieval, use the concept space to navigate from retrieved chunks toward additional context.
 
-**The bar this phase is judged against is the dense+BM25 control** at 0.8643 Full Support on test @2,048, not dense at 0.8250: a cheap lexical hybrid already reaches that without any of this machinery. Beating dense and not the control is a result, to be reported as exactly that.
+- [x] Expansion by diffusion over `X`
+- [x] Partial restart on the query
+- [x] Stopping criterion and iteration cap
+- [x] Per-query traces
+- [x] Dense-seeded and conceptual-seeded arms
+- [x] Same-budget comparison against the existing baselines
 
-- [x] Expansion by **diffusion over X**: initial activation from the query, propagation chunk → concept → chunk through `X` and `Xᵀ`, with partial restart on the question's concepts at every round
-- [x] The query-aware condition (§52-53) is guaranteed by that restart: expansion cannot drift toward the corpus's global co-occurrence — and `restart = 0.0` is measured once on dev so the claim rests on a number. **It collapses to 0.0117 Full Support**: the failure mode is now a measurement
-- [x] Stopping criterion on newly contributed mass, with an explicit budget of iterations and tokens (§54). At the frozen cell the threshold fires and the cap never does; at the three lower restarts every cell ran to the cap, reported as the finding HU-4 asks for
-- [x] Per-query trace: which concept entered at which iteration and which chunk it brought along — 80 dev questions under the sampling rule fixed before the run
-- [x] **Two seed arms measured with identical machinery** — dense-seeded (System C proper) and conceptual-seeded (the isolating variant) — so that a gain can be told apart from "the dense retriever already brought almost everything". The configuration is chosen on the dense arm and applied unchanged to the other
-- [x] System C measured against four rivals at four budgets on both splits, with its cost, on a configuration frozen before test was read
-- [ ] ~~*(Optional)* Variant with an LLM inside the loop~~ — **declared out of scope by the spec**, and not pursued after the closure: the deterministic method it would have been compared against failed on its own, and the founding decision that keeps an LLM out of the retrieval loop stands
+### What Phase 4 found
 
-### What Phase 4 leaves, and the verdict it leaves it with
+The result was negative.
 
-The numbers and their artifacts are in [`phase_4/4.results.md`](phase_4/4.results.md).
+System C scored **0.8214 Full Support @2,048 on test**, against:
 
-| Inherited | Value |
-|---|---|
-| **System C's configuration** | `restart = 0.8`, normalization `symmetric`, `stop_threshold = 1e-3`, `max_iterations = 5`, `seed_top_k = 100`; artifact `data/expansion/expansion.json`, digest `421ceee84e04914e` |
-| **Phase 3 decisions** | unchanged and not re-opened: K = 512, `d84c327aa8af0cdc`, view `raw`, damping `idf`, `projection_full` |
-| **The bar** | the dense+BM25 control at 0.8643 Full Support on test @2,048 |
+- Dense: **0.8250**
+- Dense + BM25: **0.8643**
 
-**The verdict is negative, and the mechanism is measured rather than inferred.** System C scores
-0.8214 Full Support on test @2,048 against dense's 0.8250 and the control's 0.8643. It costs 4.3x
-dense per query for it.
+The failure mechanism was measured directly: at every usable restart value, the diffusion returned the same 100 seed units in a different order and **never promoted a new paragraph**.
 
-**Why, in one line: at every restart in the declared grid the walk returns the seed's own 100 units,
-reordered, and never promotes a new one.** The diffusion reaches all 19,366 units on every question,
-so each non-seed unit receives about a hundred-thousandth of the mass while the restart holds every
-seed unit above 0.0076. System C is therefore a re-ranker of dense's top-100: it gains 5 dev
-questions and loses 6, and recovers 3 of the 72 that defeat both baselines against System B's 0 and
-the control's 6. One of those three is recovered by nothing else in this project.
+At `restart = 0`, where diffusion could move freely, retrieval collapsed to **0.0117 Full Support**.
 
-**The arithmetic also says where the grid could not look.** A non-seed unit could only out-score the
-weakest seed unit at `restart < 0.10`, below the declared floor of 0.2 — and `restart = 0.0`, the one
-point measured below it, collapses to 0.0117. Whether anything survives between the two is a declared
-gap, listed by the closure as an untested lever rather than scheduled work.
+The pooled-embedding concept representation therefore failed both as:
 
-**One thing Phase 3 named survives.** The questions the concept space uniquely answers really are
-conjunctions of two topics: all four the conceptual arm gains over dense are — a Florida place *and* baseball, a magazine *and* politics, an Irish biography *and* combat sports, an opera *and* its singer — and three of them are the same questions Phase 3 read, reached by a different mechanism. The signal is real and reproducible. It is worth about four questions in 600, and diffusion with restart cannot convert it into retrieval.
+- a direct complementary retrieval signal; and
+- a substrate for iterative expansion.
 
 ### Research line closed — negative result, limited scope
 
-Recorded in [`phase_4/4.1_research_line_closure.md`](phase_4/4.1_research_line_closure.md), which reads every figure from a versioned artifact.
+Recorded in [`phase_4/4.1_research_line_closure.md`](phase_4/4.1_research_line_closure.md).
 
-**What it establishes.** A concept space induced by sparse coding of pooled paragraph embeddings adds no measurable retrieval value over dense on HotpotQA — not by conceptual retrieval, not by score fusion, not by diffusion — and a dense+BM25 control is clearly stronger. An exploratory dev-only diagnostic adds that a hop through those concepts is the weakest second hop tested at every K, below simply reading further down the dense list.
+**What it establishes:** a concept space induced by sparse coding of pooled paragraph embeddings adds no measurable retrieval value over dense on this HotpotQA setup.
 
-**What it does not establish.** It does not test the architecture the proposal describes, in which concepts are extracted from the text of each unit. A pooled embedding recoded as sparse atoms is a lossy copy of the vector the dense baseline already uses; that operationalization is what failed, and it is the variable the next phase changes.
+**What it does not establish:** whether concepts or entities extracted directly from the text can provide useful navigation.
 
-**What became of this plan's Phase 5.** The full bench, the fusion and expansion ablations, the K sweep and the cost per query were already measured by Phases 3 and 4. The non-negativity and pruning ablations were not run and are listed as untested levers. MuSiQue moves to Phase 6.
+That distinction opened Phase 5.
+
+---
 
 ## Phase 5: Text-derived concepts — navigation pilot
 
-Opened by the Phase 4 closure and now **complete**. Specified in [`phase_5/5.spec.md`](phase_5/5.spec.md) and planned in [`phase_5/5.0_text_derived_concepts.md`](phase_5/5.0_text_derived_concepts.md). The phase extracted entities and concepts from the text of the full pool, then measured one-hop navigation from dense's first paragraph on the 152-question diagnostic defined by Phase 4.
+Phase 5 extracted **entities and concepts directly from the text** of the complete 19,366-paragraph pool and tested whether those nodes could navigate from Dense's first retrieved paragraph toward evidence Dense had missed.
 
-- [x] Whole-corpus extraction of entities and concepts, offline with `claude-sonnet-5`; failures recorded, with no post-hoc repair or re-extraction
-- [x] Deterministic normalization and a node index covering the 19,366-paragraph pool
-- [x] Entity-only, concept-only and entity+concept node hops, with BM25-question as the frozen comparator
-- [x] Continuity check against all inherited non-concept hops from the Phase 4 diagnostic
-- [x] Pre-declared GO / NAMES ONLY / STOP gate, computed from per-question hit@10
+- [x] Whole-corpus extraction with `claude-sonnet-5`
+- [x] Deterministic normalization and node index
+- [x] Entity-only, concept-only and entity+concept hops
+- [x] Comparison against inherited second-hop baselines
+- [x] Pre-declared GO / NAMES ONLY / STOP gate
 
 ### What Phase 5 found
 
-The extraction covered all **19,366 paragraphs**. The final artifact records **25.98 USD** for the full run, 8 bounds failures (0.0413%, below the 1% finding threshold), and full pool coverage. Normalization produced **96,416 entity nodes**, **40,846 concept nodes**, and **137,262 nodes** total. The node index was highly fragmented: 82.7% of entity forms and 68.9% of concept forms occur in only one paragraph. The eight extraction failures did not include any of the 158 missing-gold paragraphs; one was the `p1` of one pilot question and was retained as an explicitly documented conservative limitation.
+The extraction cost **25.98 USD** for 19,366 paragraphs and produced:
 
-The gate returned **NAMES ONLY** on the frozen 152-question pilot:
+- 96,416 entity nodes
+- 40,846 concept nodes
+- 137,262 total nodes
 
-| Test | Wins | Losses | Ties | p | Passed |
-|---|---:|---:|---:|---:|---|
-| **Entity hop vs BM25-question** | **56** | 24 | 72 | **0.000226** | **yes** |
-| Entity+concept hop vs BM25-question | 41 | 37 | 74 | 0.3672 | no |
-| Entity+concept hop vs entity hop | 1 | 29 | 122 | approx. 1.0 | no |
-| *Concept hop vs BM25-question* (reported only) | 5 | 66 | 81 | approx. 1.0 | no |
+On the 152-question bridge pilot:
 
-At hit@10 per question, entity navigation scored **0.6579**, versus 0.4441 for BM25 on the question. At hit@100 it scored 0.7434 versus 0.7533 for BM25 on `p1` text: the entity result is therefore a shallow ranking advantage, not evidence of greater ultimate reach. Concepts scored 0.0592 at hit@10 and 0.1743 at hit@100, and combining concepts with entities reduced the entity-only hit@10 to 0.4803.
+| Second hop | hit@10 per question |
+|---|---:|
+| Continue dense | 0.3026 |
+| BM25 on question | 0.4441 |
+| BM25 from `p1` text | 0.4507 |
+| pooled-embedding concept hop | 0.0789 |
+| **Entity Hop** | **0.6579** |
+| text-derived concept hop | 0.0592 |
+| entity + concept | 0.4803 |
 
-**What this establishes:** text-derived entities are a strong second-hop navigation signal on this HotpotQA bridge diagnostic. **What it does not establish:** that an end-to-end dense + entity system beats the existing dense+BM25 system, or that concepts provide useful satellite-context discovery. The founding decisions remain unchanged. Full provenance and scope are in [`phase_5/5.results.md`](phase_5/5.results.md).
+The gate returned **NAMES ONLY**.
 
-### How the phase closed, and what it leaves open
+Entities were therefore the first representation in the project to show a strong second-hop navigation signal.
 
-`/7-verificar` checked all 47 acceptance criteria against the artifacts rather than against the documents that quote them: 47 verified, none failing, none uncovered, with 1,386 tests passing and no skip, and ruff and mypy clean. It recomputed the gate from the per-question scores and reproduced it to the digit. The six divergences it found were documentation, not measurement, and each was corrected in its own commit.
+Concepts were not only weak by themselves; adding them to the entity hop degraded the shallow ranking.
 
-`/8-auditar` closed with **no Critical and no High**: four findings, one Medium and three Low, catalogued as SEC-020 to SEC-023 in [`docs/security/README.md`](../security/README.md). One shape runs through all four — the artifacts this phase *measures* from carry a digest and verify it on load, while the artifacts it *runs* from carry none, so the cost ceiling, the failure gate and the batch state are all trusted on read. The fixes are specified and **not applied**: each touches `src/`, and whether to spend a `fix-N` on them before Phase 6 is the author's call. Phases 3 and 4 remain unaudited, as the same catalogue records.
+The mechanism also showed a clear structural ceiling:
 
-`/9-documentar` has **not** been run, so the phase is closed on its numbers but not on its documentation: `CLAUDE.md` still describes the project as it stood before this phase.
+- 118 of 158 missing paragraphs shared an entity node with `p1`
+- Entity Hop found 116 of those 118 by depth 100
+
+Once a bridge was expressible by a shared entity, the simple node hop found almost all of it.
+
+---
 
 ## Phase 6: Dense + Entity Navigation — end-to-end comparison
 
-A **new research line derived from Phase 5's positive entity finding**, now **complete**. It replaces the old conditional Phase 6 that was intended to evaluate the text-derived concept hypothesis. The first question is deliberately narrow:
+Phase 6 asked the narrow end-to-end question opened by Phase 5:
 
-> **Can an entity-navigation second hop replace the BM25 component of the existing dense+BM25 system without reducing retrieval quality?**
+> **Can an entity-navigation second hop replace the BM25 component of the existing Dense + BM25 system without reducing retrieval quality?**
 
-The first comparison is therefore:
+The comparison was:
 
+```text
+A: Dense + BM25
+B: Dense + Entity Hop
 ```
-A: Dense -> BM25
-B: Dense -> Entity Hop
-```
 
-The evaluation must use the same end-to-end benchmark protocol that produced the existing dense+BM25 control, including the same split, seed, context budget, primary metric and evaluation population. The historical **0.8643 Full Support @2,048** dense+BM25 result remains the reference bar from Phase 4, but Phase 6 must measure both systems under one explicitly frozen protocol rather than compare unlike metrics from Phase 5's second-hop diagnostic.
+Initial scope deliberately excluded:
 
-Initial scope deliberately excludes concept nodes, entity canonicalization, relation/attribute nodes, multi-round expansion, and a three-way `Dense + BM25 + Entity` combination. Those are separate research questions and are not introduced until the basic replacement test is understood.
+- concepts;
+- canonicalization;
+- relation or attribute nodes;
+- multiple seeds;
+- multiple hops;
+- query-aware entity expansion;
+- Dense + BM25 + Entity.
 
-Specified in [`phase_6/6.spec.md`](phase_6/6.spec.md) and planned in [`phase_6/6.0_dense_entity_navigation.md`](phase_6/6.0_dense_entity_navigation.md), with the atomic tasks in [`phase_6/6.tasks.md`](phase_6/6.tasks.md). The plan declares every design decision, the dev-then-test sequence and the decision parameters before a single Phase 6 number is measured, and records four items against the spec that the author decided on 2026-09-17 without amending it.
-
-- [x] Functional spec approved before planning
-- [x] End-to-end Dense + BM25 control frozen under the Phase 6 protocol
-- [x] Dense + Entity Hop implemented with no canonicalization or other new signal
-- [x] Same-budget comparison run on the declared evaluation population
-- [x] Result reviewed and decision recorded: continue to canonicalization / combinations, or stop
+The Phase 5 entity mechanism was used unchanged.
 
 ### What Phase 6 found
 
-The decision procedure — the metric, the budget, the margin, α, the methods and the population — was frozen in `data/replacement/freeze.json` and **committed before the test split was opened**. `cer replace-test` then ran **once**, with no flags, in the order dense → A → first read of the historical test figures → reproduction check → B. The historical dense and dense+BM25 test figures reproduced exactly (32 checks, 0 failed), so the control was reused rather than re-measured, and the margin's source was confirmed from those files at 1,210 − 1,155 = 55 questions over n = 1,400.
+The Entity system selected on dev was:
 
-At Full Support @2,048 on the 1,400 test questions: **dense 0.8250** (1,155), **A = Dense + BM25 0.8643** (1,210), **B = Dense + Entity Hop 0.8900** (1,246). B's fusion (`weighted`, `{dense: 0.7, entity-hop: 0.3}`) was selected on dev only and frozen.
-
-| Preregistered test | Result | Passed |
-|---|---|---|
-| **S** — B beats dense | 103 wins, 12 losses, 1,285 ties, p = 1.676e-19 | yes |
-| **V** — A beats dense (assay sensitivity) | 85 wins, 30 losses, 1,285 ties, p = 1.430e-07 | yes |
-| **N** — B non-inferior to A at δ = 55/2800 | b = 96, c = 60, n = 1,400, Tango 4.9464, lower limit +0.011135 > −0.019643, p = 3.780e-07 | yes |
-
-**State: `ENTITY_REPLACEMENT_SUPPORTED`**, no route, no anomalies, no open question (`data/replacement/decision.json`).
-
-**What this establishes:** under the Phase 6 protocol, an entity-navigation second hop **replaces BM25 in the dense hybrid without reducing retrieval quality**, and the resulting system improves on dense alone. The mechanism is auditable: all 103 questions B supports and dense does not carry at least one paragraph the entity hop introduced, 67 of them with no reordering of dense's own list at all.
-
-**What it does not establish:** the phase asked a replacement question, and B's 2.57-point Full Support margin over A is recorded as **descriptive and deciding nothing** — it is not a superiority finding and does not become a new hypothesis here. The result does not establish the Type C claim, does not validate the wider concept-embeddings architecture, and does not speak to canonicalization: it uses Phase 5's raw uncanonicalized entities. It is specific to HotpotQA, to this frozen corpus and protocol, and it costs roughly 7x the control's retrieval latency (10.4 ms against 1.5 ms per query). The founding decisions remain unchanged. Full provenance, limitations and declared gaps are in [`phase_6/6.results.md`](phase_6/6.results.md).
-
-**This does not reopen the first research line.** Phase 4's negative result concerned concepts *induced from pooled paragraph embeddings*; Phase 6 measures a second-stage generator over entity names *read from the text*. They are different representations, and the Phase 4 closure stands exactly as scoped.
-
-### How the phase closed, and what it leaves open
-
-`/7-verificar`, `/8-auditar` (**mandatory** for this phase: nine artifact types read back from disk and a loader path into Phase 5's node index) and `/9-documentar` have **not** been run. The phase is closed on its numbers and its results document; the audit and the project documentation are still pending, and Phases 3 and 4 remain unaudited as `docs/security/README.md` records.
-
-**No follow-up phase is opened by this result.** Phase 7 stays conditional and Phase 8 stays closed; whether the decision justifies opening either is the author's to decide.
-
-## Phase 7: Entity canonicalization / resolution
-
-**Conditional on Phase 6.** The question is whether independently extracted entity mentions can be canonicalized so that genuine aliases and naming variants share a stable node, without merging distinct entities. The observed singleton rate in Phase 5 motivates this line, but does not by itself imply that singletons should be removed.
-
-The baseline comparison should be:
-
-```
-Raw Entity Hop
-vs
-Canonicalized Entity Hop
+```text
+Dense weight       = 0.7
+Entity Hop weight  = 0.3
 ```
 
-Candidate techniques may include embedding-based candidate generation followed by an explicit resolution step. Simple clustering or deleting every entity with document frequency 1 is not assumed to be valid: a genuine one-off entity can still be retrieval-critical. The phase should measure both node compression and retrieval effect, and preserve an auditable mapping from raw mentions to canonical nodes.
+At Full Support @2,048 on the 1,400 test questions:
 
-- [ ] Open only after a Phase 6 decision justifies it
-- [ ] Define canonicalization spec before implementation
-- [ ] Freeze the raw entity baseline and candidate-generation/resolution procedure on dev
-- [ ] Measure the effect on Entity Hop with the same end-to-end evaluation protocol
-- [ ] Record whether canonicalization improves, leaves unchanged, or harms retrieval
+| System | Full Support | Successes |
+|---|---:|---:|
+| Dense | 0.8250 | 1,155 |
+| Dense + BM25 | 0.8643 | 1,210 |
+| **Dense + Entity Hop** | **0.8900** | **1,246** |
 
-## Phase 8: Conditional extensions and combinations
+The preregistered Phase 6 decision passed all three tests:
 
-**Not opened unless Phase 6 and/or Phase 7 justify further work.** This phase collects the remaining open research questions from the original plan and from the Phase 5 findings. Possible directions are:
+| Test | Result |
+|---|---|
+| B vs Dense | 103 wins / 12 losses, p = 1.676e-19 |
+| A vs Dense | 85 wins / 30 losses, p = 1.430e-07 |
+| B non-inferior to A | lower bound +0.011135 > −0.019643 |
 
-- [ ] Dense + BM25 + Entity, if the two-signal replacement test shows complementary value worth studying
-- [ ] Multi-round entity navigation or query-aware expansion, after the one-hop mechanism is established
-- [ ] Relation and attribute nodes for bridges that are not carried by shared names
-- [ ] A benchmark or evaluation set for thematic / satellite-context questions (Type C), rather than only entity-linked HotpotQA bridges
-- [ ] Document hierarchy or book-like corpora, where hierarchical context can actually be evaluated
-- [ ] Cross-benchmark evaluation (for example MuSiQue) to test whether any successful mechanism generalizes
-- [ ] Graph or higher-order structures only if the simpler entity representation demonstrates durable value
+**State: `ENTITY_REPLACEMENT_SUPPORTED`.**
 
-The old exploratory Phase 7 items — hierarchy, variable resolution, graph derivation and finer-grained representations — belong here now, rather than being assumed to follow from a successful concept-space experiment.
+This establishes, under the Phase 6 protocol, that Entity Hop can replace the BM25 component without losing retrieval quality and that the resulting system improves on Dense.
+
+The observed aggregate improvement is:
+
+- **+6.50 percentage points Full Support over Dense**
+- **+2.57 percentage points over Dense + BM25**, reported descriptively rather than as the preregistered superiority hypothesis
+
+Dense failed Full Support on 245 questions; Dense + Entity Hop fails on 154. The system therefore removes approximately **37% of Dense's Full Support failures** on this test population.
+
+The mechanism diagnosis also supports that the gain comes from actual entity expansion:
+
+- all 103 B successes that Dense misses contain at least one paragraph introduced by Entity Hop;
+- 67 depend entirely on entity-introduced units rather than merely reranking Dense;
+- 85 of B's 96 wins over Dense + BM25 contain entity-introduced units.
+
+### Cost
+
+Measured retrieval latency in the Phase 6 harness:
+
+- Dense: 0.891 ms/query
+- Dense + BM25: 1.508 ms/query
+- Dense + Entity Hop: 10.447 ms/query
+
+These values are **milliseconds**, not seconds.
+
+The online latency remains small in absolute terms. The much larger scaling concern is offline extraction: Phase 5 used a generative LLM over every paragraph, which cannot simply be extrapolated to a five-million-paragraph FullWiki corpus without first replacing or cost-reducing that preprocessing step.
+
+### What Phase 6 does not establish
+
+It does not establish:
+
+- that the effect survives a substantially stronger dense retriever;
+- that it scales to HotpotQA FullWiki;
+- that it generalizes to other multi-hop datasets;
+- that canonicalization would help;
+- that explicit relations would help;
+- that more seeds or more hops would help;
+- the broader Type C satellite-context claim;
+- the wider concept-embeddings architecture.
+
+Those questions are deliberately separated.
+
+---
+
+# Phase 7: Cheap Entity Extraction
+
+## Question
+
+> **Can the expensive Phase 5 LLM entity extraction be replaced by a cheap or local extractor without materially losing the Entity Hop retrieval gain?**
+
+This is now the immediate bottleneck.
+
+Phase 5 processed only 19,366 paragraphs and cost approximately 25.98 USD. HotpotQA FullWiki contains on the order of millions of paragraphs. Before scaling, the project must determine whether the entity representation can be built without passing every paragraph through a frontier generative LLM.
+
+## Scope
+
+Run candidate entity extractors over the **existing 19,366-paragraph corpus** so that every candidate can be evaluated against the already-established Phase 6 result.
+
+Initial candidates should stay deliberately small in number, for example:
+
+- the existing Claude extraction as the reference;
+- **GLiNER** or a comparable local zero-shot/open NER model;
+- a conventional local NER baseline such as **spaCy** or an equivalent lightweight model;
+- optionally, if the FullWiki source exposes usable Wikipedia links/anchors, a deterministic Wikipedia-derived entity source.
+
+Do not expand this into a general NER benchmark.
+
+The metric that matters is **retrieval**, not generic NER F1.
+
+## Main comparison
+
+For each viable extractor:
+
+```text
+extract entities
+→ build the same entity incidence index
+→ run the same P1, one-hop Entity Hop
+→ combine with the current Dense retriever
+→ measure retrieval
+```
+
+The existing Claude-based result remains the reference:
+
+```text
+Dense + Claude-entities Entity Hop
+Full Support @2,048 test = 0.8900
+```
+
+## Measure
+
+At minimum record:
+
+- Full Support / Gold Recall / Recall@10 with the same current benchmark;
+- Entity Hop hit behaviour;
+- number of entity forms and incidence edges;
+- extraction failures;
+- paragraphs per second;
+- wall-clock preprocessing time;
+- CPU/GPU requirements;
+- estimated processing time for ~5M paragraphs;
+- estimated monetary cost for ~5M paragraphs;
+- resulting index size.
+
+Selection should be pragmatic:
+
+> choose the cheapest extractor that preserves enough of the retrieval signal to make FullWiki scaling scientifically worthwhile.
+
+No elaborate statistical decision framework is required.
+
+## Constraints
+
+Keep unchanged:
+
+- the current 19,366-paragraph corpus;
+- P1 as the only seed;
+- one entity hop;
+- no canonicalization;
+- no relations;
+- no query-aware filtering;
+- no multiple-hop traversal.
+
+## Outcome
+
+Phase 7 should answer only:
+
+1. Can we build the entity index cheaply enough for FullWiki?
+2. How much of the Phase 6 gain survives?
+3. Which extractor should Phase 8 and Phase 9 inherit?
+
+---
+
+# Phase 8: Strong Dense + Entity Hop
+
+## Question
+
+> **Does Entity Hop still add useful complementary signal when the dense retriever itself is substantially stronger than `BAAI/bge-small-en-v1.5`?**
+
+Phase 6 established a +6.5-point Full Support improvement over a relatively small dense encoder. Before claiming a generally useful structural signal, the experiment must determine whether that gain survives a strong modern dense retriever.
+
+## Scope
+
+Stay on the **same 19,366-paragraph corpus**.
+
+Choose **one strong, modern, open dense retrieval model** based on current retrieval literature, model quality and practical availability.
+
+Do not turn the phase into a model leaderboard.
+
+Recompute the dense corpus embeddings and compare only:
+
+```text
+Strong Dense
+Strong Dense + BM25
+Strong Dense + Entity Hop
+```
+
+The Entity Hop uses the extractor selected in Phase 7.
+
+P1 remains the only seed and the system remains one-hop.
+
+The fusion weight may be fitted on dev because score distributions will change under the new dense model. No other entity hyperparameter is introduced.
+
+## Main questions
+
+Measure:
+
+1. how much Strong Dense improves over the current BGE-small baseline;
+2. whether BM25 still adds complementary signal;
+3. whether Entity Hop still adds complementary signal;
+4. whether Entity Hop still compares favourably with the lexical complement;
+5. how much of the original +6.5-point gain survives.
+
+## Important interpretation
+
+Three outcomes are all informative:
+
+- **Entity Hop remains strongly positive:** evidence that structural relatedness supplies information even a much stronger semantic retriever misses.
+- **The effect becomes smaller but remains positive:** Entity Hop partly compensates for Dense weakness but still contains complementary signal.
+- **The effect disappears:** the Phase 6 gain was largely a property of the smaller encoder rather than a general retrieval principle.
+
+Do not add canonicalization, explicit relations or extra hops to rescue a weak result.
+
+## Outcome
+
+Phase 8 selects the Dense configuration that Phase 9 will carry into FullWiki.
+
+---
+
+# Phase 9: HotpotQA FullWiki — literature-comparable scale
+
+## Question
+
+> **Does the simple Dense + Entity Hop architecture remain useful when retrieval is performed over the standard multi-million-paragraph HotpotQA FullWiki search space?**
+
+This is the first phase designed primarily to make the project's numbers directly comparable with published multi-hop retrieval work.
+
+## Preconditions
+
+Phase 9 opens only after:
+
+- Phase 7 identifies an affordable entity extraction path; and
+- Phase 8 selects the strong dense retriever.
+
+## Scope
+
+Move from the 19,366-paragraph experimental pool to the standard HotpotQA FullWiki corpus, on the order of **five million paragraphs**.
+
+Carry forward the mechanism without adding new retrieval ideas:
+
+```text
+question
+→ Strong Dense
+→ P1
+→ one raw Entity Hop
+→ Dense + Entity fusion
+```
+
+Keep:
+
+- one seed: P1;
+- one hop;
+- the cheap extractor selected in Phase 7;
+- the Strong Dense model selected in Phase 8;
+- no canonicalization;
+- no explicit relations;
+- no query-aware entity reranking;
+- no GraphRAG machinery.
+
+## Systems
+
+At minimum measure:
+
+```text
+Strong Dense
+Strong Dense + BM25
+Strong Dense + Entity Hop
+```
+
+The purpose is not to reimplement every published retriever.
+
+Instead, use the **same corpus and standard evaluation setting** used by the literature so that our numbers can be placed beside published Dense, MDR, HippoRAG, KG²RAG, HGRAG, LinearRAG, SAG and related results with the appropriate caveat that implementations and models still differ.
+
+## Metrics
+
+Report both:
+
+1. the project's existing retrieval metrics where feasible; and
+2. the standard FullWiki retrieval metrics used in the most relevant published work, so that numerical comparison is meaningful.
+
+The exact standard metric set should be fixed in the Phase 9 spec after checking the principal comparison papers, rather than guessed now.
+
+Likely metrics include passage/supporting-fact recall at fixed depths such as `Recall@2/5/10/20`.
+
+## Scaling measurements
+
+FullWiki is also an engineering-scale experiment.
+
+Record:
+
+- total extraction time;
+- extraction throughput;
+- extraction cost;
+- entity index size;
+- dense index size;
+- peak memory;
+- query latency;
+- Entity Hop candidate counts;
+- effect of entity document-frequency distribution at FullWiki scale.
+
+The phase should determine whether the simple entity incidence representation remains operationally attractive relative to richer graph construction.
+
+## Outcome
+
+Phase 9 should tell us whether the Phase 6 mechanism:
+
+- survives corpus scale;
+- produces literature-comparable multi-hop retrieval numbers; and
+- deserves broader benchmark validation.
+
+It should **not** automatically open more complex graph machinery.
+
+---
+
+## Work deliberately deferred beyond Phase 9
+
+The following are valid research directions but are **not current phases**:
+
+- entity canonicalization / alias resolution;
+- query-aware Entity Hop;
+- explicit relation or attribute nodes;
+- subject–relation–object triples;
+- multiple dense seeds;
+- multiple entity hops;
+- Dense + BM25 + Entity;
+- PageRank or other global graph propagation;
+- broader GraphRAG structures;
+- hierarchical/book-like corpora;
+- Type C thematic/satellite-context evaluation;
+- direct reimplementations of every competing paper.
+
+Their ordering is discussed in [`research_roadmap.md`](research_roadmap.md).
 
 ---
 
 ## Founding decisions
 
-Settled during the discovery conversation. Any change propagates here only after being verified.
+Settled during the discovery conversation. Later evidence may supersede a practical implementation choice, but historical decisions remain recorded rather than rewritten.
 
 | Decision | Choice | Rationale |
 |---|---|---|
-| Nature of the deliverable | Validation experiment | The goal is to prove or refute §69, not to build a product |
-| Corpus | Public multi-hop benchmark with ground truth | It ships annotated supporting facts: no dataset has to be fabricated, and the numbers stay comparable with the literature |
+| Nature of the deliverable | Validation experiment | The goal is to prove or refute research hypotheses, not to build a product |
+| Corpus | Public multi-hop benchmark with ground truth | It ships annotated supporting facts and enables comparison with literature |
 | Working language | English for everything this project produces | Source documents in `docs/refs/` stay in Spanish as authored |
-| Indexing unit | The smallest complete unit of meaning, the one describable with few concepts. Never fixed-length windows | A 400-character window cuts through the middle of an idea and yields rows of X mixing the end of one concept with the start of another. In the benchmark that unit is the article paragraph, which is never split |
-| Concept engine | **Non-negative sparse coding** over the embeddings (`MiniBatchDictionaryLearning`, scikit-learn), not clustering | Clustering assigns each chunk to **one** cluster and leaves X nearly one-hot, destroying co-activation (§14), chunk↔chunk similarity in concept space (§15) and expansion itself. Sparse coding yields multi-activation with continuous weights by construction, which is what §2-§3 require. Lesson taken from SAE-SPLADE, the closest reference in the surveyed prior art. Documented alternative if finer control over sparsity is needed: a ReLU SAE in torch |
-| Concept embedding | The dictionary atom itself | It already lives in the query's space, so the §6-§7 mapping is a dot product. Avoids the double loss of embedding an LLM-generated name, which is a poor projection of the concept |
-| Expansion mechanism | **Diffusion over X** (`X` and `Xᵀ` with partial restart on the query), not an agentic LLM loop | Deterministic, reproducible and negligible in cost. Above all it **isolates the contribution**: if System C wins with an LLM in the loop, there is no telling whether the concept space worked or the model guessed well. Lesson taken from HyCE-RAG (§25 of the bibliography) |
-| Compute | Local ARM64 CPU, small embedding model | Zero cost and no network dependency; forces the on-disk cache to be part of the architecture. **Revisited after the concept-engine change**: the ARM64 limitation stopped biting once BERTopic was dropped, and emulating x64 would penalize exactly the bottleneck (embedding ~10,000 units). To be reconsidered only if an indispensable dependency turns out to have no wheel |
-| Baselines | BM25 in addition to dense | On HotpotQA, BM25 is a hard rival and frequently beats dense retrieval. Claiming an improvement "over dense" without BM25 present is a result that does not survive the first question |
-| Measurement protocol | **At fixed context budget**, not fixed K | System C retrieves more chunks by design; comparing at equal K is unfair one way and at different K unfair the other. The comparison that holds is at equal tokens sent to the LLM (§73) |
-| Primary metric | Supporting-fact recall within the budget | Objective and annotated; no LLM judge on the critical path |
-| Dictionary quality | Measured per concept against a random null baseline; reported in Phase 2, never enforced there | Coherence measured in the same embedding space the atoms were fitted to is partly guaranteed by construction: it ranks concepts against each other, it does not validate the method. And an absolute cosine is unreadable without the null, since random units of this corpus are far from orthogonal. Pruning changes what retrieval sees, so it belongs to a dev-recall decision in Phase 3, not to an unvalidated threshold in Phase 2 |
+| Indexing unit | The smallest complete unit of meaning, never fixed-length windows | A fixed window can mix unrelated ideas; in HotpotQA the paragraph is the natural unit |
+| Concept engine | Non-negative sparse coding over embeddings | Chosen to create multi-activation concept representations rather than one-hot clustering |
+| Concept embedding | Dictionary atom itself | It already lives in the query embedding space |
+| Original expansion mechanism | Diffusion over `X` with partial restart | Deterministic way to isolate whether the induced concept representation contributed retrieval value |
+| Initial compute | Local ARM64 CPU, small embedding model | Zero-cost experimental starting point; **no longer a scientific constraint for Phase 8+, where stronger retrieval models are explicitly part of the research question** |
+| Baselines | BM25 in addition to dense | A useful retrieval claim must survive comparison with a cheap lexical complement |
+| Measurement protocol | Fixed context budget where applicable | Keeps downstream context opportunity comparable |
+| Retrieval evidence | Objective annotated supporting facts | Avoid an LLM judge on the retrieval critical path |
+| Complexity principle from Phase 7 | Minimum implementation needed to answer one research question | The project must remain research rather than grow into an experimental framework for its own sake |
 
-Phase 1 assumptions, to be settled in its spec: a HotpotQA *distractor* subset of 500-1,000 questions, which yields the 5,000-10,000 chunks of the scale suggested in §70; `bge-small-en-v1.5` or `all-MiniLM-L6-v2` embeddings.
+### Platform constraint
 
-### Platform constraint (verified during scaffolding)
+Development has historically run on **Windows on ARM (`win_arm64`)**.
 
-Development runs on **Windows on ARM (`win_arm64`)**, which rules out part of the usual ecosystem:
+This remains a local development constraint, not a scientific requirement.
 
-- `torch` is not on PyPI for this platform. `2.13.0+cpu` is installed from the official PyTorch index, declared as an explicit source in `pyproject.toml`.
-- `bertopic`, `umap-learn`, `hdbscan`, `numba`, `llvmlite`, `fastembed`: no wheel. Not used.
-- HuggingFace `datasets`: no wheel (because of `pyarrow`). The corpus is downloaded as raw JSON and frozen with its hash, which also serves the reproducibility Phase 1 demands.
-- Available: `numpy`, `scipy`, `scikit-learn`, `sentence-transformers`, `transformers`, `tokenizers`, `onnxruntime`, `faiss-cpu`, `model2vec`.
-- Python pinned to 3.12 (`>=3.12,<3.13`).
+Existing environment notes:
 
+- `torch` is sourced from the official PyTorch index.
+- Some common packages have historically lacked `win_arm64` wheels.
+- HuggingFace `datasets` was avoided because of `pyarrow`.
+- Available packages have included `numpy`, `scipy`, `scikit-learn`, `sentence-transformers`, `transformers`, `tokenizers`, `onnxruntime`, `faiss-cpu`, `model2vec`.
+- Python is pinned to 3.12.
+
+Phases 7–9 may use another machine, cloud GPU or x86 environment when doing so materially reduces preprocessing or embedding cost. The experimental question takes precedence over preserving the original hardware limitation.
 
 ---
 
-## Declared limitation
+## Declared limitations
 
-Phase 5's positive entity result is specific to a HotpotQA bridge diagnostic: questions are selected when dense misses a supporting fact outside its top-10, and the missing fact is often linked through a shared named entity. It therefore does not by itself establish the broader Type C claim from §72, where satellite knowledge such as nutrition, pacing or recovery is not explicit in the query. A separate evaluation population is required for that claim.
+The positive entity result is currently specific to a HotpotQA bridge setting.
 
-The current entity hop also has a reachability ceiling: only 118 of the 158 missing paragraphs share an entity node with `p1`, and it finds 116 of those 118 by depth 100. The canonicalization problem is open, and the high singleton rate in Phase 5 may partly reflect legitimate one-off entities and partly naming variation; the experiment has not yet separated those causes.
+Phase 5 selected questions where Dense missed supporting evidence and showed that the missing paragraph was often connected to `p1` through a shared entity. Phase 6 then demonstrated that the same mechanism improves end-to-end retrieval on the frozen 19,366-paragraph corpus.
 
-Phase 6's end-to-end result inherits that scope. It is measured on HotpotQA, on the frozen Phase 1 pool, with Phase 5's raw uncanonicalized entities, under one frozen protocol whose metric, budget, margin, α, method and population cannot be varied on the same test split. It establishes replacement of the BM25 component under that protocol; it does not establish the Type C claim, does not validate the wider concept-embeddings architecture, and says nothing about what canonicalization would add. Its retrieval cost is roughly 7x the control's per query.
+This still does not establish the broader Type C claim from the original proposal, where useful satellite knowledge — nutrition, pacing, recovery, related mechanisms, etc. — may not be linked through a shared named entity.
 
-The corpus itself remains Wikipedia-style and offers no genuine chapter/section hierarchy. Any claim about hierarchical retrieval therefore belongs to a later phase on a corpus where that structure exists.
+The current Entity Hop also has a reachability ceiling:
+
+- 118 of 158 Phase 5 missing paragraphs share an entity with `p1`;
+- 116 of those 118 are found by depth 100.
+
+The current system is deliberately simple:
+
+- raw extracted entity forms;
+- no canonicalization;
+- P1 only;
+- one hop;
+- no explicit relation types;
+- no query-aware filtering during the entity hop.
+
+Its current success therefore says something narrow but useful about the value of **shared-entity relatedness** as a complement to semantic similarity.
+
+Phase 7 must establish whether this representation can be constructed cheaply.
+
+Phase 8 must establish whether the effect survives a stronger Dense retriever.
+
+Phase 9 must establish whether it survives a multi-million-paragraph search space.
+
+Until those experiments exist, the project should not claim state-of-the-art performance or general multi-hop superiority.
+
+---
 
 ## Project success criterion
 
-The project succeeds by producing **defensible, reproducible answers to the active research question**, with its numbers, controls, limitations and provenance. The original pooled-concept research line is closed with a negative, bounded result. Phase 5 separately established a positive entity-navigation signal, and Phase 6 has now shown end to end that it improves on the complete dense+BM25 system's own terms.
+The project succeeds by producing **defensible empirical answers to progressively sharper research questions**, including negative answers.
 
-The immediate success criterion for the new line was Phase 6: determine under one comparable end-to-end protocol whether Entity Hop can replace BM25 in the dense+BM25 pipeline. **It is met, and the answer is recorded as `ENTITY_REPLACEMENT_SUPPORTED`.** Phase 7 and Phase 8 remain conditional follow-ups rather than prerequisites; opening either is the author's decision, and this result does not open them.
+The original pooled-concept research line is complete with a bounded negative result.
+
+The text-derived entity line has produced its first positive result:
+
+- Phase 5 established a strong entity-navigation signal.
+- Phase 6 established that the signal works end to end and satisfies the preregistered BM25-replacement criterion.
+
+The immediate next success criteria are now sequential:
+
+1. **Phase 7:** make the entity representation economically scalable without destroying its retrieval value.
+2. **Phase 8:** show whether the structural signal remains useful beside a modern strong Dense retriever.
+3. **Phase 9:** test that architecture on HotpotQA FullWiki and obtain numbers that can be compared meaningfully with the published multi-hop retrieval literature.
+
+Only after those questions are answered should the project decide whether additional structure — canonicalization, query awareness, explicit relations, more hops or GraphRAG-like machinery — is justified.
 
 ---
 
