@@ -1635,10 +1635,11 @@ def test_extraction_rejects_invalid_costs(tmp_path, field, value):
         cheap_extract(tmp_path, tmp_path / "data", **{field: value})
 
 
-def test_cheap_eval_parser_has_only_a_dev_path():
-    assert build_parser().parse_args(["cheap-eval"]).command == "cheap-eval"
+def test_cheap_eval_parser_exposes_the_dev_path_and_the_single_test_flag():
+    assert build_parser().parse_args(["cheap-eval"]).test is False
+    assert build_parser().parse_args(["cheap-eval", "--test"]).test is True
     with pytest.raises(SystemExit):
-        build_parser().parse_args(["cheap-eval", "--test"])
+        build_parser().parse_args(["cheap-eval", "--select"])
 
 
 def test_cheap_eval_without_extraction_names_the_required_stage(tmp_path):
@@ -1648,15 +1649,15 @@ def test_cheap_eval_without_extraction_names_the_required_stage(tmp_path):
         cmd_cheap_eval(data_dir=tmp_path / "data", phase_7_dir=tmp_path / "phase7")
 
 
-def test_cheap_eval_uses_only_dev_caches_and_preserves_the_first_candidate(tmp_path, monkeypatch):
-    from concept_embeddings_rag.cli import cmd_cheap_eval
+def a_split_workspace(tmp_path: Path):
+    """The cheap workspace plus one dev question, one test question and their caches."""
     from concept_embeddings_rag.corpus.pool import Question, load_pool, save_pool
     from concept_embeddings_rag.embeddings.cache import EmbeddingCache, embed_questions, embed_units
 
     data_dir = a_cheap_workspace(tmp_path)
     units, _ = load_pool(data_dir / "pool.json")
     dev = Question("dev1", "dev question", "", (units[0].unit_id,), (), "dev")
-    test = Question("test1", "unread test question", "", (units[1].unit_id,), (), "test")
+    test = Question("test1", "held out question", "", (units[1].unit_id,), (), "test")
     save_pool(units, [dev, test], data_dir / "pool.json")
     (data_dir / "token_counts.json").write_text(
         json.dumps(dict.fromkeys([u.unit_id for u in units], 100))
@@ -1664,11 +1665,7 @@ def test_cheap_eval_uses_only_dev_caches_and_preserves_the_first_candidate(tmp_p
     backend = HashingBackend(dim=4)
     embed_units(units, backend, EmbeddingCache(tmp_path / "cache"))
     embed_questions([dev], backend, EmbeddingCache(tmp_path / "questions"))
-
-    def refuse_encode(texts):
-        raise AssertionError("cheap-eval must never encode a question or a paragraph")
-
-    monkeypatch.setattr(backend, "encode", refuse_encode)
+    embed_questions([test], backend, EmbeddingCache(tmp_path / "questions"))
     arguments = {
         "data_dir": data_dir,
         "cache_dir": tmp_path / "cache",
@@ -1676,21 +1673,81 @@ def test_cheap_eval_uses_only_dev_caches_and_preserves_the_first_candidate(tmp_p
         "phase_7_dir": tmp_path / "phase7",
         "backend": backend,
     }
+    return data_dir, backend, arguments
+
+
+def test_cheap_eval_uses_only_cached_embeddings_and_preserves_the_first_candidate(
+    tmp_path, monkeypatch
+):
+    from concept_embeddings_rag.cli import cmd_cheap_eval
+
+    data_dir, backend, arguments = a_split_workspace(tmp_path)
+
+    def refuse_encode(texts):
+        raise AssertionError("cheap-eval must never encode a question or a paragraph")
+
+    monkeypatch.setattr(backend, "encode", refuse_encode)
     cheap_extract(tmp_path, data_dir, extractor_id="gliner")
     first = cmd_cheap_eval(**arguments)[0]
     before = first.read_bytes()
+    (tmp_path / "phase7" / "selection.json").unlink()
     cheap_extract(tmp_path, data_dir, extractor_id="spacy")
     paths = cmd_cheap_eval(**arguments)
-    assert len(paths) == 2
+
     assert first.read_bytes() == before
-    for path in paths:
+    assert paths[-1].name == "selection.json"
+    for path in paths[:-1]:
         result = json.loads(path.read_text())
         assert result["split"] == "dev"
         assert result["n_questions"] == 1
         assert result["fit"]["n_questions"] == 1
-    assert len(list((tmp_path / "questions").glob("*.npz"))) == 1
-    assert not (tmp_path / "phase7" / "selection.json").exists()
+    assert len(list((tmp_path / "questions").glob("*.npz"))) == 2
+    selection = json.loads(paths[-1].read_text())
+    assert [row["extractor_id"] for row in selection["candidates"]] == ["gliner", "spacy"]
     assert not (tmp_path / "phase7" / "test.json").exists()
+
+
+def test_cheap_eval_refuses_to_measure_a_candidate_after_the_selection(tmp_path):
+    from concept_embeddings_rag.cli import cmd_cheap_eval
+
+    data_dir, _, arguments = a_split_workspace(tmp_path)
+    cheap_extract(tmp_path, data_dir, extractor_id="gliner")
+    cmd_cheap_eval(**arguments)
+    cheap_extract(tmp_path, data_dir, extractor_id="spacy")
+
+    with pytest.raises(SystemExit, match="already names a selection"):
+        cmd_cheap_eval(**arguments)
+    assert not (tmp_path / "phase7" / "spacy" / "dev.json").exists()
+
+
+def test_cheap_eval_test_reads_the_held_out_split_once_for_the_selected_extractor(tmp_path):
+    from concept_embeddings_rag.cli import cmd_cheap_eval
+
+    data_dir, _, arguments = a_split_workspace(tmp_path)
+    cheap_extract(tmp_path, data_dir, extractor_id="gliner")
+    cmd_cheap_eval(**arguments)
+
+    path = cmd_cheap_eval(**arguments, test=True)[0]
+
+    payload = json.loads(path.read_text())
+    assert payload["split"] == "test"
+    assert payload["n_questions"] == 1
+    assert payload["extractor_id"] == "gliner"
+    assert payload["config"]["question_cache_key"] != json.loads(
+        (tmp_path / "phase7" / "gliner" / "dev.json").read_text()
+    )["config"]["question_cache_key"]
+    with pytest.raises(SystemExit, match="read once"):
+        cmd_cheap_eval(**arguments, test=True)
+
+
+def test_cheap_eval_test_refuses_before_a_selection_exists(tmp_path):
+    from concept_embeddings_rag.cli import cmd_cheap_eval
+
+    data_dir, _, arguments = a_split_workspace(tmp_path)
+    cheap_extract(tmp_path, data_dir, extractor_id="gliner")
+
+    with pytest.raises(SystemExit, match="cheap-eval"):
+        cmd_cheap_eval(**arguments, test=True)
 
 
 def test_a_missing_extractor_library_says_which_group_to_install(tmp_path):

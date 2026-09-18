@@ -1,7 +1,13 @@
-"""S4 exercises real indexing, fusion fitting and measurement on a small bridge corpus."""
+"""Phase 7 dev measurement, the selection rule and the single held-out run.
+
+The dev half runs real indexing, fusion fitting and measurement on a small bridge
+corpus; the rule is exercised against dev readings written by hand, so a bar can be
+landed on exactly rather than approached by luck.
+"""
 
 import json
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 
@@ -11,6 +17,9 @@ from concept_embeddings_rag.embeddings.cache import unit_set_hash
 from concept_embeddings_rag.evaluation.cheap_extraction import (
     CheapEvaluationError,
     evaluate_candidate,
+    measure_held_out,
+    retention_bar,
+    select_extractor,
 )
 from concept_embeddings_rag.evaluation.selection import SelectionError, digest_of_payload
 from concept_embeddings_rag.nodes.index import (
@@ -23,6 +32,7 @@ from concept_embeddings_rag.nodes.local_extraction import (
     LocalExtractionError,
     LocalExtractor,
     build_manifest,
+    projection,
     record_from_forms,
     write_extraction,
 )
@@ -169,3 +179,227 @@ def test_fitting_stops_after_selection(candidate, name):
     (directory.parent / name).write_text("{}")
     with pytest.raises(CheapEvaluationError, match="fitting is closed"):
         evaluate_candidate(directory, **arguments)
+
+
+# --- S5: the rule, and the one held-out run --------------------------------------------
+
+
+def a_dev_payload(
+    extractor_id: str,
+    full_support: float,
+    *,
+    n_questions: int = config.N_DEV,
+    paragraphs_per_second: float = 60.0,
+    usd: float = 0.0,
+) -> dict:
+    """A dev reading with the fields the rule reads, signed like the real artifact."""
+    payload = {
+        "extractor_id": extractor_id,
+        "split": "dev",
+        "n_questions": n_questions,
+        "config": {"phase": 7},
+        "fit": {"scheme": "weighted", "weights": {"dense": 0.7, "entity-hop": 0.3}},
+        "metrics": {
+            f"budget_{config.SELECTION_BUDGET}": {
+                "full_support": full_support,
+                "gold_recall": full_support,
+            }
+        },
+        "cost": {"mean_latency_ms": 1.0},
+        "extraction": {
+            "model": f"{extractor_id}-model",
+            "revision": "r1",
+            "labels": ["person"],
+            "configuration_digest": "c" * 16,
+            "digest": "d" * 64,
+            "seconds": 19366 / paragraphs_per_second,
+            "paragraphs_per_second": paragraphs_per_second,
+            "usd": usd,
+            "failures": {},
+            "failure_rate": 0.0,
+            "hardware": {"device": "cpu"},
+            "configuration": {"extractor_id": extractor_id},
+            "projection_5m": projection(19366, paragraphs_per_second),
+        },
+        "index": {"distinct_nodes": 10, "entity_incidences": 20, "bytes": 1, "digest": "e" * 64},
+        "hop": {"positive_candidates_mean": 1.0},
+        "run_file": "run.json",
+        "run_digest": "f" * 64,
+    }
+    payload["digest"] = digest_of_payload(payload)
+    return payload
+
+
+def write_dev(phase_7_dir, extractor_id: str, payload: dict) -> None:
+    directory = phase_7_dir / extractor_id
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "dev.json").write_text(json.dumps(payload, indent=2, sort_keys=True))
+
+
+def test_the_bar_is_the_spec_s_own_number_in_whole_questions():
+    share, required = retention_bar(config.N_DEV)
+
+    assert required == config.PHASE_7_RETENTION_BAR_QUESTIONS
+    assert round(share, 4) == config.PHASE_7_RETENTION_BAR
+
+
+def test_a_candidate_on_the_bar_passes_and_one_below_it_does_not(tmp_path):
+    write_dev(tmp_path, "gliner", a_dev_payload("gliner", 517 / config.N_DEV))
+    write_dev(tmp_path, "spacy", a_dev_payload("spacy", 516 / config.N_DEV))
+
+    selection = json.loads(select_extractor(tmp_path).read_text())
+
+    rows = {row["extractor_id"]: row for row in selection["candidates"]}
+    assert rows["gliner"]["retention"]["supported_questions"] == 517
+    assert rows["gliner"]["retention"]["passed"] is True
+    assert rows["spacy"]["retention"]["supported_questions"] == 516
+    assert rows["spacy"]["retention"]["passed"] is False
+    assert selection["selected"] == "gliner"
+    assert selection["ranking"] == ["gliner"]
+    assert selection["digest"] == digest_of_payload(selection)
+
+
+def test_a_candidate_that_cannot_finish_fullwiki_in_time_fails_the_economic_bar(tmp_path):
+    slow = config.PROJECTION_PARAGRAPHS / (config.PHASE_7_FULLWIKI_HOURS_CEILING * 3600) * 0.99
+    write_dev(tmp_path, "gliner", a_dev_payload("gliner", 0.95, paragraphs_per_second=slow))
+
+    selection = json.loads(select_extractor(tmp_path).read_text())
+
+    economics = selection["candidates"][0]["economics"]
+    assert economics["projected_fullwiki_hours"] > config.PHASE_7_FULLWIKI_HOURS_CEILING
+    assert economics["passed"] is False
+    assert selection["selected"] is None
+    assert "negative result" in selection["reason"]
+
+
+def test_an_infrastructure_charge_over_the_ceiling_fails_the_economic_bar(tmp_path):
+    over = config.PHASE_7_INFRASTRUCTURE_CEILING_USD + 0.01
+    write_dev(tmp_path, "gliner", a_dev_payload("gliner", 0.95, usd=over))
+
+    selection = json.loads(select_extractor(tmp_path).read_text())
+
+    assert selection["candidates"][0]["economics"]["infrastructure_usd"] == over
+    assert selection["candidates"][0]["economics"]["passed"] is False
+    assert selection["selected"] is None
+
+
+def test_the_cheaper_projection_wins_and_the_bm25_line_is_a_qualification(tmp_path):
+    write_dev(tmp_path, "gliner", a_dev_payload("gliner", 0.95, paragraphs_per_second=40.0))
+    write_dev(tmp_path, "spacy", a_dev_payload("spacy", 0.87, paragraphs_per_second=900.0))
+
+    selection = json.loads(select_extractor(tmp_path).read_text())
+
+    assert selection["ranking"] == ["spacy", "gliner"]
+    assert selection["selected"] == "spacy"
+    rows = {row["extractor_id"]: row for row in selection["candidates"]}
+    assert rows["spacy"]["bm25_dev_line"]["below_line"] is False
+    assert rows["gliner"]["bm25_dev_line"]["below_line"] is False
+    assert rows["spacy"]["passed_both_bars"] and rows["gliner"]["passed_both_bars"]
+
+
+def test_a_candidate_with_no_dev_reading_is_named_rather_than_assumed(tmp_path):
+    write_dev(tmp_path, "gliner", a_dev_payload("gliner", 0.95))
+
+    selection = json.loads(select_extractor(tmp_path).read_text())
+
+    assert selection["candidates_without_dev_measurement"] == ["spacy"]
+    assert [row["extractor_id"] for row in selection["candidates"]] == ["gliner"]
+
+
+def test_an_edited_dev_reading_is_refused_rather_than_selected_from(tmp_path):
+    payload = a_dev_payload("gliner", 0.50)
+    payload["metrics"][f"budget_{config.SELECTION_BUDGET}"]["full_support"] = 0.99
+    write_dev(tmp_path, "gliner", payload)
+
+    with pytest.raises(CheapEvaluationError, match="digest"):
+        select_extractor(tmp_path)
+
+
+def test_the_selection_is_written_once(tmp_path):
+    write_dev(tmp_path, "gliner", a_dev_payload("gliner", 0.95))
+    select_extractor(tmp_path)
+
+    with pytest.raises(CheapEvaluationError, match="written once"):
+        select_extractor(tmp_path)
+
+
+def test_selection_without_any_dev_reading_names_the_stage_to_run(tmp_path):
+    with pytest.raises(CheapEvaluationError, match="cheap-eval"):
+        select_extractor(tmp_path)
+
+
+def held_out_arguments(arguments: dict) -> dict:
+    """The same inputs, on the split the phase reads exactly once."""
+    return {
+        "unit_ids": arguments["unit_ids"],
+        "dense": arguments["dense"],
+        "questions": [
+            Question("t1", "bridge", "", ("u000", "u119"), (), "test"),
+            Question("t2", "no bridge", "", ("u001",), (), "test"),
+        ],
+        "token_counts": arguments["token_counts"],
+        "run_config": arguments["run_config"],
+    }
+
+
+def test_the_held_out_run_measures_the_selected_extractor_once(candidate):
+    directory, arguments, _, manifest = candidate
+    evaluate_candidate(directory, **arguments)
+    selection = json.loads(select_extractor(directory.parent).read_text())
+    assert selection["selected"] == "gliner"
+
+    path = measure_held_out(directory.parent, **held_out_arguments(arguments))
+
+    payload = json.loads(path.read_text())
+    assert payload["split"] == "test"
+    assert payload["extractor_id"] == "gliner"
+    assert payload["config"]["extraction_digest"] == manifest["digest"]
+    assert payload["fusion"] == {
+        "scheme": selection["candidates"][0]["fusion"]["scheme"],
+        "weights": selection["candidates"][0]["fusion"]["weights"],
+    }
+    assert payload["inherited_test_full_support"] == config.PHASE_7_REFERENCE_HELD_OUT_FULL_SUPPORT
+    assert payload["selection_digest"] == selection["digest"]
+    assert payload["digest"] == digest_of_payload(payload)
+    run = json.loads((directory / Path(payload["run_file"]).name).read_text())
+    assert run["split"] == "test"
+    assert run["metrics"] == payload["metrics"]
+
+    with pytest.raises(CheapEvaluationError, match="read once"):
+        measure_held_out(directory.parent, **held_out_arguments(arguments))
+
+
+def test_the_held_out_run_refuses_without_a_selection(candidate):
+    directory, arguments, _, _ = candidate
+    evaluate_candidate(directory, **arguments)
+
+    with pytest.raises(CheapEvaluationError, match="cheap-eval"):
+        measure_held_out(directory.parent, **held_out_arguments(arguments))
+
+
+def test_a_negative_selection_reads_no_test_figure_at_all(tmp_path):
+    write_dev(tmp_path, "gliner", a_dev_payload("gliner", 0.50))
+    selection = json.loads(select_extractor(tmp_path).read_text())
+    assert selection["selected"] is None
+
+    with pytest.raises(CheapEvaluationError, match="names no extractor"):
+        measure_held_out(
+            tmp_path,
+            unit_ids=["u000"],
+            dense=DenseFixture(),
+            questions=[Question("t1", "bridge", "", ("u000",), (), "test")],
+            token_counts={"u000": 10},
+            run_config={"unit_set_hash": unit_set_hash(["u000"]), "top_k": 10},
+        )
+
+
+def test_dev_questions_are_refused_by_the_held_out_run(candidate):
+    directory, arguments, _, _ = candidate
+    evaluate_candidate(directory, **arguments)
+    select_extractor(directory.parent)
+    held_out = held_out_arguments(arguments)
+    held_out["questions"] = list(arguments["questions"])
+
+    with pytest.raises(CheapEvaluationError, match="measures test"):
+        measure_held_out(directory.parent, **held_out)
+    assert not (directory.parent / "test.json").exists()

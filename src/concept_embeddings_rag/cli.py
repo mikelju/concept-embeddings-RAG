@@ -16,7 +16,7 @@
     replace-freeze  fit B on dev, check reproducibility, write the freeze (Phase 6)
     replace-test    the ordered test protocol, once, under the freeze: the state (Phase 6)
     cheap-extract   read entities out of every paragraph with a local extractor (Phase 7)
-    cheap-eval      fit and measure each available local extractor on dev (Phase 7)
+    cheap-eval      measure each local extractor on dev and select; --test reads test once
 
 Each stage is idempotent and refuses to run if its input is missing, saying which
 stage to run first rather than failing somewhere deep inside numpy.
@@ -31,7 +31,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import NoReturn
+from typing import Any, NoReturn
 
 import numpy as np
 from scipy import sparse
@@ -82,6 +82,7 @@ from concept_embeddings_rag.corpus.download import CorpusIntegrityError, sha256_
 from concept_embeddings_rag.corpus.manifest import CorpusManifest
 from concept_embeddings_rag.corpus.pool import (
     IndexingUnit,
+    Question,
     build_pool,
     load_pool,
     save_pool,
@@ -105,8 +106,12 @@ from concept_embeddings_rag.embeddings.cache import (
 from concept_embeddings_rag.evaluation.budget import TokenCounter
 from concept_embeddings_rag.evaluation.cheap_extraction import (
     DEV_FILENAME,
+    SELECTION_FILENAME,
+    TEST_SPLIT,
     CheapEvaluationError,
     evaluate_candidate,
+    measure_held_out,
+    select_extractor,
 )
 from concept_embeddings_rag.evaluation.expansion_selection import (
     ExpansionSelection,
@@ -1941,45 +1946,28 @@ def cmd_cheap_extract(
     return path
 
 
-def cmd_cheap_eval(
-    data_dir: Path = config.DATA_DIR,
-    cache_dir: Path = config.CACHE_DIR,
-    question_cache_dir: Path = config.QUESTION_CACHE_DIR,
-    phase_7_dir: Path = config.PHASE_7_DIR,
-    backend: EmbeddingBackend | None = None,
-) -> list[Path]:
-    """S4: measure every extracted candidate on dev, without opening a test path."""
-    data_dir, phase_7_dir = Path(data_dir), Path(phase_7_dir)
-    if any((phase_7_dir / name).exists() for name in ("selection.json", "test.json")):
-        _die("candidate selection already exists; dev fitting is closed")
-    candidates = [
-        name
-        for name in config.PHASE_7_EXTRACTORS
-        if (phase_7_dir / name / local_extraction.MANIFEST_NAME).exists()
-    ]
-    if not candidates:
-        _die("no local extraction found: run 'cheap-extract' first")
-    written = []
-    pending = []
-    for name in candidates:
-        path = phase_7_dir / name / DEV_FILENAME
-        if path.exists():
-            # Preserve earlier measurements when a second extraction arrives, or when
-            # a previous invocation stopped between candidates. S5 verifies them on use.
-            print(f"[INFO] preserving existing dev artifact for {name}: {path}")
-            written.append(path)
-        else:
-            pending.append(name)
-    if not pending:
-        return written
+def _cheap_inputs(
+    split: str,
+    data_dir: Path,
+    cache_dir: Path,
+    question_cache_dir: Path,
+    backend: EmbeddingBackend | None,
+) -> tuple[list[str], list[Question], dict[str, int], DenseRetriever, dict[str, Any]]:
+    """The one loader both Phase 7 measurement paths share: pool, cache, dense, provenance.
+
+    Nothing is embedded here. Both splits were embedded in earlier phases and their caches
+    are the record; a missing cache is a refusal, never a quiet re-encoding at a different
+    library version.
+    """
     if not (data_dir / POOL_NAME).exists():
         _die("no pool found: run 'build' first")
     if not (data_dir / TOKENS_NAME).exists():
         _die("no token counts found: run 'embed' first")
     units, questions = load_pool(data_dir / POOL_NAME)
     _check_pool_against_manifest(units, data_dir / MANIFEST_NAME)
-    dev = [question for question in questions if question.split == DEV_SPLIT]
-    check_dev_only(dev)
+    subset = [question for question in questions if question.split == split]
+    if not subset:
+        _die(f"the pool holds no {split} questions: run 'build' first")
     unit_ids = [unit.unit_id for unit in units]
     token_counts = json.loads((data_dir / TOKENS_NAME).read_text(encoding="utf-8"))
     if set(token_counts) != set(unit_ids):
@@ -1993,15 +1981,16 @@ def cmd_cheap_eval(
     query_key = question_cache_key(
         backend.name,
         backend.revision,
-        question_set_hash([q.qid for q in dev]),
-        DEV_SPLIT,
+        question_set_hash([q.qid for q in subset]),
+        split,
         normalized=bool(getattr(backend, "normalize", True)),
     )
-    if question_cache.load(query_key, expected_unit_ids=[q.qid for q in dev]) is None:
+    if question_cache.load(query_key, expected_unit_ids=[q.qid for q in subset]) is None:
         _die(
-            "dev question embeddings are missing; restore the existing dev cache before cheap-eval"
+            f"{split} question embeddings are missing; restore the existing {split} cache "
+            "before cheap-eval"
         )
-    query_backend = build_query_backend(dev, backend, question_cache)
+    query_backend = build_query_backend(subset, backend, question_cache)
     dense = DenseRetriever(cached[0], unit_ids, query_backend)
     run_config = {
         "model": backend.name,
@@ -2015,28 +2004,133 @@ def cmd_cheap_eval(
         "corpus_cache_key": corpus_key,
         "question_cache_key": query_key,
     }
-    for name in pending:
-        print(f"[INFO] evaluating {name} on dev ({len(dev)} questions)")
-        try:
-            path = evaluate_candidate(
-                phase_7_dir / name,
-                extractor_id=name,
-                unit_ids=unit_ids,
-                dense=dense,
-                questions=dev,
-                token_counts=token_counts,
-                run_config=run_config,
-            )
-        except (
-            CheapEvaluationError,
-            LocalExtractionError,
-            NodeIndexError,
-            SelectionError,
-        ) as error:
-            _die(str(error))
-        written.append(path)
-        print(f"[OK] dev measurement written -> {path}")
+    return unit_ids, subset, token_counts, dense, run_config
+
+
+def cmd_cheap_eval(
+    data_dir: Path = config.DATA_DIR,
+    cache_dir: Path = config.CACHE_DIR,
+    question_cache_dir: Path = config.QUESTION_CACHE_DIR,
+    phase_7_dir: Path = config.PHASE_7_DIR,
+    backend: EmbeddingBackend | None = None,
+    test: bool = False,
+) -> list[Path]:
+    """Measure every extracted candidate on dev and apply the rule; with `test`, read test.
+
+    Without `--test` this is the whole dev half of the phase: one node index, one fusion
+    fit and one measurement per candidate, then `selection.json` written from those
+    readings. With `--test` it measures the selected extractor on the held-out split,
+    once, at the scheme and weight dev already chose. The two never run together, which
+    is what keeps the selection strictly upstream of the only test figure the phase has.
+    """
+    data_dir, phase_7_dir = Path(data_dir), Path(phase_7_dir)
+    if test:
+        return [_cheap_test(data_dir, cache_dir, question_cache_dir, phase_7_dir, backend)]
+    if (phase_7_dir / SELECTION_FILENAME).exists():
+        _die(
+            f"{phase_7_dir / SELECTION_FILENAME} already names a selection; the dev comparison "
+            "is closed and a candidate measured after it would be chosen against a known result"
+        )
+    candidates = [
+        name
+        for name in config.PHASE_7_EXTRACTORS
+        if (phase_7_dir / name / local_extraction.MANIFEST_NAME).exists()
+    ]
+    if not candidates:
+        _die("no local extraction found: run 'cheap-extract' first")
+    written: list[Path] = []
+    pending: list[str] = []
+    for name in candidates:
+        path = phase_7_dir / name / DEV_FILENAME
+        if path.exists():
+            # Preserve earlier measurements when a second extraction arrives, or when a
+            # previous invocation stopped between candidates. Selection verifies them.
+            print(f"[INFO] preserving existing dev artifact for {name}: {path}")
+            written.append(path)
+        else:
+            pending.append(name)
+    if pending:
+        unit_ids, dev, token_counts, dense, run_config = _cheap_inputs(
+            DEV_SPLIT, data_dir, cache_dir, question_cache_dir, backend
+        )
+        check_dev_only(dev)
+        for name in pending:
+            print(f"[INFO] evaluating {name} on dev ({len(dev)} questions)")
+            try:
+                path = evaluate_candidate(
+                    phase_7_dir / name,
+                    extractor_id=name,
+                    unit_ids=unit_ids,
+                    dense=dense,
+                    questions=dev,
+                    token_counts=token_counts,
+                    run_config=run_config,
+                )
+            except (
+                CheapEvaluationError,
+                LocalExtractionError,
+                NodeIndexError,
+                SelectionError,
+            ) as error:
+                _die(str(error))
+            written.append(path)
+            print(f"[OK] dev measurement written -> {path}")
+    try:
+        selection_path = select_extractor(phase_7_dir)
+    except CheapEvaluationError as error:
+        _die(str(error))
+    selection = json.loads(selection_path.read_text(encoding="utf-8"))
+    for row in selection["candidates"]:
+        retention = row["retention"]
+        print(
+            f"[INFO] {row['extractor_id']}: dev full support @{retention['headline_budget']} "
+            f"{retention['full_support_at_headline']:.4f} "
+            f"({retention['supported_questions']}/{retention['n_questions']}, bar "
+            f"{retention['bar_questions']}), retention "
+            f"{'PASS' if retention['passed'] else 'FAIL'}, economic "
+            f"{'PASS' if row['economics']['passed'] else 'FAIL'}"
+        )
+    if selection["candidates_without_dev_measurement"]:
+        missing = ",".join(selection["candidates_without_dev_measurement"])
+        print(f"[WARN] no dev measurement for {missing}; the rule was applied without them")
+    print(f"[INFO] selected: {selection['selected']} - {selection['reason']}")
+    print(f"[OK] selection written -> {selection_path}")
+    written.append(selection_path)
     return written
+
+
+def _cheap_test(
+    data_dir: Path,
+    cache_dir: Path,
+    question_cache_dir: Path,
+    phase_7_dir: Path,
+    backend: EmbeddingBackend | None,
+) -> Path:
+    """The single held-out run of the selected extractor (D12)."""
+    unit_ids, questions, token_counts, dense, run_config = _cheap_inputs(
+        TEST_SPLIT, data_dir, cache_dir, question_cache_dir, backend
+    )
+    try:
+        path = measure_held_out(
+            phase_7_dir,
+            unit_ids=unit_ids,
+            dense=dense,
+            questions=questions,
+            token_counts=token_counts,
+            run_config=run_config,
+        )
+    except (CheapEvaluationError, NodeIndexError) as error:
+        _die(str(error))
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    headline = payload["metrics"][f"budget_{config.SELECTION_BUDGET}"]["full_support"]
+    print(
+        f"[INFO] {payload['extractor_id']} on test ({payload['n_questions']} questions): "
+        f"full support @{config.SELECTION_BUDGET} {headline:.4f}"
+    )
+    for name, value in sorted(payload["inherited_test_full_support"].items()):
+        print(f"[INFO] inherited {name} test full support: {value:.4f}")
+    print(f"[OK] held-out run written -> {path}")
+    return path
 
 
 def _poll_pause() -> None:
@@ -2177,7 +2271,14 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="actual infrastructure charge for this run; required with a nonzero hourly rate",
     )
-    subparsers.add_parser("cheap-eval", help="fit and measure available local extractors on dev")
+    evaluation = subparsers.add_parser(
+        "cheap-eval", help="fit and measure available local extractors on dev, then select"
+    )
+    evaluation.add_argument(
+        "--test",
+        action="store_true",
+        help="measure the selected extractor on the held-out split, once",
+    )
     extraction = subparsers.add_parser(
         "extract", help="read entities and concepts out of every paragraph (spends money)"
     )
@@ -2237,7 +2338,7 @@ def main(argv: list[str] | None = None) -> int:
             actual_cost_usd=args.actual_cost_usd,
         )
     elif args.command == "cheap-eval":
-        cmd_cheap_eval()
+        cmd_cheap_eval(test=args.test)
     return 0
 
 
