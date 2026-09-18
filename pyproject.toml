@@ -31,6 +31,12 @@ labeling = [
     "anthropic>=1.4.0",
     "python-dotenv>=1.2.3",
 ]
+phase7 = [
+    "en-core-web-sm",
+    "gliner==0.2.29",
+    "protobuf>=4.25",
+    "spacy==3.8.16",
+]
 security = [
     "detect-secrets>=1.5.0",
     "pip-audit>=2.10.1",
@@ -45,6 +51,7 @@ explicit = true
 
 [tool.uv.sources]
 torch = { index = "pytorch-cpu" }
+en-core-web-sm = { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" }
 
 [build-system]
 requires = ["uv_build>=0.10.9,<0.11.0"]

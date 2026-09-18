@@ -1451,3 +1451,181 @@ def test_a_second_pilot_refuses_rather_than_moving_the_freeze(tmp_path):
         pilot(tmp_path, data_dir, cache_dir)
 
     assert "already frozen" in str(excinfo.value)
+
+
+# --- Phase 7, S3: the cheap-extract stage ---------------------------------------
+#
+# The stage is wiring: pool in, one local extractor over it, one artifact out. What is
+# asserted here is the wiring and the refusals, never the model - no model is downloaded
+# and neither extractor library is imported, because the builder is injected.
+
+
+def a_cheap_workspace(tmp_path: Path) -> Path:
+    """A data directory holding just what `cheap-extract` reads: the pool."""
+    from concept_embeddings_rag.corpus.pool import IndexingUnit, save_pool, unit_id_for
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    units = []
+    for index in range(4):
+        title = f"Title {index}"
+        sentences = (f"Paragraph {index} mentions Kaley Cuoco.", "It also mentions CBS.")
+        units.append(
+            IndexingUnit(unit_id=unit_id_for(title, sentences), title=title, sentences=sentences)
+        )
+    save_pool(units, [], data_dir / "pool.json")
+    return data_dir
+
+
+def a_fake_builder(forms=("Kaley Cuoco", "CBS"), *, seen=None):
+    """A builder that returns a fixed-answer extractor instead of loading a model."""
+    from collections.abc import Sequence
+
+    from concept_embeddings_rag.nodes.local_extraction import LocalExtractor
+
+    def build(extractor_id: str, directory: Path):
+        if seen is not None:
+            seen.append((extractor_id, directory))
+
+        def spans(texts: Sequence[str]) -> list[list[str]]:
+            return [list(forms) for _ in texts]
+
+        return (
+            LocalExtractor(
+                extractor_id=extractor_id,
+                model=f"fake/{extractor_id}",
+                revision="r1",
+                labels=("person", "organization"),
+                parameters={"threshold": 0.5},
+                library_versions={"fake": "1.0"},
+                spans=spans,
+            ),
+            0.25,
+        )
+
+    return build
+
+
+def cheap_extract(tmp_path: Path, data_dir: Path, **overrides):
+    from concept_embeddings_rag.cli import cmd_cheap_extract
+
+    arguments = {
+        "extractor_id": "gliner",
+        "data_dir": data_dir,
+        "phase_7_dir": tmp_path / "phase7",
+        "build": a_fake_builder(),
+    }
+    arguments.update(overrides)
+    return cmd_cheap_extract(**arguments)
+
+
+def test_parser_exposes_the_cheap_extract_stage_with_its_two_candidates():
+    parsed = build_parser().parse_args(["cheap-extract", "--extractor", "spacy"])
+
+    assert parsed.command == "cheap-extract"
+    assert parsed.extractor == "spacy"
+    assert parsed.hourly_rate_usd == 0.0
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(["cheap-extract", "--extractor", "bert"])
+
+
+def test_cheap_extract_without_a_pool_names_the_build_stage(tmp_path):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+
+    with pytest.raises(SystemExit) as excinfo:
+        cheap_extract(tmp_path, data_dir)
+
+    assert "build" in str(excinfo.value)
+
+
+def test_cheap_extract_refuses_a_candidate_this_phase_never_declared(tmp_path):
+    data_dir = a_cheap_workspace(tmp_path)
+
+    with pytest.raises(SystemExit) as excinfo:
+        cheap_extract(tmp_path, data_dir, extractor_id="bert-base")
+
+    assert "two candidates" in str(excinfo.value)
+
+
+def test_cheap_extract_writes_one_directory_per_candidate_and_prints_ascii(tmp_path, capsys):
+    from concept_embeddings_rag.nodes.local_extraction import load_extraction
+
+    data_dir = a_cheap_workspace(tmp_path)
+
+    path = cheap_extract(tmp_path, data_dir)
+
+    assert path.parent == tmp_path / "phase7" / "gliner"
+    assert sorted(p.name for p in path.parent.iterdir()) == ["extraction.json", "records.jsonl.gz"]
+    out = capsys.readouterr().out
+    assert out.isascii()
+    # Node forms are corpus text and never reach a log.
+    assert "Kaley" not in out
+    records, manifest = load_extraction(path.parent)
+    assert len(records) == 4
+    assert all(record.entities == ("Kaley Cuoco", "CBS") for record in records.values())
+    assert manifest["usd"] == 0.0
+    assert manifest["model_load_seconds"] == 0.25
+
+
+def test_cheap_extract_hands_the_builder_a_directory_of_its_own(tmp_path):
+    seen: list = []
+    data_dir = a_cheap_workspace(tmp_path)
+
+    cheap_extract(tmp_path, data_dir, build=a_fake_builder(seen=seen))
+
+    assert seen == [("gliner", tmp_path / "phase7" / "models" / "gliner")]
+
+
+def test_cheap_extract_touches_no_phase_5_or_phase_6_artifact(tmp_path):
+    data_dir = a_cheap_workspace(tmp_path)
+
+    cheap_extract(tmp_path, data_dir)
+
+    assert sorted(p.name for p in (tmp_path / "phase7").iterdir()) == ["gliner"]
+    assert not (data_dir / "extraction").exists()
+    assert not (data_dir / "nodes").exists()
+    assert not (data_dir / "replacement").exists()
+
+
+def test_a_second_pass_refuses_rather_than_replacing_a_measured_artifact(tmp_path):
+    data_dir = a_cheap_workspace(tmp_path)
+    cheap_extract(tmp_path, data_dir)
+
+    with pytest.raises(SystemExit) as excinfo:
+        cheap_extract(tmp_path, data_dir)
+
+    assert "already holds an extraction" in str(excinfo.value)
+
+
+def test_the_two_candidates_write_side_by_side_without_colliding(tmp_path):
+    data_dir = a_cheap_workspace(tmp_path)
+
+    cheap_extract(tmp_path, data_dir, extractor_id="gliner")
+    cheap_extract(tmp_path, data_dir, extractor_id="spacy")
+
+    assert sorted(p.name for p in (tmp_path / "phase7").iterdir()) == ["gliner", "spacy"]
+
+
+def test_a_rented_machine_rate_reaches_the_projection(tmp_path):
+    from concept_embeddings_rag.nodes.local_extraction import load_manifest
+
+    data_dir = a_cheap_workspace(tmp_path)
+
+    path = cheap_extract(tmp_path, data_dir, hourly_rate_usd=1.5)
+
+    projection = load_manifest(path.parent)["projection_5m"]
+    assert projection["hourly_rate_usd"] == 1.5
+    assert projection["usd"] == pytest.approx(projection["hours"] * 1.5)
+
+
+def test_a_missing_extractor_library_says_which_group_to_install(tmp_path):
+    data_dir = a_cheap_workspace(tmp_path)
+
+    def build(extractor_id: str, directory: Path):
+        raise ImportError("No module named 'gliner'")
+
+    with pytest.raises(SystemExit) as excinfo:
+        cheap_extract(tmp_path, data_dir, build=build)
+
+    assert "phase7" in str(excinfo.value)

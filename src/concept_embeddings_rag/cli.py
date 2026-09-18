@@ -15,6 +15,7 @@
     replace-check   verify inputs, continuity and the control's reproduction on dev (Phase 6)
     replace-freeze  fit B on dev, check reproducibility, write the freeze (Phase 6)
     replace-test    the ordered test protocol, once, under the freeze: the state (Phase 6)
+    cheap-extract   read entities out of every paragraph with a local extractor (Phase 7)
 
 Each stage is idempotent and refuses to run if its input is missing, saying which
 stage to run first rather than failing somewhere deep inside numpy.
@@ -158,6 +159,7 @@ from concept_embeddings_rag.evaluation.selection import (
     selection_digest,
     sweep_space,
 )
+from concept_embeddings_rag.nodes import local_extraction
 from concept_embeddings_rag.nodes.extraction import (
     AnthropicBatchClient,
     AnthropicSyncClient,
@@ -177,6 +179,7 @@ from concept_embeddings_rag.nodes.index import (
     load_node_index,
     save_node_index,
 )
+from concept_embeddings_rag.nodes.local_extraction import LocalExtractionError, LocalExtractor
 from concept_embeddings_rag.retrieval.base import Retriever
 from concept_embeddings_rag.retrieval.bm25 import BM25Retriever
 from concept_embeddings_rag.retrieval.conceptual import (
@@ -1801,6 +1804,124 @@ def cmd_replace_test(
     return 0 if result.passed else 1
 
 
+ExtractorBuilder = Callable[[str, Path], tuple[LocalExtractor, float]]
+
+
+def _progress(label: str, started: float) -> Callable[[int, int], None]:
+    """Say how far the pass has got and what that projects to, in ASCII and no node form."""
+    reported = [0]
+
+    def report(done: int, total: int) -> None:
+        if done - reported[0] < 1000 and done < total:
+            return
+        reported[0] = done
+        elapsed = time.perf_counter() - started
+        rate = done / elapsed if elapsed > 0 else 0.0
+        remaining = (total - done) / rate / 60.0 if rate > 0 else float("nan")
+        print(
+            f"[INFO] {label}: {done}/{total} texts in {elapsed / 60:.1f} min "
+            f"({rate:.2f} texts/s, about {remaining:.1f} min left)"
+        )
+
+    return report
+
+
+def cmd_cheap_extract(
+    extractor_id: str,
+    data_dir: Path = config.DATA_DIR,
+    phase_7_dir: Path = config.PHASE_7_DIR,
+    hourly_rate_usd: float = 0.0,
+    build: ExtractorBuilder = local_extraction.build_extractor,
+    chunk_size: int = 64,
+) -> Path:
+    """Read entities out of every paragraph with one local extractor (Phase 7, S3).
+
+    Writes `data/phase7/<extractor_id>/`: the records archive and the manifest that says
+    which model, revision, label set, library versions and hardware produced them, how long
+    the pass took, what it cost (0.00 USD on owned hardware) and what that projects to at
+    five million paragraphs. Nothing is written to `data/extraction/` or `data/nodes/`,
+    which are Phase 5 artifacts.
+
+    It refuses to overwrite an existing extraction: the pass costs hours, and silently
+    replacing the artifact behind a measured dev figure is exactly what the project's
+    versioning rule forbids. Prints figures only - never a node form, which is corpus text.
+    """
+    if extractor_id not in config.PHASE_7_EXTRACTORS:
+        _die(
+            f"unknown extractor {extractor_id!r}; this phase has exactly two candidates, "
+            f"{','.join(config.PHASE_7_EXTRACTORS)}"
+        )
+    data_dir = Path(data_dir)
+    pool_path = data_dir / POOL_NAME
+    if not pool_path.exists():
+        _die("no pool found: run 'build' first")
+    units, _questions = load_pool(pool_path)
+    _check_pool_against_manifest(units, data_dir / MANIFEST_NAME)
+
+    directory = Path(phase_7_dir) / extractor_id
+    if (directory / local_extraction.MANIFEST_NAME).exists():
+        _die(
+            f"{directory} already holds an extraction; this pass costs hours and does not "
+            "overwrite the artifact a measured figure was read from - remove the directory "
+            "deliberately to run it again"
+        )
+
+    try:
+        extractor, load_seconds = build(extractor_id, Path(phase_7_dir) / "models" / extractor_id)
+    except LocalExtractionError as error:
+        _die(str(error))
+    except ImportError as error:
+        _die(
+            f"the {extractor_id} library is not installed in this environment ({error}); "
+            "install the phase7 dependency group first"
+        )
+
+    print(
+        f"[INFO] {extractor_id}: {extractor.model} at revision {extractor.revision}, "
+        f"{len(extractor.labels)} labels, configuration {extractor.configuration_digest}"
+    )
+    print(f"[INFO] model loaded in {load_seconds:.1f} s; reading {len(units)} paragraphs")
+
+    started = time.perf_counter()
+    try:
+        records, seconds = local_extraction.run_extraction(
+            units,
+            extractor,
+            chunk_size=chunk_size,
+            on_progress=_progress(extractor_id, started),
+        )
+        manifest = local_extraction.build_manifest(
+            records,
+            extractor,
+            seconds=seconds,
+            hardware=local_extraction.hardware_block(device=extractor.hardware_device),
+            usd=0.0,
+            hourly_rate_usd=hourly_rate_usd,
+            model_load_seconds=load_seconds,
+        )
+        path = local_extraction.write_extraction(records, manifest, directory)
+    except LocalExtractionError as error:
+        _die(str(error))
+
+    projection = manifest["projection_5m"]
+    print(
+        f"[INFO] {manifest['n_units']} paragraphs in {seconds / 60:.1f} min "
+        f"({manifest['paragraphs_per_second']:.3f} paragraphs/s)"
+    )
+    print(
+        f"[INFO] {manifest['entities']} entity mentions kept, "
+        f"{manifest['units_without_entity']} paragraphs with none, "
+        f"{sum(manifest['failures'].values())} failed ({manifest['failure_rate']:.4%})"
+    )
+    print(
+        f"[INFO] projection to {projection['paragraphs']} paragraphs: "
+        f"{projection['hours']:.1f} h, {projection['usd']:.2f} USD "
+        f"({projection['method']}); this run cost {manifest['usd']:.2f} USD"
+    )
+    print(f"[OK] extraction written -> {path}")
+    return path
+
+
 def _poll_pause() -> None:
     """How long the full run waits between two looks at a batch. Most end within an hour."""
     time.sleep(60)
@@ -1915,6 +2036,24 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     testing.add_argument("--deviation", default=None, help="path of the 6.Y deviation document")
+    cheap = subparsers.add_parser(
+        "cheap-extract", help="read entities out of every paragraph with a local extractor"
+    )
+    cheap.add_argument(
+        "--extractor",
+        choices=config.PHASE_7_EXTRACTORS,
+        required=True,
+        help="which Phase 7 candidate to run; each writes its own directory",
+    )
+    # D9: zero on owned hardware, the real rate when the pass runs on rented compute, so
+    # the projection carries an arithmetic a reader can check rather than an assumption.
+    cheap.add_argument(
+        "--hourly-rate-usd",
+        type=float,
+        default=0.0,
+        dest="hourly_rate_usd",
+        help="machine rate for the 5M projection; 0.0 on owned hardware (default)",
+    )
     extraction = subparsers.add_parser(
         "extract", help="read entities and concepts out of every paragraph (spends money)"
     )
@@ -1967,6 +2106,8 @@ def main(argv: list[str] | None = None) -> int:
         )
     elif args.command == "replace-test":
         return cmd_replace_test(control_mode=args.control_mode, deviation=args.deviation)
+    elif args.command == "cheap-extract":
+        cmd_cheap_extract(extractor_id=args.extractor, hourly_rate_usd=args.hourly_rate_usd)
     return 0
 
 
