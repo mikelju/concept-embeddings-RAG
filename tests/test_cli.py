@@ -1612,11 +1612,85 @@ def test_a_rented_machine_rate_reaches_the_projection(tmp_path):
 
     data_dir = a_cheap_workspace(tmp_path)
 
-    path = cheap_extract(tmp_path, data_dir, hourly_rate_usd=1.5)
+    path = cheap_extract(tmp_path, data_dir, hourly_rate_usd=1.5, actual_cost_usd=2.75)
 
     projection = load_manifest(path.parent)["projection_5m"]
     assert projection["hourly_rate_usd"] == 1.5
     assert projection["usd"] == pytest.approx(projection["hours"] * 1.5)
+    assert load_manifest(path.parent)["usd"] == 2.75
+
+
+def test_rented_extraction_requires_actual_cost_before_loading_a_model(tmp_path):
+    data_dir = a_cheap_workspace(tmp_path)
+    seen = []
+    with pytest.raises(SystemExit, match="actual-cost-usd"):
+        cheap_extract(tmp_path, data_dir, hourly_rate_usd=1.5, build=a_fake_builder(seen=seen))
+    assert seen == []
+
+
+@pytest.mark.parametrize("field", ["hourly_rate_usd", "actual_cost_usd"])
+@pytest.mark.parametrize("value", [-1.0, float("nan"), float("inf")])
+def test_extraction_rejects_invalid_costs(tmp_path, field, value):
+    with pytest.raises(SystemExit, match="finite and non-negative"):
+        cheap_extract(tmp_path, tmp_path / "data", **{field: value})
+
+
+def test_cheap_eval_parser_has_only_a_dev_path():
+    assert build_parser().parse_args(["cheap-eval"]).command == "cheap-eval"
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(["cheap-eval", "--test"])
+
+
+def test_cheap_eval_without_extraction_names_the_required_stage(tmp_path):
+    from concept_embeddings_rag.cli import cmd_cheap_eval
+
+    with pytest.raises(SystemExit, match="cheap-extract"):
+        cmd_cheap_eval(data_dir=tmp_path / "data", phase_7_dir=tmp_path / "phase7")
+
+
+def test_cheap_eval_uses_only_dev_caches_and_preserves_the_first_candidate(tmp_path, monkeypatch):
+    from concept_embeddings_rag.cli import cmd_cheap_eval
+    from concept_embeddings_rag.corpus.pool import Question, load_pool, save_pool
+    from concept_embeddings_rag.embeddings.cache import EmbeddingCache, embed_questions, embed_units
+
+    data_dir = a_cheap_workspace(tmp_path)
+    units, _ = load_pool(data_dir / "pool.json")
+    dev = Question("dev1", "dev question", "", (units[0].unit_id,), (), "dev")
+    test = Question("test1", "unread test question", "", (units[1].unit_id,), (), "test")
+    save_pool(units, [dev, test], data_dir / "pool.json")
+    (data_dir / "token_counts.json").write_text(
+        json.dumps(dict.fromkeys([u.unit_id for u in units], 100))
+    )
+    backend = HashingBackend(dim=4)
+    embed_units(units, backend, EmbeddingCache(tmp_path / "cache"))
+    embed_questions([dev], backend, EmbeddingCache(tmp_path / "questions"))
+
+    def refuse_encode(texts):
+        raise AssertionError("cheap-eval must never encode a question or a paragraph")
+
+    monkeypatch.setattr(backend, "encode", refuse_encode)
+    arguments = {
+        "data_dir": data_dir,
+        "cache_dir": tmp_path / "cache",
+        "question_cache_dir": tmp_path / "questions",
+        "phase_7_dir": tmp_path / "phase7",
+        "backend": backend,
+    }
+    cheap_extract(tmp_path, data_dir, extractor_id="gliner")
+    first = cmd_cheap_eval(**arguments)[0]
+    before = first.read_bytes()
+    cheap_extract(tmp_path, data_dir, extractor_id="spacy")
+    paths = cmd_cheap_eval(**arguments)
+    assert len(paths) == 2
+    assert first.read_bytes() == before
+    for path in paths:
+        result = json.loads(path.read_text())
+        assert result["split"] == "dev"
+        assert result["n_questions"] == 1
+        assert result["fit"]["n_questions"] == 1
+    assert len(list((tmp_path / "questions").glob("*.npz"))) == 1
+    assert not (tmp_path / "phase7" / "selection.json").exists()
+    assert not (tmp_path / "phase7" / "test.json").exists()
 
 
 def test_a_missing_extractor_library_says_which_group_to_install(tmp_path):

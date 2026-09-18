@@ -16,6 +16,7 @@
     replace-freeze  fit B on dev, check reproducibility, write the freeze (Phase 6)
     replace-test    the ordered test protocol, once, under the freeze: the state (Phase 6)
     cheap-extract   read entities out of every paragraph with a local extractor (Phase 7)
+    cheap-eval      fit and measure each available local extractor on dev (Phase 7)
 
 Each stage is idempotent and refuses to run if its input is missing, saying which
 stage to run first rather than failing somewhere deep inside numpy.
@@ -23,6 +24,7 @@ stage to run first rather than failing somewhere deep inside numpy.
 
 import argparse
 import json
+import math
 import sys
 import time
 from collections.abc import Callable, Sequence
@@ -95,10 +97,17 @@ from concept_embeddings_rag.embeddings.cache import (
     cache_key,
     embed_questions,
     embed_units,
+    question_cache_key,
+    question_set_hash,
     resolved_revision,
     unit_set_hash,
 )
 from concept_embeddings_rag.evaluation.budget import TokenCounter
+from concept_embeddings_rag.evaluation.cheap_extraction import (
+    DEV_FILENAME,
+    CheapEvaluationError,
+    evaluate_candidate,
+)
 from concept_embeddings_rag.evaluation.expansion_selection import (
     ExpansionSelection,
     ExpansionSelectionError,
@@ -148,6 +157,7 @@ from concept_embeddings_rag.evaluation.selection import (
     SelectionError,
     SelectionReport,
     SweepSpace,
+    check_dev_only,
     check_freeze_precedes,
     choose_damping,
     choose_space,
@@ -1831,6 +1841,7 @@ def cmd_cheap_extract(
     data_dir: Path = config.DATA_DIR,
     phase_7_dir: Path = config.PHASE_7_DIR,
     hourly_rate_usd: float = 0.0,
+    actual_cost_usd: float | None = None,
     build: ExtractorBuilder = local_extraction.build_extractor,
     chunk_size: int = 64,
 ) -> Path:
@@ -1846,6 +1857,14 @@ def cmd_cheap_extract(
     replacing the artifact behind a measured dev figure is exactly what the project's
     versioning rule forbids. Prints figures only - never a node form, which is corpus text.
     """
+    if not math.isfinite(hourly_rate_usd) or hourly_rate_usd < 0:
+        _die("hourly-rate-usd must be finite and non-negative")
+    if actual_cost_usd is not None and (not math.isfinite(actual_cost_usd) or actual_cost_usd < 0):
+        _die("actual-cost-usd must be finite and non-negative")
+    if hourly_rate_usd > 0 and actual_cost_usd is None:
+        _die(
+            "rented compute requires --actual-cost-usd: record the actual charge, not a projection"
+        )
     if extractor_id not in config.PHASE_7_EXTRACTORS:
         _die(
             f"unknown extractor {extractor_id!r}; this phase has exactly two candidates, "
@@ -1895,7 +1914,7 @@ def cmd_cheap_extract(
             extractor,
             seconds=seconds,
             hardware=local_extraction.hardware_block(device=extractor.hardware_device),
-            usd=0.0,
+            usd=actual_cost_usd if actual_cost_usd is not None else 0.0,
             hourly_rate_usd=hourly_rate_usd,
             model_load_seconds=load_seconds,
         )
@@ -1920,6 +1939,104 @@ def cmd_cheap_extract(
     )
     print(f"[OK] extraction written -> {path}")
     return path
+
+
+def cmd_cheap_eval(
+    data_dir: Path = config.DATA_DIR,
+    cache_dir: Path = config.CACHE_DIR,
+    question_cache_dir: Path = config.QUESTION_CACHE_DIR,
+    phase_7_dir: Path = config.PHASE_7_DIR,
+    backend: EmbeddingBackend | None = None,
+) -> list[Path]:
+    """S4: measure every extracted candidate on dev, without opening a test path."""
+    data_dir, phase_7_dir = Path(data_dir), Path(phase_7_dir)
+    if any((phase_7_dir / name).exists() for name in ("selection.json", "test.json")):
+        _die("candidate selection already exists; dev fitting is closed")
+    candidates = [
+        name
+        for name in config.PHASE_7_EXTRACTORS
+        if (phase_7_dir / name / local_extraction.MANIFEST_NAME).exists()
+    ]
+    if not candidates:
+        _die("no local extraction found: run 'cheap-extract' first")
+    written = []
+    pending = []
+    for name in candidates:
+        path = phase_7_dir / name / DEV_FILENAME
+        if path.exists():
+            # Preserve earlier measurements when a second extraction arrives, or when
+            # a previous invocation stopped between candidates. S5 verifies them on use.
+            print(f"[INFO] preserving existing dev artifact for {name}: {path}")
+            written.append(path)
+        else:
+            pending.append(name)
+    if not pending:
+        return written
+    if not (data_dir / POOL_NAME).exists():
+        _die("no pool found: run 'build' first")
+    if not (data_dir / TOKENS_NAME).exists():
+        _die("no token counts found: run 'embed' first")
+    units, questions = load_pool(data_dir / POOL_NAME)
+    _check_pool_against_manifest(units, data_dir / MANIFEST_NAME)
+    dev = [question for question in questions if question.split == DEV_SPLIT]
+    check_dev_only(dev)
+    unit_ids = [unit.unit_id for unit in units]
+    token_counts = json.loads((data_dir / TOKENS_NAME).read_text(encoding="utf-8"))
+    if set(token_counts) != set(unit_ids):
+        _die("token counts belong to another pool")
+    backend = backend if backend is not None else SentenceTransformerBackend()
+    corpus_key = _cache_key_for(backend, units)
+    cached = EmbeddingCache(Path(cache_dir)).load(corpus_key, expected_unit_ids=unit_ids)
+    if cached is None:
+        _die("embeddings are not cached for this pool: run 'embed' first")
+    question_cache = EmbeddingCache(Path(question_cache_dir))
+    query_key = question_cache_key(
+        backend.name,
+        backend.revision,
+        question_set_hash([q.qid for q in dev]),
+        DEV_SPLIT,
+        normalized=bool(getattr(backend, "normalize", True)),
+    )
+    if question_cache.load(query_key, expected_unit_ids=[q.qid for q in dev]) is None:
+        _die(
+            "dev question embeddings are missing; restore the existing dev cache before cheap-eval"
+        )
+    query_backend = build_query_backend(dev, backend, question_cache)
+    dense = DenseRetriever(cached[0], unit_ids, query_backend)
+    run_config = {
+        "model": backend.name,
+        "revision": backend.revision,
+        "unit_set_hash": unit_set_hash(unit_ids),
+        "seed": config.DEFAULT_SEED,
+        "tokenizer": config.TOKENIZER_ID,
+        "code_version": __version__,
+        "top_k": config.EVALUATION_TOP_K,
+        "n_units": len(units),
+        "corpus_cache_key": corpus_key,
+        "question_cache_key": query_key,
+    }
+    for name in pending:
+        print(f"[INFO] evaluating {name} on dev ({len(dev)} questions)")
+        try:
+            path = evaluate_candidate(
+                phase_7_dir / name,
+                extractor_id=name,
+                unit_ids=unit_ids,
+                dense=dense,
+                questions=dev,
+                token_counts=token_counts,
+                run_config=run_config,
+            )
+        except (
+            CheapEvaluationError,
+            LocalExtractionError,
+            NodeIndexError,
+            SelectionError,
+        ) as error:
+            _die(str(error))
+        written.append(path)
+        print(f"[OK] dev measurement written -> {path}")
+    return written
 
 
 def _poll_pause() -> None:
@@ -2054,6 +2171,13 @@ def build_parser() -> argparse.ArgumentParser:
         dest="hourly_rate_usd",
         help="machine rate for the 5M projection; 0.0 on owned hardware (default)",
     )
+    cheap.add_argument(
+        "--actual-cost-usd",
+        type=float,
+        default=None,
+        help="actual infrastructure charge for this run; required with a nonzero hourly rate",
+    )
+    subparsers.add_parser("cheap-eval", help="fit and measure available local extractors on dev")
     extraction = subparsers.add_parser(
         "extract", help="read entities and concepts out of every paragraph (spends money)"
     )
@@ -2107,7 +2231,13 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == "replace-test":
         return cmd_replace_test(control_mode=args.control_mode, deviation=args.deviation)
     elif args.command == "cheap-extract":
-        cmd_cheap_extract(extractor_id=args.extractor, hourly_rate_usd=args.hourly_rate_usd)
+        cmd_cheap_extract(
+            extractor_id=args.extractor,
+            hourly_rate_usd=args.hourly_rate_usd,
+            actual_cost_usd=args.actual_cost_usd,
+        )
+    elif args.command == "cheap-eval":
+        cmd_cheap_eval()
     return 0
 
 
