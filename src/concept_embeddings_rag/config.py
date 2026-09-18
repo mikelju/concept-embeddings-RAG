@@ -393,6 +393,148 @@ EXPECTED_ENTITY_TRACES: Final[int] = 116
 TRACE_WEIGHT_REL_TOL: Final[float] = 1e-12
 
 
+# --- Cheap entity extraction (Phase 7) ---------------------------------------
+# Declared before the first Phase 7 number exists, which is the whole point: the
+# spec (`7.spec.md`, decision 10) forbids choosing a model, a revision, a label set
+# or a bar after a figure has been seen. Every value below comes from
+# `7.0_cheap_entity_extraction.md`, decisions D1-D5, D9 and D11. A different
+# checkpoint, pipeline or threshold is a **separate declared candidate**, never a
+# retune of one of these.
+
+PHASE_7_DIR: Final[Path] = DATA_DIR / "phase7"
+
+# The two local candidates. The Claude extraction of Phase 5 is the reference arm and
+# is quoted from its existing artifact, never re-run, so it is not an id here.
+GLINER_EXTRACTOR: Final[str] = "gliner"
+SPACY_EXTRACTOR: Final[str] = "spacy"
+PHASE_7_EXTRACTORS: Final[tuple[str, ...]] = (GLINER_EXTRACTOR, SPACY_EXTRACTOR)
+
+# D1-D3: candidate B, local zero-shot NER. Pinned to a commit, never to `main`, for
+# the same reason the embedding model is: a moving revision silently redefines every
+# node the phase extracts while the artifact keeps claiming the same configuration.
+GLINER_MODEL: Final[str] = "urchade/gliner_medium-v2.1"
+GLINER_REVISION: Final[str] = "40ec419335d09393f298636f471328b722c6da9e"
+GLINER_TOKENIZER_MODEL: Final[str] = "microsoft/deberta-v3-base"
+GLINER_TOKENIZER_REVISION: Final[str] = "8ccc9b6f36199bec6961081d44eb72fb3f7353f3"
+# D14: what is fetched, and therefore what cannot be deserialized. Both repositories
+# also ship `pytorch_model.bin`, and the DeBERTa one `tf_model.h5` and `rust_model.ot`;
+# none of them is in an allow-list, so no pickle archive ever reaches the disk.
+GLINER_ALLOW_PATTERNS: Final[tuple[str, ...]] = ("gliner_config.json", "model.safetensors")
+GLINER_TOKENIZER_ALLOW_PATTERNS: Final[tuple[str, ...]] = (
+    "config.json",
+    "spm.model",
+    "tokenizer_config.json",
+)
+# One label per category the frozen Phase 5 prompt already names: people,
+# organizations, places, works, events. The comparison is between extractors, so the
+# ontology has to be the same question asked of a different reader.
+GLINER_LABELS: Final[tuple[str, ...]] = (
+    "person",
+    "organization",
+    "location",
+    "work of art",
+    "event",
+)
+GLINER_THRESHOLD: Final[float] = 0.5
+GLINER_FLAT_NER: Final[bool] = True
+GLINER_MULTI_LABEL: Final[bool] = False
+GLINER_BATCH_SIZE: Final[int] = 8
+# The checkpoint's own reading window and span width. A paragraph longer than this is
+# split at its own sentence boundaries (D6.5); the *indexing* unit is untouched.
+GLINER_MAX_LEN: Final[int] = 384
+GLINER_MAX_WIDTH: Final[int] = 12
+
+# D4-D5: candidate C, conventional local NER. `sm` and not `trf`: this is the
+# conservative, CPU-friendly arm, and a transformer pipeline would be a different
+# candidate with a different cost profile.
+SPACY_MODEL: Final[str] = "en_core_web_sm"
+SPACY_MODEL_VERSION: Final[str] = "3.8.0"
+SPACY_MODEL_WHEEL_URL: Final[str] = (
+    "https://github.com/explosion/spacy-models/releases/download/"
+    "en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl"
+)
+# Only `tok2vec` and `ner` run; everything else is loaded for nothing.
+SPACY_EXCLUDE: Final[tuple[str, ...]] = (
+    "tagger",
+    "parser",
+    "attribute_ruler",
+    "lemmatizer",
+    "senter",
+)
+SPACY_BATCH_SIZE: Final[int] = 64
+SPACY_PROCESSES: Final[int] = 1
+# Keep every OntoNotes label that names a *thing*; drop the seven that name a quantity
+# or a time. Dates and cardinals are not named things in the Phase 5 sense and would
+# manufacture hub nodes across unrelated paragraphs.
+SPACY_LABELS: Final[tuple[str, ...]] = (
+    "EVENT",
+    "FAC",
+    "GPE",
+    "LANGUAGE",
+    "LAW",
+    "LOC",
+    "NORP",
+    "ORG",
+    "PERSON",
+    "PRODUCT",
+    "WORK_OF_ART",
+)
+SPACY_DROPPED_LABELS: Final[tuple[str, ...]] = (
+    "CARDINAL",
+    "DATE",
+    "MONEY",
+    "ORDINAL",
+    "PERCENT",
+    "QUANTITY",
+    "TIME",
+)
+
+# The inherited Phase 6 figures the phase is read against, Full Support @2,048. Copied
+# once from the run artifacts named beside them and held equal by a data-dependent
+# test, so a candidate is never compared against a number typed from memory.
+PHASE_7_REFERENCE_DEV_FULL_SUPPORT: Final[dict[str, float]] = {
+    "dense": 0.8116666666666666,
+    "hybrid-bm25": 0.8633333333333333,
+    "hybrid-entity-hop": 0.8783333333333333,
+}
+PHASE_7_REFERENCE_HELD_OUT_FULL_SUPPORT: Final[dict[str, float]] = {
+    "dense": 0.825,
+    "hybrid-bm25": 0.8642857142857143,
+    "hybrid-entity-hop": 0.89,
+}
+PHASE_7_REFERENCE_DEV_FILES: Final[dict[str, str]] = {
+    "dense": "run-dense-dev-20260917T174901+0000.json",
+    "hybrid-bm25": "run-hybrid-bm25-dev-20260917T174929+0000.json",
+    "hybrid-entity-hop": "run-hybrid-entity-hop-dev-20260917T212300+0000.json",
+}
+PHASE_7_REFERENCE_HELD_OUT_FILES: Final[dict[str, str]] = {
+    "dense": "run-dense-test-20260917T215214+0000.json",
+    "hybrid-bm25": "run-hybrid-bm25-test-20260917T215216+0000.json",
+    "hybrid-entity-hop": "run-hybrid-entity-hop-test-20260917T215231+0000.json",
+}
+
+# D11, the retention bar: a candidate is materially equivalent when it keeps at least
+# this share of the Claude Entity Hop's dev gain over Dense. The share applied to the
+# measured dev figures lands exactly on 517 of the 600 dev questions
+# (0.8116667 + 0.75 * 0.0666667 = 0.8616667 = 517/600); the spec writes that bar as
+# `0.8617`, which is the same number rounded for reading. The count is what the rule
+# is applied on, because a float comparison against the rounded form would reject a
+# candidate sitting exactly on the bar.
+PHASE_7_RETENTION_SHARE: Final[float] = 0.75
+PHASE_7_RETENTION_BAR: Final[float] = 0.8617
+PHASE_7_RETENTION_BAR_QUESTIONS: Final[int] = 517
+
+# D11, the economic bar. The first two are absolute: no per-paragraph third-party API
+# call, and nothing paid for the extraction software itself. The last two are the
+# ceilings the spec sets on a FullWiki projection and on this phase's own compute.
+PHASE_7_SOFTWARE_COST_CEILING_USD: Final[float] = 0.0
+PHASE_7_FULLWIKI_HOURS_CEILING: Final[float] = 48.0
+PHASE_7_INFRASTRUCTURE_CEILING_USD: Final[float] = 30.0
+
+# D9: the scale the throughput is projected to, linearly and with the arithmetic shown.
+PROJECTION_PARAGRAPHS: Final[int] = 5_000_000
+
+
 def ensure_directories() -> None:
     """Create the data directories if they do not exist yet."""
     for path in (
@@ -409,5 +551,6 @@ def ensure_directories() -> None:
         NODES_DIR,
         NAVIGATION_DIR,
         REPLACEMENT_DIR,
+        PHASE_7_DIR,
     ):
         path.mkdir(parents=True, exist_ok=True)
