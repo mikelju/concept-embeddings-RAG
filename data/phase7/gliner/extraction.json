@@ -1,0 +1,106 @@
+{
+  "configuration": {
+    "extractor_id": "gliner",
+    "labels": [
+      "person",
+      "organization",
+      "location",
+      "work of art",
+      "event"
+    ],
+    "library_versions": {
+      "gliner": "0.2.29",
+      "huggingface-hub": "1.29.0",
+      "safetensors": "0.8.0",
+      "tokenizers": "0.23.1",
+      "torch": "2.13.0+cu126",
+      "transformers": "5.16.1"
+    },
+    "model": "urchade/gliner_medium-v2.1",
+    "parameters": {
+      "batch_size": 8,
+      "flat_ner": true,
+      "max_len": 384,
+      "max_width": 12,
+      "multi_label": false,
+      "seed": 42,
+      "threshold": 0.5,
+      "tokenizer_model": "microsoft/deberta-v3-base",
+      "tokenizer_revision": "8ccc9b6f36199bec6961081d44eb72fb3f7353f3",
+      "weights": "model.safetensors"
+    },
+    "revision": "40ec419335d09393f298636f471328b722c6da9e",
+    "window": {
+      "max_tokens": 384,
+      "rule": "a paragraph over max_tokens sub-word tokens is split at its own sentence boundaries into the fewest consecutive windows that each fit; forms are unioned"
+    }
+  },
+  "configuration_digest": "2f7864661b8ce7ff",
+  "determinism_note": "Both candidates are deterministic at inference and the seed is set anyway, but float non-associativity across batch sizes and devices can move a span that sits exactly on the threshold. As in Phase 5, this artifact is the record of what was measured; everything downstream of it is deterministic.",
+  "digest": "840b4f78325d5c3393588e82312b29e168bc265e42127896c588e75a422a0aba",
+  "entities": 134915,
+  "extractor_id": "gliner",
+  "failure_rate": 0.00015491066818134876,
+  "failures": {
+    "bounds": 3
+  },
+  "hardware": {
+    "cpu_count": 256,
+    "device": "cuda",
+    "gpu": "NVIDIA GeForce RTX 4090",
+    "machine": "x86_64",
+    "platform": "Linux-6.8.0-124-generic-x86_64-with-glibc2.39",
+    "processor": "x86_64",
+    "python": "3.12.14",
+    "ram_bytes": 1081934118912,
+    "release": "6.8.0-124-generic",
+    "system": "Linux",
+    "torch_threads": 128,
+    "torch_version": "2.13.0+cu126"
+  },
+  "labels": [
+    "person",
+    "organization",
+    "location",
+    "work of art",
+    "event"
+  ],
+  "library_versions": {
+    "gliner": "0.2.29",
+    "huggingface-hub": "1.29.0",
+    "safetensors": "0.8.0",
+    "tokenizers": "0.23.1",
+    "torch": "2.13.0+cu126",
+    "transformers": "5.16.1"
+  },
+  "model": "urchade/gliner_medium-v2.1",
+  "model_load_seconds": 4.057345596142113,
+  "n_units": 19366,
+  "normalization_note": "forms are verbatim surfaces; normalization-v1 runs later, in build_node_index",
+  "paragraphs_per_second": 162.17822852302007,
+  "parameters": {
+    "batch_size": 8,
+    "flat_ner": true,
+    "max_len": 384,
+    "max_width": 12,
+    "multi_label": false,
+    "seed": 42,
+    "threshold": 0.5,
+    "tokenizer_model": "microsoft/deberta-v3-base",
+    "tokenizer_revision": "8ccc9b6f36199bec6961081d44eb72fb3f7353f3",
+    "weights": "model.safetensors"
+  },
+  "projection_5m": {
+    "hourly_rate_usd": 0.74,
+    "hours": 8.563966332211761,
+    "method": "linear from measured throughput over 19366 paragraphs",
+    "paragraphs": 5000000,
+    "paragraphs_per_second": 162.17822852302007,
+    "usd": 6.3373350858367035
+  },
+  "records": "records.jsonl.gz",
+  "revision": "40ec419335d09393f298636f471328b722c6da9e",
+  "seconds": 119.41183583252132,
+  "units_without_entity": 214,
+  "usd": 0.03
+}

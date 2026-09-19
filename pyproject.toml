@@ -12,7 +12,7 @@ dependencies = [
     "scipy>=1.14",
     "scikit-learn>=1.5",
     "sentence-transformers>=3.0",
-    "torch>=2.13",
+    "torch==2.13.0",
     "httpx>=0.27",
     "tqdm>=4.66",
     "bm25s>=0.3.11",
@@ -31,6 +31,12 @@ labeling = [
     "anthropic>=1.4.0",
     "python-dotenv>=1.2.3",
 ]
+phase7 = [
+    "en-core-web-sm",
+    "gliner==0.2.29",
+    "protobuf>=4.25",
+    "spacy==3.8.16",
+]
 security = [
     "detect-secrets>=1.5.0",
     "pip-audit>=2.10.1",
@@ -43,8 +49,17 @@ name = "pytorch-cpu"
 url = "https://download.pytorch.org/whl/cpu"
 explicit = true
 
+[[tool.uv.index]]
+name = "pytorch-cu126"
+url = "https://download.pytorch.org/whl/cu126"
+explicit = true
+
 [tool.uv.sources]
-torch = { index = "pytorch-cpu" }
+torch = [
+    { index = "pytorch-cu126", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
+    { index = "pytorch-cpu", marker = "sys_platform != 'linux' or platform_machine != 'x86_64'" },
+]
+en-core-web-sm = { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" }
 
 [build-system]
 requires = ["uv_build>=0.10.9,<0.11.0"]

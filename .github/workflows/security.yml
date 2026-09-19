@@ -80,11 +80,13 @@ jobs:
         # Every optional group is synced, not just `security`. `uv sync` prunes what
         # the named groups do not ask for, so auditing with `--group security` alone
         # would leave the `labeling` dependencies - the ones that actually open a
-        # network connection - out of the environment being scanned.
+        # network connection - out of the environment being scanned. `phase7` joined
+        # them when the local extractors arrived: they download models and load
+        # weights, which is exactly the surface a dependency scan is for.
         run: |
           if [ -f uv.lock ]; then
             pip install uv
-            uv sync --group security --group labeling
+            uv sync --group security --group labeling --group phase7
             uv run pip-audit --desc
           elif [ -f requirements.txt ]; then
             pip install pip-audit

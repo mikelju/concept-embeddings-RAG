@@ -1,0 +1,300 @@
+{
+  "anomalies": [],
+  "assay_sensitivity": {
+    "against": "dense",
+    "losses": 30,
+    "p_value": 1.4303283020465907e-07,
+    "passed": true,
+    "system": "hybrid-bm25",
+    "ties": 1285,
+    "wins": 85
+  },
+  "control_mode": "reused",
+  "counts": {
+    "dense": 1155,
+    "hybrid-bm25": 1210,
+    "hybrid-entity-hop": 1246
+  },
+  "descriptive": {
+    "b_vs_dense_two_sided_p": 3.3512414822437303e-19,
+    "decides_nothing": true,
+    "lower_bound_97_5": 0.008326044586721603,
+    "m1_interval_90": [
+      0.02704973721253748,
+      0.05221666498426384
+    ],
+    "superiority": {
+      "delta_hat": 0.025714285714285714,
+      "interval_90": [
+        0.01113480139183516,
+        0.04058589980203589
+      ],
+      "mcnemar_two_sided_p": 0.0049129646209700485,
+      "position": "above zero"
+    }
+  },
+  "digest": "5a96c754737323772bbc74b2d4d8249ba1ea6a5b468156e6f4e4213c8a8d43a9",
+  "freeze_digest": "d03ccfe49ee7f99b0989787ca49c99882de07c5ef26d316548db9fa13d954dfe",
+  "m1_check": {
+    "expected": 55,
+    "observed": 55,
+    "passed": true
+  },
+  "open_question": null,
+  "outcome_digests": {
+    "dense": "935747e3804f1cf15c3abf7021ada47c833c358749ce5dbd36b6cc427031ef0b",
+    "hybrid-bm25": "71df269fc732cc8230cb68f8feaa2ca8cd5eec305bb0a619843d980675f2d62b",
+    "hybrid-entity-hop": "0c6bbfdacaa98e2ad8a52777945b48c09e631adeb7eb6656883c4dc853588e1b"
+  },
+  "primary": {
+    "alpha": 0.05,
+    "b": 96,
+    "both": 1150,
+    "c": 60,
+    "delta": {
+      "fraction": "55/2800",
+      "value": 0.019642857142857142
+    },
+    "delta_hat": 0.025714285714285714,
+    "lower_limit": 0.01113480139183516,
+    "method": "Tango score test for the difference of paired proportions at Delta0 = -delta, one-sided at alpha; equivalently the lower limit L of Tango's two-sided 90% score interval, over all n questions, ties kept in n; N passes if and only if L > -delta, strictly",
+    "n": 1400,
+    "neither": 94,
+    "p_value": 3.7798810092389526e-07,
+    "passed": true,
+    "statistic": 4.9464023578693075,
+    "z": 1.644853626951472
+  },
+  "route": null,
+  "scenarios": [],
+  "secondary": {
+    "against": "dense",
+    "losses": 12,
+    "p_value": 1.6756207411218651e-19,
+    "passed": true,
+    "system": "hybrid-entity-hop",
+    "ties": 1285,
+    "wins": 103
+  },
+  "state": "ENTITY_REPLACEMENT_SUPPORTED",
+  "tables": {
+    "a_vs_dense": {
+      "both": 1125,
+      "first_only": 85,
+      "neither": 160,
+      "second_only": 30
+    },
+    "b_vs_a": {
+      "both": 1150,
+      "first_only": 96,
+      "neither": 94,
+      "second_only": 60
+    },
+    "b_vs_dense": {
+      "both": 1143,
+      "first_only": 103,
+      "neither": 142,
+      "second_only": 12
+    }
+  },
+  "test_reproduction": {
+    "checks": [
+      {
+        "expected": 0.8153571428571429,
+        "name": "dense/test budget_512 gold_recall",
+        "observed": 0.8153571428571429,
+        "passed": true
+      },
+      {
+        "expected": 0.6542857142857142,
+        "name": "dense/test budget_512 full_support",
+        "observed": 0.6542857142857142,
+        "passed": true
+      },
+      {
+        "expected": 0.3271743197278911,
+        "name": "dense/test budget_512 precision",
+        "observed": 0.3271743197278911,
+        "passed": true
+      },
+      {
+        "expected": 0.8725,
+        "name": "dense/test budget_1024 gold_recall",
+        "observed": 0.8725,
+        "passed": true
+      },
+      {
+        "expected": 0.7585714285714286,
+        "name": "dense/test budget_1024 full_support",
+        "observed": 0.7585714285714286,
+        "passed": true
+      },
+      {
+        "expected": 0.19333595372881088,
+        "name": "dense/test budget_1024 precision",
+        "observed": 0.19333595372881088,
+        "passed": true
+      },
+      {
+        "expected": 0.9082142857142858,
+        "name": "dense/test budget_2048 gold_recall",
+        "observed": 0.9082142857142858,
+        "passed": true
+      },
+      {
+        "expected": 0.825,
+        "name": "dense/test budget_2048 full_support",
+        "observed": 0.825,
+        "passed": true
+      },
+      {
+        "expected": 0.1076085148456478,
+        "name": "dense/test budget_2048 precision",
+        "observed": 0.1076085148456478,
+        "passed": true
+      },
+      {
+        "expected": 0.9328571428571428,
+        "name": "dense/test budget_4096 gold_recall",
+        "observed": 0.9328571428571428,
+        "passed": true
+      },
+      {
+        "expected": 0.8707142857142857,
+        "name": "dense/test budget_4096 full_support",
+        "observed": 0.8707142857142857,
+        "passed": true
+      },
+      {
+        "expected": 0.05717169212719751,
+        "name": "dense/test budget_4096 precision",
+        "observed": 0.05717169212719751,
+        "passed": true
+      },
+      {
+        "expected": 0.6917857142857143,
+        "name": "dense/test recall_at_2",
+        "observed": 0.6917857142857143,
+        "passed": true
+      },
+      {
+        "expected": 0.8203571428571429,
+        "name": "dense/test recall_at_5",
+        "observed": 0.8203571428571429,
+        "passed": true
+      },
+      {
+        "expected": 0.8796428571428572,
+        "name": "dense/test recall_at_10",
+        "observed": 0.8796428571428572,
+        "passed": true
+      },
+      {
+        "expected": 33.072857142857146,
+        "name": "dense/test mean_units_included",
+        "observed": 33.072857142857146,
+        "passed": true
+      },
+      {
+        "expected": 0.8325,
+        "name": "hybrid-bm25/test budget_512 gold_recall",
+        "observed": 0.8325,
+        "passed": true
+      },
+      {
+        "expected": 0.6764285714285714,
+        "name": "hybrid-bm25/test budget_512 full_support",
+        "observed": 0.6764285714285714,
+        "passed": true
+      },
+      {
+        "expected": 0.3162223252937539,
+        "name": "hybrid-bm25/test budget_512 precision",
+        "observed": 0.3162223252937539,
+        "passed": true
+      },
+      {
+        "expected": 0.8932142857142857,
+        "name": "hybrid-bm25/test budget_1024 gold_recall",
+        "observed": 0.8932142857142857,
+        "passed": true
+      },
+      {
+        "expected": 0.7907142857142857,
+        "name": "hybrid-bm25/test budget_1024 full_support",
+        "observed": 0.7907142857142857,
+        "passed": true
+      },
+      {
+        "expected": 0.19012711838814778,
+        "name": "hybrid-bm25/test budget_1024 precision",
+        "observed": 0.19012711838814778,
+        "passed": true
+      },
+      {
+        "expected": 0.9314285714285714,
+        "name": "hybrid-bm25/test budget_2048 gold_recall",
+        "observed": 0.9314285714285714,
+        "passed": true
+      },
+      {
+        "expected": 0.8642857142857143,
+        "name": "hybrid-bm25/test budget_2048 full_support",
+        "observed": 0.8642857142857143,
+        "passed": true
+      },
+      {
+        "expected": 0.10798958974335779,
+        "name": "hybrid-bm25/test budget_2048 precision",
+        "observed": 0.10798958974335779,
+        "passed": true
+      },
+      {
+        "expected": 0.9517857142857142,
+        "name": "hybrid-bm25/test budget_4096 gold_recall",
+        "observed": 0.9517857142857142,
+        "passed": true
+      },
+      {
+        "expected": 0.9042857142857142,
+        "name": "hybrid-bm25/test budget_4096 full_support",
+        "observed": 0.9042857142857142,
+        "passed": true
+      },
+      {
+        "expected": 0.057457381064348854,
+        "name": "hybrid-bm25/test budget_4096 precision",
+        "observed": 0.057457381064348854,
+        "passed": true
+      },
+      {
+        "expected": 0.6964285714285714,
+        "name": "hybrid-bm25/test recall_at_2",
+        "observed": 0.6964285714285714,
+        "passed": true
+      },
+      {
+        "expected": 0.8339285714285715,
+        "name": "hybrid-bm25/test recall_at_5",
+        "observed": 0.8339285714285715,
+        "passed": true
+      },
+      {
+        "expected": 0.9025,
+        "name": "hybrid-bm25/test recall_at_10",
+        "observed": 0.9025,
+        "passed": true
+      },
+      {
+        "expected": 33.642857142857146,
+        "name": "hybrid-bm25/test mean_units_included",
+        "observed": 33.642857142857146,
+        "passed": true
+      }
+    ],
+    "descriptive": false,
+    "mode": "reused",
+    "passed": true,
+    "stops_run": false
+  }
+}

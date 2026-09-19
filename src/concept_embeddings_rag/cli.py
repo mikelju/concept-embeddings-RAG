@@ -12,6 +12,11 @@
     extract   read entities and concepts out of every paragraph, offline (Phase 5)
     nodes     normalize the extraction into typed nodes over the pool (Phase 5)
     navigate  run every second hop over the pilot, once (Phase 5)
+    replace-check   verify inputs, continuity and the control's reproduction on dev (Phase 6)
+    replace-freeze  fit B on dev, check reproducibility, write the freeze (Phase 6)
+    replace-test    the ordered test protocol, once, under the freeze: the state (Phase 6)
+    cheap-extract   read entities out of every paragraph with a local extractor (Phase 7)
+    cheap-eval      measure each local extractor on dev and select; --test reads test once
 
 Each stage is idempotent and refuses to run if its input is missing, saying which
 stage to run first rather than failing somewhere deep inside numpy.
@@ -19,13 +24,14 @@ stage to run first rather than failing somewhere deep inside numpy.
 
 import argparse
 import json
+import math
 import sys
 import time
 from collections.abc import Callable, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import NoReturn
+from typing import Any, NoReturn
 
 import numpy as np
 from scipy import sparse
@@ -76,6 +82,7 @@ from concept_embeddings_rag.corpus.download import CorpusIntegrityError, sha256_
 from concept_embeddings_rag.corpus.manifest import CorpusManifest
 from concept_embeddings_rag.corpus.pool import (
     IndexingUnit,
+    Question,
     build_pool,
     load_pool,
     save_pool,
@@ -91,10 +98,21 @@ from concept_embeddings_rag.embeddings.cache import (
     cache_key,
     embed_questions,
     embed_units,
+    question_cache_key,
+    question_set_hash,
     resolved_revision,
     unit_set_hash,
 )
 from concept_embeddings_rag.evaluation.budget import TokenCounter
+from concept_embeddings_rag.evaluation.cheap_extraction import (
+    DEV_FILENAME,
+    SELECTION_FILENAME,
+    TEST_SPLIT,
+    CheapEvaluationError,
+    evaluate_candidate,
+    measure_held_out,
+    select_extractor,
+)
 from concept_embeddings_rag.evaluation.expansion_selection import (
     ExpansionSelection,
     ExpansionSelectionError,
@@ -127,11 +145,24 @@ from concept_embeddings_rag.evaluation.pilot import (
     pilot_path,
     save_pilot,
 )
+from concept_embeddings_rag.evaluation.replacement_inputs import (
+    InputPaths,
+    InputPins,
+    offline_token_counter,
+)
+from concept_embeddings_rag.evaluation.replacement_run import (
+    ReplacementRunError,
+    StageEnvironment,
+    run_check,
+    run_freeze,
+    run_test,
+)
 from concept_embeddings_rag.evaluation.selection import (
     DEV_SPLIT,
     SelectionError,
     SelectionReport,
     SweepSpace,
+    check_dev_only,
     check_freeze_precedes,
     choose_damping,
     choose_space,
@@ -143,6 +174,7 @@ from concept_embeddings_rag.evaluation.selection import (
     selection_digest,
     sweep_space,
 )
+from concept_embeddings_rag.nodes import local_extraction
 from concept_embeddings_rag.nodes.extraction import (
     AnthropicBatchClient,
     AnthropicSyncClient,
@@ -162,6 +194,7 @@ from concept_embeddings_rag.nodes.index import (
     load_node_index,
     save_node_index,
 )
+from concept_embeddings_rag.nodes.local_extraction import LocalExtractionError, LocalExtractor
 from concept_embeddings_rag.retrieval.base import Retriever
 from concept_embeddings_rag.retrieval.bm25 import BM25Retriever
 from concept_embeddings_rag.retrieval.conceptual import (
@@ -1709,6 +1742,397 @@ def cmd_navigate(
     return run_path
 
 
+def replacement_environment() -> StageEnvironment:
+    """The real inputs, pins and output directory of Phase 6, all read from `config`."""
+    return StageEnvironment(
+        paths=InputPaths.from_config(),
+        pins=InputPins.from_config(),
+        replacement_dir=config.REPLACEMENT_DIR,
+        backend=SentenceTransformerBackend(),
+        token_counter=offline_token_counter(),
+    )
+
+
+def cmd_replace_check(environment: StageEnvironment | None = None) -> int:
+    """Phase 6, D11 steps 1-3 on dev: inputs, continuity, control reproduction. No B figure.
+
+    Exits non-zero on any mismatch, after writing `checks-dev.json`; the deviation document is
+    the author's to write before anything further runs.
+    """
+    try:
+        result = run_check(environment or replacement_environment())
+    except ReplacementRunError as error:
+        print(f"[ERROR] {error}")
+        return 1
+    status = "OK" if result.passed else "ERROR"
+    print(f"[{status}] {result.message} -> {result.path}")
+    return 0 if result.passed else 1
+
+
+def cmd_replace_freeze(
+    environment: StageEnvironment | None = None,
+    control_mode: str | None = None,
+    deviation: str | None = None,
+    supersede: bool = False,
+) -> int:
+    """Phase 6, D11 steps 4-8 on dev: B's fit and selected run, reproducibility, the freeze.
+
+    Refuses without a passing `checks-dev.json`, or, after a failed one, without
+    `--control-mode re-measured --deviation <existing document>`. The freeze is written once and
+    must be committed before `replace-test` runs.
+    """
+    try:
+        result = run_freeze(
+            environment or replacement_environment(),
+            control_mode=control_mode,
+            deviation=deviation,
+            supersede=supersede,
+        )
+    except ReplacementRunError as error:
+        print(f"[ERROR] {error}")
+        return 1
+    print(f"[OK] {result.message} -> {result.path}")
+    return 0
+
+
+def cmd_replace_test(
+    environment: StageEnvironment | None = None,
+    control_mode: str | None = None,
+    deviation: str | None = None,
+) -> int:
+    """Phase 6, D14 on test, once: dense, A, the reproduction check, B, the decision.
+
+    Prints the state and the route, never the recorded texts (D21). Exits non-zero on any
+    refusal or stop; a stop before B leaves no B figure.
+    """
+    try:
+        result = run_test(
+            environment or replacement_environment(),
+            control_mode=control_mode,
+            deviation=deviation,
+        )
+    except ReplacementRunError as error:
+        print(f"[ERROR] {error}")
+        return 1
+    status = "OK" if result.passed else "ERROR"
+    print(f"[{status}] {result.message} -> {result.path}")
+    return 0 if result.passed else 1
+
+
+ExtractorBuilder = Callable[[str, Path], tuple[LocalExtractor, float]]
+
+
+def _progress(label: str, started: float) -> Callable[[int, int], None]:
+    """Say how far the pass has got and what that projects to, in ASCII and no node form."""
+    reported = [0]
+
+    def report(done: int, total: int) -> None:
+        if done - reported[0] < 1000 and done < total:
+            return
+        reported[0] = done
+        elapsed = time.perf_counter() - started
+        rate = done / elapsed if elapsed > 0 else 0.0
+        remaining = (total - done) / rate / 60.0 if rate > 0 else float("nan")
+        print(
+            f"[INFO] {label}: {done}/{total} texts in {elapsed / 60:.1f} min "
+            f"({rate:.2f} texts/s, about {remaining:.1f} min left)"
+        )
+
+    return report
+
+
+def cmd_cheap_extract(
+    extractor_id: str,
+    data_dir: Path = config.DATA_DIR,
+    phase_7_dir: Path = config.PHASE_7_DIR,
+    hourly_rate_usd: float = 0.0,
+    actual_cost_usd: float | None = None,
+    build: ExtractorBuilder = local_extraction.build_extractor,
+    chunk_size: int = 64,
+) -> Path:
+    """Read entities out of every paragraph with one local extractor (Phase 7, S3).
+
+    Writes `data/phase7/<extractor_id>/`: the records archive and the manifest that says
+    which model, revision, label set, library versions and hardware produced them, how long
+    the pass took, what it cost (0.00 USD on owned hardware) and what that projects to at
+    five million paragraphs. Nothing is written to `data/extraction/` or `data/nodes/`,
+    which are Phase 5 artifacts.
+
+    It refuses to overwrite an existing extraction: the pass costs hours, and silently
+    replacing the artifact behind a measured dev figure is exactly what the project's
+    versioning rule forbids. Prints figures only - never a node form, which is corpus text.
+    """
+    if not math.isfinite(hourly_rate_usd) or hourly_rate_usd < 0:
+        _die("hourly-rate-usd must be finite and non-negative")
+    if actual_cost_usd is not None and (not math.isfinite(actual_cost_usd) or actual_cost_usd < 0):
+        _die("actual-cost-usd must be finite and non-negative")
+    if hourly_rate_usd > 0 and actual_cost_usd is None:
+        _die(
+            "rented compute requires --actual-cost-usd: record the actual charge, not a projection"
+        )
+    if extractor_id not in config.PHASE_7_EXTRACTORS:
+        _die(
+            f"unknown extractor {extractor_id!r}; this phase has exactly two candidates, "
+            f"{','.join(config.PHASE_7_EXTRACTORS)}"
+        )
+    data_dir = Path(data_dir)
+    pool_path = data_dir / POOL_NAME
+    if not pool_path.exists():
+        _die("no pool found: run 'build' first")
+    units, _questions = load_pool(pool_path)
+    _check_pool_against_manifest(units, data_dir / MANIFEST_NAME)
+
+    directory = Path(phase_7_dir) / extractor_id
+    if (directory / local_extraction.MANIFEST_NAME).exists():
+        _die(
+            f"{directory} already holds an extraction; this pass costs hours and does not "
+            "overwrite the artifact a measured figure was read from - remove the directory "
+            "deliberately to run it again"
+        )
+
+    try:
+        extractor, load_seconds = build(extractor_id, Path(phase_7_dir) / "models" / extractor_id)
+    except LocalExtractionError as error:
+        _die(str(error))
+    except ImportError as error:
+        _die(
+            f"the {extractor_id} library is not installed in this environment ({error}); "
+            "install the phase7 dependency group first"
+        )
+
+    print(
+        f"[INFO] {extractor_id}: {extractor.model} at revision {extractor.revision}, "
+        f"{len(extractor.labels)} labels, configuration {extractor.configuration_digest}"
+    )
+    print(f"[INFO] model loaded in {load_seconds:.1f} s; reading {len(units)} paragraphs")
+
+    started = time.perf_counter()
+    try:
+        records, seconds = local_extraction.run_extraction(
+            units,
+            extractor,
+            chunk_size=chunk_size,
+            on_progress=_progress(extractor_id, started),
+        )
+        manifest = local_extraction.build_manifest(
+            records,
+            extractor,
+            seconds=seconds,
+            hardware=local_extraction.hardware_block(device=extractor.hardware_device),
+            usd=actual_cost_usd if actual_cost_usd is not None else 0.0,
+            hourly_rate_usd=hourly_rate_usd,
+            model_load_seconds=load_seconds,
+        )
+        path = local_extraction.write_extraction(records, manifest, directory)
+    except LocalExtractionError as error:
+        _die(str(error))
+
+    projection = manifest["projection_5m"]
+    print(
+        f"[INFO] {manifest['n_units']} paragraphs in {seconds / 60:.1f} min "
+        f"({manifest['paragraphs_per_second']:.3f} paragraphs/s)"
+    )
+    print(
+        f"[INFO] {manifest['entities']} entity mentions kept, "
+        f"{manifest['units_without_entity']} paragraphs with none, "
+        f"{sum(manifest['failures'].values())} failed ({manifest['failure_rate']:.4%})"
+    )
+    print(
+        f"[INFO] projection to {projection['paragraphs']} paragraphs: "
+        f"{projection['hours']:.1f} h, {projection['usd']:.2f} USD "
+        f"({projection['method']}); this run cost {manifest['usd']:.2f} USD"
+    )
+    print(f"[OK] extraction written -> {path}")
+    return path
+
+
+def _cheap_inputs(
+    split: str,
+    data_dir: Path,
+    cache_dir: Path,
+    question_cache_dir: Path,
+    backend: EmbeddingBackend | None,
+) -> tuple[list[str], list[Question], dict[str, int], DenseRetriever, dict[str, Any]]:
+    """The one loader both Phase 7 measurement paths share: pool, cache, dense, provenance.
+
+    Nothing is embedded here. Both splits were embedded in earlier phases and their caches
+    are the record; a missing cache is a refusal, never a quiet re-encoding at a different
+    library version.
+    """
+    if not (data_dir / POOL_NAME).exists():
+        _die("no pool found: run 'build' first")
+    if not (data_dir / TOKENS_NAME).exists():
+        _die("no token counts found: run 'embed' first")
+    units, questions = load_pool(data_dir / POOL_NAME)
+    _check_pool_against_manifest(units, data_dir / MANIFEST_NAME)
+    subset = [question for question in questions if question.split == split]
+    if not subset:
+        _die(f"the pool holds no {split} questions: run 'build' first")
+    unit_ids = [unit.unit_id for unit in units]
+    token_counts = json.loads((data_dir / TOKENS_NAME).read_text(encoding="utf-8"))
+    if set(token_counts) != set(unit_ids):
+        _die("token counts belong to another pool")
+    backend = backend if backend is not None else SentenceTransformerBackend()
+    corpus_key = _cache_key_for(backend, units)
+    cached = EmbeddingCache(Path(cache_dir)).load(corpus_key, expected_unit_ids=unit_ids)
+    if cached is None:
+        _die("embeddings are not cached for this pool: run 'embed' first")
+    question_cache = EmbeddingCache(Path(question_cache_dir))
+    query_key = question_cache_key(
+        backend.name,
+        backend.revision,
+        question_set_hash([q.qid for q in subset]),
+        split,
+        normalized=bool(getattr(backend, "normalize", True)),
+    )
+    if question_cache.load(query_key, expected_unit_ids=[q.qid for q in subset]) is None:
+        _die(
+            f"{split} question embeddings are missing; restore the existing {split} cache "
+            "before cheap-eval"
+        )
+    query_backend = build_query_backend(subset, backend, question_cache)
+    dense = DenseRetriever(cached[0], unit_ids, query_backend)
+    run_config = {
+        "model": backend.name,
+        "revision": backend.revision,
+        "unit_set_hash": unit_set_hash(unit_ids),
+        "seed": config.DEFAULT_SEED,
+        "tokenizer": config.TOKENIZER_ID,
+        "code_version": __version__,
+        "top_k": config.EVALUATION_TOP_K,
+        "n_units": len(units),
+        "corpus_cache_key": corpus_key,
+        "question_cache_key": query_key,
+    }
+    return unit_ids, subset, token_counts, dense, run_config
+
+
+def cmd_cheap_eval(
+    data_dir: Path = config.DATA_DIR,
+    cache_dir: Path = config.CACHE_DIR,
+    question_cache_dir: Path = config.QUESTION_CACHE_DIR,
+    phase_7_dir: Path = config.PHASE_7_DIR,
+    backend: EmbeddingBackend | None = None,
+    test: bool = False,
+) -> list[Path]:
+    """Measure every extracted candidate on dev and apply the rule; with `test`, read test.
+
+    Without `--test` this is the whole dev half of the phase: one node index, one fusion
+    fit and one measurement per candidate, then `selection.json` written from those
+    readings. With `--test` it measures the selected extractor on the held-out split,
+    once, at the scheme and weight dev already chose. The two never run together, which
+    is what keeps the selection strictly upstream of the only test figure the phase has.
+    """
+    data_dir, phase_7_dir = Path(data_dir), Path(phase_7_dir)
+    if test:
+        return [_cheap_test(data_dir, cache_dir, question_cache_dir, phase_7_dir, backend)]
+    if (phase_7_dir / SELECTION_FILENAME).exists():
+        _die(
+            f"{phase_7_dir / SELECTION_FILENAME} already names a selection; the dev comparison "
+            "is closed and a candidate measured after it would be chosen against a known result"
+        )
+    candidates = [
+        name
+        for name in config.PHASE_7_EXTRACTORS
+        if (phase_7_dir / name / local_extraction.MANIFEST_NAME).exists()
+    ]
+    if not candidates:
+        _die("no local extraction found: run 'cheap-extract' first")
+    written: list[Path] = []
+    pending: list[str] = []
+    for name in candidates:
+        path = phase_7_dir / name / DEV_FILENAME
+        if path.exists():
+            # Preserve earlier measurements when a second extraction arrives, or when a
+            # previous invocation stopped between candidates. Selection verifies them.
+            print(f"[INFO] preserving existing dev artifact for {name}: {path}")
+            written.append(path)
+        else:
+            pending.append(name)
+    if pending:
+        unit_ids, dev, token_counts, dense, run_config = _cheap_inputs(
+            DEV_SPLIT, data_dir, cache_dir, question_cache_dir, backend
+        )
+        check_dev_only(dev)
+        for name in pending:
+            print(f"[INFO] evaluating {name} on dev ({len(dev)} questions)")
+            try:
+                path = evaluate_candidate(
+                    phase_7_dir / name,
+                    extractor_id=name,
+                    unit_ids=unit_ids,
+                    dense=dense,
+                    questions=dev,
+                    token_counts=token_counts,
+                    run_config=run_config,
+                )
+            except (
+                CheapEvaluationError,
+                LocalExtractionError,
+                NodeIndexError,
+                SelectionError,
+            ) as error:
+                _die(str(error))
+            written.append(path)
+            print(f"[OK] dev measurement written -> {path}")
+    try:
+        selection_path = select_extractor(phase_7_dir)
+    except CheapEvaluationError as error:
+        _die(str(error))
+    selection = json.loads(selection_path.read_text(encoding="utf-8"))
+    for row in selection["candidates"]:
+        retention = row["retention"]
+        print(
+            f"[INFO] {row['extractor_id']}: dev full support @{retention['headline_budget']} "
+            f"{retention['full_support_at_headline']:.4f} "
+            f"({retention['supported_questions']}/{retention['n_questions']}, bar "
+            f"{retention['bar_questions']}), retention "
+            f"{'PASS' if retention['passed'] else 'FAIL'}, economic "
+            f"{'PASS' if row['economics']['passed'] else 'FAIL'}"
+        )
+    if selection["candidates_without_dev_measurement"]:
+        missing = ",".join(selection["candidates_without_dev_measurement"])
+        print(f"[WARN] no dev measurement for {missing}; the rule was applied without them")
+    print(f"[INFO] selected: {selection['selected']} - {selection['reason']}")
+    print(f"[OK] selection written -> {selection_path}")
+    written.append(selection_path)
+    return written
+
+
+def _cheap_test(
+    data_dir: Path,
+    cache_dir: Path,
+    question_cache_dir: Path,
+    phase_7_dir: Path,
+    backend: EmbeddingBackend | None,
+) -> Path:
+    """The single held-out run of the selected extractor (D12)."""
+    unit_ids, questions, token_counts, dense, run_config = _cheap_inputs(
+        TEST_SPLIT, data_dir, cache_dir, question_cache_dir, backend
+    )
+    try:
+        path = measure_held_out(
+            phase_7_dir,
+            unit_ids=unit_ids,
+            dense=dense,
+            questions=questions,
+            token_counts=token_counts,
+            run_config=run_config,
+        )
+    except (CheapEvaluationError, NodeIndexError) as error:
+        _die(str(error))
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    headline = payload["metrics"][f"budget_{config.SELECTION_BUDGET}"]["full_support"]
+    print(
+        f"[INFO] {payload['extractor_id']} on test ({payload['n_questions']} questions): "
+        f"full support @{config.SELECTION_BUDGET} {headline:.4f}"
+    )
+    for name, value in sorted(payload["inherited_test_full_support"].items()):
+        print(f"[INFO] inherited {name} test full support: {value:.4f}")
+    print(f"[OK] held-out run written -> {path}")
+    return path
+
+
 def _poll_pause() -> None:
     """How long the full run waits between two looks at a batch. Most end within an hour."""
     time.sleep(60)
@@ -1792,6 +2216,69 @@ def build_parser() -> argparse.ArgumentParser:
         "nodes", help="normalize the extraction into typed nodes and index them over the pool"
     )
     subparsers.add_parser("navigate", help="run every second hop over the frozen pilot, once")
+    subparsers.add_parser(
+        "replace-check",
+        help="Phase 6 on dev: verify inputs and continuity, reproduce the control; no B figure",
+    )
+    freezing = subparsers.add_parser(
+        "replace-freeze", help="Phase 6 on dev: fit B, check reproducibility, write the freeze"
+    )
+    # D12: re-measuring the control is admissible only after a failed check, and only with the
+    # deviation document that records the mismatch.
+    freezing.add_argument(
+        "--control-mode", choices=("reused", "re-measured"), default=None, dest="control_mode"
+    )
+    freezing.add_argument("--deviation", default=None, help="path of the 6.Y deviation document")
+    # OI-4: the one way back to dev after test, and only with a deviation document.
+    freezing.add_argument(
+        "--supersede", action="store_true", help="write a freeze superseding the valid one"
+    )
+    testing = subparsers.add_parser(
+        "replace-test", help="Phase 6 on test, once, under the freeze: the ordered protocol"
+    )
+    testing.add_argument(
+        "--control-mode",
+        choices=("reused", "re-measured"),
+        default=None,
+        dest="control_mode",
+        help=(
+            "re-measured only on the deviation branch of D14: after a reused test run stopped on "
+            "a failed reproduction and a superseding freeze was written"
+        ),
+    )
+    testing.add_argument("--deviation", default=None, help="path of the 6.Y deviation document")
+    cheap = subparsers.add_parser(
+        "cheap-extract", help="read entities out of every paragraph with a local extractor"
+    )
+    cheap.add_argument(
+        "--extractor",
+        choices=config.PHASE_7_EXTRACTORS,
+        required=True,
+        help="which Phase 7 candidate to run; each writes its own directory",
+    )
+    # D9: zero on owned hardware, the real rate when the pass runs on rented compute, so
+    # the projection carries an arithmetic a reader can check rather than an assumption.
+    cheap.add_argument(
+        "--hourly-rate-usd",
+        type=float,
+        default=0.0,
+        dest="hourly_rate_usd",
+        help="machine rate for the 5M projection; 0.0 on owned hardware (default)",
+    )
+    cheap.add_argument(
+        "--actual-cost-usd",
+        type=float,
+        default=None,
+        help="actual infrastructure charge for this run; required with a nonzero hourly rate",
+    )
+    evaluation = subparsers.add_parser(
+        "cheap-eval", help="fit and measure available local extractors on dev, then select"
+    )
+    evaluation.add_argument(
+        "--test",
+        action="store_true",
+        help="measure the selected extractor on the held-out split, once",
+    )
     extraction = subparsers.add_parser(
         "extract", help="read entities and concepts out of every paragraph (spends money)"
     )
@@ -1836,6 +2323,22 @@ def main(argv: list[str] | None = None) -> int:
         cmd_nodes()
     elif args.command == "navigate":
         cmd_navigate()
+    elif args.command == "replace-check":
+        return cmd_replace_check()
+    elif args.command == "replace-freeze":
+        return cmd_replace_freeze(
+            control_mode=args.control_mode, deviation=args.deviation, supersede=args.supersede
+        )
+    elif args.command == "replace-test":
+        return cmd_replace_test(control_mode=args.control_mode, deviation=args.deviation)
+    elif args.command == "cheap-extract":
+        cmd_cheap_extract(
+            extractor_id=args.extractor,
+            hourly_rate_usd=args.hourly_rate_usd,
+            actual_cost_usd=args.actual_cost_usd,
+        )
+    elif args.command == "cheap-eval":
+        cmd_cheap_eval(test=args.test)
     return 0
 
 

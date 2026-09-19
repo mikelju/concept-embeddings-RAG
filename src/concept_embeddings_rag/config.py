@@ -218,7 +218,7 @@ SEED_ARMS: Final[tuple[str, ...]] = ("dense", "conceptual")
 # First free parameter: how much of the mass returns to the seed's own signal at
 # every round. The endpoints are deliberately absent - 1.0 is the seed itself and
 # is asserted by a test rather than paid for with a dev evaluation, and 0.0 is the
-# declared failure mode of §52-§53, measured once after the choice is made.
+# declared failure mode of sections 52-53, measured once after the choice is made.
 RESTART_GRID: Final[tuple[float, ...]] = (0.2, 0.4, 0.6, 0.8)
 
 # Second free parameter: how the propagation operator is normalized (decision D3).
@@ -312,6 +312,229 @@ TRACES_READ_PER_ARM: Final[int] = 5
 REFERENCE_CONCEPT_K: Final[int] = 512
 
 
+# --- Dense + entity navigation, end to end (Phase 6) -------------------------
+# Declared before any Phase 6 number exists. The spec (`6.spec.md`) fixes every value;
+# `6.0_dense_entity_navigation.md` gives the reason for each (decisions D1, D2, D20). The
+# decision parameters of the statistical convention live beside this module, in
+# `decision_parameters.py`: they name the test split, and this module is imported by the
+# Phase 3 selection, whose guard forbids naming any split but dev.
+
+# D1: everything the phase writes lives here, flat, and nothing under RESULTS_DIR. A
+# Phase 6 `run-hybrid-bm25-test-*.json` there would become the Phase 3 control for the
+# comparison reader, which takes the newest file of each system.
+REPLACEMENT_DIR: Final[Path] = DATA_DIR / "replacement"
+
+# The second-stage component and the three systems, by the hybrid naming rule:
+# `hybrid-` plus the second component's name.
+ENTITY_HOP_NAME: Final[str] = "entity-hop"
+ENTITY_HOP_TYPES: Final[tuple[str, ...]] = ("entity",)
+PHASE_6_SYSTEMS: Final[tuple[str, ...]] = ("dense", "hybrid-bm25", "hybrid-entity-hop")
+# The entity list is cut at the depth every fusion component is asked for.
+ENTITY_HOP_MAX_DEPTH: Final[int] = EVALUATION_TOP_K
+
+# D2: the inherited artifacts, pinned by their full digests. The spec quotes each by
+# prefix; these were copied once from the artifacts and a data-dependent test holds them
+# equal. Loading derives file paths from these constants, never from a summary on disk.
+PHASE_1_UNIT_SET_HASH: Final[str] = "101f564fdcca620c"
+PINNED_SELECTION_DIGEST: Final[str] = (
+    "91daa10ef0a75b6eba377d18a55ac868467b01b09fb7284c7835a84d4e4e602d"  # pragma: allowlist secret
+)
+PINNED_SELECTION_FROZEN_AT: Final[str] = "2026-09-11T13:30:36+00:00"
+PINNED_PILOT_DIGEST: Final[str] = "e0f0af8f468dbf3332d9311948f416b75e4e5bf0d9971a0bd332b04acff2c364"
+PINNED_HOP_RUN_DIGEST: Final[str] = (
+    "49847f3cedb635406416bbb15dfa1913f4fa10782ed07a6461ccd56d5ded246a"  # pragma: allowlist secret
+)
+PINNED_NAVIGATION_TRACES_DIGEST: Final[str] = (
+    "163777a044e1d6fcded400495a6e8f9917411e614978aa1aa43427a6cc8d5925"  # pragma: allowlist secret
+)
+PINNED_EXTRACTION_DIGEST: Final[str] = (
+    "8e59854118ae5f4d83d88ce967098801f9f922309d7beb6b3e3deaf06fb1f12f"  # pragma: allowlist secret
+)
+PINNED_EXTRACTION_PROMPT_DIGEST: Final[str] = "0107de3ae9b4e4a3"
+PINNED_NODE_INDEX_DIGEST: Final[str] = (
+    "b498f99418389b2f7849c680cda1749ea58700a9997fbfed7ce474d3b0a0559a"  # pragma: allowlist secret
+)
+PINNED_NORMALIZATION_VERSION: Final[str] = NORMALIZATION_VERSION
+
+# The four historical result files of the Phase 3 control. They carry no digest, so they
+# are pinned by name, their configuration is checked key by key (HU-2), and the sha256 of
+# their bytes is recorded at the dev stage. Before the test stage, the two test files are
+# identified and never read for their figures.
+# Keyed by system and grouped by role rather than by split name: this module is on the
+# Phase 3 selection path, whose guard forbids any string naming a split other than dev.
+HISTORICAL_DEV_RESULT_FILES: Final[dict[str, str]] = {
+    "dense": "run-dense-dev-20260911T133154+0000.json",
+    "hybrid-bm25": "run-hybrid-bm25-dev-20260911T133156+0000.json",
+}
+HISTORICAL_TEST_RESULT_FILES: Final[dict[str, str]] = {
+    "dense": "run-dense-test-20260911T133159+0000.json",
+    "hybrid-bm25": "run-hybrid-bm25-test-20260911T133204+0000.json",
+}
+HISTORICAL_CONFIG_KEYS: Final[tuple[str, ...]] = (
+    "unit_set_hash",
+    "tokenizer",
+    "seed",
+    "top_k",
+    "model",
+    "revision",
+)
+HISTORICAL_HYBRID_CONFIG_KEYS: Final[tuple[str, ...]] = ("fusion_scheme", "fusion_weights")
+
+# Counts the spec quotes. Checked on load, and a mismatch stops with both numbers.
+EXPECTED_N_UNITS: Final[int] = 19366
+EXPECTED_ENTITY_NODES: Final[int] = 96416
+EXPECTED_FAILED_EXTRACTIONS: Final[int] = 8
+EXPECTED_UNITS_WITHOUT_ENTITY_NODE: Final[int] = 163
+EXPECTED_PILOT_QUESTIONS: Final[int] = 152
+EXPECTED_ENTITY_TRACES: Final[int] = 116
+
+# OI-2, decided: the node hop's own test tolerance, a relative tolerance applied to a
+# `math.fsum` of the shared nodes' weights against the recorded score.
+TRACE_WEIGHT_REL_TOL: Final[float] = 1e-12
+
+
+# --- Cheap entity extraction (Phase 7) ---------------------------------------
+# Declared before the first Phase 7 number exists, which is the whole point: the
+# spec (`7.spec.md`, decision 10) forbids choosing a model, a revision, a label set
+# or a bar after a figure has been seen. Every value below comes from
+# `7.0_cheap_entity_extraction.md`, decisions D1-D5, D9 and D11. A different
+# checkpoint, pipeline or threshold is a **separate declared candidate**, never a
+# retune of one of these.
+
+PHASE_7_DIR: Final[Path] = DATA_DIR / "phase7"
+
+# The two local candidates. The Claude extraction of Phase 5 is the reference arm and
+# is quoted from its existing artifact, never re-run, so it is not an id here.
+GLINER_EXTRACTOR: Final[str] = "gliner"
+SPACY_EXTRACTOR: Final[str] = "spacy"
+PHASE_7_EXTRACTORS: Final[tuple[str, ...]] = (GLINER_EXTRACTOR, SPACY_EXTRACTOR)
+
+# D1-D3: candidate B, local zero-shot NER. Pinned to a commit, never to `main`, for
+# the same reason the embedding model is: a moving revision silently redefines every
+# node the phase extracts while the artifact keeps claiming the same configuration.
+GLINER_MODEL: Final[str] = "urchade/gliner_medium-v2.1"
+GLINER_REVISION: Final[str] = "40ec419335d09393f298636f471328b722c6da9e"
+GLINER_TOKENIZER_MODEL: Final[str] = "microsoft/deberta-v3-base"
+GLINER_TOKENIZER_REVISION: Final[str] = "8ccc9b6f36199bec6961081d44eb72fb3f7353f3"
+# D14: what is fetched, and therefore what cannot be deserialized. Both repositories
+# also ship `pytorch_model.bin`, and the DeBERTa one `tf_model.h5` and `rust_model.ot`;
+# none of them is in an allow-list, so no pickle archive ever reaches the disk.
+GLINER_ALLOW_PATTERNS: Final[tuple[str, ...]] = ("gliner_config.json", "model.safetensors")
+GLINER_TOKENIZER_ALLOW_PATTERNS: Final[tuple[str, ...]] = (
+    "config.json",
+    "spm.model",
+    "tokenizer_config.json",
+)
+# One label per category the frozen Phase 5 prompt already names: people,
+# organizations, places, works, events. The comparison is between extractors, so the
+# ontology has to be the same question asked of a different reader.
+GLINER_LABELS: Final[tuple[str, ...]] = (
+    "person",
+    "organization",
+    "location",
+    "work of art",
+    "event",
+)
+GLINER_THRESHOLD: Final[float] = 0.5
+GLINER_FLAT_NER: Final[bool] = True
+GLINER_MULTI_LABEL: Final[bool] = False
+GLINER_BATCH_SIZE: Final[int] = 8
+# The checkpoint's own reading window and span width. A paragraph longer than this is
+# split at its own sentence boundaries (D6.5); the *indexing* unit is untouched.
+GLINER_MAX_LEN: Final[int] = 384
+GLINER_MAX_WIDTH: Final[int] = 12
+
+# D4-D5: candidate C, conventional local NER. `sm` and not `trf`: this is the
+# conservative, CPU-friendly arm, and a transformer pipeline would be a different
+# candidate with a different cost profile.
+SPACY_MODEL: Final[str] = "en_core_web_sm"
+SPACY_MODEL_VERSION: Final[str] = "3.8.0"
+SPACY_MODEL_WHEEL_URL: Final[str] = (
+    "https://github.com/explosion/spacy-models/releases/download/"
+    "en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl"
+)
+# Only `tok2vec` and `ner` run; everything else is loaded for nothing.
+SPACY_EXCLUDE: Final[tuple[str, ...]] = (
+    "tagger",
+    "parser",
+    "attribute_ruler",
+    "lemmatizer",
+    "senter",
+)
+SPACY_BATCH_SIZE: Final[int] = 64
+SPACY_PROCESSES: Final[int] = 1
+# Keep every OntoNotes label that names a *thing*; drop the seven that name a quantity
+# or a time. Dates and cardinals are not named things in the Phase 5 sense and would
+# manufacture hub nodes across unrelated paragraphs.
+SPACY_LABELS: Final[tuple[str, ...]] = (
+    "EVENT",
+    "FAC",
+    "GPE",
+    "LANGUAGE",
+    "LAW",
+    "LOC",
+    "NORP",
+    "ORG",
+    "PERSON",
+    "PRODUCT",
+    "WORK_OF_ART",
+)
+SPACY_DROPPED_LABELS: Final[tuple[str, ...]] = (
+    "CARDINAL",
+    "DATE",
+    "MONEY",
+    "ORDINAL",
+    "PERCENT",
+    "QUANTITY",
+    "TIME",
+)
+
+# The inherited Phase 6 figures the phase is read against, Full Support @2,048. Copied
+# once from the run artifacts named beside them and held equal by a data-dependent
+# test, so a candidate is never compared against a number typed from memory.
+PHASE_7_REFERENCE_DEV_FULL_SUPPORT: Final[dict[str, float]] = {
+    "dense": 0.8116666666666666,
+    "hybrid-bm25": 0.8633333333333333,
+    "hybrid-entity-hop": 0.8783333333333333,
+}
+PHASE_7_REFERENCE_HELD_OUT_FULL_SUPPORT: Final[dict[str, float]] = {
+    "dense": 0.825,
+    "hybrid-bm25": 0.8642857142857143,
+    "hybrid-entity-hop": 0.89,
+}
+PHASE_7_REFERENCE_DEV_FILES: Final[dict[str, str]] = {
+    "dense": "run-dense-dev-20260917T174901+0000.json",
+    "hybrid-bm25": "run-hybrid-bm25-dev-20260917T174929+0000.json",
+    "hybrid-entity-hop": "run-hybrid-entity-hop-dev-20260917T212300+0000.json",
+}
+PHASE_7_REFERENCE_HELD_OUT_FILES: Final[dict[str, str]] = {
+    "dense": "run-dense-test-20260917T215214+0000.json",
+    "hybrid-bm25": "run-hybrid-bm25-test-20260917T215216+0000.json",
+    "hybrid-entity-hop": "run-hybrid-entity-hop-test-20260917T215231+0000.json",
+}
+
+# D11, the retention bar: a candidate is materially equivalent when it keeps at least
+# this share of the Claude Entity Hop's dev gain over Dense. The share applied to the
+# measured dev figures lands exactly on 517 of the 600 dev questions
+# (0.8116667 + 0.75 * 0.0666667 = 0.8616667 = 517/600); the spec writes that bar as
+# `0.8617`, which is the same number rounded for reading. The count is what the rule
+# is applied on, because a float comparison against the rounded form would reject a
+# candidate sitting exactly on the bar.
+PHASE_7_RETENTION_SHARE: Final[float] = 0.75
+PHASE_7_RETENTION_BAR: Final[float] = 0.8617
+PHASE_7_RETENTION_BAR_QUESTIONS: Final[int] = 517
+
+# D11, the economic bar. The first two are absolute: no per-paragraph third-party API
+# call, and nothing paid for the extraction software itself. The last two are the
+# ceilings the spec sets on a FullWiki projection and on this phase's own compute.
+PHASE_7_SOFTWARE_COST_CEILING_USD: Final[float] = 0.0
+PHASE_7_FULLWIKI_HOURS_CEILING: Final[float] = 48.0
+PHASE_7_INFRASTRUCTURE_CEILING_USD: Final[float] = 30.0
+
+# D9: the scale the throughput is projected to, linearly and with the arithmetic shown.
+PROJECTION_PARAGRAPHS: Final[int] = 5_000_000
+
+
 def ensure_directories() -> None:
     """Create the data directories if they do not exist yet."""
     for path in (
@@ -327,5 +550,7 @@ def ensure_directories() -> None:
         EXTRACTION_DIR,
         NODES_DIR,
         NAVIGATION_DIR,
+        REPLACEMENT_DIR,
+        PHASE_7_DIR,
     ):
         path.mkdir(parents=True, exist_ok=True)

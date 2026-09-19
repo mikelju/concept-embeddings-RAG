@@ -1451,3 +1451,311 @@ def test_a_second_pilot_refuses_rather_than_moving_the_freeze(tmp_path):
         pilot(tmp_path, data_dir, cache_dir)
 
     assert "already frozen" in str(excinfo.value)
+
+
+# --- Phase 7, S3: the cheap-extract stage ---------------------------------------
+#
+# The stage is wiring: pool in, one local extractor over it, one artifact out. What is
+# asserted here is the wiring and the refusals, never the model - no model is downloaded
+# and neither extractor library is imported, because the builder is injected.
+
+
+def a_cheap_workspace(tmp_path: Path) -> Path:
+    """A data directory holding just what `cheap-extract` reads: the pool."""
+    from concept_embeddings_rag.corpus.pool import IndexingUnit, save_pool, unit_id_for
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    units = []
+    for index in range(4):
+        title = f"Title {index}"
+        sentences = (f"Paragraph {index} mentions Kaley Cuoco.", "It also mentions CBS.")
+        units.append(
+            IndexingUnit(unit_id=unit_id_for(title, sentences), title=title, sentences=sentences)
+        )
+    save_pool(units, [], data_dir / "pool.json")
+    return data_dir
+
+
+def a_fake_builder(forms=("Kaley Cuoco", "CBS"), *, seen=None):
+    """A builder that returns a fixed-answer extractor instead of loading a model."""
+    from collections.abc import Sequence
+
+    from concept_embeddings_rag.nodes.local_extraction import LocalExtractor
+
+    def build(extractor_id: str, directory: Path):
+        if seen is not None:
+            seen.append((extractor_id, directory))
+
+        def spans(texts: Sequence[str]) -> list[list[str]]:
+            return [list(forms) for _ in texts]
+
+        return (
+            LocalExtractor(
+                extractor_id=extractor_id,
+                model=f"fake/{extractor_id}",
+                revision="r1",
+                labels=("person", "organization"),
+                parameters={"threshold": 0.5},
+                library_versions={"fake": "1.0"},
+                spans=spans,
+            ),
+            0.25,
+        )
+
+    return build
+
+
+def cheap_extract(tmp_path: Path, data_dir: Path, **overrides):
+    from concept_embeddings_rag.cli import cmd_cheap_extract
+
+    arguments = {
+        "extractor_id": "gliner",
+        "data_dir": data_dir,
+        "phase_7_dir": tmp_path / "phase7",
+        "build": a_fake_builder(),
+    }
+    arguments.update(overrides)
+    return cmd_cheap_extract(**arguments)
+
+
+def test_parser_exposes_the_cheap_extract_stage_with_its_two_candidates():
+    parsed = build_parser().parse_args(["cheap-extract", "--extractor", "spacy"])
+
+    assert parsed.command == "cheap-extract"
+    assert parsed.extractor == "spacy"
+    assert parsed.hourly_rate_usd == 0.0
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(["cheap-extract", "--extractor", "bert"])
+
+
+def test_cheap_extract_without_a_pool_names_the_build_stage(tmp_path):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+
+    with pytest.raises(SystemExit) as excinfo:
+        cheap_extract(tmp_path, data_dir)
+
+    assert "build" in str(excinfo.value)
+
+
+def test_cheap_extract_refuses_a_candidate_this_phase_never_declared(tmp_path):
+    data_dir = a_cheap_workspace(tmp_path)
+
+    with pytest.raises(SystemExit) as excinfo:
+        cheap_extract(tmp_path, data_dir, extractor_id="bert-base")
+
+    assert "two candidates" in str(excinfo.value)
+
+
+def test_cheap_extract_writes_one_directory_per_candidate_and_prints_ascii(tmp_path, capsys):
+    from concept_embeddings_rag.nodes.local_extraction import load_extraction
+
+    data_dir = a_cheap_workspace(tmp_path)
+
+    path = cheap_extract(tmp_path, data_dir)
+
+    assert path.parent == tmp_path / "phase7" / "gliner"
+    assert sorted(p.name for p in path.parent.iterdir()) == ["extraction.json", "records.jsonl.gz"]
+    out = capsys.readouterr().out
+    assert out.isascii()
+    # Node forms are corpus text and never reach a log.
+    assert "Kaley" not in out
+    records, manifest = load_extraction(path.parent)
+    assert len(records) == 4
+    assert all(record.entities == ("Kaley Cuoco", "CBS") for record in records.values())
+    assert manifest["usd"] == 0.0
+    assert manifest["model_load_seconds"] == 0.25
+
+
+def test_cheap_extract_hands_the_builder_a_directory_of_its_own(tmp_path):
+    seen: list = []
+    data_dir = a_cheap_workspace(tmp_path)
+
+    cheap_extract(tmp_path, data_dir, build=a_fake_builder(seen=seen))
+
+    assert seen == [("gliner", tmp_path / "phase7" / "models" / "gliner")]
+
+
+def test_cheap_extract_touches_no_phase_5_or_phase_6_artifact(tmp_path):
+    data_dir = a_cheap_workspace(tmp_path)
+
+    cheap_extract(tmp_path, data_dir)
+
+    assert sorted(p.name for p in (tmp_path / "phase7").iterdir()) == ["gliner"]
+    assert not (data_dir / "extraction").exists()
+    assert not (data_dir / "nodes").exists()
+    assert not (data_dir / "replacement").exists()
+
+
+def test_a_second_pass_refuses_rather_than_replacing_a_measured_artifact(tmp_path):
+    data_dir = a_cheap_workspace(tmp_path)
+    cheap_extract(tmp_path, data_dir)
+
+    with pytest.raises(SystemExit) as excinfo:
+        cheap_extract(tmp_path, data_dir)
+
+    assert "already holds an extraction" in str(excinfo.value)
+
+
+def test_the_two_candidates_write_side_by_side_without_colliding(tmp_path):
+    data_dir = a_cheap_workspace(tmp_path)
+
+    cheap_extract(tmp_path, data_dir, extractor_id="gliner")
+    cheap_extract(tmp_path, data_dir, extractor_id="spacy")
+
+    assert sorted(p.name for p in (tmp_path / "phase7").iterdir()) == ["gliner", "spacy"]
+
+
+def test_a_rented_machine_rate_reaches_the_projection(tmp_path):
+    from concept_embeddings_rag.nodes.local_extraction import load_manifest
+
+    data_dir = a_cheap_workspace(tmp_path)
+
+    path = cheap_extract(tmp_path, data_dir, hourly_rate_usd=1.5, actual_cost_usd=2.75)
+
+    projection = load_manifest(path.parent)["projection_5m"]
+    assert projection["hourly_rate_usd"] == 1.5
+    assert projection["usd"] == pytest.approx(projection["hours"] * 1.5)
+    assert load_manifest(path.parent)["usd"] == 2.75
+
+
+def test_rented_extraction_requires_actual_cost_before_loading_a_model(tmp_path):
+    data_dir = a_cheap_workspace(tmp_path)
+    seen = []
+    with pytest.raises(SystemExit, match="actual-cost-usd"):
+        cheap_extract(tmp_path, data_dir, hourly_rate_usd=1.5, build=a_fake_builder(seen=seen))
+    assert seen == []
+
+
+@pytest.mark.parametrize("field", ["hourly_rate_usd", "actual_cost_usd"])
+@pytest.mark.parametrize("value", [-1.0, float("nan"), float("inf")])
+def test_extraction_rejects_invalid_costs(tmp_path, field, value):
+    with pytest.raises(SystemExit, match="finite and non-negative"):
+        cheap_extract(tmp_path, tmp_path / "data", **{field: value})
+
+
+def test_cheap_eval_parser_exposes_the_dev_path_and_the_single_test_flag():
+    assert build_parser().parse_args(["cheap-eval"]).test is False
+    assert build_parser().parse_args(["cheap-eval", "--test"]).test is True
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(["cheap-eval", "--select"])
+
+
+def test_cheap_eval_without_extraction_names_the_required_stage(tmp_path):
+    from concept_embeddings_rag.cli import cmd_cheap_eval
+
+    with pytest.raises(SystemExit, match="cheap-extract"):
+        cmd_cheap_eval(data_dir=tmp_path / "data", phase_7_dir=tmp_path / "phase7")
+
+
+def a_split_workspace(tmp_path: Path):
+    """The cheap workspace plus one dev question, one test question and their caches."""
+    from concept_embeddings_rag.corpus.pool import Question, load_pool, save_pool
+    from concept_embeddings_rag.embeddings.cache import EmbeddingCache, embed_questions, embed_units
+
+    data_dir = a_cheap_workspace(tmp_path)
+    units, _ = load_pool(data_dir / "pool.json")
+    dev = Question("dev1", "dev question", "", (units[0].unit_id,), (), "dev")
+    test = Question("test1", "held out question", "", (units[1].unit_id,), (), "test")
+    save_pool(units, [dev, test], data_dir / "pool.json")
+    (data_dir / "token_counts.json").write_text(
+        json.dumps(dict.fromkeys([u.unit_id for u in units], 100))
+    )
+    backend = HashingBackend(dim=4)
+    embed_units(units, backend, EmbeddingCache(tmp_path / "cache"))
+    embed_questions([dev], backend, EmbeddingCache(tmp_path / "questions"))
+    embed_questions([test], backend, EmbeddingCache(tmp_path / "questions"))
+    arguments = {
+        "data_dir": data_dir,
+        "cache_dir": tmp_path / "cache",
+        "question_cache_dir": tmp_path / "questions",
+        "phase_7_dir": tmp_path / "phase7",
+        "backend": backend,
+    }
+    return data_dir, backend, arguments
+
+
+def test_cheap_eval_uses_only_cached_embeddings_and_preserves_the_first_candidate(
+    tmp_path, monkeypatch
+):
+    from concept_embeddings_rag.cli import cmd_cheap_eval
+
+    data_dir, backend, arguments = a_split_workspace(tmp_path)
+
+    def refuse_encode(texts):
+        raise AssertionError("cheap-eval must never encode a question or a paragraph")
+
+    monkeypatch.setattr(backend, "encode", refuse_encode)
+    cheap_extract(tmp_path, data_dir, extractor_id="gliner")
+    first = cmd_cheap_eval(**arguments)[0]
+    before = first.read_bytes()
+    (tmp_path / "phase7" / "selection.json").unlink()
+    cheap_extract(tmp_path, data_dir, extractor_id="spacy")
+    paths = cmd_cheap_eval(**arguments)
+
+    assert first.read_bytes() == before
+    assert paths[-1].name == "selection.json"
+    for path in paths[:-1]:
+        result = json.loads(path.read_text())
+        assert result["split"] == "dev"
+        assert result["n_questions"] == 1
+        assert result["fit"]["n_questions"] == 1
+    assert len(list((tmp_path / "questions").glob("*.npz"))) == 2
+    selection = json.loads(paths[-1].read_text())
+    assert [row["extractor_id"] for row in selection["candidates"]] == ["gliner", "spacy"]
+    assert not (tmp_path / "phase7" / "test.json").exists()
+
+
+def test_cheap_eval_refuses_to_measure_a_candidate_after_the_selection(tmp_path):
+    from concept_embeddings_rag.cli import cmd_cheap_eval
+
+    data_dir, _, arguments = a_split_workspace(tmp_path)
+    cheap_extract(tmp_path, data_dir, extractor_id="gliner")
+    cmd_cheap_eval(**arguments)
+    cheap_extract(tmp_path, data_dir, extractor_id="spacy")
+
+    with pytest.raises(SystemExit, match="already names a selection"):
+        cmd_cheap_eval(**arguments)
+    assert not (tmp_path / "phase7" / "spacy" / "dev.json").exists()
+
+
+def test_cheap_eval_test_reads_the_held_out_split_once_for_the_selected_extractor(tmp_path):
+    from concept_embeddings_rag.cli import cmd_cheap_eval
+
+    data_dir, _, arguments = a_split_workspace(tmp_path)
+    cheap_extract(tmp_path, data_dir, extractor_id="gliner")
+    cmd_cheap_eval(**arguments)
+
+    path = cmd_cheap_eval(**arguments, test=True)[0]
+
+    payload = json.loads(path.read_text())
+    assert payload["split"] == "test"
+    assert payload["n_questions"] == 1
+    assert payload["extractor_id"] == "gliner"
+    dev = json.loads((tmp_path / "phase7" / "gliner" / "dev.json").read_text())
+    assert payload["config"]["question_cache_key"] != dev["config"]["question_cache_key"]
+    with pytest.raises(SystemExit, match="read once"):
+        cmd_cheap_eval(**arguments, test=True)
+
+
+def test_cheap_eval_test_refuses_before_a_selection_exists(tmp_path):
+    from concept_embeddings_rag.cli import cmd_cheap_eval
+
+    data_dir, _, arguments = a_split_workspace(tmp_path)
+    cheap_extract(tmp_path, data_dir, extractor_id="gliner")
+
+    with pytest.raises(SystemExit, match="cheap-eval"):
+        cmd_cheap_eval(**arguments, test=True)
+
+
+def test_a_missing_extractor_library_says_which_group_to_install(tmp_path):
+    data_dir = a_cheap_workspace(tmp_path)
+
+    def build(extractor_id: str, directory: Path):
+        raise ImportError("No module named 'gliner'")
+
+    with pytest.raises(SystemExit) as excinfo:
+        cheap_extract(tmp_path, data_dir, build=build)
+
+    assert "phase7" in str(excinfo.value)

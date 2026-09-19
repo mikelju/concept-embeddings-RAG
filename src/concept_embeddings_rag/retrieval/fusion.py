@@ -30,9 +30,17 @@ The primitives take two lists of `(unit_id, score)` and return one: no question
 string, no corpus, no annotation, no split label. `FusedRetriever` is the thin
 `Retriever` around them - it hands the query to its two components and fuses what
 they hand back - and it reads nothing else either.
+
+Phase 6 (decision D4 of its plan) adds one slot beside the second signals: a
+**second stage**, which never reads the question. It is handed dense's own list for the
+query and proposes candidates from it. The hybrid asks dense once and gives that list to
+the stage, so the stage is conditioned on the very list that enters the fusion; for a
+second signal the two calls are the ones Phase 3 made, in the same order, fused by the same
+`fuse`. `SECOND_SIGNALS` is not extended: Phase 3's selection unpacks it into two names.
 """
 
 from collections.abc import Mapping, Sequence
+from typing import Protocol, runtime_checkable
 
 from concept_embeddings_rag import config
 from concept_embeddings_rag.retrieval.base import Hit, Retriever
@@ -56,10 +64,23 @@ RRF = "rrf"
 # is what makes the two comparable: neither can be fused differently by accident.
 DENSE = "dense"
 SECOND_SIGNALS = ("conceptual", "bm25")
+# Second-stage components (Phase 6, D4): conditioned on dense's list, not on the question.
+SECOND_STAGES = (config.ENTITY_HOP_NAME,)
 
 # The spec's `fitted_on`, carried on the object so a result says where its weights came
 # from instead of leaving the reader to assume it.
 FITTED_ON = "dev"
+
+
+@runtime_checkable
+class SecondStage(Protocol):
+    """A component that proposes candidates from dense's list for a query, never the query."""
+
+    name: str
+
+    def propose(self, first: Sequence[Hit], top_k: int) -> list[Hit]:
+        """Return up to `top_k` (unit_id, score) pairs, best first, derived from `first`."""
+        ...
 
 
 def union_of(components: Sequence[Sequence[Hit]]) -> list[str]:
@@ -215,26 +236,49 @@ def fuse(
     return ordered[:top_k]
 
 
-def _in_fixed_order(components: Sequence[Retriever]) -> list[Retriever]:
-    """The two components as `[dense, second signal]`, whichever order they arrived in.
+def _is_retriever(component: object) -> bool:
+    return callable(getattr(component, "retrieve", None))
+
+
+def _is_stage(component: object) -> bool:
+    return callable(getattr(component, "propose", None))
+
+
+def _in_fixed_order(
+    components: Sequence[Retriever | SecondStage],
+) -> tuple[Retriever, Retriever | SecondStage, bool]:
+    """The two components as `(dense, second, staged)`, whichever order they arrived in.
 
     The order is not the caller's to choose. System B and the HU-5 control differ only
     in their second signal, so if the order could vary between them, a difference in
     their numbers could be a difference of arrangement rather than of signal.
+
+    The second component is a signal when its name is declared in `SECOND_SIGNALS` and it
+    retrieves, or a stage when its name is declared in `SECOND_STAGES` and it proposes
+    (Phase 6, D4). An object that is both, or neither, or whose capability does not match
+    its name, is refused: a stage filed under a signal's name would be fused as the control.
     """
     if len(components) != 2:
         raise ValueError(f"a hybrid fuses two components, not {len(components)}")
 
-    names = [retriever.name for retriever in components]
+    names = [component.name for component in components]
     if names[0] == names[1]:
         raise ValueError(f"the two components must be different retrievers, not {names[0]!r} twice")
     if DENSE not in names:
         raise ValueError(f"every hybrid of this phase is built on {DENSE!r}, not on {names}")
 
     dense, other = components if names[0] == DENSE else (components[1], components[0])
-    if other.name not in SECOND_SIGNALS:
-        raise ValueError(f"unknown second signal {other.name!r}, expected one of {SECOND_SIGNALS}")
-    return [dense, other]
+    if not isinstance(dense, Retriever) or _is_stage(dense):
+        raise ValueError(f"the {DENSE!r} component must be a retriever")
+
+    signal = other.name in SECOND_SIGNALS and _is_retriever(other) and not _is_stage(other)
+    stage = other.name in SECOND_STAGES and _is_stage(other) and not _is_retriever(other)
+    if not (signal or stage):
+        raise ValueError(
+            f"unknown second signal {other.name!r}, expected a retriever named one of "
+            f"{SECOND_SIGNALS} or a second stage named one of {SECOND_STAGES}"
+        )
+    return dense, other, stage
 
 
 def _checked_weights(
@@ -286,18 +330,23 @@ class FusedRetriever:
 
     def __init__(
         self,
-        components: Sequence[Retriever],
+        components: Sequence[Retriever | SecondStage],
         *,
         scheme: str,
         weights: Mapping[str, float] | None = None,
     ) -> None:
-        self._components = _in_fixed_order(components)
-        self.components = [retriever.name for retriever in self._components]
+        self._dense, self._second, self._staged = _in_fixed_order(components)
+        self.components = [self._dense.name, self._second.name]
         self.name = f"hybrid-{self.components[1]}"
         self.scheme = scheme
         self.normalization = normalization_for(scheme)
         self.weights = _checked_weights(scheme, self.components, weights)
         self.fitted_on = FITTED_ON
+
+    def _as_retriever(self) -> Retriever:
+        if not isinstance(self._second, Retriever):
+            raise ValueError(f"{self._second.name!r} was admitted as a stage, not a retriever")
+        return self._second
 
     def describe(self) -> dict:
         """The spec's data contract, to be recorded beside every metric."""
@@ -316,11 +365,21 @@ class FusedRetriever:
         Each component is asked for the same `top_k` the hybrid was asked for, which at
         the phase's `top_k = 100` is D6's arithmetic exactly: two lists of 100, a union
         of at most 200, and the best 100 of it returned.
+
+        Dense is asked once. A second signal is then asked the query, exactly as Phase 3
+        did; a second stage is handed a copy of dense's list instead, so it is conditioned
+        on the list that enters the fusion and cannot alter it.
         """
         if top_k <= 0:
             raise ValueError(f"top_k must be positive, not {top_k}")
 
-        hits = [retriever.retrieve(query, top_k) for retriever in self._components]
+        first = self._dense.retrieve(query, top_k)
+        second = (
+            self._second.propose(list(first), top_k)
+            if isinstance(self._second, SecondStage) and self._staged
+            else self._as_retriever().retrieve(query, top_k)
+        )
+        hits = [first, second]
         ordered = (
             None if self.weights is None else tuple(self.weights[name] for name in self.components)
         )

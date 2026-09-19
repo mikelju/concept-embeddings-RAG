@@ -77,6 +77,39 @@ data/extraction/*
 # archive is verified against. The batch state is operational and stays out.
 !data/extraction/extraction-*.jsonl.gz
 !data/extraction/extraction-*.json
+# Phase 6 (plan D1, D20): the checks, the freeze, results, per-question outcomes, diagnostics,
+# traces, readouts and the decision, flat in one directory and never under data/results/. Their
+# deterministic hex ids are skipped by the content filter in .github/detect_secrets_filters.py,
+# not by a path exclusion, so the scanner keeps reading everything else they hold.
+!data/replacement/
+data/replacement/*
+!data/replacement/*.json
+
+# Phase 7: cheap entity extraction.
+# Keep the measured extraction record and evaluation artifacts; models and
+# regenerable node-index files remain ignored. Every run-*.json a versioned
+# artifact names in its `run_file` field is versioned too, so a checkout can
+# open what dev.json and test.json point at.
+!data/phase7/
+data/phase7/*
+
+!data/phase7/gliner/
+data/phase7/gliner/*
+!data/phase7/gliner/records.jsonl.gz
+!data/phase7/gliner/extraction.json
+!data/phase7/gliner/dev.json
+!data/phase7/gliner/run-*.json
+
+!data/phase7/spacy/
+data/phase7/spacy/*
+!data/phase7/spacy/records.jsonl.gz
+!data/phase7/spacy/extraction.json
+!data/phase7/spacy/dev.json
+!data/phase7/spacy/run-*.json
+
+!data/phase7/selection.json
+!data/phase7/test.json
+
 .cache/
 models/
 output/

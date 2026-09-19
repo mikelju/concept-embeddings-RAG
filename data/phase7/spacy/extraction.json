@@ -1,0 +1,132 @@
+{
+  "configuration": {
+    "extractor_id": "spacy",
+    "labels": [
+      "EVENT",
+      "FAC",
+      "GPE",
+      "LANGUAGE",
+      "LAW",
+      "LOC",
+      "NORP",
+      "ORG",
+      "PERSON",
+      "PRODUCT",
+      "WORK_OF_ART"
+    ],
+    "library_versions": {
+      "en-core-web-sm": "3.8.0",
+      "spacy": "3.8.16",
+      "thinc": "8.3.13"
+    },
+    "model": "en_core_web_sm",
+    "parameters": {
+      "batch_size": 64,
+      "dropped_labels": [
+        "CARDINAL",
+        "DATE",
+        "MONEY",
+        "ORDINAL",
+        "PERCENT",
+        "QUANTITY",
+        "TIME"
+      ],
+      "exclude": [
+        "tagger",
+        "parser",
+        "attribute_ruler",
+        "lemmatizer",
+        "senter"
+      ],
+      "n_process": 1,
+      "pipeline_version": "3.8.0",
+      "wheel": "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl"
+    },
+    "revision": "3.8.0",
+    "window": {
+      "max_tokens": null,
+      "rule": "the whole paragraph in one pass; the model has no reading window"
+    }
+  },
+  "configuration_digest": "1e450b748cfc2d83",
+  "determinism_note": "Both candidates are deterministic at inference and the seed is set anyway, but float non-associativity across batch sizes and devices can move a span that sits exactly on the threshold. As in Phase 5, this artifact is the record of what was measured; everything downstream of it is deterministic.",
+  "digest": "ebbcf303d8bb352a6a5763c57ee2f99e60853c132717419d55c9a61abe5fa46b",
+  "entities": 185576,
+  "extractor_id": "spacy",
+  "failure_rate": 0.0007229164515129609,
+  "failures": {
+    "bounds": 14
+  },
+  "hardware": {
+    "cpu_count": 256,
+    "device": "cpu",
+    "gpu": null,
+    "machine": "x86_64",
+    "platform": "Linux-6.8.0-124-generic-x86_64-with-glibc2.39",
+    "processor": "x86_64",
+    "python": "3.12.14",
+    "ram_bytes": 1081934118912,
+    "release": "6.8.0-124-generic",
+    "system": "Linux",
+    "torch_threads": 128,
+    "torch_version": "2.13.0+cu126"
+  },
+  "labels": [
+    "EVENT",
+    "FAC",
+    "GPE",
+    "LANGUAGE",
+    "LAW",
+    "LOC",
+    "NORP",
+    "ORG",
+    "PERSON",
+    "PRODUCT",
+    "WORK_OF_ART"
+  ],
+  "library_versions": {
+    "en-core-web-sm": "3.8.0",
+    "spacy": "3.8.16",
+    "thinc": "8.3.13"
+  },
+  "model": "en_core_web_sm",
+  "model_load_seconds": 0.3687416510656476,
+  "n_units": 19366,
+  "normalization_note": "forms are verbatim surfaces; normalization-v1 runs later, in build_node_index",
+  "paragraphs_per_second": 92.7655009849625,
+  "parameters": {
+    "batch_size": 64,
+    "dropped_labels": [
+      "CARDINAL",
+      "DATE",
+      "MONEY",
+      "ORDINAL",
+      "PERCENT",
+      "QUANTITY",
+      "TIME"
+    ],
+    "exclude": [
+      "tagger",
+      "parser",
+      "attribute_ruler",
+      "lemmatizer",
+      "senter"
+    ],
+    "n_process": 1,
+    "pipeline_version": "3.8.0",
+    "wheel": "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl"
+  },
+  "projection_5m": {
+    "hourly_rate_usd": 0.74,
+    "hours": 14.97204105127434,
+    "method": "linear from measured throughput over 19366 paragraphs",
+    "paragraphs": 5000000,
+    "paragraphs_per_second": 92.7655009849625,
+    "usd": 11.079310377943012
+  },
+  "records": "records.jsonl.gz",
+  "revision": "3.8.0",
+  "seconds": 208.7629538392648,
+  "units_without_entity": 167,
+  "usd": 0.05
+}

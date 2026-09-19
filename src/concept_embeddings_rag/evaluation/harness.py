@@ -39,6 +39,30 @@ class ProvenanceError(Exception):
 
 
 @dataclass(frozen=True)
+class BudgetOutcome:
+    """One question's reading at one budget: the values the harness averages, unreduced."""
+
+    gold_recall: float
+    full_support: float
+    precision: float
+    units_included: int
+
+
+@dataclass(frozen=True)
+class QuestionOutcome:
+    """One question's outcome, recorded only when a caller asks for it.
+
+    Phase 6's paired statistics need what a mean throws away. The values are the very
+    float objects the harness appends to its own lists, so a mean over the records, taken
+    in the order they were appended, is the harness's mean.
+    """
+
+    qid: str
+    budgets: dict[int, BudgetOutcome]
+    recall_at_k: dict[int, float]
+
+
+@dataclass(frozen=True)
 class RunResult:
     system: str
     split: str
@@ -84,8 +108,13 @@ def evaluate_retriever(
     top_k: int,
     config: dict,
     split: str | None = None,
+    outcomes: list[QuestionOutcome] | None = None,
 ) -> RunResult:
-    """Measure one retriever over one split, at every requested budget."""
+    """Measure one retriever over one split, at every requested budget.
+
+    `outcomes`, when given, receives one `QuestionOutcome` per question in this loop's
+    order (Phase 6, decision D8). It records; it changes no figure the harness returns.
+    """
     per_budget: dict[int, dict[str, list[float]]] = {
         budget: {"gold_recall": [], "full_support": [], "precision": []} for budget in budgets
     }
@@ -100,20 +129,27 @@ def evaluate_retriever(
 
         ranked_ids = [unit_id for unit_id, _score in hits]
 
+        recalls: dict[int, float] = {}
         for k in ks:
-            per_k[k].append(recall_at_k(ranked_ids, question.gold_unit_ids, k))
+            recall = recall_at_k(ranked_ids, question.gold_unit_ids, k)
+            per_k[k].append(recall)
+            recalls[k] = recall
 
+        readings: dict[int, BudgetOutcome] = {}
         for budget in budgets:
             context = fill_context(ranked_ids, token_counts, budget)
-            per_budget[budget]["gold_recall"].append(gold_recall(context, question.gold_unit_ids))
-            per_budget[budget]["full_support"].append(
-                float(full_support(context, question.gold_unit_ids))
-            )
-            per_budget[budget]["precision"].append(
-                context_precision(context, question.gold_unit_ids)
-            )
+            covered = gold_recall(context, question.gold_unit_ids)
+            supported = float(full_support(context, question.gold_unit_ids))
+            precision = context_precision(context, question.gold_unit_ids)
+            per_budget[budget]["gold_recall"].append(covered)
+            per_budget[budget]["full_support"].append(supported)
+            per_budget[budget]["precision"].append(precision)
             if budget == budgets[-1]:
                 units_included.append(len(context))
+            readings[budget] = BudgetOutcome(covered, supported, precision, len(context))
+
+        if outcomes is not None:
+            outcomes.append(QuestionOutcome(question.qid, readings, recalls))
 
     metrics: dict = {}
     for budget in budgets:

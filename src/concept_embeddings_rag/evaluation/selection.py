@@ -28,7 +28,7 @@ and the control it has to be falsifiable against.
 """
 
 import json
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -59,6 +59,7 @@ from concept_embeddings_rag.retrieval.fusion import (
     SECOND_SIGNALS,
     WEIGHTED,
     FusedRetriever,
+    SecondStage,
 )
 
 # The only split this phase fits anything on. It is a constant rather than an
@@ -1300,7 +1301,7 @@ def _fusion_config(base_config: Mapping[str, Any], hybrid: FusedRetriever) -> di
 
 
 def fit_fusion_weight(
-    components: Sequence[Retriever],
+    components: Sequence[Retriever | SecondStage],
     *,
     questions: Sequence[Question],
     token_counts: Mapping[str, int],
@@ -1310,6 +1311,7 @@ def fit_fusion_weight(
     ks: Sequence[int] = config.RECALL_AT_K,
     metric: str = config.SELECTION_METRIC,
     budget: int = config.SELECTION_BUDGET,
+    on_measure: Callable[[FusedRetriever, RunResult], None] | None = None,
 ) -> FusionFit:
     """D8's third and fourth decisions, measured in one pass over the dev split.
 
@@ -1322,6 +1324,11 @@ def fit_fusion_weight(
     Every point of the grid and the RRF reading go through `evaluate_retriever`
     unmodified, so these figures are comparable with the Phase 1 baselines rather than
     merely similar to them.
+
+    Phase 6 (decision D10 of its plan) widens `components` to admit a second stage and adds
+    `on_measure`, an observe-only hook called with each hybrid and its full result after the
+    figure the fit reads has been taken, so the hook can keep every point's four-budget
+    metrics and cannot move the curve. Without it the function is the Phase 3 one.
     """
     _check_questions(questions)
     top_k = _check_config(base_config)
@@ -1345,7 +1352,10 @@ def fit_fusion_weight(
             config=_fusion_config(base_config, hybrid),
             split=DEV_SPLIT,
         )
-        return _read_primary(result.metrics, metric, budget)
+        reading = _read_primary(result.metrics, metric, budget)
+        if on_measure is not None:
+            on_measure(hybrid, result)
+        return reading
 
     rrf_score = measure(reference)
 

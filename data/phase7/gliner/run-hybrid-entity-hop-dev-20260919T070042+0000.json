@@ -1,0 +1,105 @@
+{
+  "config": {
+    "code_version": "0.1.0",
+    "components": [
+      "dense",
+      "entity-hop"
+    ],
+    "configuration_digest": "2f7864661b8ce7ff",
+    "corpus_cache_key": "bacd74e7f468f0d4",
+    "entity_types": [
+      "entity"
+    ],
+    "extraction_digest": "840b4f78325d5c3393588e82312b29e168bc265e42127896c588e75a422a0aba",
+    "extractor_configuration": {
+      "extractor_id": "gliner",
+      "labels": [
+        "person",
+        "organization",
+        "location",
+        "work of art",
+        "event"
+      ],
+      "library_versions": {
+        "gliner": "0.2.29",
+        "huggingface-hub": "1.29.0",
+        "safetensors": "0.8.0",
+        "tokenizers": "0.23.1",
+        "torch": "2.13.0+cu126",
+        "transformers": "5.16.1"
+      },
+      "model": "urchade/gliner_medium-v2.1",
+      "parameters": {
+        "batch_size": 8,
+        "flat_ner": true,
+        "max_len": 384,
+        "max_width": 12,
+        "multi_label": false,
+        "seed": 42,
+        "threshold": 0.5,
+        "tokenizer_model": "microsoft/deberta-v3-base",
+        "tokenizer_revision": "8ccc9b6f36199bec6961081d44eb72fb3f7353f3",
+        "weights": "model.safetensors"
+      },
+      "revision": "40ec419335d09393f298636f471328b722c6da9e",
+      "window": {
+        "max_tokens": 384,
+        "rule": "a paragraph over max_tokens sub-word tokens is split at its own sentence boundaries into the fewest consecutive windows that each fit; forms are unioned"
+      }
+    },
+    "extractor_id": "gliner",
+    "fitted_on": "dev",
+    "model": "BAAI/bge-small-en-v1.5",
+    "n_units": 19366,
+    "name": "hybrid-entity-hop",
+    "node_index_digest": "0aec5c32440ff600c1abbc7d866ad143ddf5c5263bf8252f1dbacdffc1496be5",
+    "normalization": "min_max",
+    "normalization_version": "normalization-v1",
+    "phase": 7,
+    "question_cache_key": "35329d9e75da1d4f",
+    "read_depth": 10,
+    "revision": "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a",
+    "scheme": "weighted",
+    "seed": 42,
+    "tokenizer": "BAAI/bge-small-en-v1.5",
+    "top_k": 100,
+    "unit_set_hash": "101f564fdcca620c",
+    "weights": {
+      "dense": 0.7,
+      "entity-hop": 0.30000000000000004
+    }
+  },
+  "cost": {
+    "mean_latency_ms": 7.363917001736506,
+    "mean_units_included": 32.245,
+    "n_questions": 600
+  },
+  "created_at": "2026-09-19T07:00:42+00:00",
+  "metrics": {
+    "budget_1024": {
+      "full_support": 0.7983333333333333,
+      "gold_recall": 0.8941666666666667,
+      "precision": 0.20508578458578458
+    },
+    "budget_2048": {
+      "full_support": 0.8633333333333333,
+      "gold_recall": 0.93,
+      "precision": 0.1132944730334352
+    },
+    "budget_4096": {
+      "full_support": 0.91,
+      "gold_recall": 0.9541666666666667,
+      "precision": 0.05998120015927807
+    },
+    "budget_512": {
+      "full_support": 0.65,
+      "gold_recall": 0.8108333333333333,
+      "precision": 0.3346309523809524
+    },
+    "recall_at_10": 0.9016666666666666,
+    "recall_at_2": 0.6766666666666666,
+    "recall_at_5": 0.8291666666666667
+  },
+  "split": "dev",
+  "system": "hybrid-entity-hop"
+}

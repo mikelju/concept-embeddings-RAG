@@ -172,6 +172,8 @@ def test_ensure_directories_creates_the_phase_3_directories(tmp_path, monkeypatc
     monkeypatch.setattr(config, "CONCEPTS_DIR", tmp_path / "data" / "concepts")
     monkeypatch.setattr(config, "SELECTION_DIR", tmp_path / "data" / "selection")
     monkeypatch.setattr(config, "QUESTION_CACHE_DIR", tmp_path / "data" / "cache" / "questions")
+    # Phase 6 added a directory; patched so this test writes nothing under the real data/.
+    monkeypatch.setattr(config, "REPLACEMENT_DIR", tmp_path / "data" / "replacement")
 
     config.ensure_directories()
 
@@ -246,6 +248,7 @@ def test_ensure_directories_creates_the_phase_4_directories(tmp_path, monkeypatc
     monkeypatch.setattr(config, "QUESTION_CACHE_DIR", tmp_path / "data" / "cache" / "questions")
     monkeypatch.setattr(config, "EXPANSION_DIR", tmp_path / "data" / "expansion")
     monkeypatch.setattr(config, "TRACES_DIR", tmp_path / "data" / "traces")
+    monkeypatch.setattr(config, "REPLACEMENT_DIR", tmp_path / "data" / "replacement")
 
     config.ensure_directories()
 
@@ -323,6 +326,7 @@ def test_the_reporting_constants_decide_only_what_a_human_reads():
 def test_ensure_directories_creates_the_phase_5_directories(tmp_path, monkeypatch):
     for name in ("PILOT_DIR", "EXTRACTION_DIR", "NODES_DIR", "NAVIGATION_DIR"):
         monkeypatch.setattr(config, name, tmp_path / "data" / name.lower())
+    monkeypatch.setattr(config, "REPLACEMENT_DIR", tmp_path / "other" / "replacement")
     for name in (
         "DATA_DIR",
         "CACHE_DIR",
@@ -339,3 +343,289 @@ def test_ensure_directories_creates_the_phase_5_directories(tmp_path, monkeypatc
 
     for name in ("PILOT_DIR", "EXTRACTION_DIR", "NODES_DIR", "NAVIGATION_DIR"):
         assert getattr(config, name).is_dir()
+
+
+# --- Phase 6: dense + entity navigation, end to end ----------------------------
+
+
+def test_phase_6_writes_to_its_own_directory_under_data_and_not_to_results():
+    """D1: a Phase 6 result under data/results/ would become the Phase 3 control for a reader."""
+    assert config.REPLACEMENT_DIR == config.DATA_DIR / "replacement"
+    assert config.REPLACEMENT_DIR.is_absolute()
+    assert config.REPLACEMENT_DIR != config.RESULTS_DIR
+
+
+def test_the_phase_6_system_and_component_names_follow_the_hybrid_naming_rule():
+    assert config.ENTITY_HOP_NAME == "entity-hop"
+    assert config.ENTITY_HOP_TYPES == ("entity",)
+    assert config.PHASE_6_SYSTEMS == ("dense", "hybrid-bm25", "hybrid-entity-hop")
+    assert config.PHASE_6_SYSTEMS[2] == f"hybrid-{config.ENTITY_HOP_NAME}"
+
+
+def test_the_entity_hop_depth_is_the_depth_every_component_is_asked_for():
+    assert config.ENTITY_HOP_MAX_DEPTH == config.EVALUATION_TOP_K == 100
+    assert config.PILOT_READ_DEPTH == 10
+
+
+# D2's full digests, as literals. Each is the sha256 of a public, pipeline-written artifact; the
+# inline pragma records that the secret scanner's finding on it was audited (T20).
+PINNED_DIGEST_LITERALS = (
+    "91daa10ef0a75b6eba377d18a55ac868467b01b09fb7284c7835a84d4e4e602d",  # pragma: allowlist secret
+    "e0f0af8f468dbf3332d9311948f416b75e4e5bf0d9971a0bd332b04acff2c364",  # pragma: allowlist secret
+    "49847f3cedb635406416bbb15dfa1913f4fa10782ed07a6461ccd56d5ded246a",  # pragma: allowlist secret
+    "163777a044e1d6fcded400495a6e8f9917411e614978aa1aa43427a6cc8d5925",  # pragma: allowlist secret
+    "8e59854118ae5f4d83d88ce967098801f9f922309d7beb6b3e3deaf06fb1f12f",  # pragma: allowlist secret
+    "b498f99418389b2f7849c680cda1749ea58700a9997fbfed7ce474d3b0a0559a",  # pragma: allowlist secret
+)
+
+
+def test_the_inherited_artifacts_are_pinned_by_their_full_digests():
+    """D2: the spec quotes each by prefix; config holds the whole value, copied once."""
+    pinned = (
+        config.PINNED_SELECTION_DIGEST,
+        config.PINNED_PILOT_DIGEST,
+        config.PINNED_HOP_RUN_DIGEST,
+        config.PINNED_NAVIGATION_TRACES_DIGEST,
+        config.PINNED_EXTRACTION_DIGEST,
+        config.PINNED_NODE_INDEX_DIGEST,
+    )
+    assert pinned == PINNED_DIGEST_LITERALS
+    assert config.PINNED_EXTRACTION_PROMPT_DIGEST == "0107de3ae9b4e4a3"  # pragma: allowlist secret
+    assert config.PINNED_NORMALIZATION_VERSION == "normalization-v1"
+    assert config.PINNED_NORMALIZATION_VERSION == config.NORMALIZATION_VERSION
+    assert config.PINNED_SELECTION_FROZEN_AT == "2026-09-11T13:30:36+00:00"
+    assert config.PHASE_1_UNIT_SET_HASH == "101f564fdcca620c"  # pragma: allowlist secret
+
+
+def test_the_pinned_digests_are_the_prefixes_the_spec_quotes():
+    assert config.PINNED_SELECTION_DIGEST.startswith("91daa10e")
+    assert config.PINNED_PILOT_DIGEST.startswith("e0f0af8f")
+    assert config.PINNED_HOP_RUN_DIGEST.startswith("49847f3c")
+    assert config.PINNED_NAVIGATION_TRACES_DIGEST.startswith("163777a0")
+    assert config.PINNED_EXTRACTION_DIGEST.startswith("8e598541")
+    assert config.PINNED_NODE_INDEX_DIGEST.startswith("b498f994")
+
+
+def test_the_four_historical_result_files_are_pinned_by_name():
+    assert config.HISTORICAL_DEV_RESULT_FILES == {
+        "dense": "run-dense-dev-20260911T133154+0000.json",
+        "hybrid-bm25": "run-hybrid-bm25-dev-20260911T133156+0000.json",
+    }
+    assert config.HISTORICAL_TEST_RESULT_FILES == {
+        "dense": "run-dense-test-20260911T133159+0000.json",
+        "hybrid-bm25": "run-hybrid-bm25-test-20260911T133204+0000.json",
+    }
+    assert config.HISTORICAL_CONFIG_KEYS == (
+        "unit_set_hash",
+        "tokenizer",
+        "seed",
+        "top_k",
+        "model",
+        "revision",
+    )
+    assert config.HISTORICAL_HYBRID_CONFIG_KEYS == ("fusion_scheme", "fusion_weights")
+
+
+def test_the_expected_counts_are_the_ones_the_spec_quotes():
+    assert config.EXPECTED_N_UNITS == 19366
+    assert config.EXPECTED_ENTITY_NODES == 96416
+    assert config.EXPECTED_FAILED_EXTRACTIONS == 8
+    assert config.EXPECTED_UNITS_WITHOUT_ENTITY_NODE == 163
+    assert config.EXPECTED_PILOT_QUESTIONS == 152
+    assert config.EXPECTED_ENTITY_TRACES == 116
+
+
+def test_ensure_directories_creates_the_phase_6_directory(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "REPLACEMENT_DIR", tmp_path / "data" / "replacement")
+    for name in (
+        "DATA_DIR",
+        "CACHE_DIR",
+        "RESULTS_DIR",
+        "CONCEPTS_DIR",
+        "SELECTION_DIR",
+        "QUESTION_CACHE_DIR",
+        "EXPANSION_DIR",
+        "TRACES_DIR",
+        "PILOT_DIR",
+        "EXTRACTION_DIR",
+        "NODES_DIR",
+        "NAVIGATION_DIR",
+        "PHASE_7_DIR",
+    ):
+        monkeypatch.setattr(config, name, tmp_path / "other" / name.lower())
+
+    config.ensure_directories()
+
+    assert config.REPLACEMENT_DIR.is_dir()
+
+
+# --- Phase 7 (S1): the constants that decide what a cheap extractor is -------
+#
+# The spec settles every value before a dev figure exists (decision 10), so these
+# assertions are not a restatement of the module: they are the only thing that makes
+# "fixed before measuring" checkable afterwards. A changed pin, label set or bar has
+# to break a test rather than quietly redefine what the phase measured.
+
+
+def test_the_phase_7_directory_is_its_own_and_under_the_data_directory():
+    assert config.PHASE_7_DIR == config.DATA_DIR / "phase7"
+    assert config.PHASE_7_DIR not in (
+        config.EXTRACTION_DIR,
+        config.NODES_DIR,
+        config.REPLACEMENT_DIR,
+        config.RESULTS_DIR,
+    )
+
+
+def test_ensure_directories_creates_the_phase_7_directory(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "PHASE_7_DIR", tmp_path / "data" / "phase7")
+    for name in (
+        "DATA_DIR",
+        "CACHE_DIR",
+        "RESULTS_DIR",
+        "CONCEPTS_DIR",
+        "SELECTION_DIR",
+        "QUESTION_CACHE_DIR",
+        "EXPANSION_DIR",
+        "TRACES_DIR",
+        "PILOT_DIR",
+        "EXTRACTION_DIR",
+        "NODES_DIR",
+        "NAVIGATION_DIR",
+        "REPLACEMENT_DIR",
+    ):
+        monkeypatch.setattr(config, name, tmp_path / "other" / name.lower())
+
+    config.ensure_directories()
+
+    assert config.PHASE_7_DIR.is_dir()
+
+
+def test_the_phase_has_exactly_two_local_candidates():
+    """Three arms in all: the Claude reference, quoted rather than re-run, plus these."""
+    assert config.PHASE_7_EXTRACTORS == ("gliner", "spacy")
+    assert config.GLINER_EXTRACTOR == "gliner"
+    assert config.SPACY_EXTRACTOR == "spacy"
+
+
+def test_gliner_is_pinned_to_a_commit_and_to_the_five_declared_labels():
+    assert config.GLINER_MODEL == "urchade/gliner_medium-v2.1"
+    assert config.GLINER_REVISION == (
+        "40ec419335d09393f298636f471328b722c6da9e"  # pragma: allowlist secret
+    )
+    assert config.GLINER_TOKENIZER_MODEL == "microsoft/deberta-v3-base"
+    assert config.GLINER_TOKENIZER_REVISION == (
+        "8ccc9b6f36199bec6961081d44eb72fb3f7353f3"  # pragma: allowlist secret
+    )
+    for revision in (config.GLINER_REVISION, config.GLINER_TOKENIZER_REVISION):
+        assert len(revision) == 40
+        assert all(char in "0123456789abcdef" for char in revision)
+    assert config.GLINER_LABELS == (
+        "person",
+        "organization",
+        "location",
+        "work of art",
+        "event",
+    )
+    assert config.GLINER_THRESHOLD == 0.5
+    assert config.GLINER_FLAT_NER is True
+    assert config.GLINER_MULTI_LABEL is False
+    assert config.GLINER_BATCH_SIZE == 8
+    assert config.GLINER_MAX_LEN == 384
+    assert config.GLINER_MAX_WIDTH == 12
+
+
+def test_no_pickle_archive_is_in_either_gliner_allow_list():
+    """D14: what is never downloaded cannot be deserialized."""
+    allowed = set(config.GLINER_ALLOW_PATTERNS) | set(config.GLINER_TOKENIZER_ALLOW_PATTERNS)
+    assert "model.safetensors" in config.GLINER_ALLOW_PATTERNS
+    assert not any(
+        name in allowed for name in ("pytorch_model.bin", "tf_model.h5", "rust_model.ot")
+    )
+    assert not any(name.endswith((".bin", ".h5", ".ot", ".pt", ".pth", ".pkl")) for name in allowed)
+
+
+def test_spacy_is_pinned_to_one_pipeline_version_from_its_official_wheel():
+    assert config.SPACY_MODEL == "en_core_web_sm"
+    assert config.SPACY_MODEL_VERSION == "3.8.0"
+    assert config.SPACY_MODEL_WHEEL_URL.startswith("https://github.com/explosion/spacy-models/")
+    assert config.SPACY_MODEL_WHEEL_URL.endswith("en_core_web_sm-3.8.0-py3-none-any.whl")
+    assert config.SPACY_EXCLUDE == (
+        "tagger",
+        "parser",
+        "attribute_ruler",
+        "lemmatizer",
+        "senter",
+    )
+    assert "ner" not in config.SPACY_EXCLUDE
+    assert "tok2vec" not in config.SPACY_EXCLUDE
+    assert config.SPACY_BATCH_SIZE == 64
+    assert config.SPACY_PROCESSES == 1
+
+
+def test_the_spacy_label_rule_keeps_things_and_drops_quantities_and_times():
+    """D5: one line, declared in advance, over the whole OntoNotes ontology."""
+    assert set(config.SPACY_LABELS) & set(config.SPACY_DROPPED_LABELS) == set()
+    assert len(config.SPACY_LABELS) == 11
+    assert config.SPACY_DROPPED_LABELS == (
+        "CARDINAL",
+        "DATE",
+        "MONEY",
+        "ORDINAL",
+        "PERCENT",
+        "QUANTITY",
+        "TIME",
+    )
+    assert len(set(config.SPACY_LABELS) | set(config.SPACY_DROPPED_LABELS)) == 18
+
+
+def test_the_retention_bar_is_the_declared_share_of_the_claude_dev_gain():
+    """The bar is the arithmetic, not a number typed beside it."""
+    dense = config.PHASE_7_REFERENCE_DEV_FULL_SUPPORT["dense"]
+    claude = config.PHASE_7_REFERENCE_DEV_FULL_SUPPORT["hybrid-entity-hop"]
+    bar = dense + config.PHASE_7_RETENTION_SHARE * (claude - dense)
+
+    assert config.PHASE_7_RETENTION_SHARE == 0.75
+    assert round(bar, 4) == config.PHASE_7_RETENTION_BAR
+    # The bar lands exactly on a whole number of dev questions, which is what the rule
+    # is applied on; the float in the spec is that count rounded for reading.
+    assert bar * config.N_DEV == config.PHASE_7_RETENTION_BAR_QUESTIONS
+    assert config.PHASE_7_RETENTION_BAR_QUESTIONS == 517
+
+
+def test_the_economic_bar_is_the_one_the_spec_settles():
+    assert config.PHASE_7_SOFTWARE_COST_CEILING_USD == 0.0
+    assert config.PHASE_7_FULLWIKI_HOURS_CEILING == 48.0
+    assert config.PHASE_7_INFRASTRUCTURE_CEILING_USD == 30.0
+    assert config.PROJECTION_PARAGRAPHS == 5_000_000
+
+
+def test_the_inherited_figures_are_the_ones_the_phase_6_artifacts_record():
+    """Data-dependent: the reference a candidate is read against is never typed twice.
+
+    Skipped rather than failed when the Phase 6 runs are not on disk, exactly as the
+    other artifact-reading tests of this project are.
+    """
+    import json
+
+    directory = config.REPLACEMENT_DIR
+    if not directory.is_dir():
+        import pytest
+
+        pytest.skip("the Phase 6 replacement artifacts are not on this checkout")
+
+    for figures, files in (
+        (config.PHASE_7_REFERENCE_DEV_FULL_SUPPORT, config.PHASE_7_REFERENCE_DEV_FILES),
+        (config.PHASE_7_REFERENCE_HELD_OUT_FULL_SUPPORT, config.PHASE_7_REFERENCE_HELD_OUT_FILES),
+    ):
+        assert sorted(figures) == sorted(files) == ["dense", "hybrid-bm25", "hybrid-entity-hop"]
+        for system, filename in files.items():
+            path = directory / filename
+            if not path.exists():
+                import pytest
+
+                pytest.skip(f"{filename} is not on this checkout")
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            assert payload["system"] == system
+            measured = payload["metrics"][f"budget_{config.SELECTION_BUDGET}"]["full_support"]
+            assert measured == figures[system]

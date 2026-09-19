@@ -16,10 +16,12 @@ written; later audits add rows below, not documents.
 
 ## Open findings
 
-**Four, all from Phase 5, none blocking** (one Medium, three Low): SEC-020 to SEC-023. Every one
-needs a change under `src/`, and the author closed Phase 5 to source changes for that round, so they
-are reported and catalogued rather than fixed — the decision is recorded in the Phase 5 section
-below. No Critical and no High finding exists in any audited phase.
+**Thirteen, none blocking**: four from Phase 5 (one Medium, three Low), SEC-020 to SEC-023,
+seven Low from Phase 6, SEC-024 to SEC-030, and two Low from Phase 7, SEC-031 and SEC-032. Every
+one of the first eleven needs a change under `src/`, `.github/` or the workflow, and the author
+closed both rounds to source changes, so they are reported and catalogued rather than fixed — the
+decision is recorded in each phase's section below. The two Phase 7 rows are catalogued for the
+reasons given in that section. No Critical and no High finding exists in any audited phase.
 
 Phases 1 and 2 have nothing outstanding: every finding of their three passes is closed and held
 closed by a regression test. Phases 3 and 4 have not been audited — see "Deferred audits" below.
@@ -131,11 +133,179 @@ built from it.
 **Phase closure: no Critical and no High finding, so the phase may close** with the four open Low
 and Medium findings carried as recorded above.
 
+### Phase 6 — 2026-09-18
+
+Scope: everything the phase added under `src/` (the nine `evaluation/` modules `replacement_run.py`,
+`replacement_freeze.py`, `replacement_inputs.py`, `replacement_decision.py`, `outcomes.py`,
+`control_reproduction.py`, `continuity.py`, `tango.py`, `entity_diagnostics.py`, `readout.py`, plus
+`retrieval/entity_hop.py`, the `fusion.py` and `harness.py` changes, `decision_parameters.py`, the
+Phase 6 constants and the three CLI stages), the eleven artifact kinds written under
+`data/replacement/` and every loader that reads them back, the inherited loaders they reach
+(`nodes/index.py`, `evaluation/navigation.py`, `evaluation/pilot.py`, `nodes/extraction.py`), and
+the custom detect-secrets content filter of D20.
+
+What the scanners said: `ruff` with the whole `S` selection, clean; `mypy src` clean over 55 files;
+`detect-secrets-hook --baseline .secrets.baseline $(git ls-files)` clean; `pytest` 2,487 passed, 1
+skipped. Phase 6 adds no dependency — `pyproject.toml` and `uv.lock` are byte-identical to `main` —
+so the 2026-09-16 `pip-audit` result still describes this environment. No `pickle`, `eval`, `exec`,
+`subprocess`, `yaml.load` or network call anywhere on the Phase 6 path, and every `np.load` it
+reaches passes `allow_pickle=False`.
+
+The phase's own integrity work is unusually complete, and the findings sit in its margins. Every
+inherited input is pinned by digest in `config.py` and re-derived on load; the split guard refuses a
+test question at every dev door; the freeze is dev-only by construction and refuses a historical
+identity carrying a figure anywhere in it; the outcomes recompute their own aggregates and must
+equal the run result they name; the diagnostics re-derive each question's metrics from the recorded
+context. The committed artifacts were checked against all of it in this session: the sixteen
+digest-bearing files under `data/replacement/` match their digests, the decision's `freeze_digest`
+and three `outcome_digests` match the files on disk, the test outcomes name the freeze, and
+`m1_check` reproduces the pinned M1 (1,210 − 1,155 = 55) from the historical test files.
+
+One theme runs through the seven findings, and it is narrower than the previous phases': **what the
+loaders verify is a subset of what the writers recorded**. The decision records the digests of the
+outcomes it was computed from and never compares them; it records S, V and N and re-derives only the
+state row from them; the freeze records fourteen protocol fields and the test stage compares five;
+several file names travel from one artifact into a `Path` without the shape check that `outcomes.py`
+applies to the same kind of name.
+
+| ID | Severity | Title | Status |
+|---|---|---|---|
+| SEC-024 | Low | `load_decision` records the outcome digests and never compares them with the artifacts on disk | Open — reported, not fixed |
+| SEC-025 | Low | S, V and N are trusted on load; only the state row is re-derived, so a re-signed verdict verifies against its own contradicting statistic | Open — reported, not fixed |
+| SEC-026 | Low | File names taken from artifact content reach `Path` unshaped, where `outcomes.py` shapes the same kind of name | Open — reported, not fixed |
+| SEC-027 | Low | The deviation document is checked for existence only, and a relative path may leave `PROJECT_ROOT` through `..` | Open — reported, not fixed |
+| SEC-028 | Low | `RunResult.save` still truncates before writing: the six run results are the only Phase 6 artifacts not written atomically | Open (inherited from Phase 1) — reported, not fixed |
+| SEC-029 | Low | The test stage re-checks five of the freeze's protocol fields; model, revision, tokenizer, seed, `top_k`, budgets and recall depths are not compared | Open — reported, not fixed |
+| SEC-030 | Low | The workflow's baseline-regeneration comment drops both scanner filters, so following it buries the ids in the baseline as audited entries | Open — reported, not fixed |
+
+**Why they are open.** The author scoped this round to audit only: no fix was to be applied, no
+`cer` stage re-run and no artifact regenerated, because the test split was read once and re-reading
+it would void the experiment. Each finding is written up with its `file:line`, its reachability and
+the fix it needs, and none was applied. None is Critical or High, so none blocks the phase.
+
+**None of them affects the validity of `ENTITY_REPLACEMENT_SUPPORTED`.** Every one needs write
+access to artifacts that are committed to git, where a change is a visible diff, or is a comment;
+SEC-027's deviation and supersession paths are not exercised by the committed freeze (`supersedes`
+and `deviation` are null, the control mode is `reused`); and SEC-029's gap is caught indirectly in
+`reused` mode by the step-5 reproduction against the historical test figures, which passed.
+
+Recorded rather than fixed: **OBS-009** — every write-once artifact tests `path.exists()` and then
+writes through `os.replace`, which overwrites, so two concurrent stage runs could both pass the
+check and the second silently replace the first, the freeze included; a local single-operator
+pipeline whose stages take minutes to hours. **OBS-010** — the D20 filter's path condition is
+`data/replacement/[^/]+[.]json`, directory-wide rather than artifact-specific, so a future `.json`
+dropped flat into that directory inherits the skip although the allowlist was reconciled against the
+Phase 6 writers only. **OBS-011** — the residue any allowlist of this shape carries: a secret that
+*is* a lowercase-hex string of exactly 16, 24, 40 or 64 characters, alone on its line, under an
+allowlisted key, inside `data/replacement/*.json`, is skipped. Accepted as the price of not
+excluding the directory outright, and written down so the residue is on the record rather than
+implied.
+
+**Phase closure: no Critical and no High finding, so the phase may close** with the seven open Low
+findings carried as recorded above.
+
+### Phase 7 — 2026-09-18 (targeted review, three surfaces only)
+
+Scope, exactly as `7.spec.md` §Security and plan step S6 set it, and nothing wider: **the new
+dependencies**, **model download and identity**, and **deserialization / model loading**. This is
+not a Phase 6-scale audit of the repository, and no other surface was opened. The phase adds no
+network API, no subprocess, no credential and no untrusted user input: the extractors read the
+frozen pool and write a local artifact.
+
+**Surface 1 — the new dependencies.** The `phase7` group is `gliner==0.2.29`, `spacy==3.8.16`, the
+pinned `en_core_web_sm` 3.8.0 release wheel and `protobuf>=4.25`. `uv run --group security
+pip-audit` over the environment with the group installed reports **no known vulnerabilities**; the
+only skips are the two already on record, `concept-embeddings-rag` itself and `torch 2.13.0+cpu`
+(SEC-011, the local PyTorch index). `uv.lock` pins every artifact by hash, including the spaCy model
+wheel (`sha256:1932429d…`), so the plan's D5 claim that the wheel's digest is recorded is satisfied
+by the lock rather than by a separate step. CI already audits the group: the `pip-audit` job syncs
+`--group security --group labeling --group phase7`, so a new advisory against either extractor fails
+the gate rather than passing unnoticed. `gliner` pulls a wide transitive tree through
+`transformers` 5.x (`typer`, `rich`, `click`, `shellingham`, `pygments`) for a pass that never opens
+a socket after the model download — recorded as OBS-012, not as a defect.
+
+**Surface 2 — model download and identity.** `download_gliner` calls
+`huggingface_hub.snapshot_download` twice with an explicit pinned commit (`40ec4193…` for the
+checkpoint, `8ccc9b6f…` for the DeBERTa tokenizer) and an `allow_patterns` list, never `main` and
+never a bare `snapshot_download(repo_id)`. The allow-lists admit five files in total —
+`gliner_config.json`, `model.safetensors`, `config.json`, `spm.model`, `tokenizer_config.json` —
+and therefore exclude `pytorch_model.bin`, `tf_model.h5` and `rust_model.ot`, all three of which
+those repositories publish. `_refuse_executable_weights` then walks the download directory and
+raises if anything with a `.bin/.pt/.pth/.pkl/.ckpt/.h5/.ot` suffix arrived, so the allow-list is
+verified rather than trusted. Checked on the real download (2026-09-18): the directory holds exactly
+`config.json`, `gliner_config.json`, `model.safetensors`, `spm.model`, `tokenizer_config.json` and
+`huggingface_hub`'s own `.cache`. No credential is used or required — the Hub call is
+unauthenticated against public repositories, and no `ANTHROPIC_API_KEY` reaches this path.
+
+**Surface 3 — deserialization and model loading.** GLiNER resolves `model_dir / "model.safetensors"`
+first and falls back to `pytorch_model.bin` only if that file is absent
+(`gliner/model.py:875-877`); the safetensors branch of `_load_state_dict` opens it with
+`safetensors.safe_open` (`model.py:1295-1303`), and the pickle branch it never reaches is itself
+`torch.load(..., weights_only=True)` (`model.py:1315`). Combined with the allow-list, **no pickle
+archive exists on disk for this phase to deserialize**. The tokenizer is a SentencePiece
+`spm.model`, parsed by C++ protobuf, not by `pickle`. spaCy is the opposite case and is recorded as
+such: its pipeline arrives as an **installed Python package**, so installing and loading it executes
+the publisher's code by construction — pinned version, official release wheel, hash in `uv.lock`,
+and no way to reduce it further without dropping the candidate. Elsewhere the phase reads only
+digest-verified JSON and `np.load` over `.npz` (no `allow_pickle`).
+
+| ID | Severity | Title | Status |
+|---|---|---|---|
+| SEC-031 | Low | The extraction manifest names model, revision and library versions but records no digest of the weight file actually loaded, so the artifact cannot prove which bytes produced it | Open, deferred (artifact preservation; remediation is prospective, see note below) |
+| SEC-032 | Low | `spacy.load` of `en_core_web_sm` executes publisher code: the pipeline is an installed Python package, not a data file | Open, accepted (pinned version, official wheel, hash in `uv.lock`) |
+
+**OBS-012** — `gliner` drags `typer`, `rich`, `click`, `shellingham` and `pygments` into the project
+environment through `transformers` 5.x, for an extraction pass that opens no socket after the model
+download. The group is optional and CI audits it; recorded as footprint, not as a defect, and it is
+one of the inputs the selection rule's "smaller dependency and operational footprint" tie-break
+would read if it were ever reached.
+
+**No Critical and no High finding on the three surfaces reviewed.**
+
+**SEC-031 — deferred on 2026-09-19, to preserve a measured artifact.** The extraction manifest
+records the pinned model revision but not the digest of the exact `model.safetensors` bytes loaded.
+The remedy is cheap — hash the weight file into the manifest beside the revision — but the Phase 7
+artifacts are measured, verified and frozen, and applying it now would rewrite an artifact of a run
+that has already happened in order to add provenance that was not recorded at execution time. That
+is not worth doing to historical evidence. **Remediation, prospective:** record and verify the
+model-weight SHA-256 *before* the next corpus-scale extraction with this extractor — Phase 9 in
+practice, since Phase 8 reuses the existing Phase 7 extraction and does not reopen it. What the
+deferral concedes, stated plainly: Phase 7 remains reproducible to the pinned repository revision,
+but does not cryptographically bind its manifest to the exact weight-file bytes.
+
+> The earlier reason given here — that no Phase 7 extraction artifact existed yet — was true when
+> the review was written on 2026-09-18 and stopped being true when the passes ran on 2026-09-19.
+
 ## Deferred audits
 
 An audit that was not run is a decision on record here, never a gap nobody noticed.
 
+### Phase 7 — the targeted review satisfies the audit, nothing is outstanding
+
+The Phase 7 spec settled, **before implementation**, that this phase's audit would be a targeted
+review of three declared surfaces — new dependencies, model download and identity, deserialization
+and model loading — rather than a full Phase 6-scale pass. S6 carried out exactly that review on
+2026-09-18 and its rows are catalogued above. The `/7-verificar` pass of 2026-09-19 then re-checked
+the phase against its spec and found no material gap: 28 of 28 acceptance criteria satisfied, the
+digest chain intact, dev/test separation held, and `pytest` / `ruff` / `mypy` clean.
+
+**The S6 targeted review therefore satisfies the audit planned for Phase 7, and no separate
+`/8-auditar` pass is outstanding for it.** Recorded explicitly so that the absence of a Phase 7
+audit entry below reads as the decision it is, not as an omission nobody noticed.
+
 ### Phase 3 — deferred on 2026-09-14, until the Phase 4 results are in
+
+**Update, 2026-09-18: still open, and the Phase 6 audit deliberately did not widen to it.** That
+round was scoped to Phase 6 and none of its seven findings lands in Phase 3 or Phase 4 code. Two
+things are worth separating. Phase 4's diffusion path is not on the Phase 6 path at all: Phase 6
+inherits the pilot, the node index, the hop run and the navigation traces, and touches no expansion
+artifact, so nothing was learned about it either way. Phase 3's `selection.py` **is** on the Phase 6
+path — `load_selection`, `selection_digest`, `fit_fusion_weight`, `check_dev_only`,
+`check_freeze_precedes` and the shared `serialize_payload` / `digest_of_payload` are all exercised —
+and the parts Phase 6 reaches were read in this round without raising a finding. That is incidental
+coverage of one module, not the Phase 3 audit: the sweep, the artifact writer and the Phase 3 CLI
+stage were not reviewed. The choice between a Phase 3 + 4 pass and a recorded exemption is still the
+author's and still unmade.
 
 **Update, 2026-09-15: the condition has been met and the decision is still open.** Phase 4 has its
 numbers, it is negative, and its code (diffusion, the expansion selection and freeze, the traces) is
@@ -278,6 +448,136 @@ uv run detect-secrets scan --exclude-files '^data[\\/](pilot|navigation)[\\/][^\
   $(git ls-files --cached --others --exclude-standard) > .secrets.baseline
 ```
 
+### Content filter for deterministic hex ids (Phase 6, decision D20)
+
+Phase 6 versions its artifacts flat under `data/replacement/`: the dev checks, the freeze, run
+results, per-question outcomes, diagnostics, traces, readouts, the test reproduction record and the
+decision. Like Phase 5's, they are full of machine-written lowercase hex ids.
+
+**The measurement.** The scanner, run with its default settings and no exclusion over Phase 5's id
+artifacts (`pilot.json`, `hop-run.json`, `traces.json`, `gate-decision.json`), reports **1,906**
+findings: 1,385 in `pilot.json`, 294 in `hop-run.json`, 225 in `traces.json`, 2 in
+`gate-decision.json`. Re-measured on 2026-09-17 with detect-secrets 1.5.0: every one is
+`HexHighEntropyString`, and every one is a lowercase hex string of 16, 24, 40 or 64 characters standing
+alone as a JSON value (unit ids and short keys; HotpotQA question ids; the resolved model commit;
+sha256 digests). `unit_id` lines raise nothing: the scanner's own `is_likely_id_string` skips them.
+Phase 6's files carry the same shapes over 600 dev and 1,400 test questions.
+
+**Why not a path exclusion.** Every Phase 6 file mixes those ids with content the scanner must keep
+reading: entity forms that came out of an LLM extraction (traces), verbatim texts and file names
+(freeze, decision), configuration (run results). A path exclusion would stop scanning all of it.
+Phase 5's exclusion above stays byte-identical, is not extended, and covers no Phase 6 file.
+
+**The filter.** `.github/detect_secrets_filters.py::is_deterministic_replacement_id`, standard
+library only, registered in `.secrets.baseline` `filters_used` as
+`file://.github/detect_secrets_filters.py::is_deterministic_replacement_id` (the one entry added to
+the baseline; its results were not regenerated). The hook configures its filters from the baseline,
+so CI applies it. It skips a finding **if and only if all four hold**:
+
+1. **Path**: the file name, with `\` normalized to `/`, fully matches
+   `data/replacement/[^/]+[.]json` - directly inside the directory, `.json` only.
+2. **Detector**: the finding comes from `HexHighEntropyString`.
+3. **Line shape**: the line, surrounding whitespace stripped (JSON indentation included), is exactly
+   `"<key>": "<hex>"` with an optional trailing comma, `<key>` on the allowlist with `<hex>` of an
+   allowed length; or a bare list element `"<hex>"`, optional comma, of length 16 or 24. `<hex>` is
+   `[0-9a-f]` only.
+4. **Value**: the flagged secret equals that `<hex>`.
+
+**The allowlist** is exactly the set of (key, length) pairs under which the Phase 6 writers put a
+lowercase hex value the detector flags, measured on a run of the three stages (completed on
+2026-09-17, before T21):
+- **24:** `qid`.
+- **16:** `p1`, `unit_set_hash`, `prompt_digest`, `corpus_cache_key`, `question_cache_key`,
+  `dev_question_cache_key`, and the question-set hashes under `dev` / `test`.
+- **40:** `revision`, `resolved_revision`.
+- **64:** `digest`, `freeze_digest`, `supersedes`, `node_index_digest`, `extraction_digest`,
+  `pilot_digest`, `hop_run_digest`, `traces_digest`, `run_digest`, `outcomes_digest`,
+  `first_digest`, `second_digest`, `sha256`, `manifest_sha256`, `token_counts_sha256`, and the
+  digests keyed by system name, `dense`, `hybrid-bm25`, `hybrid-entity-hop`.
+- **16 or 40:** `expected` / `observed` of the reproduction checks whose figure is itself an id
+  (`unit_set_hash`, `revision`).
+
+`unit_id` is deliberately absent: detect-secrets' own `is_likely_id_string` heuristic already skips
+it. Keys may contain `-`, for the system names.
+
+**What stays scanned inside `data/replacement/`**: every finding of every other detector; hex values
+of any other length or with uppercase letters; a hex value under a key off the list; any line
+holding more than that one key and value, so an appended string, a text, an entity form or a file
+name is always read; bare 40- or 64-character elements; nested files and non-JSON files. Outside
+`data/replacement/` nothing changes.
+
+**How it fails.** detect-secrets 1.5.0 loads a file filter when it scans; if the file or the
+function is missing it logs a warning and applies no filter (`settings.get_filters`). A broken
+filter brings the findings back and fails the gate; it cannot silence anything. The opposite risk,
+the module edited to skip too much, is what `tests/test_security_gate.py` guards (function-level
+cases for every allowed and refused shape, an end-to-end run of the real scanner configured from the
+real baseline in a repository-shaped temporary tree, and structural checks), and a change to the
+module is reviewed the way a baseline change is.
+
+**Reconciled with the writers before T21.** The first allowlist held the contract's key names only.
+A toy run of the three stages then showed hex values under keys off the list, which the gate would
+have reported on the first real artifacts. The review that D20 calls for completed the list from the
+writers themselves.
+
+The completion ran through the whole deviation branch: first freeze, a reused test run stopped by a
+failed reproduction, superseding freeze, re-measured test run. On that run it takes every hex-bearing
+key, confirms each one in the writers' source, and adds none that no writer emits.
+
+Two tests hold it there:
+- `tests/test_cli_replacement.py` repeats that run on the toy pipeline and requires the emitted
+  (key, length) pairs to equal the allowlist, no more and no less (`unit_id` excepted, see above);
+- `tests/test_security_gate.py` checks every key at its lengths and at every other length, the refused
+  shapes for the new keys, and that no exclusion of the baseline was widened.
+
+**Reconciled against the real artifacts, one stage at a time.** Each allowlisted key declares, from
+the writers, which artifacts carry it: `checks-dev.json` and the dev runs and outcomes at T21, the
+freeze and the dev readings at T22, the test readings and the decision at T23. A data-dependent test
+requires the key to occur as soon as one of its artifacts exists, and skips while none does, so a key
+no existing artifact emits fails rather than passing unnoticed; a second test requires every hex shape
+the real artifacts hold to be covered by the allowlist. Adding a key without declaring where it comes
+from fails a third test. `supersedes` carries a digest only in a superseding freeze, so it is required
+only if the deviation branch of D14 has produced one.
+
+Verified on the T21 artifacts (2026-09-17): every hex shape written is covered, and the keys whose
+artifacts T22 and T23 still have to write are recorded as skipped.
+
+**Inline audits outside `data/replacement/`.** The Phase 6 source and tests hold hex literals the
+gate flags and the filter, by design, does not cover: the six pinned digests of D2 in `config.py`
+(sha256 digests of public, pipeline-written artifacts) and their copies in `tests/test_config.py`,
+the Phase 1 pool hash and the extraction prompt digest in that test, and the toy model revision in
+`tests/evaluation/replacement_fixtures.py`. Each carries an inline `# pragma: allowlist secret`
+rather than a new baseline entry, so the audit sits on the line it covers and the baseline's results
+stay as they were. Verified on 2026-09-17: `detect-secrets-hook --baseline .secrets.baseline
+$(git ls-files --cached --others --exclude-standard)` passes over the tracked tree and the new files.
+
+**When regenerating**, pass both filters again, or they are silently dropped with the old baseline:
+
+```bash
+uv run detect-secrets scan --exclude-files '^data[\\/](pilot|navigation)[\\/][^\\/]+[.]json$' \
+  --filter 'file://.github/detect_secrets_filters.py::is_deterministic_replacement_id' \
+  $(git ls-files --cached --others --exclude-standard) > .secrets.baseline
+```
+
+The comment beside the CI job in `.github/workflows/security.yml` still prints the command **without
+either flag**, which is SEC-030 above: the catalogue has it right and the file a maintainer is most
+likely to copy from does not.
+
+**Re-verified adversarially by the Phase 6 audit (2026-09-18).** The four conditions were attacked
+one at a time against the real module, and then end to end with the real scanner configured from the
+real baseline over a repository-shaped temporary tree. The path condition refuses `./data/...`,
+`a/data/...`, a nested directory, `.JSON`, `x.json.bak`, a trailing space, a different case, an
+absolute path and `data/replacement/../../.env`, and accepts a Windows backslash spelling — which is
+what makes the check run on this machine the check CI runs. The detector condition refuses every
+plugin but `HexHighEntropyString`. The line shape refuses a second key on the line, a prefix, a
+trailing comment, a doubled comma, a missing or doubled space, a space before the colon, uppercase
+hex, a key off the list, an allowlisted key at a length off its list, and a bare 40- or 64-character
+element. A flagged secret other than the line's own value is refused. End to end, the hook still
+reported a 32-hex under `digest`, a 64-hex under a key off the list, an AWS key id, a basic-auth
+URL, a private-key header, a keyword secret, a line holding a second key, and the same allowlisted
+line in a file outside the directory — and skipped exactly one case, the allowlisted shape. The two
+residues are OBS-010 and OBS-011 in the Phase 6 section above. The Phase 5 path exclusion is
+byte-identical and covers no Phase 6 file.
+
 ## Conventions
 
 - This file is the whole paperwork of an audit: one row per finding, with id, severity, title and
@@ -285,6 +585,6 @@ uv run detect-secrets scan --exclude-files '^data[\\/](pilot|navigation)[\\/][^\
 - Every Critical or High finding is resolved with a `fix-N` in `docs/plans/fixes/` before the
   phase closes, or the decision to defer it is recorded in the master plan with its reason.
 - Finding ids are unique per project: continue the `SEC-NNN` sequence rather than restarting it
-  per audit. Next free id: **SEC-024** (`OBS-NNN` for observations: next free is **OBS-009**).
+  per audit. Next free id: **SEC-033** (`OBS-NNN` for observations: next free is **OBS-013**).
 - A phase exempted from the audit (the command's escape hatch) is recorded here too, with its
   reason: an exempt phase is a decision on record, not a phase nobody looked at.
