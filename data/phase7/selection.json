@@ -1,0 +1,317 @@
+{
+  "candidates": [
+    {
+      "bm25_dev_line": {
+        "below_line": false,
+        "full_support": 0.8633333333333333,
+        "note": "a reported qualification, never a rejection: a free lexical complement did at least as well on dev"
+      },
+      "configuration_digest": "2f7864661b8ce7ff",
+      "dev_cost": {
+        "mean_latency_ms": 7.363917001736506,
+        "mean_units_included": 32.245,
+        "n_questions": 600
+      },
+      "dev_metrics": {
+        "budget_1024": {
+          "full_support": 0.7983333333333333,
+          "gold_recall": 0.8941666666666667,
+          "precision": 0.20508578458578458
+        },
+        "budget_2048": {
+          "full_support": 0.8633333333333333,
+          "gold_recall": 0.93,
+          "precision": 0.1132944730334352
+        },
+        "budget_4096": {
+          "full_support": 0.91,
+          "gold_recall": 0.9541666666666667,
+          "precision": 0.05998120015927807
+        },
+        "budget_512": {
+          "full_support": 0.65,
+          "gold_recall": 0.8108333333333333,
+          "precision": 0.3346309523809524
+        },
+        "recall_at_10": 0.9016666666666666,
+        "recall_at_2": 0.6766666666666666,
+        "recall_at_5": 0.8291666666666667
+      },
+      "economics": {
+        "api_call_basis": "a declared local open-weight extractor; the pass makes no network call after the pinned model download, so the clause holds by construction, not by sampling",
+        "hours_ceiling": 48.0,
+        "infrastructure_ceiling_usd": 30.0,
+        "infrastructure_usd": 0.03,
+        "passed": true,
+        "projected_fullwiki_hours": 8.563966332211761,
+        "projected_fullwiki_usd": 6.3373350858367035,
+        "software_cost_usd": 0.0,
+        "third_party_api_calls_per_paragraph": 0
+      },
+      "extraction_cost": {
+        "failure_rate": 0.00015491066818134876,
+        "failures": {
+          "bounds": 3
+        },
+        "hardware": {
+          "cpu_count": 256,
+          "device": "cuda",
+          "gpu": "NVIDIA GeForce RTX 4090",
+          "machine": "x86_64",
+          "platform": "Linux-6.8.0-124-generic-x86_64-with-glibc2.39",
+          "processor": "x86_64",
+          "python": "3.12.14",
+          "ram_bytes": 1081934118912,
+          "release": "6.8.0-124-generic",
+          "system": "Linux",
+          "torch_threads": 128,
+          "torch_version": "2.13.0+cu126"
+        },
+        "paragraphs_per_second": 162.17822852302007,
+        "projection_5m": {
+          "hourly_rate_usd": 0.74,
+          "hours": 8.563966332211761,
+          "method": "linear from measured throughput over 19366 paragraphs",
+          "paragraphs": 5000000,
+          "paragraphs_per_second": 162.17822852302007,
+          "usd": 6.3373350858367035
+        },
+        "seconds": 119.41183583252132,
+        "usd": 0.03
+      },
+      "extraction_digest": "840b4f78325d5c3393588e82312b29e168bc265e42127896c588e75a422a0aba",
+      "extractor_id": "gliner",
+      "fusion": {
+        "scheme": "weighted",
+        "weights": {
+          "dense": 0.7,
+          "entity-hop": 0.30000000000000004
+        }
+      },
+      "hop": {
+        "introduced_context_budget": 2048,
+        "introduced_context_definition": "fused context units outside Dense top_k",
+        "introduced_context_units": 917,
+        "introduced_context_units_mean": 1.5283333333333333,
+        "p1s_without_entity": 5,
+        "positive_candidates_mean": 160.85666666666665,
+        "positive_candidates_median": 40.0,
+        "zero_candidate_share": 0.07833333333333334
+      },
+      "index": {
+        "bytes": 8910883,
+        "digest": "0aec5c32440ff600c1abbc7d866ad143ddf5c5263bf8252f1dbacdffc1496be5",
+        "distinct_nodes": 81617,
+        "entity_incidences": 134235,
+        "nodes_per_paragraph": {
+          "max": 47,
+          "mean": 6.93147784777445,
+          "median": 6.0
+        },
+        "paragraphs_per_node": {
+          "max": 1186,
+          "mean": 1.6446941200975287,
+          "median": 1.0
+        },
+        "paragraphs_without_node": 214,
+        "singleton_share": 0.8210054277907789
+      },
+      "labels": [
+        "person",
+        "organization",
+        "location",
+        "work of art",
+        "event"
+      ],
+      "model": "urchade/gliner_medium-v2.1",
+      "node_index_digest": "0aec5c32440ff600c1abbc7d866ad143ddf5c5263bf8252f1dbacdffc1496be5",
+      "passed_both_bars": true,
+      "retention": {
+        "bar_questions": 517,
+        "bar_share": 0.8616666666666666,
+        "full_support_at_headline": 0.8633333333333333,
+        "headline_budget": 2048,
+        "n_questions": 600,
+        "passed": true,
+        "retention_share": 0.75,
+        "supported_questions": 518
+      },
+      "revision": "40ec419335d09393f298636f471328b722c6da9e"
+    },
+    {
+      "bm25_dev_line": {
+        "below_line": false,
+        "full_support": 0.8633333333333333,
+        "note": "a reported qualification, never a rejection: a free lexical complement did at least as well on dev"
+      },
+      "configuration_digest": "1e450b748cfc2d83",
+      "dev_cost": {
+        "mean_latency_ms": 9.507839833580269,
+        "mean_units_included": 31.951666666666668,
+        "n_questions": 600
+      },
+      "dev_metrics": {
+        "budget_1024": {
+          "full_support": 0.7866666666666666,
+          "gold_recall": 0.8891666666666667,
+          "precision": 0.20373728123728124
+        },
+        "budget_2048": {
+          "full_support": 0.875,
+          "gold_recall": 0.935,
+          "precision": 0.11411748839408349
+        },
+        "budget_4096": {
+          "full_support": 0.9216666666666666,
+          "gold_recall": 0.96,
+          "precision": 0.060877362731049434
+        },
+        "budget_512": {
+          "full_support": 0.67,
+          "gold_recall": 0.8216666666666667,
+          "precision": 0.3366494708994709
+        },
+        "recall_at_10": 0.9016666666666666,
+        "recall_at_2": 0.6825,
+        "recall_at_5": 0.8358333333333333
+      },
+      "economics": {
+        "api_call_basis": "a declared local open-weight extractor; the pass makes no network call after the pinned model download, so the clause holds by construction, not by sampling",
+        "hours_ceiling": 48.0,
+        "infrastructure_ceiling_usd": 30.0,
+        "infrastructure_usd": 0.05,
+        "passed": true,
+        "projected_fullwiki_hours": 14.97204105127434,
+        "projected_fullwiki_usd": 11.079310377943012,
+        "software_cost_usd": 0.0,
+        "third_party_api_calls_per_paragraph": 0
+      },
+      "extraction_cost": {
+        "failure_rate": 0.0007229164515129609,
+        "failures": {
+          "bounds": 14
+        },
+        "hardware": {
+          "cpu_count": 256,
+          "device": "cpu",
+          "gpu": null,
+          "machine": "x86_64",
+          "platform": "Linux-6.8.0-124-generic-x86_64-with-glibc2.39",
+          "processor": "x86_64",
+          "python": "3.12.14",
+          "ram_bytes": 1081934118912,
+          "release": "6.8.0-124-generic",
+          "system": "Linux",
+          "torch_threads": 128,
+          "torch_version": "2.13.0+cu126"
+        },
+        "paragraphs_per_second": 92.7655009849625,
+        "projection_5m": {
+          "hourly_rate_usd": 0.74,
+          "hours": 14.97204105127434,
+          "method": "linear from measured throughput over 19366 paragraphs",
+          "paragraphs": 5000000,
+          "paragraphs_per_second": 92.7655009849625,
+          "usd": 11.079310377943012
+        },
+        "seconds": 208.7629538392648,
+        "usd": 0.05
+      },
+      "extraction_digest": "ebbcf303d8bb352a6a5763c57ee2f99e60853c132717419d55c9a61abe5fa46b",
+      "extractor_id": "spacy",
+      "fusion": {
+        "scheme": "weighted",
+        "weights": {
+          "dense": 0.8,
+          "entity-hop": 0.19999999999999996
+        }
+      },
+      "hop": {
+        "introduced_context_budget": 2048,
+        "introduced_context_definition": "fused context units outside Dense top_k",
+        "introduced_context_units": 552,
+        "introduced_context_units_mean": 0.92,
+        "p1s_without_entity": 3,
+        "positive_candidates_mean": 1526.0733333333333,
+        "positive_candidates_median": 493.0,
+        "zero_candidate_share": 0.018333333333333333
+      },
+      "index": {
+        "bytes": 10511878,
+        "digest": "57a11e265ddd8ddc432c0551efac0c503b461298d5963966b29e487e9559ecdb",
+        "distinct_nodes": 97189,
+        "entity_incidences": 183072,
+        "nodes_per_paragraph": {
+          "max": 49,
+          "mean": 9.453268615098626,
+          "median": 8.0
+        },
+        "paragraphs_per_node": {
+          "max": 4085,
+          "mean": 1.8836699626500941,
+          "median": 1.0
+        },
+        "paragraphs_without_node": 167,
+        "singleton_share": 0.8141765014559261
+      },
+      "labels": [
+        "EVENT",
+        "FAC",
+        "GPE",
+        "LANGUAGE",
+        "LAW",
+        "LOC",
+        "NORP",
+        "ORG",
+        "PERSON",
+        "PRODUCT",
+        "WORK_OF_ART"
+      ],
+      "model": "en_core_web_sm",
+      "node_index_digest": "57a11e265ddd8ddc432c0551efac0c503b461298d5963966b29e487e9559ecdb",
+      "passed_both_bars": true,
+      "retention": {
+        "bar_questions": 517,
+        "bar_share": 0.8616666666666666,
+        "full_support_at_headline": 0.875,
+        "headline_budget": 2048,
+        "n_questions": 600,
+        "passed": true,
+        "retention_share": 0.75,
+        "supported_questions": 525
+      },
+      "revision": "3.8.0"
+    }
+  ],
+  "candidates_without_dev_measurement": [],
+  "digest": "002d3bc484581f472b42f0991a95cddcb372b3f1c2758e73569746a093665864",
+  "phase": 7,
+  "ranking": [
+    "gliner",
+    "spacy"
+  ],
+  "reason": "gliner cleared the retention bar and the economic bar, and ranked first on projected FullWiki cost and time among the candidates that did",
+  "reference_dev_files": {
+    "dense": "run-dense-dev-20260917T174901+0000.json",
+    "hybrid-bm25": "run-hybrid-bm25-dev-20260917T174929+0000.json",
+    "hybrid-entity-hop": "run-hybrid-entity-hop-dev-20260917T212300+0000.json"
+  },
+  "reference_dev_full_support": {
+    "dense": 0.8116666666666666,
+    "hybrid-bm25": 0.8633333333333333,
+    "hybrid-entity-hop": 0.8783333333333333
+  },
+  "rule": {
+    "bm25_dev_line": 0.8633333333333333,
+    "fullwiki_hours_ceiling": 48.0,
+    "headline_budget": 2048,
+    "headline_metric": "full_support",
+    "infrastructure_ceiling_usd": 30.0,
+    "ranking": "lowest projected FullWiki usd, then hours, then higher dev full support",
+    "retention_bar": 0.8617,
+    "retention_bar_questions": 517,
+    "retention_share": 0.75,
+    "software_cost_ceiling_usd": 0.0
+  },
+  "selected": "gliner"
+}

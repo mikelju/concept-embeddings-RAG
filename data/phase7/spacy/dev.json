@@ -1,0 +1,322 @@
+{
+  "config": {
+    "code_version": "0.1.0",
+    "components": [
+      "dense",
+      "entity-hop"
+    ],
+    "configuration_digest": "1e450b748cfc2d83",
+    "corpus_cache_key": "bacd74e7f468f0d4",
+    "entity_types": [
+      "entity"
+    ],
+    "extraction_digest": "ebbcf303d8bb352a6a5763c57ee2f99e60853c132717419d55c9a61abe5fa46b",
+    "extractor_configuration": {
+      "extractor_id": "spacy",
+      "labels": [
+        "EVENT",
+        "FAC",
+        "GPE",
+        "LANGUAGE",
+        "LAW",
+        "LOC",
+        "NORP",
+        "ORG",
+        "PERSON",
+        "PRODUCT",
+        "WORK_OF_ART"
+      ],
+      "library_versions": {
+        "en-core-web-sm": "3.8.0",
+        "spacy": "3.8.16",
+        "thinc": "8.3.13"
+      },
+      "model": "en_core_web_sm",
+      "parameters": {
+        "batch_size": 64,
+        "dropped_labels": [
+          "CARDINAL",
+          "DATE",
+          "MONEY",
+          "ORDINAL",
+          "PERCENT",
+          "QUANTITY",
+          "TIME"
+        ],
+        "exclude": [
+          "tagger",
+          "parser",
+          "attribute_ruler",
+          "lemmatizer",
+          "senter"
+        ],
+        "n_process": 1,
+        "pipeline_version": "3.8.0",
+        "wheel": "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl"
+      },
+      "revision": "3.8.0",
+      "window": {
+        "max_tokens": null,
+        "rule": "the whole paragraph in one pass; the model has no reading window"
+      }
+    },
+    "extractor_id": "spacy",
+    "fitted_on": "dev",
+    "model": "BAAI/bge-small-en-v1.5",
+    "n_units": 19366,
+    "name": "hybrid-entity-hop",
+    "node_index_digest": "57a11e265ddd8ddc432c0551efac0c503b461298d5963966b29e487e9559ecdb",
+    "normalization": "min_max",
+    "normalization_version": "normalization-v1",
+    "phase": 7,
+    "question_cache_key": "35329d9e75da1d4f",
+    "read_depth": 10,
+    "revision": "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a",
+    "scheme": "weighted",
+    "seed": 42,
+    "tokenizer": "BAAI/bge-small-en-v1.5",
+    "top_k": 100,
+    "unit_set_hash": "101f564fdcca620c",
+    "weights": {
+      "dense": 0.8,
+      "entity-hop": 0.19999999999999996
+    }
+  },
+  "cost": {
+    "mean_latency_ms": 9.507839833580269,
+    "mean_units_included": 31.951666666666668,
+    "n_questions": 600
+  },
+  "digest": "51c63697d0b36f01ba0033d0daa576a7670647cf7f950e4fe740368506dd3c87",
+  "extraction": {
+    "configuration": {
+      "extractor_id": "spacy",
+      "labels": [
+        "EVENT",
+        "FAC",
+        "GPE",
+        "LANGUAGE",
+        "LAW",
+        "LOC",
+        "NORP",
+        "ORG",
+        "PERSON",
+        "PRODUCT",
+        "WORK_OF_ART"
+      ],
+      "library_versions": {
+        "en-core-web-sm": "3.8.0",
+        "spacy": "3.8.16",
+        "thinc": "8.3.13"
+      },
+      "model": "en_core_web_sm",
+      "parameters": {
+        "batch_size": 64,
+        "dropped_labels": [
+          "CARDINAL",
+          "DATE",
+          "MONEY",
+          "ORDINAL",
+          "PERCENT",
+          "QUANTITY",
+          "TIME"
+        ],
+        "exclude": [
+          "tagger",
+          "parser",
+          "attribute_ruler",
+          "lemmatizer",
+          "senter"
+        ],
+        "n_process": 1,
+        "pipeline_version": "3.8.0",
+        "wheel": "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl"
+      },
+      "revision": "3.8.0",
+      "window": {
+        "max_tokens": null,
+        "rule": "the whole paragraph in one pass; the model has no reading window"
+      }
+    },
+    "configuration_digest": "1e450b748cfc2d83",
+    "determinism_note": "Both candidates are deterministic at inference and the seed is set anyway, but float non-associativity across batch sizes and devices can move a span that sits exactly on the threshold. As in Phase 5, this artifact is the record of what was measured; everything downstream of it is deterministic.",
+    "digest": "ebbcf303d8bb352a6a5763c57ee2f99e60853c132717419d55c9a61abe5fa46b",
+    "entities": 185576,
+    "extractor_id": "spacy",
+    "failure_rate": 0.0007229164515129609,
+    "failures": {
+      "bounds": 14
+    },
+    "hardware": {
+      "cpu_count": 256,
+      "device": "cpu",
+      "gpu": null,
+      "machine": "x86_64",
+      "platform": "Linux-6.8.0-124-generic-x86_64-with-glibc2.39",
+      "processor": "x86_64",
+      "python": "3.12.14",
+      "ram_bytes": 1081934118912,
+      "release": "6.8.0-124-generic",
+      "system": "Linux",
+      "torch_threads": 128,
+      "torch_version": "2.13.0+cu126"
+    },
+    "labels": [
+      "EVENT",
+      "FAC",
+      "GPE",
+      "LANGUAGE",
+      "LAW",
+      "LOC",
+      "NORP",
+      "ORG",
+      "PERSON",
+      "PRODUCT",
+      "WORK_OF_ART"
+    ],
+    "library_versions": {
+      "en-core-web-sm": "3.8.0",
+      "spacy": "3.8.16",
+      "thinc": "8.3.13"
+    },
+    "model": "en_core_web_sm",
+    "model_load_seconds": 0.3687416510656476,
+    "n_units": 19366,
+    "normalization_note": "forms are verbatim surfaces; normalization-v1 runs later, in build_node_index",
+    "paragraphs_per_second": 92.7655009849625,
+    "parameters": {
+      "batch_size": 64,
+      "dropped_labels": [
+        "CARDINAL",
+        "DATE",
+        "MONEY",
+        "ORDINAL",
+        "PERCENT",
+        "QUANTITY",
+        "TIME"
+      ],
+      "exclude": [
+        "tagger",
+        "parser",
+        "attribute_ruler",
+        "lemmatizer",
+        "senter"
+      ],
+      "n_process": 1,
+      "pipeline_version": "3.8.0",
+      "wheel": "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl"
+    },
+    "projection_5m": {
+      "hourly_rate_usd": 0.74,
+      "hours": 14.97204105127434,
+      "method": "linear from measured throughput over 19366 paragraphs",
+      "paragraphs": 5000000,
+      "paragraphs_per_second": 92.7655009849625,
+      "usd": 11.079310377943012
+    },
+    "records": "records.jsonl.gz",
+    "revision": "3.8.0",
+    "seconds": 208.7629538392648,
+    "units_without_entity": 167,
+    "usd": 0.05
+  },
+  "extractor_id": "spacy",
+  "fit": {
+    "budget": 2048,
+    "components": [
+      "dense",
+      "entity-hop"
+    ],
+    "curve": {
+      "0.0": 0.1075,
+      "0.1": 0.48083333333333333,
+      "0.2": 0.5433333333333333,
+      "0.3": 0.6766666666666666,
+      "0.4": 0.7941666666666667,
+      "0.5": 0.8733333333333333,
+      "0.6": 0.9175,
+      "0.7": 0.93,
+      "0.8": 0.935,
+      "0.9": 0.9125,
+      "1.0": 0.9016666666666666
+    },
+    "grid": [
+      0.0,
+      0.1,
+      0.2,
+      0.3,
+      0.4,
+      0.5,
+      0.6,
+      0.7,
+      0.8,
+      0.9,
+      1.0
+    ],
+    "metric": "gold_recall",
+    "n_questions": 600,
+    "rrf_score": 0.8275,
+    "scheme": "weighted",
+    "weights": {
+      "dense": 0.8,
+      "entity-hop": 0.19999999999999996
+    }
+  },
+  "hop": {
+    "introduced_context_budget": 2048,
+    "introduced_context_definition": "fused context units outside Dense top_k",
+    "introduced_context_units": 552,
+    "introduced_context_units_mean": 0.92,
+    "p1s_without_entity": 3,
+    "positive_candidates_mean": 1526.0733333333333,
+    "positive_candidates_median": 493.0,
+    "zero_candidate_share": 0.018333333333333333
+  },
+  "index": {
+    "bytes": 10511878,
+    "digest": "57a11e265ddd8ddc432c0551efac0c503b461298d5963966b29e487e9559ecdb",
+    "distinct_nodes": 97189,
+    "entity_incidences": 183072,
+    "nodes_per_paragraph": {
+      "max": 49,
+      "mean": 9.453268615098626,
+      "median": 8.0
+    },
+    "paragraphs_per_node": {
+      "max": 4085,
+      "mean": 1.8836699626500941,
+      "median": 1.0
+    },
+    "paragraphs_without_node": 167,
+    "singleton_share": 0.8141765014559261
+  },
+  "metrics": {
+    "budget_1024": {
+      "full_support": 0.7866666666666666,
+      "gold_recall": 0.8891666666666667,
+      "precision": 0.20373728123728124
+    },
+    "budget_2048": {
+      "full_support": 0.875,
+      "gold_recall": 0.935,
+      "precision": 0.11411748839408349
+    },
+    "budget_4096": {
+      "full_support": 0.9216666666666666,
+      "gold_recall": 0.96,
+      "precision": 0.060877362731049434
+    },
+    "budget_512": {
+      "full_support": 0.67,
+      "gold_recall": 0.8216666666666667,
+      "precision": 0.3366494708994709
+    },
+    "recall_at_10": 0.9016666666666666,
+    "recall_at_2": 0.6825,
+    "recall_at_5": 0.8358333333333333
+  },
+  "n_questions": 600,
+  "run_digest": "800986c4cfd123e2dab6e26ed72c3e7ce78db06171b8aa922ac935e7fc238d71",
+  "run_file": "run-hybrid-entity-hop-dev-20260919T070104+0000.json",
+  "split": "dev"
+}

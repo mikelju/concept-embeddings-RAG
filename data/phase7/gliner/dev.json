@@ -1,0 +1,283 @@
+{
+  "config": {
+    "code_version": "0.1.0",
+    "components": [
+      "dense",
+      "entity-hop"
+    ],
+    "configuration_digest": "2f7864661b8ce7ff",
+    "corpus_cache_key": "bacd74e7f468f0d4",
+    "entity_types": [
+      "entity"
+    ],
+    "extraction_digest": "840b4f78325d5c3393588e82312b29e168bc265e42127896c588e75a422a0aba",
+    "extractor_configuration": {
+      "extractor_id": "gliner",
+      "labels": [
+        "person",
+        "organization",
+        "location",
+        "work of art",
+        "event"
+      ],
+      "library_versions": {
+        "gliner": "0.2.29",
+        "huggingface-hub": "1.29.0",
+        "safetensors": "0.8.0",
+        "tokenizers": "0.23.1",
+        "torch": "2.13.0+cu126",
+        "transformers": "5.16.1"
+      },
+      "model": "urchade/gliner_medium-v2.1",
+      "parameters": {
+        "batch_size": 8,
+        "flat_ner": true,
+        "max_len": 384,
+        "max_width": 12,
+        "multi_label": false,
+        "seed": 42,
+        "threshold": 0.5,
+        "tokenizer_model": "microsoft/deberta-v3-base",
+        "tokenizer_revision": "8ccc9b6f36199bec6961081d44eb72fb3f7353f3",
+        "weights": "model.safetensors"
+      },
+      "revision": "40ec419335d09393f298636f471328b722c6da9e",
+      "window": {
+        "max_tokens": 384,
+        "rule": "a paragraph over max_tokens sub-word tokens is split at its own sentence boundaries into the fewest consecutive windows that each fit; forms are unioned"
+      }
+    },
+    "extractor_id": "gliner",
+    "fitted_on": "dev",
+    "model": "BAAI/bge-small-en-v1.5",
+    "n_units": 19366,
+    "name": "hybrid-entity-hop",
+    "node_index_digest": "0aec5c32440ff600c1abbc7d866ad143ddf5c5263bf8252f1dbacdffc1496be5",
+    "normalization": "min_max",
+    "normalization_version": "normalization-v1",
+    "phase": 7,
+    "question_cache_key": "35329d9e75da1d4f",
+    "read_depth": 10,
+    "revision": "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a",
+    "scheme": "weighted",
+    "seed": 42,
+    "tokenizer": "BAAI/bge-small-en-v1.5",
+    "top_k": 100,
+    "unit_set_hash": "101f564fdcca620c",
+    "weights": {
+      "dense": 0.7,
+      "entity-hop": 0.30000000000000004
+    }
+  },
+  "cost": {
+    "mean_latency_ms": 7.363917001736506,
+    "mean_units_included": 32.245,
+    "n_questions": 600
+  },
+  "digest": "b8540db72ea474af7f3c8ec2730132e83c358f414b2b866328bd50ffa6ed6957",
+  "extraction": {
+    "configuration": {
+      "extractor_id": "gliner",
+      "labels": [
+        "person",
+        "organization",
+        "location",
+        "work of art",
+        "event"
+      ],
+      "library_versions": {
+        "gliner": "0.2.29",
+        "huggingface-hub": "1.29.0",
+        "safetensors": "0.8.0",
+        "tokenizers": "0.23.1",
+        "torch": "2.13.0+cu126",
+        "transformers": "5.16.1"
+      },
+      "model": "urchade/gliner_medium-v2.1",
+      "parameters": {
+        "batch_size": 8,
+        "flat_ner": true,
+        "max_len": 384,
+        "max_width": 12,
+        "multi_label": false,
+        "seed": 42,
+        "threshold": 0.5,
+        "tokenizer_model": "microsoft/deberta-v3-base",
+        "tokenizer_revision": "8ccc9b6f36199bec6961081d44eb72fb3f7353f3",
+        "weights": "model.safetensors"
+      },
+      "revision": "40ec419335d09393f298636f471328b722c6da9e",
+      "window": {
+        "max_tokens": 384,
+        "rule": "a paragraph over max_tokens sub-word tokens is split at its own sentence boundaries into the fewest consecutive windows that each fit; forms are unioned"
+      }
+    },
+    "configuration_digest": "2f7864661b8ce7ff",
+    "determinism_note": "Both candidates are deterministic at inference and the seed is set anyway, but float non-associativity across batch sizes and devices can move a span that sits exactly on the threshold. As in Phase 5, this artifact is the record of what was measured; everything downstream of it is deterministic.",
+    "digest": "840b4f78325d5c3393588e82312b29e168bc265e42127896c588e75a422a0aba",
+    "entities": 134915,
+    "extractor_id": "gliner",
+    "failure_rate": 0.00015491066818134876,
+    "failures": {
+      "bounds": 3
+    },
+    "hardware": {
+      "cpu_count": 256,
+      "device": "cuda",
+      "gpu": "NVIDIA GeForce RTX 4090",
+      "machine": "x86_64",
+      "platform": "Linux-6.8.0-124-generic-x86_64-with-glibc2.39",
+      "processor": "x86_64",
+      "python": "3.12.14",
+      "ram_bytes": 1081934118912,
+      "release": "6.8.0-124-generic",
+      "system": "Linux",
+      "torch_threads": 128,
+      "torch_version": "2.13.0+cu126"
+    },
+    "labels": [
+      "person",
+      "organization",
+      "location",
+      "work of art",
+      "event"
+    ],
+    "library_versions": {
+      "gliner": "0.2.29",
+      "huggingface-hub": "1.29.0",
+      "safetensors": "0.8.0",
+      "tokenizers": "0.23.1",
+      "torch": "2.13.0+cu126",
+      "transformers": "5.16.1"
+    },
+    "model": "urchade/gliner_medium-v2.1",
+    "model_load_seconds": 4.057345596142113,
+    "n_units": 19366,
+    "normalization_note": "forms are verbatim surfaces; normalization-v1 runs later, in build_node_index",
+    "paragraphs_per_second": 162.17822852302007,
+    "parameters": {
+      "batch_size": 8,
+      "flat_ner": true,
+      "max_len": 384,
+      "max_width": 12,
+      "multi_label": false,
+      "seed": 42,
+      "threshold": 0.5,
+      "tokenizer_model": "microsoft/deberta-v3-base",
+      "tokenizer_revision": "8ccc9b6f36199bec6961081d44eb72fb3f7353f3",
+      "weights": "model.safetensors"
+    },
+    "projection_5m": {
+      "hourly_rate_usd": 0.74,
+      "hours": 8.563966332211761,
+      "method": "linear from measured throughput over 19366 paragraphs",
+      "paragraphs": 5000000,
+      "paragraphs_per_second": 162.17822852302007,
+      "usd": 6.3373350858367035
+    },
+    "records": "records.jsonl.gz",
+    "revision": "40ec419335d09393f298636f471328b722c6da9e",
+    "seconds": 119.41183583252132,
+    "units_without_entity": 214,
+    "usd": 0.03
+  },
+  "extractor_id": "gliner",
+  "fit": {
+    "budget": 2048,
+    "components": [
+      "dense",
+      "entity-hop"
+    ],
+    "curve": {
+      "0.0": 0.14916666666666667,
+      "0.1": 0.7291666666666666,
+      "0.2": 0.7808333333333334,
+      "0.3": 0.835,
+      "0.4": 0.8791666666666667,
+      "0.5": 0.9116666666666666,
+      "0.6": 0.9258333333333333,
+      "0.7": 0.93,
+      "0.8": 0.9291666666666667,
+      "0.9": 0.9125,
+      "1.0": 0.9016666666666666
+    },
+    "grid": [
+      0.0,
+      0.1,
+      0.2,
+      0.3,
+      0.4,
+      0.5,
+      0.6,
+      0.7,
+      0.8,
+      0.9,
+      1.0
+    ],
+    "metric": "gold_recall",
+    "n_questions": 600,
+    "rrf_score": 0.8675,
+    "scheme": "weighted",
+    "weights": {
+      "dense": 0.7,
+      "entity-hop": 0.30000000000000004
+    }
+  },
+  "hop": {
+    "introduced_context_budget": 2048,
+    "introduced_context_definition": "fused context units outside Dense top_k",
+    "introduced_context_units": 917,
+    "introduced_context_units_mean": 1.5283333333333333,
+    "p1s_without_entity": 5,
+    "positive_candidates_mean": 160.85666666666665,
+    "positive_candidates_median": 40.0,
+    "zero_candidate_share": 0.07833333333333334
+  },
+  "index": {
+    "bytes": 8910883,
+    "digest": "0aec5c32440ff600c1abbc7d866ad143ddf5c5263bf8252f1dbacdffc1496be5",
+    "distinct_nodes": 81617,
+    "entity_incidences": 134235,
+    "nodes_per_paragraph": {
+      "max": 47,
+      "mean": 6.93147784777445,
+      "median": 6.0
+    },
+    "paragraphs_per_node": {
+      "max": 1186,
+      "mean": 1.6446941200975287,
+      "median": 1.0
+    },
+    "paragraphs_without_node": 214,
+    "singleton_share": 0.8210054277907789
+  },
+  "metrics": {
+    "budget_1024": {
+      "full_support": 0.7983333333333333,
+      "gold_recall": 0.8941666666666667,
+      "precision": 0.20508578458578458
+    },
+    "budget_2048": {
+      "full_support": 0.8633333333333333,
+      "gold_recall": 0.93,
+      "precision": 0.1132944730334352
+    },
+    "budget_4096": {
+      "full_support": 0.91,
+      "gold_recall": 0.9541666666666667,
+      "precision": 0.05998120015927807
+    },
+    "budget_512": {
+      "full_support": 0.65,
+      "gold_recall": 0.8108333333333333,
+      "precision": 0.3346309523809524
+    },
+    "recall_at_10": 0.9016666666666666,
+    "recall_at_2": 0.6766666666666666,
+    "recall_at_5": 0.8291666666666667
+  },
+  "n_questions": 600,
+  "run_digest": "51ee4e02f55cd4adae615f3739622779d2394d33c13073041b5354ab9dacfe1c",
+  "run_file": "run-hybrid-entity-hop-dev-20260919T070042+0000.json",
+  "split": "dev"
+}
