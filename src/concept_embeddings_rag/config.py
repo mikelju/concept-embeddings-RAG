@@ -48,7 +48,21 @@ NORMALIZE_EMBEDDINGS: Final[bool] = True
 
 # Tokenizer used to measure context budgets. Its absolute values do not matter;
 # what matters is that every system is measured with the same ruler.
-TOKENIZER_ID: Final[str] = EMBEDDING_MODEL
+#
+# Phase 8, restriction R1: this used to be `TOKENIZER_ID = EMBEDDING_MODEL`, which made
+# the ruler follow the Dense model. Repointing the embedding model would then have
+# re-tokenized the corpus with a different tokenizer and rewritten
+# `data/token_counts.json`, the single file that defines the fixed context budget behind
+# every Phase 1-7 result - so no new number would have been comparable to any inherited
+# one, and the inherited ones would have stopped being reproducible from the repository.
+# The budget tokenizer is therefore its own configuration item, declared at exactly the
+# values the alias resolved to in Phases 1-7: a change of meaning, not of number.
+BUDGET_TOKENIZER_ID: Final[str] = "BAAI/bge-small-en-v1.5"
+BUDGET_TOKENIZER_REVISION: Final[str] = "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a"
+# The name four provenance sites already record. Kept so every artifact written since
+# Phase 1 keeps meaning what it meant, and now defined by the ruler rather than by the
+# embedding model.
+TOKENIZER_ID: Final[str] = BUDGET_TOKENIZER_ID
 
 # --- Evaluation ------------------------------------------------------------
 CONTEXT_BUDGETS: Final[tuple[int, ...]] = (512, 1024, 2048, 4096)
@@ -535,6 +549,105 @@ PHASE_7_INFRASTRUCTURE_CEILING_USD: Final[float] = 30.0
 PROJECTION_PARAGRAPHS: Final[int] = 5_000_000
 
 
+# --- Strong Dense + Entity Hop (Phase 8) -------------------------------------
+# Declared before the first Phase 8 number exists. The spec (`8.spec.md`) settles every
+# value below and closes all ten of its decisions; `8.0_strong_dense.md` gives the
+# implementation reason for each (D1-D3, D10). Exactly one variable changes in this
+# phase - the Dense retriever - so `EMBEDDING_MODEL` is deliberately *not* repointed:
+# every inherited stage builds `SentenceTransformerBackend()` from it and would look for
+# a corpus cache that does not exist. The Phase 8 stages construct their backend from the
+# constants below instead, and nothing else in the project changes model by accident.
+
+PHASE_8_DIR: Final[Path] = DATA_DIR / "phase8"
+
+# Decision 1, approved in the spec: one modern strong open Dense model, chosen a priori
+# from published evidence rather than by comparing dev scores across encoders, which is
+# the leaderboard the master plan forbids. Pinned to a commit and never to a branch, for
+# the same reason `EMBEDDING_REVISION` is. Full width, no MRL truncation.
+PHASE_8_DENSE_MODEL: Final[str] = "Qwen/Qwen3-Embedding-0.6B"
+PHASE_8_DENSE_REVISION: Final[str] = (
+    "97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3"  # pragma: allowlist secret
+)
+PHASE_8_DENSE_DIM: Final[int] = 1024
+# What is fetched, and therefore what cannot be deserialized: the pinned revision ships
+# `model.safetensors` as its only weight file, and its sha256 is recorded over the bytes
+# actually loaded (R7, the prospective answer to Phase 7's SEC-031).
+PHASE_8_WEIGHTS_FILE: Final[str] = "model.safetensors"
+
+# Decision 3 / R2: the model is asymmetric, so the query instruction is a declared
+# configuration item rather than a free parameter. The run reads `model.prompts["query"]`
+# and aborts on any inexact match before producing a single embedding; documents stay
+# unprefixed. It is never customized or tuned for HotpotQA - a prompt fitted to this
+# benchmark would be a hyperparameter chosen on our own data.
+PHASE_8_QUERY_PROMPT: Final[str] = (
+    "Instruct: Given a web search query, retrieve relevant passages that answer the query"
+    "\nQuery:"
+)
+
+# The inherited entity representation, pinned by digest and read-only for this phase.
+# Phase 8 loads the Phase 7 GLiNER index and writes nothing into `data/phase7/`.
+PHASE_8_GLINER_DIR: Final[Path] = PHASE_7_DIR / "gliner"
+PHASE_8_GLINER_EXTRACTION_DIGEST: Final[str] = (
+    "840b4f78325d5c3393588e82312b29e168bc265e42127896c588e75a422a0aba"  # pragma: allowlist secret
+)
+PHASE_8_GLINER_INDEX_DIGEST: Final[str] = (
+    "0aec5c32440ff600c1abbc7d866ad143ddf5c5263bf8252f1dbacdffc1496be5"  # pragma: allowlist secret
+)
+
+# The three systems the phase measures, and nothing else.
+PHASE_8_SYSTEMS: Final[tuple[str, ...]] = ("dense", "hybrid-bm25", "hybrid-entity-hop")
+
+# The inherited BGE-small figures this phase is read against, Full Support @2,048. The
+# Phase 6 rows are taken from the constants Phase 7 already pinned rather than typed a
+# second time; the GLiNER rows come from `data/phase7/` and are held equal to those
+# artifacts by a data-dependent test. The GLiNER row is the comparison baseline, because
+# Phase 8 inherits the GLiNER index; the Claude row is historical context only.
+PHASE_8_INHERITED_DEV_FULL_SUPPORT: Final[dict[str, float]] = {
+    "dense": PHASE_7_REFERENCE_DEV_FULL_SUPPORT["dense"],
+    "hybrid-bm25": PHASE_7_REFERENCE_DEV_FULL_SUPPORT["hybrid-bm25"],
+    "hybrid-entity-hop-claude": PHASE_7_REFERENCE_DEV_FULL_SUPPORT["hybrid-entity-hop"],
+    "hybrid-entity-hop-gliner": 0.8633333333333333,
+}
+PHASE_8_INHERITED_HELD_OUT_FULL_SUPPORT: Final[dict[str, float]] = {
+    "dense": PHASE_7_REFERENCE_HELD_OUT_FULL_SUPPORT["dense"],
+    "hybrid-bm25": PHASE_7_REFERENCE_HELD_OUT_FULL_SUPPORT["hybrid-bm25"],
+    "hybrid-entity-hop-claude": PHASE_7_REFERENCE_HELD_OUT_FULL_SUPPORT["hybrid-entity-hop"],
+    "hybrid-entity-hop-gliner": 0.8792857142857143,
+}
+# Where each inherited figure is read from, relative to `DATA_DIR`, so a report can name
+# the file behind every number it quotes.
+PHASE_8_INHERITED_DEV_FILES: Final[dict[str, str]] = {
+    "dense": f"{REPLACEMENT_DIR.name}/{PHASE_7_REFERENCE_DEV_FILES['dense']}",
+    "hybrid-bm25": f"{REPLACEMENT_DIR.name}/{PHASE_7_REFERENCE_DEV_FILES['hybrid-bm25']}",
+    "hybrid-entity-hop-claude": (
+        f"{REPLACEMENT_DIR.name}/{PHASE_7_REFERENCE_DEV_FILES['hybrid-entity-hop']}"
+    ),
+    "hybrid-entity-hop-gliner": (
+        f"{PHASE_7_DIR.name}/{PHASE_8_GLINER_DIR.name}/"
+        "run-hybrid-entity-hop-dev-20260919T070042+0000.json"
+    ),
+}
+PHASE_8_INHERITED_HELD_OUT_FILES: Final[dict[str, str]] = {
+    "dense": f"{REPLACEMENT_DIR.name}/{PHASE_7_REFERENCE_HELD_OUT_FILES['dense']}",
+    "hybrid-bm25": f"{REPLACEMENT_DIR.name}/{PHASE_7_REFERENCE_HELD_OUT_FILES['hybrid-bm25']}",
+    "hybrid-entity-hop-claude": (
+        f"{REPLACEMENT_DIR.name}/{PHASE_7_REFERENCE_HELD_OUT_FILES['hybrid-entity-hop']}"
+    ),
+    "hybrid-entity-hop-gliner": (
+        f"{PHASE_7_DIR.name}/{PHASE_8_GLINER_DIR.name}/"
+        "run-hybrid-entity-hop-test-20260919T070735+0000.json"
+    ),
+}
+
+# Decision 4 / D10, the stop rule: if Strong Dense alone does not beat the inherited
+# Dense dev reading, the phase's premise has failed and the held-out split is neither
+# measured nor encoded. The comparison is made in whole questions, never on floats: 487
+# of 600 is a tie, and a tie is not "substantially stronger", so the rule passes only on
+# at least one more supported question. The count below is that reading, and a test holds
+# it equal to the arithmetic rather than to a number typed beside it.
+PHASE_8_STOP_RULE_BASELINE_QUESTIONS: Final[int] = 487
+
+
 def ensure_directories() -> None:
     """Create the data directories if they do not exist yet."""
     for path in (
@@ -552,5 +665,6 @@ def ensure_directories() -> None:
         NAVIGATION_DIR,
         REPLACEMENT_DIR,
         PHASE_7_DIR,
+        PHASE_8_DIR,
     ):
         path.mkdir(parents=True, exist_ok=True)

@@ -46,3 +46,38 @@ def test_a_unit_without_a_known_token_count_raises():
 
 def test_an_empty_ranking_yields_an_empty_context():
     assert fill_context([], COUNTS, budget=1000) == []
+
+
+# --- Phase 8 (S1): the ruler is pinned, independently of the Dense model -----
+#
+# Restriction R1, the largest integrity risk of the phase: `TOKENIZER_ID` used to be
+# an alias of `EMBEDDING_MODEL`, so repointing the Dense retriever would have
+# re-tokenized the corpus with a different tokenizer and rewritten
+# `data/token_counts.json` - the one file that defines the fixed context budget behind
+# every Phase 1-7 result. These assertions read the defaults without loading anything.
+
+
+def test_the_token_counter_counts_with_the_budget_tokenizer_not_the_embedding_model():
+    from concept_embeddings_rag import config
+    from concept_embeddings_rag.evaluation.budget import TokenCounter
+
+    counter = TokenCounter()
+
+    assert counter.tokenizer_id == config.BUDGET_TOKENIZER_ID
+    assert counter.revision == config.BUDGET_TOKENIZER_REVISION
+    assert counter.tokenizer_id != config.PHASE_8_DENSE_MODEL
+    assert counter.revision != config.PHASE_8_DENSE_REVISION
+
+
+def test_the_ruler_is_the_one_phases_1_to_7_measured_every_budget_with():
+    """A change of meaning, not of number: the values are what they have always been."""
+    from concept_embeddings_rag import config
+    from concept_embeddings_rag.evaluation.budget import TokenCounter
+
+    counter = TokenCounter()
+
+    assert counter.tokenizer_id == "BAAI/bge-small-en-v1.5"
+    assert counter.revision.startswith("5c38ec7c")
+    # The pair Phases 1-7 resolved to through the old alias, now named in its own right.
+    assert counter.tokenizer_id == config.EMBEDDING_MODEL
+    assert counter.revision == config.EMBEDDING_REVISION

@@ -45,12 +45,17 @@ class TokenCounter:
 
     Which tokenizer it is matters far less than the fact that it never changes
     between systems: the budget is a shared ruler, not an absolute truth.
+
+    The defaults name the budget tokenizer rather than the embedding model (Phase 8,
+    restriction R1). They hold exactly the values the old defaults resolved to, so no
+    recorded count moves; what changes is that repointing the Dense retriever can no
+    longer move the ruler every inherited figure was measured with.
     """
 
     def __init__(
         self,
-        tokenizer_id: str = config.TOKENIZER_ID,
-        revision: str = config.EMBEDDING_REVISION,
+        tokenizer_id: str = config.BUDGET_TOKENIZER_ID,
+        revision: str = config.BUDGET_TOKENIZER_REVISION,
     ) -> None:
         self.tokenizer_id = tokenizer_id
         self.revision = revision

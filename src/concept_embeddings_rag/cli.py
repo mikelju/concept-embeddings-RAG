@@ -17,6 +17,10 @@
     replace-test    the ordered test protocol, once, under the freeze: the state (Phase 6)
     cheap-extract   read entities out of every paragraph with a local extractor (Phase 7)
     cheap-eval      measure each local extractor on dev and select; --test reads test once
+    strong-embed    encode the pool and the dev questions under the Phase 8 Dense model;
+                    --test encodes the held-out questions, only after the dev gate passed
+    strong-dense    fit both hybrids on dev and measure the three systems (Phase 8);
+                    --test reads the held-out split once, refitting nothing
 
 Each stage is idempotent and refuses to run if its input is missing, saying which
 stage to run first rather than failing somewhere deep inside numpy.
@@ -89,20 +93,27 @@ from concept_embeddings_rag.corpus.pool import (
 )
 from concept_embeddings_rag.corpus.split import select_subset, split_questions
 from concept_embeddings_rag.embeddings.backend import (
+    BackendError,
     EmbeddingBackend,
+    QueryPromptError,
     SentenceTransformerBackend,
+    snapshot_directory,
+    weights_sha256,
 )
 from concept_embeddings_rag.embeddings.cache import (
+    CacheAlignmentError,
     EmbeddingCache,
     build_query_backend,
     cache_key,
     embed_questions,
     embed_units,
+    query_prompt_of,
     question_cache_key,
     question_set_hash,
     resolved_revision,
     unit_set_hash,
 )
+from concept_embeddings_rag.evaluation import strong_dense
 from concept_embeddings_rag.evaluation.budget import TokenCounter
 from concept_embeddings_rag.evaluation.cheap_extraction import (
     DEV_FILENAME,
@@ -2133,6 +2144,437 @@ def _cheap_test(
     return path
 
 
+# --- Phase 8: Strong Dense + Entity Hop -------------------------------------------------
+#
+# Two stages, two modes each, in the order the plan fixes: embed the corpus and the dev
+# questions under the new Dense model, run the dev gate, and only then encode and measure
+# the held-out split. Neither stage ever calls `TokenCounter`, so neither can rewrite
+# `data/token_counts.json` - the ruler behind every inherited figure (R1).
+
+SnapshotResolver = Callable[[str, str], Path]
+
+
+def _embedding_device() -> str:
+    """Where the encoding actually ran, as observed rather than as assumed."""
+    try:
+        import torch
+
+        return "cuda" if torch.cuda.is_available() else "cpu"
+    except Exception:
+        return "cpu"
+
+
+def _max_seq_length(backend: EmbeddingBackend) -> int | None:
+    reader = getattr(backend, "max_seq_length", None)
+    return reader() if callable(reader) else None
+
+
+def _phase_8_question_key(questions: Sequence[Question], backend: EmbeddingBackend) -> str:
+    """The question cache key, prompt included: an asymmetric model keys queries by it."""
+    splits = sorted({question.split for question in questions})
+    if len(splits) != 1:
+        _die(f"the questions handed to this stage span more than one split: {splits}")
+    return question_cache_key(
+        backend.name,
+        backend.revision,
+        question_set_hash([question.qid for question in questions]),
+        splits[0],
+        normalized=bool(getattr(backend, "normalize", True)),
+        query_prompt=query_prompt_of(backend),
+    )
+
+
+def _refuse_existing_cache(cache: EmbeddingCache, key: str, label: str) -> None:
+    """A stage that measures an encoding may not record a wall clock it did not take."""
+    if cache.path_for(key).exists():
+        _die(
+            f"the Phase 8 {label} embedding cache {key} already exists; this stage measures "
+            "the encoding pass and refuses to write a timing for work it did not do - remove "
+            f"{cache.path_for(key).name} deliberately to encode it again"
+        )
+
+
+def _phase_8_backend(
+    settings: strong_dense.Phase8Pins, *, prompted: bool
+) -> SentenceTransformerBackend:
+    return SentenceTransformerBackend(
+        name=settings.model,
+        revision=settings.revision,
+        dim=settings.dim,
+        query_prompt=settings.query_prompt if prompted else "",
+    )
+
+
+def cmd_strong_embed(
+    data_dir: Path = config.DATA_DIR,
+    cache_dir: Path = config.CACHE_DIR,
+    question_cache_dir: Path = config.QUESTION_CACHE_DIR,
+    phase_8_dir: Path = config.PHASE_8_DIR,
+    hourly_rate_usd: float = 0.0,
+    test: bool = False,
+    corpus_backend: EmbeddingBackend | None = None,
+    query_backend: EmbeddingBackend | None = None,
+    resolve_snapshot: SnapshotResolver = snapshot_directory,
+    pins: strong_dense.Phase8Pins | None = None,
+) -> Path:
+    """Encode the pool and one split under the Phase 8 Dense model (Phase 8, S3 and S5).
+
+    Without `--test` this is the initial pass: the provenance checks that need no
+    measurement run **before the model is loaded**, the 19,366 paragraphs and the 600 dev
+    questions are encoded under new cache keys, every block is checked for the pinned
+    width before anything is cached, and `embedding.json` records which model, which
+    weights and which caches produced the vectors.
+
+    With `--test` it encodes the held-out questions, and only if the dev gate passed. The
+    two modes never run together, which is what keeps the held-out split unencoded until
+    Strong Dense has proved itself on dev.
+
+    Existing caches are never overwritten and `data/token_counts.json` is never touched.
+    """
+    if not math.isfinite(hourly_rate_usd) or hourly_rate_usd < 0:
+        _die("hourly-rate-usd must be finite and non-negative")
+    settings = pins if pins is not None else strong_dense.Phase8Pins.from_config()
+    data_dir, phase_8_dir = Path(data_dir), Path(phase_8_dir)
+    pool_path = data_dir / POOL_NAME
+    if not pool_path.exists():
+        _die("no pool found: run 'build' first")
+    units, questions = load_pool(pool_path)
+    _check_pool_against_manifest(units, data_dir / MANIFEST_NAME)
+    phase_8_dir.mkdir(parents=True, exist_ok=True)
+
+    if test:
+        return _strong_embed_test(
+            questions,
+            question_cache_dir=Path(question_cache_dir),
+            phase_8_dir=phase_8_dir,
+            hourly_rate_usd=hourly_rate_usd,
+            query_backend=query_backend,
+            settings=settings,
+        )
+
+    target = phase_8_dir / strong_dense.EMBEDDING_FILENAME
+    if target.exists():
+        _die(
+            f"{target} already records this phase's encoding; it is written once and the dev "
+            "fit is anchored on its digest"
+        )
+    dev = [question for question in questions if question.split == DEV_SPLIT]
+    if not dev:
+        _die("the pool holds no dev questions: run 'build' first")
+
+    # D11: every check that needs no measurement runs here, before the first model load
+    # and before a single vector exists. A check that only happens while writing the
+    # report is a check that cannot stop a bad run.
+    try:
+        strong_dense.check_model_pin(settings.revision, settings.model)
+        snapshot = Path(resolve_snapshot(settings.model, settings.revision))
+        strong_dense.check_resolved_revision(snapshot.name, settings.revision)
+        weights_digest = weights_sha256(snapshot)
+    except (strong_dense.StrongDenseError, BackendError) as error:
+        _die(str(error))
+    print(
+        f"[OK] model provenance verified: {settings.model} at {snapshot.name}, "
+        f"{config.PHASE_8_WEIGHTS_FILE} sha256 {weights_digest[:16]}..."
+    )
+
+    corpus = corpus_backend if corpus_backend is not None else _phase_8_backend(
+        settings, prompted=False
+    )
+    queries = query_backend if query_backend is not None else _phase_8_backend(
+        settings, prompted=True
+    )
+    guarded_corpus = strong_dense.WidthCheckedBackend(corpus, settings.dim)
+    guarded_queries = strong_dense.WidthCheckedBackend(queries, settings.dim)
+
+    cache, question_cache = EmbeddingCache(Path(cache_dir)), EmbeddingCache(
+        Path(question_cache_dir)
+    )
+    corpus_key = _cache_key_for(guarded_corpus, units)
+    query_key = _phase_8_question_key(dev, guarded_queries)
+    _refuse_existing_cache(cache, corpus_key, "corpus")
+    _refuse_existing_cache(question_cache, query_key, "dev question")
+
+    print(f"[INFO] encoding {len(units)} paragraphs and {len(dev)} dev questions")
+    try:
+        started = time.perf_counter()
+        vectors, unit_ids = embed_units(units, guarded_corpus, cache)
+        corpus_seconds = time.perf_counter() - started
+        started = time.perf_counter()
+        build_query_backend(dev, guarded_queries, question_cache)
+        question_seconds = time.perf_counter() - started
+    except (strong_dense.StrongDenseError, CacheAlignmentError, QueryPromptError) as error:
+        _die(str(error))
+
+    bytes_on_disk = sum(
+        path.stat().st_size
+        for path in (
+            cache.path_for(corpus_key),
+            cache.sidecar_for(corpus_key),
+            question_cache.path_for(query_key),
+            question_cache.sidecar_for(query_key),
+        )
+        if path.exists()
+    )
+    try:
+        path = strong_dense.write_embedding(
+            phase_8_dir,
+            resolved_revision=snapshot.name,
+            weights_sha256=weights_digest,
+            max_seq_length=_max_seq_length(corpus),
+            query_prompt=query_prompt_of(guarded_queries),
+            corpus_cache_key=corpus_key,
+            question_cache_key=query_key,
+            unit_ids=unit_ids,
+            n_questions=len(dev),
+            dim=int(vectors.shape[1]),
+            hardware=local_extraction.hardware_block(device=_embedding_device()),
+            corpus_seconds=corpus_seconds,
+            question_seconds=question_seconds,
+            bytes_on_disk=bytes_on_disk,
+            hourly_rate_usd=hourly_rate_usd,
+            pins=settings,
+        )
+    except strong_dense.StrongDenseError as error:
+        _die(str(error))
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    projection_5m = payload["projection_5m"]
+    print(
+        f"[INFO] {payload['n_units']} paragraphs in {corpus_seconds / 60:.1f} min "
+        f"({payload['paragraphs_per_second']:.3f} paragraphs/s), "
+        f"{payload['dim']} dimensions, max_seq_length {payload['max_seq_length']}"
+    )
+    print(
+        f"[INFO] projection to {projection_5m['paragraphs']} paragraphs: "
+        f"{projection_5m['hours']:.1f} h, {projection_5m['usd']:.2f} USD "
+        f"({projection_5m['method']}); this pass costs {payload['embedding_usd']:.2f} USD"
+    )
+    print(f"[OK] embedding artifact written -> {path}")
+    return path
+
+
+def _strong_embed_test(
+    questions: Sequence[Question],
+    *,
+    question_cache_dir: Path,
+    phase_8_dir: Path,
+    hourly_rate_usd: float,
+    query_backend: EmbeddingBackend | None,
+    settings: strong_dense.Phase8Pins,
+) -> Path:
+    """The gated held-out encoding: it runs only after the dev stop rule said `pass`."""
+    if (phase_8_dir / strong_dense.EMBEDDING_TEST_FILENAME).exists():
+        _die(
+            f"{phase_8_dir / strong_dense.EMBEDDING_TEST_FILENAME} already records the held-out "
+            "encoding; it is written once"
+        )
+    try:
+        strong_dense.check_gate(strong_dense.load_dev(phase_8_dir))
+    except strong_dense.StrongDenseError as error:
+        _die(str(error))
+    held_out = [question for question in questions if question.split == TEST_SPLIT]
+    if not held_out:
+        _die(f"the pool holds no {TEST_SPLIT} questions: run 'build' first")
+
+    queries = query_backend if query_backend is not None else _phase_8_backend(
+        settings, prompted=True
+    )
+    guarded = strong_dense.WidthCheckedBackend(queries, settings.dim)
+    question_cache = EmbeddingCache(Path(question_cache_dir))
+    query_key = _phase_8_question_key(held_out, guarded)
+    _refuse_existing_cache(question_cache, query_key, "held-out question")
+
+    print(f"[INFO] encoding {len(held_out)} held-out questions")
+    try:
+        started = time.perf_counter()
+        build_query_backend(held_out, guarded, question_cache)
+        question_seconds = time.perf_counter() - started
+        path = strong_dense.write_test_embedding(
+            phase_8_dir,
+            question_cache_key=query_key,
+            n_questions=len(held_out),
+            hardware=local_extraction.hardware_block(device=_embedding_device()),
+            question_seconds=question_seconds,
+            hourly_rate_usd=hourly_rate_usd,
+            pins=settings,
+        )
+    except (strong_dense.StrongDenseError, CacheAlignmentError, QueryPromptError) as error:
+        _die(str(error))
+    print(f"[OK] held-out encoding written -> {path}")
+    return path
+
+
+def _strong_inputs(
+    split: str,
+    data_dir: Path,
+    cache_dir: Path,
+    question_cache_dir: Path,
+    backend: EmbeddingBackend | None,
+    settings: strong_dense.Phase8Pins,
+) -> tuple[
+    list[IndexingUnit], list[str], list[Question], dict[str, int], DenseRetriever, dict[str, Any]
+]:
+    """The loader both Phase 8 measurement paths share: pool, caches, dense, provenance.
+
+    Nothing is embedded here and no model is loaded: both splits were encoded by
+    `strong-embed`, their caches are the record, and a missing one is a refusal rather
+    than a quiet re-encoding on whatever machine happens to be running the measurement.
+    """
+    if not (data_dir / POOL_NAME).exists():
+        _die("no pool found: run 'build' first")
+    if not (data_dir / TOKENS_NAME).exists():
+        _die("no token counts found: run 'embed' first")
+    units, questions = load_pool(data_dir / POOL_NAME)
+    _check_pool_against_manifest(units, data_dir / MANIFEST_NAME)
+    subset = [question for question in questions if question.split == split]
+    if not subset:
+        _die(f"the pool holds no {split} questions: run 'build' first")
+    unit_ids = [unit.unit_id for unit in units]
+    token_counts = json.loads((data_dir / TOKENS_NAME).read_text(encoding="utf-8"))
+    if set(token_counts) != set(unit_ids):
+        _die("token counts belong to another pool")
+
+    reader = backend if backend is not None else _phase_8_backend(settings, prompted=True)
+    corpus_key = _cache_key_for(reader, units)
+    cached = EmbeddingCache(Path(cache_dir)).load(corpus_key, expected_unit_ids=unit_ids)
+    if cached is None:
+        _die("the Phase 8 corpus embeddings are not cached: run 'strong-embed' first")
+    question_cache = EmbeddingCache(Path(question_cache_dir))
+    query_key = _phase_8_question_key(subset, reader)
+    if question_cache.load(query_key, expected_unit_ids=[q.qid for q in subset]) is None:
+        mode = " --test" if split == TEST_SPLIT else ""
+        _die(
+            f"the Phase 8 {split} question embeddings are missing: "
+            f"run 'strong-embed{mode}' first"
+        )
+    dense = DenseRetriever(
+        cached[0], unit_ids, build_query_backend(subset, reader, question_cache)
+    )
+    run_config = {
+        "model": reader.name,
+        "revision": reader.revision,
+        "unit_set_hash": unit_set_hash(unit_ids),
+        "seed": config.DEFAULT_SEED,
+        "tokenizer": config.BUDGET_TOKENIZER_ID,
+        "budget_tokenizer_revision": config.BUDGET_TOKENIZER_REVISION,
+        "code_version": __version__,
+        "top_k": config.EVALUATION_TOP_K,
+        "n_units": len(units),
+        "corpus_cache_key": corpus_key,
+        "question_cache_key": query_key,
+        "query_prompt": query_prompt_of(reader),
+        "dim": int(cached[0].shape[1]),
+    }
+    return units, unit_ids, subset, token_counts, dense, run_config
+
+
+def _baseline_dense(
+    units: Sequence[IndexingUnit],
+    questions: Sequence[Question],
+    cache_dir: Path,
+    question_cache_dir: Path,
+    backend: EmbeddingBackend | None,
+) -> DenseRetriever | None:
+    """The BGE-small retriever, rebuilt from its existing caches for the `p1` diagnostic.
+
+    No model is loaded and nothing is re-embedded: both caches are already on disk. When
+    either is absent the diagnostic is declared unmeasured rather than invented.
+    """
+    reader = backend if backend is not None else SentenceTransformerBackend()
+    unit_ids = [unit.unit_id for unit in units]
+    cached = EmbeddingCache(Path(cache_dir)).load(
+        _cache_key_for(reader, units), expected_unit_ids=unit_ids
+    )
+    if cached is None:
+        return None
+    question_cache = EmbeddingCache(Path(question_cache_dir))
+    key = _phase_8_question_key(questions, reader)
+    if question_cache.load(key, expected_unit_ids=[q.qid for q in questions]) is None:
+        return None
+    return DenseRetriever(
+        cached[0], unit_ids, build_query_backend(questions, reader, question_cache)
+    )
+
+
+def cmd_strong_dense(
+    data_dir: Path = config.DATA_DIR,
+    cache_dir: Path = config.CACHE_DIR,
+    question_cache_dir: Path = config.QUESTION_CACHE_DIR,
+    phase_8_dir: Path = config.PHASE_8_DIR,
+    gliner_dir: Path = config.PHASE_8_GLINER_DIR,
+    backend: EmbeddingBackend | None = None,
+    baseline_backend: EmbeddingBackend | None = None,
+    pins: strong_dense.Phase8Pins | None = None,
+    test: bool = False,
+) -> Path:
+    """Fit on dev and measure the three systems; with `--test`, read the held-out split once.
+
+    Both paths read cached vectors only, so neither loads a model and both run on the
+    development machine. The Phase 7 GLiNER index is loaded and verified against its
+    pinned digest; nothing is written into `data/phase7/`.
+    """
+    settings = pins if pins is not None else strong_dense.Phase8Pins.from_config()
+    data_dir, phase_8_dir = Path(data_dir), Path(phase_8_dir)
+    split = TEST_SPLIT if test else DEV_SPLIT
+    units, unit_ids, questions, token_counts, dense, run_config = _strong_inputs(
+        split, data_dir, Path(cache_dir), Path(question_cache_dir), backend, settings
+    )
+    try:
+        index = load_node_index(
+            Path(gliner_dir),
+            extraction_digest=settings.extraction_digest,
+            expected_unit_ids=unit_ids,
+        )
+    except NodeIndexError as error:
+        _die(str(error))
+    baseline = _baseline_dense(
+        units, questions, Path(cache_dir), Path(question_cache_dir), baseline_backend
+    )
+    if baseline is None:
+        print("[WARN] no BGE-small cache for this split; the p1 comparison stays unmeasured")
+
+    arguments: dict[str, Any] = {
+        "unit_ids": unit_ids,
+        "dense": dense,
+        "bm25": BM25Retriever(units),
+        "index": index,
+        "questions": questions,
+        "token_counts": token_counts,
+        "run_config": run_config,
+        "baseline_dense": baseline,
+        "pins": settings,
+    }
+    print(f"[INFO] measuring {len(config.PHASE_8_SYSTEMS)} systems on {split} ({len(questions)})")
+    try:
+        measure = strong_dense.measure_held_out if test else strong_dense.measure_dev
+        path = measure(phase_8_dir, **arguments)
+    except (strong_dense.StrongDenseError, SelectionError, NodeIndexError) as error:
+        _die(str(error))
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    for name in config.PHASE_8_SYSTEMS:
+        system = payload["systems"][name]
+        print(
+            f"[INFO] {name} on {split}: full support @{config.SELECTION_BUDGET} "
+            f"{system['full_support']:.4f} "
+            f"({system['supported_questions']}/{payload['n_questions']})"
+        )
+    if test:
+        gain = payload["surviving_gain"]
+        print(
+            f"[INFO] entity gain over Strong Dense: {gain['entity_gain_questions']} questions, "
+            f"{gain['entity_gain_points']:+.4f} points; inherited GLiNER gain "
+            f"{gain['inherited_entity_gain_questions']} questions, "
+            f"{gain['inherited_entity_gain_points']:+.4f} points"
+        )
+    else:
+        rule = payload["stop_rule"]
+        print(
+            f"[INFO] stop rule: {rule['count']}/{rule['n_questions']} supported, "
+            f"{rule['required_count']} required to continue, verdict {rule['verdict'].upper()}"
+        )
+    print(f"[OK] {split} measurement written -> {path}")
+    return path
+
+
 def _poll_pause() -> None:
     """How long the full run waits between two looks at a batch. Most end within an hour."""
     time.sleep(60)
@@ -2279,6 +2721,35 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="measure the selected extractor on the held-out split, once",
     )
+    # Phase 8, D5 and D9: the encoding runs on a rented GPU and the measurement on the
+    # laptop, so they are two stages rather than one; `--test` is the gated mode of each.
+    embedding = subparsers.add_parser(
+        "strong-embed", help="encode the pool and one split under the Phase 8 Dense model"
+    )
+    embedding.add_argument(
+        "--test",
+        action="store_true",
+        help="encode the held-out questions, only after the dev stop rule passed",
+    )
+    embedding.add_argument(
+        "--hourly-rate-usd",
+        type=float,
+        default=0.0,
+        dest="hourly_rate_usd",
+        help=(
+            "machine rate behind the attributable cost and the 5M projection; 0.0 on owned "
+            "hardware (default). The total rented-session charge is a different quantity and "
+            "is reported in 8.results.md"
+        ),
+    )
+    measurement = subparsers.add_parser(
+        "strong-dense", help="fit both Phase 8 hybrids on dev and measure the three systems"
+    )
+    measurement.add_argument(
+        "--test",
+        action="store_true",
+        help="measure the three systems on the held-out split, once, refitting nothing",
+    )
     extraction = subparsers.add_parser(
         "extract", help="read entities and concepts out of every paragraph (spends money)"
     )
@@ -2339,6 +2810,10 @@ def main(argv: list[str] | None = None) -> int:
         )
     elif args.command == "cheap-eval":
         cmd_cheap_eval(test=args.test)
+    elif args.command == "strong-embed":
+        cmd_strong_embed(hourly_rate_usd=args.hourly_rate_usd, test=args.test)
+    elif args.command == "strong-dense":
+        cmd_strong_dense(test=args.test)
     return 0
 
 

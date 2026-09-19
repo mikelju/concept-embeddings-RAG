@@ -174,6 +174,8 @@ def test_ensure_directories_creates_the_phase_3_directories(tmp_path, monkeypatc
     monkeypatch.setattr(config, "QUESTION_CACHE_DIR", tmp_path / "data" / "cache" / "questions")
     # Phase 6 added a directory; patched so this test writes nothing under the real data/.
     monkeypatch.setattr(config, "REPLACEMENT_DIR", tmp_path / "data" / "replacement")
+    # Phase 8 added another; same reason.
+    monkeypatch.setattr(config, "PHASE_8_DIR", tmp_path / "data" / "phase8")
 
     config.ensure_directories()
 
@@ -249,6 +251,7 @@ def test_ensure_directories_creates_the_phase_4_directories(tmp_path, monkeypatc
     monkeypatch.setattr(config, "EXPANSION_DIR", tmp_path / "data" / "expansion")
     monkeypatch.setattr(config, "TRACES_DIR", tmp_path / "data" / "traces")
     monkeypatch.setattr(config, "REPLACEMENT_DIR", tmp_path / "data" / "replacement")
+    monkeypatch.setattr(config, "PHASE_8_DIR", tmp_path / "data" / "phase8")
 
     config.ensure_directories()
 
@@ -336,6 +339,7 @@ def test_ensure_directories_creates_the_phase_5_directories(tmp_path, monkeypatc
         "QUESTION_CACHE_DIR",
         "EXPANSION_DIR",
         "TRACES_DIR",
+        "PHASE_8_DIR",
     ):
         monkeypatch.setattr(config, name, tmp_path / "other" / name.lower())
 
@@ -451,6 +455,7 @@ def test_ensure_directories_creates_the_phase_6_directory(tmp_path, monkeypatch)
         "NODES_DIR",
         "NAVIGATION_DIR",
         "PHASE_7_DIR",
+        "PHASE_8_DIR",
     ):
         monkeypatch.setattr(config, name, tmp_path / "other" / name.lower())
 
@@ -493,6 +498,8 @@ def test_ensure_directories_creates_the_phase_7_directory(tmp_path, monkeypatch)
         "NODES_DIR",
         "NAVIGATION_DIR",
         "REPLACEMENT_DIR",
+        # Added with Phase 8: without it, this test creates the real `data/phase8/`.
+        "PHASE_8_DIR",
     ):
         monkeypatch.setattr(config, name, tmp_path / "other" / name.lower())
 
@@ -629,3 +636,199 @@ def test_the_inherited_figures_are_the_ones_the_phase_6_artifacts_record():
             assert payload["system"] == system
             measured = payload["metrics"][f"budget_{config.SELECTION_BUDGET}"]["full_support"]
             assert measured == figures[system]
+
+
+# --- Phase 8 (S1): the constants that decide what "Strong Dense" is ----------
+#
+# The Phase 8 literals, at the indentation the line length allows. Each is a public
+# commit sha or the sha256 of a pipeline-written artifact; the inline pragma records
+# that the secret scanner's finding on it was audited, exactly as D2's are above.
+PHASE_8_LITERALS = (
+    "97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3",  # pragma: allowlist secret
+    "840b4f78325d5c3393588e82312b29e168bc265e42127896c588e75a422a0aba",  # pragma: allowlist secret
+    "0aec5c32440ff600c1abbc7d866ad143ddf5c5263bf8252f1dbacdffc1496be5",  # pragma: allowlist secret
+    "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a",  # pragma: allowlist secret
+)
+PHASE_8_DENSE_REVISION_LITERAL = PHASE_8_LITERALS[0]
+PHASE_8_EXTRACTION_DIGEST_LITERAL = PHASE_8_LITERALS[1]
+PHASE_8_INDEX_DIGEST_LITERAL = PHASE_8_LITERALS[2]
+BUDGET_TOKENIZER_REVISION_LITERAL = PHASE_8_LITERALS[3]
+#
+# Every value is fixed by the approved spec before the first Phase 8 number exists,
+# exactly as Phase 7's were (decision 10 there, decisions 1-3 and 6 here). These
+# assertions are what makes "fixed before measuring" checkable afterwards: a changed
+# model, revision, dimension, prompt or bar has to break a test rather than quietly
+# redefine what the phase measured.
+
+
+def test_the_phase_8_directory_is_its_own_and_under_the_data_directory():
+    assert config.PHASE_8_DIR == config.DATA_DIR / "phase8"
+    assert config.PHASE_8_DIR not in (
+        config.PHASE_7_DIR,
+        config.EXTRACTION_DIR,
+        config.NODES_DIR,
+        config.REPLACEMENT_DIR,
+        config.RESULTS_DIR,
+    )
+
+
+def test_ensure_directories_creates_the_phase_8_directory(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "PHASE_8_DIR", tmp_path / "data" / "phase8")
+    for name in (
+        "DATA_DIR",
+        "CACHE_DIR",
+        "RESULTS_DIR",
+        "CONCEPTS_DIR",
+        "SELECTION_DIR",
+        "QUESTION_CACHE_DIR",
+        "EXPANSION_DIR",
+        "TRACES_DIR",
+        "PILOT_DIR",
+        "EXTRACTION_DIR",
+        "NODES_DIR",
+        "NAVIGATION_DIR",
+        "REPLACEMENT_DIR",
+        "PHASE_7_DIR",
+    ):
+        monkeypatch.setattr(config, name, tmp_path / "other" / name.lower())
+
+    config.ensure_directories()
+
+    assert config.PHASE_8_DIR.is_dir()
+
+
+def test_the_dense_model_is_pinned_to_a_commit_and_to_its_full_width():
+    """Decision 1: one model, one commit, 1024 dimensions and no MRL truncation."""
+    assert config.PHASE_8_DENSE_MODEL == "Qwen/Qwen3-Embedding-0.6B"
+    assert config.PHASE_8_DENSE_REVISION == PHASE_8_DENSE_REVISION_LITERAL
+    assert config.PHASE_8_DENSE_REVISION.startswith("97b0c614")
+    assert len(config.PHASE_8_DENSE_REVISION) == 40
+    assert all(char in "0123456789abcdef" for char in config.PHASE_8_DENSE_REVISION)
+    assert config.PHASE_8_DENSE_DIM == 1024
+    assert config.PHASE_8_DENSE_MODEL != config.EMBEDDING_MODEL
+
+
+def test_the_query_prompt_is_the_exact_string_the_spec_settles():
+    """Restriction R2: one newline, no trailing space, never tuned for this benchmark."""
+    prompt = config.PHASE_8_QUERY_PROMPT
+
+    assert prompt == (
+        "Instruct: Given a web search query, retrieve relevant passages that answer "
+        "the query\nQuery:"
+    )
+    assert prompt.count("\n") == 1
+    assert prompt.endswith("Query:")
+    assert prompt == prompt.rstrip()
+    assert prompt.isascii()
+
+
+def test_the_entity_index_is_inherited_from_phase_7_by_its_digests():
+    """The phase changes the Dense retriever and nothing else: GLiNER is pinned, not rebuilt."""
+    assert config.PHASE_8_GLINER_DIR == config.PHASE_7_DIR / "gliner"
+    assert config.PHASE_8_GLINER_EXTRACTION_DIGEST == PHASE_8_EXTRACTION_DIGEST_LITERAL
+    assert config.PHASE_8_GLINER_INDEX_DIGEST == PHASE_8_INDEX_DIGEST_LITERAL
+    # The prefixes the spec quotes, so a swapped pair fails rather than passes quietly.
+    assert config.PHASE_8_GLINER_EXTRACTION_DIGEST.startswith("840b4f78")
+    assert config.PHASE_8_GLINER_INDEX_DIGEST.startswith("0aec5c32")
+    for digest in (
+        config.PHASE_8_GLINER_EXTRACTION_DIGEST,
+        config.PHASE_8_GLINER_INDEX_DIGEST,
+    ):
+        assert len(digest) == 64
+        assert all(char in "0123456789abcdef" for char in digest)
+
+
+def test_the_three_systems_are_the_ones_the_spec_measures():
+    assert config.PHASE_8_SYSTEMS == ("dense", "hybrid-bm25", "hybrid-entity-hop")
+
+
+def test_the_inherited_figures_carry_the_gliner_row_the_phase_is_read_against():
+    """Phase 8 inherits the GLiNER index, so the GLiNER row is its comparison baseline."""
+    for figures in (
+        config.PHASE_8_INHERITED_DEV_FULL_SUPPORT,
+        config.PHASE_8_INHERITED_HELD_OUT_FULL_SUPPORT,
+    ):
+        assert sorted(figures) == [
+            "dense",
+            "hybrid-bm25",
+            "hybrid-entity-hop-claude",
+            "hybrid-entity-hop-gliner",
+        ]
+    assert sorted(config.PHASE_8_INHERITED_DEV_FILES) == sorted(
+        config.PHASE_8_INHERITED_DEV_FULL_SUPPORT
+    )
+    assert sorted(config.PHASE_8_INHERITED_HELD_OUT_FILES) == sorted(
+        config.PHASE_8_INHERITED_HELD_OUT_FULL_SUPPORT
+    )
+    # The Phase 6 rows are the ones Phase 7 already pinned, never typed a second time.
+    dev, test = (
+        config.PHASE_8_INHERITED_DEV_FULL_SUPPORT,
+        config.PHASE_8_INHERITED_HELD_OUT_FULL_SUPPORT,
+    )
+    assert dev["dense"] == config.PHASE_7_REFERENCE_DEV_FULL_SUPPORT["dense"]
+    assert dev["hybrid-bm25"] == config.PHASE_7_REFERENCE_DEV_FULL_SUPPORT["hybrid-bm25"]
+    assert (
+        dev["hybrid-entity-hop-claude"]
+        == config.PHASE_7_REFERENCE_DEV_FULL_SUPPORT["hybrid-entity-hop"]
+    )
+    assert test["dense"] == config.PHASE_7_REFERENCE_HELD_OUT_FULL_SUPPORT["dense"]
+
+
+def test_the_stop_rule_bar_is_the_inherited_dense_dev_reading_in_whole_questions():
+    """Decision 4 and D10: 487/600 is a tie, and a tie is not 'substantially stronger'."""
+    dense = config.PHASE_8_INHERITED_DEV_FULL_SUPPORT["dense"]
+
+    assert round(dense * config.N_DEV) == config.PHASE_8_STOP_RULE_BASELINE_QUESTIONS
+    assert config.PHASE_8_STOP_RULE_BASELINE_QUESTIONS == 487
+
+
+def test_the_budget_tokenizer_is_declared_independently_of_the_embedding_model():
+    """Restriction R1: the ruler does not move when the Dense model does.
+
+    The two constants hold exactly the values `TOKENIZER_ID = EMBEDDING_MODEL` resolved
+    to in Phases 1-7, so this is a change of meaning and not of number; what it buys is
+    that repointing the Dense model can no longer move the context budget.
+    """
+    assert config.BUDGET_TOKENIZER_ID == "BAAI/bge-small-en-v1.5"
+    assert config.BUDGET_TOKENIZER_REVISION == BUDGET_TOKENIZER_REVISION_LITERAL
+    assert config.BUDGET_TOKENIZER_REVISION == config.EMBEDDING_REVISION
+    assert config.TOKENIZER_ID == config.BUDGET_TOKENIZER_ID
+    assert config.BUDGET_TOKENIZER_ID != config.PHASE_8_DENSE_MODEL
+    assert config.BUDGET_TOKENIZER_REVISION != config.PHASE_8_DENSE_REVISION
+
+
+def test_the_inherited_gliner_figures_are_the_ones_its_artifacts_record():
+    """Data-dependent: the baseline this phase is read against is never typed twice."""
+    import json
+
+    import pytest
+
+    dev_path = config.PHASE_8_GLINER_DIR / "dev.json"
+    test_path = config.PHASE_7_DIR / "test.json"
+    if not dev_path.exists() or not test_path.exists():
+        pytest.skip("the Phase 7 GLiNER artifacts are not on this checkout")
+
+    dev = json.loads(dev_path.read_text(encoding="utf-8"))
+    test = json.loads(test_path.read_text(encoding="utf-8"))
+    budget = f"budget_{config.SELECTION_BUDGET}"
+
+    assert dev["index"]["digest"] == config.PHASE_8_GLINER_INDEX_DIGEST
+    assert dev["extraction"]["digest"] == config.PHASE_8_GLINER_EXTRACTION_DIGEST
+    assert (
+        dev["metrics"][budget]["full_support"]
+        == config.PHASE_8_INHERITED_DEV_FULL_SUPPORT["hybrid-entity-hop-gliner"]
+    )
+    assert (
+        test["metrics"][budget]["full_support"]
+        == config.PHASE_8_INHERITED_HELD_OUT_FULL_SUPPORT["hybrid-entity-hop-gliner"]
+    )
+    for figures, files in (
+        (config.PHASE_8_INHERITED_DEV_FULL_SUPPORT, config.PHASE_8_INHERITED_DEV_FILES),
+        (config.PHASE_8_INHERITED_HELD_OUT_FULL_SUPPORT, config.PHASE_8_INHERITED_HELD_OUT_FILES),
+    ):
+        for system, relative in files.items():
+            path = config.DATA_DIR / relative
+            if not path.exists():
+                pytest.skip(f"{relative} is not on this checkout")
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            assert payload["metrics"][budget]["full_support"] == figures[system]
