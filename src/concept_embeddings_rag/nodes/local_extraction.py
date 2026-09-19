@@ -336,6 +336,8 @@ def hardware_block(device: str = "cpu", gpu_name: str | None = None) -> dict[str
 
         block["torch_threads"] = int(torch.get_num_threads())
         block["torch_version"] = str(torch.__version__)
+        if gpu_name is None and device.split(":", 1)[0] == "cuda" and torch.cuda.is_available():
+            block["gpu"] = torch.cuda.get_device_name(device)
     except Exception:
         block["torch_threads"] = None
         block["torch_version"] = None
@@ -556,8 +558,11 @@ def gliner_extractor(directory: Path | str) -> tuple[LocalExtractor, float]:
 
     model_dir = download_gliner(directory)
     started = time.perf_counter()
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    # manual_seed seeds both CPU and CUDA generators.
     torch.manual_seed(config.DEFAULT_SEED)
     model = GLiNER.from_pretrained(str(model_dir))
+    model.to(device)
     model.eval()
     load_seconds = time.perf_counter() - started
 
@@ -600,6 +605,7 @@ def gliner_extractor(directory: Path | str) -> tuple[LocalExtractor, float]:
             "gliner", "torch", "transformers", "tokenizers", "huggingface-hub", "safetensors"
         ),
         spans=spans,
+        hardware_device=device,
         max_tokens=config.GLINER_MAX_LEN,
         count_tokens=count_tokens,
         window_rule=(

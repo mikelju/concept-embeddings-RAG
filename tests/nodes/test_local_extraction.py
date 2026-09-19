@@ -13,7 +13,11 @@ ever sees.
 
 import gzip
 import json
+import sys
 from collections.abc import Sequence
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import Mock, call
 
 import pytest
 
@@ -388,6 +392,74 @@ def test_the_hardware_block_records_the_machine_rather_than_assuming_one():
     assert block["machine"]
     assert block["python"]
     assert "cpu_count" in block
+
+
+@pytest.mark.parametrize("cuda_available, device", [(False, "cpu"), (True, "cuda")])
+def test_gliner_moves_model_to_available_device_before_eval(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, cuda_available: bool, device: str
+) -> None:
+    model = Mock()
+    load_model = Mock(return_value=model)
+    seed = Mock()
+    monkeypatch.setitem(
+        sys.modules,
+        "torch",
+        SimpleNamespace(
+            cuda=SimpleNamespace(is_available=lambda: cuda_available), manual_seed=seed
+        ),
+    )
+    monkeypatch.setitem(
+        sys.modules, "gliner", SimpleNamespace(GLiNER=SimpleNamespace(from_pretrained=load_model))
+    )
+    monkeypatch.setattr(local, "download_gliner", lambda directory: tmp_path)
+    monkeypatch.setattr(local, "_versions", lambda *names: {})
+
+    extractor, _ = local.gliner_extractor(tmp_path)
+
+    seed.assert_called_once_with(config.DEFAULT_SEED)
+    load_model.assert_called_once_with(str(tmp_path))
+    assert model.mock_calls == [call.to(device), call.eval()]
+    assert extractor.hardware_device == device
+
+
+@pytest.mark.parametrize(
+    "device, cuda_available, gpu_name, expected_gpu",
+    [
+        ("cpu", True, None, None),
+        ("cuda", True, None, "Detected GPU"),
+        ("cuda:1", True, None, "Detected GPU"),
+        ("cuda:1", True, "Explicit GPU", "Explicit GPU"),
+        ("cuda", False, None, None),
+    ],
+)
+def test_hardware_gpu_identification_respects_device_and_explicit_name(
+    monkeypatch: pytest.MonkeyPatch,
+    device: str,
+    cuda_available: bool,
+    gpu_name: str | None,
+    expected_gpu: str | None,
+) -> None:
+    get_name = Mock(return_value="Detected GPU")
+    monkeypatch.setitem(
+        sys.modules,
+        "torch",
+        SimpleNamespace(
+            cuda=SimpleNamespace(is_available=lambda: cuda_available, get_device_name=get_name),
+            get_num_threads=lambda: 4,
+            __version__="fake",
+        ),
+    )
+
+    block = local.hardware_block(device=device, gpu_name=gpu_name)
+
+    assert block["device"] == device
+    assert block["gpu"] == expected_gpu
+    assert block["torch_threads"] == 4
+    assert block["torch_version"] == "fake"
+    if device.startswith("cuda") and cuda_available and gpu_name is None:
+        get_name.assert_called_once_with(device)
+    else:
+        get_name.assert_not_called()
 
 
 def test_the_pickle_refusal_names_the_file_it_found(tmp_path):
