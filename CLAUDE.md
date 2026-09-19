@@ -386,63 +386,94 @@ Full Phase 6 result:
 
 ---
 
-# Next phases
+## Phase 7 — cheap entity extraction
 
-The immediate roadmap has deliberately been reduced to three sequential questions.
-
-## Phase 7 — Cheap Entity Extraction
-
-Planned next.
+Complete — **GLINER SELECTED** (`data/phase7/selection.json` → `selected: "gliner"`).
 
 Question:
 
 > Can the expensive Claude-based entity extraction be replaced by a cheap/local extractor without
 > materially losing the Entity Hop retrieval gain?
 
-Run candidate extraction methods over the **existing 19,366-paragraph corpus**, then rebuild the same
-Entity Hop and measure retrieval end to end.
+Two local candidates were extracted over the same 19,366-paragraph pool, both measured on dev, a
+preregistered rule selected one, and that one was measured once on test. Nothing else changed: same
+pool, same `BAAI/bge-small-en-v1.5`, same P1-only, one-hop, query-blind Entity Hop. Only the reader
+of the paragraphs changed.
 
-Initial candidate families should remain few:
-
-- existing Claude extraction as reference;
-- GLiNER or comparable local/open NER;
-- a conventional lightweight NER model such as spaCy or equivalent;
-- optionally Wikipedia-native links/anchors if the actual FullWiki source exposes them usefully.
-
-Do **not** turn Phase 7 into a general NER benchmark.
-
-The metric that matters is downstream retrieval performance, not generic NER F1.
-
-Measure at minimum:
-
-- retrieval quality;
-- extraction failures;
-- entity/incidence counts;
-- paragraphs per second;
-- wall-clock preprocessing time;
-- hardware used;
-- index size;
-- estimated time and monetary cost for approximately 5M paragraphs.
-
-Keep fixed:
+Selected extractor:
 
 ```text
-current 19,366-paragraph corpus
-current Dense retriever
-P1 only
-one hop
-no canonicalization
-no relations
-no query-aware filtering
+urchade/gliner_medium-v2.1
+revision 40ec419335d09393f298636f471328b722c6da9e
+5 labels
+threshold 0.5
+batch size 8
+config digest 2f7864661b8ce7ff
 ```
 
-The result should select a practical extraction path for Phase 8/9.
+Headline held-out result, 1,400 questions, Full Support @2,048:
+
+```text
+Dense                           0.8250 = 1,155 / 1,400
+Dense + BM25                    0.8643 = 1,210 / 1,400
+Dense + Entity Hop (Claude)     0.8900 = 1,246 / 1,400
+Dense + Entity Hop (GLiNER)     0.8793 = 1,231 / 1,400
+```
+
+GLiNER retains **83.5%** of the Claude Entity Hop's held-out gain over Dense: 76 of the 91 questions
+Claude added. It beats the Dense + BM25 control by 21 questions and sits 15 questions below Claude.
+
+Extraction, measured on a rented RTX 4090 (Linux x86_64):
+
+```text
+19,366 paragraphs in 119.4 s
+162.178 paragraphs/s
+0.03 USD attributable compute
+```
+
+against Claude's measured 25.9848 USD for the same 19,366 paragraphs.
+
+Projection to 5M paragraphs, linear from the measured throughput:
+
+```text
+8.56 h / 6.34 USD
+```
+
+That pair is a **projection, never a measurement**, and must be labelled as such wherever it is
+quoted.
+
+### The secondary finding, which must not be lost
+
+**spaCy (`en_core_web_sm` 3.8.0) measured better than GLiNER on dev**: 525 / 600 (0.8750) against
+GLiNER's 518 / 600 (0.8633), retaining 95.0% of Claude's dev gain against GLiNER's 77.5%. spaCy was
+not selected, and the held-out split was **never opened for it**. Three reasons:
+
+- the preregistered rule ranks on projected FullWiki cost and time among the candidates clearing
+  both bars, and GLiNER's 6.34 USD / 8.56 h beat spaCy's 11.08 USD / 14.97 h;
+- overriding that rule *after observing dev* would invalidate the only thing that makes the held-out
+  figure mean anything;
+- spaCy buys its quality with a much denser, less scalable representation: 11 labels against 5, a
+  median of 493 hop candidates against 40, a largest hub of 4,085 paragraphs against 1,186.
+
+On dev, GLiNER tied the Dense + BM25 line exactly (518 = 518); on the held-out split it beat that
+line by 21 questions. Dev was the more pessimistic of the two readings.
+
+spaCy is **not discarded**. It remains a candidate for a later scale-and-representation experiment,
+recorded under deferred work — not as an active phase.
+
+Full Phase 7 result:
+
+`docs/plans/phase_7/7.results.md`
 
 ---
 
+# Next phases
+
+Two sequential questions remain in the immediate roadmap.
+
 ## Phase 8 — Strong Dense
 
-Planned after Phase 7.
+Planned next.
 
 Question:
 
@@ -460,11 +491,19 @@ Strong Dense + BM25
 Strong Dense + Entity Hop
 ```
 
-Use the entity extractor selected in Phase 7.
+Use the entity extractor Phase 7 selected: **GLiNER**, `urchade/gliner_medium-v2.1` at revision
+`40ec419335d09393f298636f471328b722c6da9e`.
+
+> **Phase 8 inherits GLiNER and changes only the Dense retriever.** Changing the Dense model and the
+> extractor simultaneously would make any improvement or degradation unattributable to either.
+
+That is also the answer to "why not spaCy, it scored better on dev?": see the Phase 7 record above.
+Re-opening the extractor choice belongs to a later scale-and-representation experiment, not here.
 
 Keep:
 
 ```text
+GLiNER entity index from Phase 7
 P1 only
 one hop
 no canonicalization
@@ -481,7 +520,7 @@ No other entity parameter should be introduced merely to rescue a weak result.
 
 ## Phase 9 — HotpotQA FullWiki
 
-Planned after Phases 7 and 8.
+Planned after Phase 8.
 
 Question:
 
@@ -491,11 +530,14 @@ Question:
 Carry forward:
 
 ```text
-cheap extractor selected in Phase 7
+GLiNER (urchade/gliner_medium-v2.1), the extractor selected in Phase 7
 Strong Dense selected in Phase 8
 P1 only
 one Entity Hop
 ```
+
+Phase 7's 5M extraction figures — 8.56 h / 6.34 USD — are **projections** from a measured
+162.178 paragraphs/s, not a budget and not an authorization. Phase 9 measures its own.
 
 At minimum compare:
 
@@ -547,7 +589,10 @@ These are research directions, **not current phases**:
 - QA end to end;
 - hierarchical/book-like corpora;
 - Type C / satellite-context evaluation;
-- direct reproduction of every competing paper.
+- direct reproduction of every competing paper;
+- **re-opening the Phase 7 extractor choice at scale** — does spaCy's dev advantage over GLiNER
+  survive at FullWiki scale, or does it collapse under candidate explosion and hub growth? Recorded
+  so it is not lost; writing it down does not promote it into Phase 8 or 9.
 
 Their rationale and possible ordering live in:
 
@@ -641,6 +686,8 @@ navigate
 replace-check
 replace-freeze
 replace-test
+cheap-extract
+cheap-eval
 ```
 
 Historical pipeline:
@@ -666,6 +713,10 @@ uv run cer navigate
 uv run cer replace-check
 uv run cer replace-freeze
 uv run cer replace-test
+
+uv run cer cheap-extract --extractor gliner
+uv run cer cheap-eval
+uv run cer cheap-eval --test
 ```
 
 Do not re-run one-shot historical experimental stages merely to inspect them. Their versioned artifacts
@@ -715,7 +766,7 @@ docs/
 │   ├── research_roadmap.md
 │   ├── phase_1/
 │   ├── ...
-│   └── phase_6/
+│   └── phase_7/
 ├── refs/
 ├── security/
 ├── templates/
@@ -806,8 +857,9 @@ For new work:
 - fitting or choosing between alternatives happens on dev;
 - test is used for the final evaluation of the chosen configuration;
 - do not tune a new model/extractor by repeatedly looking at its test score;
-- when comparing several Phase 7 extractors, use dev to choose the practical winner, then report its
-  held-out test result;
+- when comparing alternatives, use dev to choose the practical winner, then report only that
+  winner's held-out test result — this is how Phase 7 selected GLiNER, and why spaCy has no test
+  figure;
 - record which model/version/configuration generated every important result;
 - do not invent missing figures.
 
@@ -830,18 +882,22 @@ Current core stack includes:
 | Transformers | transformers |
 | Lexical retrieval | bm25s |
 | Vector retrieval | local numpy/faiss-compatible machinery |
+| Entity extraction (`phase7` group) | `gliner==0.2.29`, `spacy==3.8.16`, `en_core_web_sm` 3.8.0 |
 | Tests | pytest |
 | Lint | ruff |
 | Types | mypy |
 
+GLiNER is now part of the stack: it produced the entity index Phase 8 inherits, and it is installed
+through the optional `phase7` dependency group rather than the core dependencies.
+
 The local development machine is Windows on ARM64.
 
-That is a development constraint, **not a scientific constraint**.
+That is a development constraint, **not a scientific constraint**, and Phase 7 exercised the
+escape hatch: both extraction passes ran on a rented Linux x86_64 RTX 4090 machine. `pyproject.toml`
+resolves `torch` from the `pytorch-cpu` index on Windows and from `pytorch-cu126` on Linux x86_64,
+and GLiNER moves itself to CUDA when a device is present. Phases 8 and 9 will use that path again.
 
-Phases 7–9 may use an x86 machine, GPU or cloud environment if that materially improves extraction,
-embedding or FullWiki preprocessing.
-
-Do not reject a scientifically appropriate Phase 7/8 model solely because it does not run efficiently
+Do not reject a scientifically appropriate Phase 8/9 model solely because it does not run efficiently
 on the original laptop.
 
 ---
@@ -859,7 +915,8 @@ It has been used for:
 - concept labelling;
 - Phase 5 entity/concept extraction.
 
-Local Phase 7 extractors should not require that key.
+That is the whole list. The Phase 7 local extractors required no key, and neither extraction pass
+made an Anthropic API call.
 
 Secrets:
 
@@ -979,22 +1036,34 @@ A small research phase should stay small.
 
 The local machine is ARM64.
 
-Some packages have historically lacked `win_arm64` wheels.
+Some packages lack `win_arm64` wheels, and Phase 7 hit that for real: **spaCy cannot be installed on
+this laptop** because `blis` publishes no `win_arm64` wheel. It ran on the rented x86_64 machine
+instead. GLiNER installs locally but is far too slow on ARM64 CPU to be useful — the laptop probe
+measured 0.558 paragraphs/s against 162.178 p/s on the rented RTX 4090.
 
-Before adding a Phase 7 extractor dependency, check:
+Before adding an extractor or model dependency, check:
 
 - whether it installs on the current environment;
 - whether ONNX or another backend is available;
-- whether it is more sensible to run the extraction benchmark on another machine.
+- whether it is more sensible to run the work on another machine.
 
-Do not distort the scientific experiment solely to accommodate the laptop.
+Do not distort the scientific experiment solely to accommodate the laptop. Renting compute is an
+established, approved path in this project, not an exception.
 
 ---
 
 ## 2. Torch source
 
-`torch` has historically required the official PyTorch package source for `win_arm64`.
+`torch` requires the official PyTorch package source rather than PyPI.
 
+`pyproject.toml` declares two explicit indexes and selects between them by marker:
+
+```text
+pytorch-cu126   sys_platform == 'linux' and platform_machine == 'x86_64'
+pytorch-cpu     everything else, including win_arm64
+```
+
+That is what lets the same pinned code run on the ARM64 laptop and on a rented CUDA machine.
 Respect the existing `pyproject.toml` / `uv` source configuration.
 
 ---
@@ -1040,15 +1109,18 @@ Read their existing outputs.
 
 ---
 
-## 6. Phase 7 selection
+## 6. Phase 7 selection — how it was actually made
 
-Phase 7 should not choose a local extractor from test performance.
+Recorded because it will be questioned again.
 
-Use dev retrieval performance plus measured cost/throughput to select the candidate.
+The extractor was **not** chosen on test performance. Both candidates were measured on the 600 dev
+questions; a bar and ranking frozen in `config.py` before any candidate ran admitted both and ranked
+GLiNER first on projected FullWiki cost and time; only then was the held-out split opened, once, for
+GLiNER alone. spaCy's test figure does not exist and should not be produced retrospectively.
 
-Then evaluate the chosen candidate on test.
-
-Keep this simpler than Phase 6, but keep the distinction real.
+spaCy scored higher on dev. That does not reopen the choice: overriding a preregistered rule after
+observing dev would destroy the meaning of the held-out figure. The same discipline applies to any
+later phase that compares alternatives.
 
 ---
 
@@ -1075,24 +1147,16 @@ Apply `/8-auditar` when the phase introduces an actual security-relevant surface
 
 Do not run elaborate process steps mechanically when they add no value to the research phase.
 
-## Phase 7 planning instruction
+## What Phase 7 established about this workflow
 
-Phase 7 must follow the simplification rule.
+Phase 7 followed the simplification rule and it worked: one research question, a spec that fixed the
+question, the constraints, the measurements, the selection rule and the anti-goals without designing
+the implementation, then a short implementation plan, then the experiment. The targeted `/8-auditar`
+pass covered three declared surfaces rather than the whole codebase.
 
-The spec should define:
-
-- the research question;
-- candidate extractor families;
-- what remains fixed;
-- what is measured;
-- how dev selects the extractor;
-- what test reports;
-- what counts as economically viable for FullWiki planning;
-- explicit anti-goals.
-
-It should **not** design the implementation in detail.
-
-The implementation plan that follows should aim for roughly 5–8 concrete steps.
+Phase 8 should be specified the same way: state the question, what stays fixed, what is measured and
+how dev decides; leave the implementation to the plan that follows; aim for roughly 5–8 concrete
+steps.
 
 ---
 
@@ -1100,13 +1164,17 @@ The implementation plan that follows should aim for roughly 5–8 concrete steps
 
 Historical artifact verification remains valid and should not be removed.
 
-New Phase 7 artifacts do not automatically need the same machinery as Phase 6.
+New artifacts from Phase 7 onward do not automatically need the same machinery as Phase 6.
 
 Use the smallest integrity mechanism that lets us answer:
 
 ```text
 Which extractor/model/configuration produced this result?
 ```
+
+Phase 7's answer was a configuration digest per extractor plus a digest chain linking extraction →
+node index → dev → selection → held-out run, so a test figure cannot be detached from the dev
+reading and the selection that authorized it. Reuse that shape.
 
 Avoid executable serialization for untrusted data.
 
@@ -1134,6 +1202,7 @@ docs/plans/phase_3/3.results.md
 docs/plans/phase_4/4.results.md
 docs/plans/phase_5/5.results.md
 docs/plans/phase_6/6.results.md
+docs/plans/phase_7/7.results.md
 ```
 
 `docs/USER_GUIDE.md` currently describes an older execution pipeline and should not be treated as
@@ -1146,17 +1215,19 @@ result artifacts.
 
 # Immediate next action
 
-The next phase is:
+Phase 7 is complete and measured. The next phase is:
 
 ```text
-Phase 7 — Cheap Entity Extraction
+Phase 8 — Strong Dense
 ```
 
-Before implementation:
+Its first step is specification:
 
-1. commit the updated master plan, research roadmap and this `CLAUDE.md`;
-2. create `docs/plans/phase_7/7.spec.md`;
-3. review and approve the spec;
-4. only then create the lightweight implementation plan.
+1. create `docs/plans/phase_8/8.spec.md`;
+2. review and approve the spec;
+3. only then create the lightweight implementation plan.
 
-Do not implement Phase 7 while specifying it.
+Do not implement Phase 8 while specifying it.
+
+Phase 8 inherits the GLiNER entity index from Phase 7 unchanged and changes exactly one variable:
+the Dense retriever.

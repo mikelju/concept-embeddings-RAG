@@ -72,9 +72,9 @@ From Phase 7 onward:
 | 4 | Query-aware iterative expansion (System C) | Available | **Complete — negative result** |
 | 5 | Text-derived concepts: navigation pilot | Available | **Complete — NAMES ONLY** |
 | 6 | Dense + Entity Navigation — end-to-end comparison | Available | **Complete — ENTITY_REPLACEMENT_SUPPORTED** |
-| 7 | Cheap entity extraction | Available | **Implemented, not measured** — apparatus, CLI and security review done; no extraction pass run, so no dev figure, no selection and no test figure ([7.results.md](phase_7/7.results.md)) |
-| 8 | Strong Dense + Entity Hop | Pending | **Planned after Phase 7** |
-| 9 | HotpotQA FullWiki at literature-comparable scale | Pending | **Planned after Phases 7–8** |
+| 7 | Cheap entity extraction | Available | **Complete — GLINER SELECTED** |
+| 8 | Strong Dense + Entity Hop | Pending | **Planned next** |
+| 9 | HotpotQA FullWiki at literature-comparable scale | Pending | **Planned after Phase 8** |
 
 **The first research line is closed** (2026-09-15): concepts induced from pooled embeddings, tested through Phases 2-4, gave a negative and bounded result. The original Phase 5 — a comparative evaluation of that method — was not run; the plan was renumbered so Phase 5 tests the representation the proposal actually described. See [`phase_4/4.1_research_line_closure.md`](phase_4/4.1_research_line_closure.md).
 
@@ -82,7 +82,9 @@ From Phase 7 onward:
 
 **Phase 6 is measured and closed** (2026-09-17): under one protocol frozen and committed before the test split was opened, and read exactly once, `data/replacement/decision.json` records the state **`ENTITY_REPLACEMENT_SUPPORTED`** with no anomaly and no open question. The Entity Hop replaces the BM25 component of the dense hybrid without loss of retrieval quality, and the resulting system also improves on dense alone. See [`phase_6/6.results.md`](phase_6/6.results.md).
 
-The next three phases deliberately do **not** try to improve the Entity Hop with canonicalization, relations, multiple seeds or additional hops. They ask whether the simple mechanism already discovered can be made cheap, survive a substantially stronger dense retriever, and scale to the standard FullWiki setting used by the literature.
+**Phase 7 is measured and closed** (2026-09-19): `data/phase7/selection.json` records `selected: "gliner"`, and the single held-out run scores **0.8793 Full Support @2,048** on the 1,400 test questions, keeping **83.5%** of what the 25.9848 USD Claude extraction bought, for an attributable **0.03 USD** of rented GPU compute. The entity representation can be built cheaply. See [`phase_7/7.results.md`](phase_7/7.results.md).
+
+The remaining two phases deliberately do **not** try to improve the Entity Hop with canonicalization, relations, multiple seeds or additional hops. They ask whether the simple mechanism already discovered survives a substantially stronger dense retriever, and scales to the standard FullWiki setting used by the literature.
 
 ---
 
@@ -323,90 +325,66 @@ Those questions are deliberately separated.
 
 ---
 
-# Phase 7: Cheap Entity Extraction
+## Phase 7: Cheap entity extraction
 
-## Question
+Phase 7 asked the economic question that stood between Phase 6 and any FullWiki build:
 
 > **Can the expensive Phase 5 LLM entity extraction be replaced by a cheap or local extractor without materially losing the Entity Hop retrieval gain?**
 
-This is now the immediate bottleneck.
+Phase 5 processed 19,366 paragraphs for 25.98 USD. HotpotQA FullWiki is on the order of millions. Naively multiplying a frontier-LLM extraction was never an acceptable scaling strategy.
 
-Phase 5 processed only 19,366 paragraphs and cost approximately 25.98 USD. HotpotQA FullWiki contains on the order of millions of paragraphs. Before scaling, the project must determine whether the entity representation can be built without passing every paragraph through a frontier generative LLM.
+- [x] Two local candidates extracted over the frozen 19,366-paragraph pool: **GLiNER** (`urchade/gliner_medium-v2.1`, revision `40ec419335d09393…`) and **spaCy** (`en_core_web_sm` 3.8.0)
+- [x] The same normalization, the same entity incidence index, the same P1-only one-hop Entity Hop, the same Dense retriever — only the reader of the paragraphs changed
+- [x] Both candidates measured on the 600 dev questions, fusion weight refitted on dev
+- [x] A retention bar and a ranking rule frozen in `config.py` **before any candidate ran**
+- [x] The held-out split opened once, for the selected extractor only
+- [x] Throughput, failures, index size and cost measured; FullWiki figures projected and labelled as projections
+- [x] Targeted security review of the three declared surfaces: no Critical, no High
 
-## Scope
+### What Phase 7 found
 
-Run candidate entity extractors over the **existing 19,366-paragraph corpus** so that every candidate can be evaluated against the already-established Phase 6 result.
+**It can.** The recorded selection is `gliner` (`data/phase7/selection.json` → `selected`).
 
-Initial candidates should stay deliberately small in number, for example:
+At Full Support @2,048 on the 1,400 test questions:
 
-- the existing Claude extraction as the reference;
-- **GLiNER** or a comparable local zero-shot/open NER model;
-- a conventional local NER baseline such as **spaCy** or an equivalent lightweight model;
-- optionally, if the FullWiki source exposes usable Wikipedia links/anchors, a deterministic Wikipedia-derived entity source.
+| System | Full Support | Successes |
+|---|---:|---:|
+| Dense | 0.8250 | 1,155 |
+| Dense + BM25 | 0.8643 | 1,210 |
+| Dense + Entity Hop (Claude) | 0.8900 | 1,246 |
+| **Dense + Entity Hop (GLiNER)** | **0.8793** | **1,231** |
 
-Do not expand this into a general NER benchmark.
+GLiNER recovers **76 of the 91 questions** Claude's extraction added over Dense — **83.5%** of the held-out gain. It beats the Dense + BM25 control by 21 questions and sits 15 below Claude.
 
-The metric that matters is **retrieval**, not generic NER F1.
+The cost collapse is the point of the phase, and it is measured, not estimated:
 
-## Main comparison
+| Extraction of 19,366 paragraphs | Value |
+|---|---|
+| GLiNER wall clock | 119.4 s at **162.178 paragraphs/s**, 1× RTX 4090 (rented, Linux x86_64) |
+| GLiNER attributable compute | **0.03 USD** |
+| Claude (Phase 5, measured) | **25.9848 USD** |
 
-For each viable extractor:
+Projected linearly from that measured throughput, 5M paragraphs would take **8.56 h and 6.34 USD**. Those two numbers are **projections, not measurements**, and carry no authorization to build FullWiki; Phase 9 measures its own.
 
-```text
-extract entities
-→ build the same entity incidence index
-→ run the same P1, one-hop Entity Hop
-→ combine with the current Dense retriever
-→ measure retrieval
-```
+### The secondary finding
 
-The existing Claude-based result remains the reference:
+**spaCy measured better than GLiNER on dev** — 525 / 600 (0.8750) against 518 / 600 (0.8633), retaining 95.0% of Claude's dev gain against GLiNER's 77.5% — and was not selected. Its held-out split was **never opened**, so no spaCy test figure exists.
 
-```text
-Dense + Claude-entities Entity Hop
-Full Support @2,048 test = 0.8900
-```
+Three reasons, recorded so the choice is not relitigated:
 
-## Measure
+1. The preregistered rule ranks candidates that clear both bars on projected FullWiki cost and time. GLiNER's 6.34 USD / 8.56 h beat spaCy's 11.08 USD / 14.97 h.
+2. Overriding that rule *after observing dev* would invalidate the only thing that makes the held-out figure mean anything.
+3. spaCy buys its quality with a much denser, less scalable representation: 11 labels against 5, a median of 493 hop candidates per question against 40, a largest hub of 4,085 paragraphs against 1,186.
 
-At minimum record:
+On dev, GLiNER landed exactly on the Dense + BM25 line (518 = 518). On the held-out split it beat that line by 21 questions. **Dev was the more pessimistic reading**, which is the safe direction for a selection rule to err in.
 
-- Full Support / Gold Recall / Recall@10 with the same current benchmark;
-- Entity Hop hit behaviour;
-- number of entity forms and incidence edges;
-- extraction failures;
-- paragraphs per second;
-- wall-clock preprocessing time;
-- CPU/GPU requirements;
-- estimated processing time for ~5M paragraphs;
-- estimated monetary cost for ~5M paragraphs;
-- resulting index size.
+spaCy is **not discarded**. It remains a candidate for a later scale-and-representation experiment, listed under deferred work.
 
-Selection should be pragmatic:
+### What Phase 7 does not establish
 
-> choose the cheapest extractor that preserves enough of the retrieval signal to make FullWiki scaling scientifically worthwhile.
+It does not establish that GLiNER reads entities *correctly* — NER quality was an explicit anti-goal — that its 21-question margin over BM25 is stable beyond one test run (no interval, no test statistic, by design), or that either extractor's representation survives at five million paragraphs.
 
-No elaborate statistical decision framework is required.
-
-## Constraints
-
-Keep unchanged:
-
-- the current 19,366-paragraph corpus;
-- P1 as the only seed;
-- one entity hop;
-- no canonicalization;
-- no relations;
-- no query-aware filtering;
-- no multiple-hop traversal.
-
-## Outcome
-
-Phase 7 should answer only:
-
-1. Can we build the entity index cheaply enough for FullWiki?
-2. How much of the Phase 6 gain survives?
-3. Which extractor should Phase 8 and Phase 9 inherit?
+Full result: [`phase_7/7.results.md`](phase_7/7.results.md).
 
 ---
 
@@ -434,7 +412,11 @@ Strong Dense + BM25
 Strong Dense + Entity Hop
 ```
 
-The Entity Hop uses the extractor selected in Phase 7.
+The Entity Hop uses **GLiNER**, the extractor Phase 7 selected (`urchade/gliner_medium-v2.1`, revision `40ec419335d09393…`), and its existing entity index.
+
+> **Phase 8 inherits GLiNER and changes only the Dense retriever.** Changing the Dense model and the extractor simultaneously would make any improvement or degradation unattributable to either.
+
+That is the answer to "why not spaCy, it scored better on dev?". The extractor question is settled for Phase 8; re-opening it belongs to the deferred scale-and-representation experiment.
 
 P1 remains the only seed and the system remains one-hop.
 
@@ -478,7 +460,7 @@ This is the first phase designed primarily to make the project's numbers directl
 
 Phase 9 opens only after:
 
-- Phase 7 identifies an affordable entity extraction path; and
+- Phase 7 identifies an affordable entity extraction path — **done: GLiNER**; and
 - Phase 8 selects the strong dense retriever.
 
 ## Scope
@@ -499,7 +481,7 @@ Keep:
 
 - one seed: P1;
 - one hop;
-- the cheap extractor selected in Phase 7;
+- GLiNER, the cheap extractor selected in Phase 7;
 - the Strong Dense model selected in Phase 8;
 - no canonicalization;
 - no explicit relations;
@@ -549,6 +531,8 @@ Record:
 
 The phase should determine whether the simple entity incidence representation remains operationally attractive relative to richer graph construction.
 
+Phase 7's **8.56 h / 6.34 USD for 5M paragraphs is a projection** extrapolated linearly from a 19,366-paragraph measurement. Phase 9 is where it is confirmed or refuted by measurement.
+
 ## Outcome
 
 Phase 9 should tell us whether the Phase 6 mechanism:
@@ -576,7 +560,8 @@ The following are valid research directions but are **not current phases**:
 - broader GraphRAG structures;
 - hierarchical/book-like corpora;
 - Type C thematic/satellite-context evaluation;
-- direct reimplementations of every competing paper.
+- direct reimplementations of every competing paper;
+- **re-opening the Phase 7 extractor choice at scale**: does spaCy's dev advantage over GLiNER survive at FullWiki scale, or does it collapse under candidate explosion and hub growth? A median of 493 candidates per hop on 19,366 paragraphs is a different proposition on five million. Recorded so the question is not lost; it is **not** promoted into Phase 8 or Phase 9.
 
 Their ordering is discussed in [`research_roadmap.md`](research_roadmap.md).
 
@@ -617,6 +602,8 @@ Existing environment notes:
 
 Phases 7–9 may use another machine, cloud GPU or x86 environment when doing so materially reduces preprocessing or embedding cost. The experimental question takes precedence over preserving the original hardware limitation.
 
+**Phase 7 exercised that allowance and it was decisive.** Both extraction passes ran on a rented Linux x86_64 machine with one RTX 4090; `pyproject.toml` now resolves `torch` from the `pytorch-cpu` index on Windows and from `pytorch-cu126` on Linux x86_64, and GLiNER moves itself to CUDA when a device is present. spaCy genuinely cannot be installed on the ARM64 laptop — `blis` publishes no `win_arm64` wheel — and ran on the rented machine. Phases 8 and 9 will use the same path.
+
 ---
 
 ## Declared limitations
@@ -643,7 +630,7 @@ The current system is deliberately simple:
 
 Its current success therefore says something narrow but useful about the value of **shared-entity relatedness** as a complement to semantic similarity.
 
-Phase 7 must establish whether this representation can be constructed cheaply.
+Phase 7 established that this representation can be constructed cheaply — with GLiNER, on the 19,366-paragraph corpus, keeping 83.5% of the gain. It did **not** establish that the extraction is faithful (NER quality was never measured) or that the representation behaves the same at scale.
 
 Phase 8 must establish whether the effect survives a stronger Dense retriever.
 
@@ -663,10 +650,11 @@ The text-derived entity line has produced its first positive result:
 
 - Phase 5 established a strong entity-navigation signal.
 - Phase 6 established that the signal works end to end and satisfies the preregistered BM25-replacement criterion.
+- Phase 7 established that the representation can be built with a local model for roughly one thousandth of the LLM extraction cost, keeping 83.5% of the held-out gain.
 
 The immediate next success criteria are now sequential:
 
-1. **Phase 7:** make the entity representation economically scalable without destroying its retrieval value.
+1. ~~**Phase 7:** make the entity representation economically scalable without destroying its retrieval value.~~ **Met**, with GLiNER.
 2. **Phase 8:** show whether the structural signal remains useful beside a modern strong Dense retriever.
 3. **Phase 9:** test that architecture on HotpotQA FullWiki and obtain numbers that can be compared meaningfully with the published multi-hop retrieval literature.
 
