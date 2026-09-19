@@ -251,7 +251,7 @@ digest-verified JSON and `np.load` over `.npz` (no `allow_pickle`).
 
 | ID | Severity | Title | Status |
 |---|---|---|---|
-| SEC-031 | Low | The extraction manifest names model, revision and library versions but records no digest of the weight file actually loaded, so the artifact cannot prove which bytes produced it | Open, catalogued |
+| SEC-031 | Low | The extraction manifest names model, revision and library versions but records no digest of the weight file actually loaded, so the artifact cannot prove which bytes produced it | Open, deferred (artifact preservation; remediation is prospective, see note below) |
 | SEC-032 | Low | `spacy.load` of `en_core_web_sm` executes publisher code: the pipeline is an installed Python package, not a data file | Open, accepted (pinned version, official wheel, hash in `uv.lock`) |
 
 **OBS-012** — `gliner` drags `typer`, `rich`, `click`, `shellingham` and `pygments` into the project
@@ -260,14 +260,38 @@ download. The group is optional and CI audits it; recorded as footprint, not as 
 one of the inputs the selection rule's "smaller dependency and operational footprint" tie-break
 would read if it were ever reached.
 
-**No Critical and no High finding on the three surfaces reviewed.** SEC-031 is the only one with a
-cheap remedy (hash `model.safetensors` into the manifest beside the revision); it is catalogued
-rather than fixed because no Phase 7 extraction artifact exists yet and the fix belongs with the run
-that writes one, not with a review.
+**No Critical and no High finding on the three surfaces reviewed.**
+
+**SEC-031 — deferred on 2026-09-19, to preserve a measured artifact.** The extraction manifest
+records the pinned model revision but not the digest of the exact `model.safetensors` bytes loaded.
+The remedy is cheap — hash the weight file into the manifest beside the revision — but the Phase 7
+artifacts are measured, verified and frozen, and applying it now would rewrite an artifact of a run
+that has already happened in order to add provenance that was not recorded at execution time. That
+is not worth doing to historical evidence. **Remediation, prospective:** record and verify the
+model-weight SHA-256 *before* the next corpus-scale extraction with this extractor — Phase 9 in
+practice, since Phase 8 reuses the existing Phase 7 extraction and does not reopen it. What the
+deferral concedes, stated plainly: Phase 7 remains reproducible to the pinned repository revision,
+but does not cryptographically bind its manifest to the exact weight-file bytes.
+
+> The earlier reason given here — that no Phase 7 extraction artifact existed yet — was true when
+> the review was written on 2026-09-18 and stopped being true when the passes ran on 2026-09-19.
 
 ## Deferred audits
 
 An audit that was not run is a decision on record here, never a gap nobody noticed.
+
+### Phase 7 — the targeted review satisfies the audit, nothing is outstanding
+
+The Phase 7 spec settled, **before implementation**, that this phase's audit would be a targeted
+review of three declared surfaces — new dependencies, model download and identity, deserialization
+and model loading — rather than a full Phase 6-scale pass. S6 carried out exactly that review on
+2026-09-18 and its rows are catalogued above. The `/7-verificar` pass of 2026-09-19 then re-checked
+the phase against its spec and found no material gap: 28 of 28 acceptance criteria satisfied, the
+digest chain intact, dev/test separation held, and `pytest` / `ruff` / `mypy` clean.
+
+**The S6 targeted review therefore satisfies the audit planned for Phase 7, and no separate
+`/8-auditar` pass is outstanding for it.** Recorded explicitly so that the absence of a Phase 7
+audit entry below reads as the decision it is, not as an omission nobody noticed.
 
 ### Phase 3 — deferred on 2026-09-14, until the Phase 4 results are in
 
