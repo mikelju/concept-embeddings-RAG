@@ -115,10 +115,13 @@ Phase 7
 Cheap entity extraction        COMPLETE - GLiNER selected
         ↓
 Phase 8
-Strong Dense                   next
+Strong Dense                   STOP at dev gate - premise failed
+        ↓
+Deviation 8.1
+Corpus-scale sensitivity       next
         ↓
 Phase 9
-HotpotQA FullWiki
+HotpotQA FullWiki              blocked: no Dense model selected
 ```
 
 Phase 7 did not fail economically: extraction fell from 25.9848 USD to an attributable 0.03 USD over the same 19,366 paragraphs, while retrieval kept 83.5% of the gain. FullWiki remains practical, subject to Phase 9 measuring its own costs rather than inheriting Phase 7's projection.
@@ -126,6 +129,8 @@ Phase 7 did not fail economically: extraction fell from 25.9848 USD to an attrib
 If Phase 8 shows Entity Hop adds nothing beside a strong Dense retriever, the interpretation of Phase 6 changes substantially and Phase 9 must be reconsidered accordingly.
 
 If both survive, Phase 9 becomes the central comparison experiment.
+
+**Neither happened.** Phase 8 stopped at its pre-declared dev gate: `Qwen/Qwen3-Embedding-0.6B` scored 446 / 600 dev Full Support @2,048 against the inherited BGE-small reading of 487 / 600, below the 488 the rule required. The held-out split was neither encoded nor measured, no second encoder was tried, and the question above is still open. Deviation 8.1 is opened for corpus-scale sensitivity: the ordering between the two encoders is bounded to the frozen 19,366-paragraph distractor pool. See [`phase_8/8.results.md`](phase_8/8.results.md).
 
 ---
 
@@ -216,6 +221,11 @@ Nothing here says which extractor reads entities *correctly*: NER quality was an
 ---
 
 # 5. Phase 8 — Strong Dense
+
+> **Measured, and stopped at the dev gate** (2026-09-19). The goal below was not reached: the chosen
+> model was weaker than the inherited baseline on this corpus, so the held-out split was never
+> opened. What follows is the phase as planned; [`phase_8/8.results.md`](phase_8/8.results.md) is
+> what it found. Deviation 8.1 follows.
 
 ## Goal
 

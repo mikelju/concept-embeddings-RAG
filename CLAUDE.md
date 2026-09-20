@@ -473,7 +473,25 @@ Two sequential questions remain in the immediate roadmap.
 
 ## Phase 8 — Strong Dense
 
-Planned next.
+**STOP at dev gate — premise failed. The question below is still open.**
+
+`Qwen/Qwen3-Embedding-0.6B` (revision `97b0c614…`, 1024 dim) scored **446 / 600** dev Full Support
+@2,048 against the inherited BGE-small Dense reading of **487 / 600**; the pre-declared rule required
+**488**. The model chosen a priori as substantially stronger is weaker on this corpus, so:
+
+- the **held-out split was neither encoded nor measured** — `embedding-test.json` and `test.json` do
+  not exist, by design;
+- **no second encoder was tried**, because choosing a model after seeing dev is the leaderboard the
+  master plan forbids;
+- Phase 8 reaches **none** of its three planned outcomes, and Phase 9 inherits **no Dense model**.
+
+On dev only, and descriptively: BM25 recovered +43 questions over Qwen Dense (489 / 600) and Entity
+Hop +48 (494 / 600), Entity Hop +5 over BM25. Neither approached the inherited BGE-small hybrids at
+518 / 600. Full record: `docs/plans/phase_8/8.results.md`.
+
+**Deviation 8.1 is opened for corpus-scale sensitivity**: the ordering is bounded to the frozen
+19,366-paragraph HotpotQA distractor pool, and nothing measured says it survives a change of corpus
+scale or shape. The specification that follows is the phase as planned.
 
 Question:
 
@@ -1215,19 +1233,27 @@ result artifacts.
 
 # Immediate next action
 
-Phase 7 is complete and measured. The next phase is:
+Phase 8 is measured and **stopped at its dev gate**: `Qwen/Qwen3-Embedding-0.6B` scored 446 / 600 dev
+against the inherited 487 / 600, below the 488 required. The held-out split was never opened and the
+phase's research question is still open. See `docs/plans/phase_8/8.results.md`.
+
+The next work is:
 
 ```text
-Phase 8 — Strong Dense
+Deviation 8.1 — corpus-scale sensitivity
 ```
 
-Its first step is specification:
+The Phase 8 ordering between the two encoders is bounded to the frozen 19,366-paragraph HotpotQA
+distractor pool — a haystack built from selected near-misses, which is an unusual environment and not
+obviously predictive of an open corpus. 8.1 asks whether that ordering is a property of the models or
+of the corpus.
 
-1. create `docs/plans/phase_8/8.spec.md`;
-2. review and approve the spec;
-3. only then create the lightweight implementation plan.
+Its first step is the deviation document `docs/plans/phase_8/8.1_<name>.md`, written from
+`docs/templates/X.Y_desviacion.md`, and approved before anything is implemented or measured.
 
-Do not implement Phase 8 while specifying it.
+Rules that still hold, unchanged by the stop:
 
-Phase 8 inherits the GLiNER entity index from Phase 7 unchanged and changes exactly one variable:
-the Dense retriever.
+- the Phase 7 GLiNER entity index is inherited as it is, and is read-only;
+- no measured Phase 5/6/7/8 artifact is modified or regenerated;
+- no second encoder is retrofitted into Phase 8 — a different model is a declared candidate in a
+  new, written experiment, never a silent retry inside a closed one.
