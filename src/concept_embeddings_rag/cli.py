@@ -41,6 +41,7 @@ import numpy as np
 from scipy import sparse
 
 from concept_embeddings_rag import __version__, config
+from concept_embeddings_rag.artifacts import write_text_atomic
 from concept_embeddings_rag.concepts.coding import (
     ConceptMatrix,
     calibrate_coding_alpha,
@@ -81,7 +82,7 @@ from concept_embeddings_rag.concepts.labeling import (
     read_api_key,
     save_labels,
 )
-from concept_embeddings_rag.corpus import hf_source
+from concept_embeddings_rag.corpus import fullwiki, hf_source, scale_corpus
 from concept_embeddings_rag.corpus.download import CorpusIntegrityError, sha256_of_file
 from concept_embeddings_rag.corpus.manifest import CorpusManifest
 from concept_embeddings_rag.corpus.pool import (
@@ -223,6 +224,7 @@ RAW_NAME = "hotpot_raw.json"
 MANIFEST_NAME = "manifest.json"
 POOL_NAME = "pool.json"
 TOKENS_NAME = "token_counts.json"
+SOURCE_NAME = "source.json"
 
 
 def _die(message: str) -> NoReturn:
@@ -2600,6 +2602,219 @@ def _check_pool_against_manifest(units: Sequence[IndexingUnit], manifest_path: P
 # --- Deviation 8.1: Dense scale sensitivity ---------------------------------
 
 
+def _source_path(archive: str | None) -> Path:
+    """Where the operator staged the official archive. It is never downloaded here."""
+    if archive is not None:
+        return Path(archive)
+    return config.PHASE_8_1_DIR / "source" / config.PHASE_8_1_SOURCE_ARCHIVE
+
+
+def _scale_source(
+    target_dir: Path,
+    archive: Path,
+    published_bytes: int | None,
+    published_md5: str | None,
+    page_checked: bool,
+) -> dict[str, Any]:
+    """S1: the archive's identity and observed layout, written once.
+
+    Identity is verified before a single record is parsed. `page_checked` records whether
+    the published figures came from the live source page or from the deviation's own
+    unverified recollection - the artifact must never imply the former when only the latter
+    happened.
+    """
+    path = target_dir / SOURCE_NAME
+    if path.exists():
+        print(f"[OK] {path} already exists; S1 is not re-run")
+        return json.loads(path.read_text(encoding="utf-8"))
+
+    started = time.perf_counter()
+    try:
+        source = fullwiki.describe_source(
+            archive,
+            url=config.PHASE_8_1_SOURCE_URL,
+            published_bytes=published_bytes,
+            published_md5=published_md5,
+        )
+    except fullwiki.FullWikiError as error:
+        _die(str(error))
+    source["page_checked"] = page_checked
+    source["published_basis"] = (
+        "read from the live HotpotQA page by the operator"
+        if page_checked
+        else "the deviation's recorded values, verified against the staged bytes but not "
+        "against the live page"
+    )
+    source["elapsed_seconds"] = round(time.perf_counter() - started, 3)
+    write_text_atomic(path, json.dumps(source, indent=2, sort_keys=True))
+
+    print(f"[OK] archive {source['archive']}")
+    print(f"[OK] bytes {source['measured_bytes']} (agree: {source['bytes_agree']})")
+    print(f"[OK] md5 {source['measured_md5']} (agree: {source['md5_agree']})")
+    print(f"[OK] sha256 {source['measured_sha256']}")
+    print(f"[OK] members {source['members']}")
+    print(f"[OK] layout {source['layout']}")
+    print(f"[OK] S1 in {source['elapsed_seconds']} s -> {path}")
+    return source
+
+
+def _scale_reconciliation(
+    target_dir: Path,
+    archive: Path,
+    source: dict[str, Any],
+    units: Sequence[IndexingUnit],
+    dev: Sequence[Question],
+) -> dict[str, Any]:
+    """S2: map every frozen C19 unit onto the official source. C19 is never rebuilt."""
+    path = target_dir / scale_corpus.RECONCILIATION_FILENAME
+    if path.exists():
+        print(f"[OK] {path} already exists; S2 is not re-run")
+        return json.loads(path.read_text(encoding="utf-8"))
+
+    layout = fullwiki.layout_of(source["layout"])
+    gold = frozenset(unit_id for question in dev for unit_id in question.gold_unit_ids)
+    started = time.perf_counter()
+    result = scale_corpus.reconcile(
+        units, fullwiki.iter_records(archive, layout), dev_gold_ids=gold
+    )
+    elapsed = round(time.perf_counter() - started, 3)
+    scale_corpus.write_reconciliation(target_dir, result)
+    body = json.loads(path.read_text(encoding="utf-8"))
+    body["elapsed_seconds"] = elapsed
+    write_text_atomic(path, json.dumps(body, indent=2, ensure_ascii=False, sort_keys=True))
+
+    print(
+        f"[OK] exact {body['exact']}, normalized {body['normalized_unique']}, "
+        f"ambiguous {body['ambiguous']}, unmatched {body['unmatched']} of {body['total_units']}"
+    )
+    print(
+        f"[OK] dev gold matched {body['dev_gold_matched']} of {body['dev_gold_total']}, "
+        f"excluded gold units {len(body['excluded_gold_units'])}"
+    )
+    print(
+        f"[OK] excluded titles {len(body['excluded_titles'])}, "
+        f"official paragraphs removed {body['excluded_official_paragraphs']}"
+    )
+    print(f"[OK] mapping digest {body['mapping_digest']}")
+    print(f"[OK] S2 in {elapsed} s -> {path}")
+    if body["terminal_state"] is not None:
+        _die(
+            f"[ERROR] {body['terminal_state']}: "
+            f"{body['ambiguous'] + body['unmatched']} C19 units did not resolve, past the "
+            f"ceiling of {body['unmatched_ceiling']}. Recorded in {path}; no selection is "
+            "frozen and no corpus is embedded"
+        )
+    return body
+
+
+def _scale_selection(
+    target_dir: Path,
+    archive: Path,
+    source: dict[str, Any],
+    reconciliation: dict[str, Any],
+    units: Sequence[IndexingUnit],
+) -> None:
+    """S3: freeze one ordering of the added distractors, and count their tokens."""
+    path = target_dir / scale_corpus.SELECTION_FILENAME
+    if path.exists():
+        print(f"[OK] {path} already exists; S3 is not re-run")
+        return
+
+    layout = fullwiki.layout_of(source["layout"])
+    mapped = frozenset(reconciliation["mapped_official_ids"])
+    excluded = frozenset(reconciliation["excluded_titles"])
+    limit = config.PHASE_8_1_DISTRACTOR_PREFIXES[-1]
+
+    started = time.perf_counter()
+    try:
+        selected = scale_corpus.select_distractors(
+            lambda: fullwiki.iter_records(archive, layout),
+            mapped_ids=mapped,
+            excluded_titles=excluded,
+            limit=limit,
+        )
+    except scale_corpus.ScaleCorpusError as error:
+        _die(str(error))
+    selection_seconds = round(time.perf_counter() - started, 3)
+
+    try:
+        scale_corpus.freeze_selection(
+            target_dir,
+            c19_unit_ids=[unit.unit_id for unit in units],
+            selected=selected,
+            source_sha256=source["measured_sha256"],
+            reconciliation_digest=reconciliation["mapping_digest"],
+        )
+    except scale_corpus.ScaleCorpusError as error:
+        _die(str(error))
+    body = json.loads(path.read_text(encoding="utf-8"))
+    print(f"[OK] selected {body['selected']} distractors of the eligible pool")
+    print(f"[OK] selection digest {body['ordered_selection_digest']}")
+    print(f"[OK] S3 selection in {selection_seconds} s -> {path}")
+
+    started = time.perf_counter()
+    counter = TokenCounter()
+    counts = scale_corpus.token_counts_for([item.unit for item in selected], counter)
+    sidecar = scale_corpus.write_token_counts(
+        target_dir, counts, selection_digest=body["ordered_selection_digest"]
+    )
+    token_seconds = round(time.perf_counter() - started, 3)
+
+    historical = json.loads((config.DATA_DIR / TOKENS_NAME).read_text(encoding="utf-8"))
+    corpus_ids = [unit.unit_id for unit in units] + [item.unit_id for item in selected]
+    try:
+        scale_corpus.check_token_coverage(
+            historical=historical, new=counts, corpus_unit_ids=corpus_ids
+        )
+    except scale_corpus.ScaleCorpusError as error:
+        _die(str(error))
+    print(f"[OK] token counts for {len(counts)} added units in {token_seconds} s -> {sidecar}")
+    print(f"[OK] C500 covered by {len(historical)} historical + {len(counts)} new counts")
+
+
+def cmd_scale_corpus(
+    archive: str | None = None,
+    published_bytes: int | None = config.PHASE_8_1_DECLARED_BYTES,
+    published_md5: str | None = config.PHASE_8_1_DECLARED_MD5,
+    page_checked: bool = False,
+    stop_after: str = "s3",
+    data_dir: Path = config.DATA_DIR,
+    target_dir: Path = config.PHASE_8_1_DIR,
+) -> None:
+    """Deviation 8.1, S1-S3: verify the archive, reconcile C19, freeze the nested corpora.
+
+    Each step writes one artifact and is skipped when that artifact already exists, so the
+    stage can be resumed without re-reading 1.5 GB for work already done. Nothing is
+    downloaded and nothing is embedded here.
+    """
+    if not (data_dir / POOL_NAME).exists():
+        _die("no pool found: run 'build' first")
+    if not (data_dir / TOKENS_NAME).exists():
+        _die("no token counts found: run 'embed' first")
+    path = _source_path(archive)
+    target_dir = Path(target_dir)
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    source = _scale_source(target_dir, path, published_bytes, published_md5, page_checked)
+    if stop_after == "s1":
+        print("[OK] stopping after S1 as asked")
+        return
+
+    units, questions = load_pool(data_dir / POOL_NAME)
+    _check_pool_against_manifest(units, data_dir / MANIFEST_NAME)
+    dev = [question for question in questions if question.split == DEV_SPLIT]
+    if not dev:
+        _die(f"the pool holds no {DEV_SPLIT} questions: run 'build' first")
+
+    reconciliation = _scale_reconciliation(target_dir, path, source, units, dev)
+    if stop_after == "s2":
+        print("[OK] stopping after S2 as asked")
+        return
+
+    _scale_selection(target_dir, path, source, reconciliation, units)
+    print("[OK] S1-S3 complete; the nested selection is frozen")
+
+
 def _historical_dense(
     key: str,
     units: Sequence[IndexingUnit],
@@ -2902,6 +3117,37 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="measure the three systems on the held-out split, once, refitting nothing",
     )
+    scale = subparsers.add_parser(
+        "scale-corpus",
+        help="deviation 8.1: verify the FullWiki archive, reconcile C19, freeze C100/C250/C500",
+    )
+    scale.add_argument(
+        "--archive",
+        default=None,
+        help="path to the staged official archive (default: data/phase8_1/source/<name>)",
+    )
+    scale.add_argument(
+        "--published-bytes",
+        type=int,
+        default=config.PHASE_8_1_DECLARED_BYTES,
+        help="the byte size the source page publishes; 0 means the page publishes none",
+    )
+    scale.add_argument(
+        "--published-md5",
+        default=config.PHASE_8_1_DECLARED_MD5,
+        help="the md5 the source page publishes, or 'none' when it publishes none",
+    )
+    scale.add_argument(
+        "--page-checked",
+        action="store_true",
+        help="the published figures above were read off the live source page, not recollected",
+    )
+    scale.add_argument(
+        "--stop-after",
+        choices=("s1", "s2", "s3"),
+        default="s3",
+        help="stop after this step instead of running S1-S3",
+    )
     subparsers.add_parser(
         "scale-repro",
         help="deviation 8.1: reproduce the frozen C19 dev counts from the historical caches",
@@ -2970,6 +3216,14 @@ def main(argv: list[str] | None = None) -> int:
         cmd_strong_embed(hourly_rate_usd=args.hourly_rate_usd, test=args.test)
     elif args.command == "strong-dense":
         cmd_strong_dense(test=args.test)
+    elif args.command == "scale-corpus":
+        cmd_scale_corpus(
+            archive=args.archive,
+            published_bytes=args.published_bytes or None,
+            published_md5=None if args.published_md5 == "none" else args.published_md5,
+            page_checked=args.page_checked,
+            stop_after=args.stop_after,
+        )
     elif args.command == "scale-repro":
         cmd_scale_repro()
     return 0

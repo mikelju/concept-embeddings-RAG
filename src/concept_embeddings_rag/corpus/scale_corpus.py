@@ -284,6 +284,12 @@ def reconciliation_body(reconciliation: Reconciliation) -> dict[str, Any]:
         "excluded_official_paragraphs": reconciliation.excluded_official_paragraphs,
         "excluded_official_counts": dict(reconciliation.excluded_official_counts),
         "unmatched_ceiling": config.PHASE_8_1_UNMATCHED_CEILING,
+        # The mapping itself, not only its digest. S3 needs the official paragraphs already
+        # represented by C19 in order to exclude them from `D`, and the ids of the
+        # normalized matches are not derivable from the counts above: an artifact that
+        # cannot be read back is one the next step has to recompute.
+        "mapping": dict(reconciliation.mapping),
+        "mapped_official_ids": sorted(reconciliation.mapped_official_ids),
         "mapping_digest": reconciliation.digest,
         "terminal_state": reconciliation.terminal_state,
         "title_exclusion_limitation": (

@@ -307,6 +307,8 @@ def test_write_reconciliation_records_what_the_deviation_requires(tmp_path: Path
         "excluded_gold_units",
         "excluded_official_paragraphs",
         "excluded_official_counts",
+        "mapping",
+        "mapped_official_ids",
         "unmatched_ceiling",
         "mapping_digest",
         "terminal_state",
@@ -314,6 +316,9 @@ def test_write_reconciliation_records_what_the_deviation_requires(tmp_path: Path
         assert key in body, key
     assert body["unmatched_ceiling"] == config.PHASE_8_1_UNMATCHED_CEILING
     assert body["mapping_digest"] == result.digest
+    # The artifact must be readable back into what S3 needs, without re-reconciling.
+    assert body["mapping"] == dict(result.mapping)
+    assert set(body["mapped_official_ids"]) == set(result.mapped_official_ids)
 
 
 def test_write_reconciliation_refuses_to_overwrite_a_different_run(tmp_path: Path) -> None:
