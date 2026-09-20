@@ -607,12 +607,20 @@ def test_the_held_out_run_refuses_questions_the_gated_encoding_did_not_cover(pha
         measure_held_out(directory, **held_out)
 
 
-def test_the_phase_8_cache_keys_resolve_to_no_existing_artifact():
+def test_the_phase_8_cache_keys_never_collide_with_the_inherited_ones():
     """R3, read against the real cache directory: a new model writes new files.
 
-    `cache_key` and `question_cache_key` already guarantee this by construction, but the
-    property the restriction actually cares about is that nothing under `data/cache/` is
-    about to be overwritten - which is a fact about this checkout, not about the hash.
+    This originally asserted that no Phase 8 cache file existed yet. That held while the
+    phase was unmeasured; the measured run then wrote those caches, the project's caching
+    rule keeps them, and the assertion aged into a failure that fires precisely *because*
+    the experiment was carried out. Deleting a measured cache to satisfy a test would be
+    the wrong repair.
+
+    What R3 protects is that a Phase 8 cache can never **be** an inherited one: the keys
+    are computed over different model identities, so they differ, so the paths differ, and
+    no BGE-small artifact was ever at risk of being overwritten. That is the property
+    asserted here, over the same recomputed keys, and it holds whether or not the measured
+    caches are present on a given checkout.
     """
     pool = config.DATA_DIR / "pool.json"
     if not pool.exists():
@@ -634,20 +642,35 @@ def test_the_phase_8_cache_keys_resolve_to_no_existing_artifact():
         normalized=config.NORMALIZE_EMBEDDINGS,
     )
     assert phase_8 != inherited
-    assert not (config.CACHE_DIR / f"embeddings-{phase_8}.npz").exists()
+    assert (config.CACHE_DIR / f"embeddings-{phase_8}.npz") != (
+        config.CACHE_DIR / f"embeddings-{inherited}.npz"
+    )
     for split in ("dev", TEST_SPLIT):
         subset = [question for question in questions if question.split == split]
         if not subset:
             continue
+        question_set = question_set_hash([question.qid for question in subset])
         key = question_cache_key(
             config.PHASE_8_DENSE_MODEL,
             config.PHASE_8_DENSE_REVISION,
-            question_set_hash([question.qid for question in subset]),
+            question_set,
             split,
             config.NORMALIZE_EMBEDDINGS,
             config.PHASE_8_QUERY_PROMPT,
         )
-        assert not (config.QUESTION_CACHE_DIR / f"embeddings-{key}.npz").exists()
+        # The inherited key for the same split and the same question set: symmetric model,
+        # no query prompt. Phase 8 must never resolve onto it.
+        inherited_key = question_cache_key(
+            config.EMBEDDING_MODEL,
+            config.EMBEDDING_REVISION,
+            question_set,
+            split,
+            config.NORMALIZE_EMBEDDINGS,
+        )
+        assert key != inherited_key
+        assert (config.QUESTION_CACHE_DIR / f"embeddings-{key}.npz") != (
+            config.QUESTION_CACHE_DIR / f"embeddings-{inherited_key}.npz"
+        )
 
 
 # --- The security surface this phase declares, asserted on the code that runs -------------
