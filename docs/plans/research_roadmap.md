@@ -118,11 +118,14 @@ Phase 8
 Strong Dense                   STOP at dev gate - premise failed
         ↓
 Deviation 8.1
-Corpus-scale sensitivity       next
+Dense scale sensitivity        APPROVED - in implementation, nothing measured
         ↓
 Phase 9
-HotpotQA FullWiki              blocked: no Dense model selected
+HotpotQA FullWiki              blocked until 8.1 reaches a terminal state
 ```
+
+`Phase 8 closed → deviation 8.1 → Phase 9` is the committed immediate sequence. 8.1 is a deviation,
+not a new numbered phase, and it does not reopen Phase 8.
 
 Phase 7 did not fail economically: extraction fell from 25.9848 USD to an attributable 0.03 USD over the same 19,366 paragraphs, while retrieval kept 83.5% of the gain. FullWiki remains practical, subject to Phase 9 measuring its own costs rather than inheriting Phase 7's projection.
 
@@ -130,7 +133,9 @@ If Phase 8 shows Entity Hop adds nothing beside a strong Dense retriever, the in
 
 If both survive, Phase 9 becomes the central comparison experiment.
 
-**Neither happened.** Phase 8 stopped at its pre-declared dev gate: `Qwen/Qwen3-Embedding-0.6B` scored 446 / 600 dev Full Support @2,048 against the inherited BGE-small reading of 487 / 600, below the 488 the rule required. The held-out split was neither encoded nor measured, no second encoder was tried, and the question above is still open. Deviation 8.1 is opened for corpus-scale sensitivity: the ordering between the two encoders is bounded to the frozen 19,366-paragraph distractor pool. See [`phase_8/8.results.md`](phase_8/8.results.md).
+**Neither happened.** Phase 8 stopped at its pre-declared dev gate: `Qwen/Qwen3-Embedding-0.6B` scored 446 / 600 dev Full Support @2,048 against the inherited BGE-small reading of 487 / 600, below the 488 the rule required. The held-out split was neither encoded nor measured, no second encoder was tried, and the question above is still open. See [`phase_8/8.results.md`](phase_8/8.results.md).
+
+**Deviation 8.1 was approved on 2026-09-20 and is under implementation.** The ordering between the two encoders is bounded to the frozen 19,366-paragraph distractor pool, so 8.1 grows the retrieval corpus to 100k, 250k and 500k official FullWiki paragraphs, on dev only, changing corpus size and nothing else. Its spec — [`phase_8/8.1_dense_scale_sensitivity.md`](phase_8/8.1_dense_scale_sensitivity.md) — is frozen, its code plan is [`phase_8/8.1_implementation_plan.md`](phase_8/8.1_implementation_plan.md), and **no figure has been measured yet**. Phase 9 must evaluate both encoders unless 8.1 returns `STABLE_RANKING`, and stays blocked outright if it returns `DATA_STOP` or `REPRODUCTION_STOP`.
 
 ---
 

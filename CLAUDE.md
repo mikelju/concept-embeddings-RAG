@@ -706,6 +706,8 @@ replace-freeze
 replace-test
 cheap-extract
 cheap-eval
+strong-embed
+strong-dense
 ```
 
 Historical pipeline:
@@ -1237,19 +1239,45 @@ Phase 8 is measured and **stopped at its dev gate**: `Qwen/Qwen3-Embedding-0.6B`
 against the inherited 487 / 600, below the 488 required. The held-out split was never opened and the
 phase's research question is still open. See `docs/plans/phase_8/8.results.md`.
 
-The next work is:
+The current work is:
 
 ```text
-Deviation 8.1 — corpus-scale sensitivity
+Deviation 8.1 — Dense scale sensitivity
+APPROVED 2026-09-20 — in implementation, nothing measured
 ```
 
 The Phase 8 ordering between the two encoders is bounded to the frozen 19,366-paragraph HotpotQA
 distractor pool — a haystack built from selected near-misses, which is an unusual environment and not
 obviously predictive of an open corpus. 8.1 asks whether that ordering is a property of the models or
-of the corpus.
+of the corpus, by growing the retrieval space to 100k / 250k / 500k official HotpotQA FullWiki
+paragraphs on dev only, with corpus size as the single variable.
 
-Its first step is the deviation document `docs/plans/phase_8/8.1_<name>.md`, written from
-`docs/templates/X.Y_desviacion.md`, and approved before anything is implemented or measured.
+Both documents are approved and the specification is **frozen**:
+
+```text
+docs/plans/phase_8/8.1_dense_scale_sensitivity.md    deviation + functional spec (frozen)
+docs/plans/phase_8/8.1_implementation_plan.md        code-level plan, S1-S7
+```
+
+What that means for any session working on 8.1:
+
+- no new threshold, gate, outcome or experimental variant is introduced, and no scientific rule is
+  relaxed to solve an implementation difficulty — if a real problem outside the plan appears, **stop
+  and report** rather than redesign;
+- the fixed values are the ones already written down: unmatched-unit ceiling 50, salt `42`, prefixes
+  80,634 / 230,634 / 480,634, reproduction counts 487 / 600 and 446 / 600, re-encode tolerance of
+  1 question, BGE retention floor 244 / 600;
+- the five implementation questions the plan raised are **closed**: `data/phase8_1/` stays untracked,
+  reproduction level 1 also runs on the measurement host, `8.1_runpod_recipe.md` is written before the
+  pod is opened, the new caches come off the pod before it dies, and **no new dependency** may be added
+  without asking first;
+- two traps in the inherited code, both verified: `question_cache_key` does not include the corpus, so
+  8.1 must encode into `data/phase8_1/cache/` or it would overwrite the question cache behind the
+  487 / 600; and `TokenCounter.count_units` tokenizes its whole input in one call, which does not
+  survive 480,634 paragraphs.
+
+Nothing is measured yet, and neither `DATA_STOP`/`REPRODUCTION_STOP` nor any of the four terminal
+states has been reached.
 
 Rules that still hold, unchanged by the stop:
 
