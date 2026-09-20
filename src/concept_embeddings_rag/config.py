@@ -580,8 +580,7 @@ PHASE_8_WEIGHTS_FILE: Final[str] = "model.safetensors"
 # unprefixed. It is never customized or tuned for HotpotQA - a prompt fitted to this
 # benchmark would be a hyperparameter chosen on our own data.
 PHASE_8_QUERY_PROMPT: Final[str] = (
-    "Instruct: Given a web search query, retrieve relevant passages that answer the query"
-    "\nQuery:"
+    "Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery:"
 )
 
 # The inherited entity representation, pinned by digest and read-only for this phase.
@@ -648,6 +647,131 @@ PHASE_8_INHERITED_HELD_OUT_FILES: Final[dict[str, str]] = {
 PHASE_8_STOP_RULE_BASELINE_QUESTIONS: Final[int] = 487
 
 
+# --- Deviation 8.1: Dense model ranking under larger retrieval corpora --------
+# Every value below is fixed by `8.1_dense_scale_sensitivity.md` before the first 8.1
+# number exists, and `8.1_implementation_plan.md` gives the implementation reason for
+# each. Phase 8 stays closed with its STOP: this block adds a bounded, dev-only
+# diagnostic and repoints nothing the earlier phases measured.
+#
+# The dictionaries below are keyed by **model** and by **outcome**, never by split name.
+# This module is on the import closure of `evaluation/selection.py`, whose static guard
+# forbids any string literal naming a split other than dev.
+
+PHASE_8_1_DIR: Final[Path] = DATA_DIR / "phase8_1"
+# 8.1's own cache directories, and the reason they exist at all: `question_cache_key`
+# does not depend on the corpus, so the 600 dev questions under the same model, revision
+# and prompt hash to the **same key** as the Phase 1-8 question caches. Encoding them
+# into the shared directory would overwrite the artifact behind 487/600 with vectors
+# produced on other hardware. Separate directories make that impossible, not unlikely.
+PHASE_8_1_CACHE_DIR: Final[Path] = PHASE_8_1_DIR / "cache"
+PHASE_8_1_QUESTION_CACHE_DIR: Final[Path] = PHASE_8_1_CACHE_DIR / "questions"
+
+# The official HotpotQA FullWiki release of introductory paragraphs, English Wikipedia
+# 2017-10-01. A modern snapshot or an independently reconstructed corpus cannot replace
+# it inside 8.1 without another written deviation.
+PHASE_8_1_SOURCE_URL: Final[str] = "https://nlp.stanford.edu/projects/hotpotqa/"
+PHASE_8_1_SOURCE_ARCHIVE: Final[str] = (
+    "enwiki-20171001-pages-meta-current-withlinks-abstracts.tar.bz2"
+)
+PHASE_8_1_SOURCE_LICENSE: Final[str] = "CC BY-SA 4.0"
+# A CLAIM, written from recollection of the published release and not read from the
+# source. S1 reads the live page and the downloaded bytes; if they differ, the live
+# values win and these two are corrected in place, which is the correction of an
+# unverified claim rather than the rewrite of a measured artifact.
+PHASE_8_1_DECLARED_BYTES: Final[int] = 1_553_565_403
+PHASE_8_1_DECLARED_MD5: Final[str] = "01edf64cd120ecc03a2745352779514c"  # pragma: allowlist secret
+PHASE_8_1_DECLARED_BASIS: Final[str] = (
+    "published size and MD5 as recollected in the deviation record, to be confirmed "
+    "against the live HotpotQA page and the downloaded bytes at S1; unverified until then"
+)
+
+# The four nested corpora and the distractor prefixes that build them. C19 is always the
+# frozen Phase 1 pool in its existing order, and the three larger corpora are index
+# prefixes of one single frozen ordering, so `C19 < C100 < C250 < C500` as subsets.
+PHASE_8_1_CORPUS_SIZES: Final[tuple[int, ...]] = (19366, 100000, 250000, 500000)
+PHASE_8_1_CORPUS_LABELS: Final[tuple[str, ...]] = ("c19", "c100", "c250", "c500")
+PHASE_8_1_DISTRACTOR_PREFIXES: Final[tuple[int, ...]] = (80634, 230634, 480634)
+
+# The ordering rule. `42` is a fixed salt inside a hash input string: there is no RNG on
+# this path, no `default_rng`, no `shuffle` and no sampling call, and a test asserts the
+# module that applies it names none of them.
+PHASE_8_1_ORDER_SALT: Final[str] = "42"
+PHASE_8_1_ORDER_RULE: Final[str] = "sha256-salted-title-plaintext-v1"
+PHASE_8_1_ORDER_SALT_BASIS: Final[str] = "fixed hash salt, not RNG state"
+
+# The reconciliation gate. At or below this many unresolved C19 units, conservative
+# title exclusion is the remedy and the experiment continues; above it, the terminal
+# state is `data_stop`. 50 is 0.26% of 19,366, and the ceiling is never raised after
+# seeing how many units actually missed.
+PHASE_8_1_UNMATCHED_CEILING: Final[int] = 50
+
+# The C19 reproduction gate. Level 1 must reproduce both counts exactly from the
+# historical caches; level 2 - C19 as a prefix of the new C500 encode - may differ by at
+# most this many questions in either model before it becomes `reproduction_stop`.
+PHASE_8_1_C19_DEV_SUPPORTED: Final[dict[str, int]] = {"bge": 487, "qwen": 446}
+PHASE_8_1_REENCODE_TOLERANCE: Final[int] = 1
+
+# The pre-declared outcome thresholds. 20 questions is roughly half the 41-question C19
+# deficit; 244 is half BGE's own 487, rounded up, and is the floor that separates
+# `convergence` from `both_degrade`. Neither is adjusted after a scale result is seen.
+PHASE_8_1_CONVERGENCE_QUESTIONS: Final[int] = 20
+PHASE_8_1_BGE_RETENTION_FLOOR: Final[int] = 244
+# Evaluated in this order by `classify_outcome`, and no other label is invented.
+PHASE_8_1_OUTCOMES: Final[tuple[str, ...]] = (
+    "crossover",
+    "convergence",
+    "both_degrade",
+    "stable_ranking",
+)
+PHASE_8_1_STOPS: Final[tuple[str, ...]] = ("data_stop", "reproduction_stop")
+
+# The two encoders, by short name. Their model ids, revisions, widths and query handling
+# are **reused** from the constants above rather than re-declared: two declarations of
+# one pin are two places for it to disagree with itself.
+PHASE_8_1_MODELS: Final[tuple[str, ...]] = ("bge", "qwen")
+
+# The historical caches level 1 reads, read-only. The BGE corpus key is the
+# revision-pinned one: `a28365b7ed90ed10` holds the same vectors under revision "main"
+# and is a migration artifact, not the file to read.
+PHASE_8_1_HISTORICAL_CORPUS_KEYS: Final[dict[str, str]] = {
+    "bge": "bacd74e7f468f0d4",
+    "qwen": "66ef5c19a95f6cbe",
+}
+PHASE_8_1_HISTORICAL_DEV_QUERY_KEYS: Final[dict[str, str]] = {
+    "bge": "35329d9e75da1d4f",
+    "qwen": "c9c589c29c226fb3",
+}
+
+# Ceilings on the untrusted archive. Every decompression is bounded, so a member that
+# expands past its ceiling raises instead of filling memory - the `MAX_CORPUS_BYTES`
+# precedent of `corpus/download.py`, applied to a nested archive.
+PHASE_8_1_MAX_MEMBER_BYTES: Final[int] = 256 * 1024 * 1024
+PHASE_8_1_MAX_LINE_BYTES: Final[int] = 4 * 1024 * 1024
+PHASE_8_1_MAX_TOTAL_RECORDS: Final[int] = 8_000_000
+# How many members the layout probe reads before the schema is recorded.
+PHASE_8_1_PROBE_MEMBERS: Final[int] = 3
+# How many records the probe parses per probed member.
+PHASE_8_1_PROBE_RECORDS: Final[int] = 20
+
+# Candidate field names, in preference order, for the layout probe to **resolve** the
+# observed record schema against. The probe records which candidate the archive actually
+# holds and refuses when none of them is there; the parser then dispatches on the
+# recorded fact. This is a resolution mechanism, not an assumption about the dump.
+PHASE_8_1_TITLE_FIELDS: Final[tuple[str, ...]] = ("title",)
+PHASE_8_1_SENTENCES_FIELDS: Final[tuple[str, ...]] = ("text", "sentences")
+PHASE_8_1_PAGE_ID_FIELDS: Final[tuple[str, ...]] = ("id", "page_id", "pageid")
+
+# Texts per tokenizer call. `TokenCounter.count_units` tokenizes its whole input in one
+# call, which is correct at 19,366 texts and a memory fault at 480,634; the batching
+# wrapper lives in `corpus/scale_corpus.py` and `evaluation/budget.py` is not edited.
+PHASE_8_1_TOKENIZE_BATCH: Final[int] = 2048
+
+# Above this mean seconds per query at C500, the blockwise exact fallback of the plan's
+# D3 is written. Below it, `DenseRetriever` is reused unchanged and no second retriever
+# exists - a branch for a failure that has not occurred is not written.
+PHASE_8_1_QUERY_SECONDS_CEILING: Final[float] = 1.0
+
+
 def ensure_directories() -> None:
     """Create the data directories if they do not exist yet."""
     for path in (
@@ -666,5 +790,8 @@ def ensure_directories() -> None:
         REPLACEMENT_DIR,
         PHASE_7_DIR,
         PHASE_8_DIR,
+        PHASE_8_1_DIR,
+        PHASE_8_1_CACHE_DIR,
+        PHASE_8_1_QUESTION_CACHE_DIR,
     ):
         path.mkdir(parents=True, exist_ok=True)

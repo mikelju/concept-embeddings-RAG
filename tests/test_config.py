@@ -832,3 +832,198 @@ def test_the_inherited_gliner_figures_are_the_ones_its_artifacts_record():
                 pytest.skip(f"{relative} is not on this checkout")
             payload = json.loads(path.read_text(encoding="utf-8"))
             assert payload["metrics"][budget]["full_support"] == figures[system]
+
+
+# --- Deviation 8.1: the constants that decide what the scale diagnostic is ----
+#
+# Every threshold, ceiling, size and required count below is fixed before the first
+# 8.1 number exists, for the reason the Phase 7 and Phase 8 blocks above are: a rule
+# adjusted after seeing a scale result is not a rule. These assertions are what make
+# "fixed before measuring" checkable afterwards.
+#
+# The published MD5 is a **claim** copied from the deviation's recollection of the
+# release page, not a measurement. S1 reads the live page and the downloaded bytes and
+# corrects it in place if they differ; until then the artifact records both.
+PHASE_8_1_DECLARED_MD5_LITERAL = "01edf64cd120ecc03a2745352779514c"  # pragma: allowlist secret
+
+
+def test_the_deviation_8_1_directory_is_its_own_and_under_the_data_directory():
+    assert config.PHASE_8_1_DIR == config.DATA_DIR / "phase8_1"
+    assert config.PHASE_8_1_DIR != config.PHASE_8_DIR
+    assert config.PHASE_8_1_CACHE_DIR == config.PHASE_8_1_DIR / "cache"
+    assert config.PHASE_8_1_QUESTION_CACHE_DIR == config.PHASE_8_1_CACHE_DIR / "questions"
+    # The whole point of the separate directories: `question_cache_key` does not depend
+    # on the corpus, so the 600 dev questions would hash onto the historical file.
+    assert config.PHASE_8_1_CACHE_DIR != config.CACHE_DIR
+    assert config.PHASE_8_1_QUESTION_CACHE_DIR != config.QUESTION_CACHE_DIR
+
+
+def test_the_official_source_is_declared_with_its_published_provenance():
+    assert config.PHASE_8_1_SOURCE_URL.startswith("https://")
+    assert config.PHASE_8_1_SOURCE_ARCHIVE.endswith(".tar.bz2")
+    assert config.PHASE_8_1_SOURCE_LICENSE
+    assert config.PHASE_8_1_DECLARED_BYTES == 1_553_565_403
+    assert config.PHASE_8_1_DECLARED_MD5 == PHASE_8_1_DECLARED_MD5_LITERAL
+    assert len(config.PHASE_8_1_DECLARED_MD5) == 32
+    assert all(character in "0123456789abcdef" for character in config.PHASE_8_1_DECLARED_MD5)
+    # Recorded as unverified: S1 is what turns either into a measurement.
+    assert "confirm" in config.PHASE_8_1_DECLARED_BASIS.lower()
+
+
+def test_the_four_corpus_sizes_and_their_prefixes_are_exactly_the_declared_arithmetic():
+    assert config.PHASE_8_1_CORPUS_SIZES == (19366, 100000, 250000, 500000)
+    assert config.PHASE_8_1_CORPUS_LABELS == ("c19", "c100", "c250", "c500")
+    assert config.PHASE_8_1_DISTRACTOR_PREFIXES == (80634, 230634, 480634)
+    assert config.PHASE_8_1_CORPUS_SIZES[0] == config.EXPECTED_N_UNITS
+    # C100 = C19 + 80,634, and so on: the prefixes are the sizes minus the C19 block.
+    for size, prefix in zip(
+        config.PHASE_8_1_CORPUS_SIZES[1:], config.PHASE_8_1_DISTRACTOR_PREFIXES, strict=True
+    ):
+        assert config.PHASE_8_1_CORPUS_SIZES[0] + prefix == size
+    assert len(config.PHASE_8_1_CORPUS_SIZES) == len(config.PHASE_8_1_CORPUS_LABELS)
+    prefixes = config.PHASE_8_1_DISTRACTOR_PREFIXES
+    assert tuple(sorted(prefixes)) == prefixes
+
+
+def test_the_ordering_rule_declares_42_as_a_hash_salt_and_not_as_rng_state():
+    assert config.PHASE_8_1_ORDER_SALT == "42"
+    assert config.PHASE_8_1_ORDER_RULE == "sha256-salted-title-plaintext-v1"
+    assert "salt" in config.PHASE_8_1_ORDER_SALT_BASIS.lower()
+    assert "rng" in config.PHASE_8_1_ORDER_SALT_BASIS.lower()
+    assert str(config.DEFAULT_SEED) == config.PHASE_8_1_ORDER_SALT
+
+
+def test_the_reconciliation_ceiling_is_fifty_units():
+    assert config.PHASE_8_1_UNMATCHED_CEILING == 50
+    # 0.26% of the frozen pool: large enough for source drift, small enough to be safe.
+    assert config.PHASE_8_1_UNMATCHED_CEILING / config.EXPECTED_N_UNITS < 0.003
+
+
+def test_the_two_reproduction_counts_are_the_historical_readings_keyed_by_model():
+    """Keyed by model, never by split: `config` is on the Phase 3 selection's closure."""
+    assert config.PHASE_8_1_C19_DEV_SUPPORTED == {"bge": 487, "qwen": 446}
+    assert sorted(config.PHASE_8_1_C19_DEV_SUPPORTED) == sorted(config.PHASE_8_1_MODELS)
+    assert config.PHASE_8_1_MODELS == ("bge", "qwen")
+    assert config.PHASE_8_1_REENCODE_TOLERANCE == 1
+    # The BGE reading is the same 487 Phase 8's stop rule was read against.
+    assert config.PHASE_8_1_C19_DEV_SUPPORTED["bge"] == config.PHASE_8_STOP_RULE_BASELINE_QUESTIONS
+    assert round(config.PHASE_8_1_C19_DEV_SUPPORTED["bge"] / config.N_DEV, 4) == 0.8117
+
+
+def test_the_outcome_thresholds_are_the_declared_arithmetic_on_the_c19_deficit():
+    assert config.PHASE_8_1_CONVERGENCE_QUESTIONS == 20
+    assert config.PHASE_8_1_BGE_RETENTION_FLOOR == 244
+    deficit = config.PHASE_8_1_C19_DEV_SUPPORTED["qwen"] - config.PHASE_8_1_C19_DEV_SUPPORTED["bge"]
+    assert deficit == -41
+    # "at least half the initial deficit removed", on a 41-question deficit.
+    assert abs(deficit) // 2 >= config.PHASE_8_1_CONVERGENCE_QUESTIONS
+    # The floor is half BGE's own C19 reading, rounded up.
+    half_of_bge = -(-config.PHASE_8_1_C19_DEV_SUPPORTED["bge"] // 2)
+    assert half_of_bge == config.PHASE_8_1_BGE_RETENTION_FLOOR
+
+
+def test_the_four_outcomes_and_two_stops_are_the_only_terminal_labels():
+    assert config.PHASE_8_1_OUTCOMES == (
+        "crossover",
+        "convergence",
+        "both_degrade",
+        "stable_ranking",
+    )
+    assert config.PHASE_8_1_STOPS == ("data_stop", "reproduction_stop")
+    assert not set(config.PHASE_8_1_OUTCOMES) & set(config.PHASE_8_1_STOPS)
+
+
+def test_the_historical_cache_keys_are_the_ones_the_recorded_counts_were_read_from():
+    assert config.PHASE_8_1_HISTORICAL_CORPUS_KEYS == {
+        "bge": "bacd74e7f468f0d4",
+        "qwen": "66ef5c19a95f6cbe",
+    }
+    assert config.PHASE_8_1_HISTORICAL_DEV_QUERY_KEYS == {
+        "bge": "35329d9e75da1d4f",
+        "qwen": "c9c589c29c226fb3",
+    }
+    for keys in (
+        config.PHASE_8_1_HISTORICAL_CORPUS_KEYS,
+        config.PHASE_8_1_HISTORICAL_DEV_QUERY_KEYS,
+    ):
+        assert sorted(keys) == sorted(config.PHASE_8_1_MODELS)
+        for key in keys.values():
+            assert len(key) == 16
+            assert all(character in "0123456789abcdef" for character in key)
+    # `a28365b7ed90ed10` holds the same vectors under revision "main" and is a
+    # migration artifact; the revision-pinned key is the one 8.1 reads.
+    assert config.PHASE_8_1_HISTORICAL_CORPUS_KEYS["bge"] != "a28365b7ed90ed10"
+
+
+def test_the_archive_ceilings_are_finite_and_ordered():
+    assert config.PHASE_8_1_MAX_MEMBER_BYTES > 0
+    assert config.PHASE_8_1_MAX_LINE_BYTES > 0
+    assert config.PHASE_8_1_MAX_TOTAL_RECORDS > 0
+    # A line cannot be larger than the member that holds it.
+    assert config.PHASE_8_1_MAX_LINE_BYTES < config.PHASE_8_1_MAX_MEMBER_BYTES
+    # Room above the 5M paragraphs the official release holds.
+    assert config.PHASE_8_1_MAX_TOTAL_RECORDS > config.PROJECTION_PARAGRAPHS
+    assert config.PHASE_8_1_PROBE_MEMBERS > 0
+    assert config.PHASE_8_1_TOKENIZE_BATCH > 0
+    # Batching is the point: a batch that held every distractor would not be one.
+    assert config.PHASE_8_1_DISTRACTOR_PREFIXES[-1] > config.PHASE_8_1_TOKENIZE_BATCH
+    assert config.PHASE_8_1_QUERY_SECONDS_CEILING > 0.0
+
+
+def test_the_schema_candidates_are_ordered_preferences_and_not_a_single_assumption():
+    """S1 records the schema it observed; the parser dispatches on the record.
+
+    The candidate lists exist so a probe can *resolve* a field name against what the
+    archive actually holds and refuse when none of them is there - not so the code can
+    assume one.
+    """
+    for candidates in (
+        config.PHASE_8_1_TITLE_FIELDS,
+        config.PHASE_8_1_SENTENCES_FIELDS,
+        config.PHASE_8_1_PAGE_ID_FIELDS,
+    ):
+        assert len(candidates) >= 1
+        assert len(set(candidates)) == len(candidates)
+    assert config.PHASE_8_1_TITLE_FIELDS[0] == "title"
+    assert config.PHASE_8_1_SENTENCES_FIELDS[0] == "text"
+
+
+def test_the_deviation_8_1_directory_is_created_by_ensure_directories():
+    config.ensure_directories()
+    assert config.PHASE_8_1_DIR.is_dir()
+    assert config.PHASE_8_1_CACHE_DIR.is_dir()
+    assert config.PHASE_8_1_QUESTION_CACHE_DIR.is_dir()
+
+
+def test_the_historical_bge_reproduction_count_is_the_one_its_run_file_records():
+    """Data-dependent: the count the gate requires is never a number typed from memory."""
+    import json
+
+    import pytest
+
+    path = config.DATA_DIR / config.PHASE_8_INHERITED_DEV_FILES["dense"]
+    if not path.exists():
+        pytest.skip(f"{path.name} is not on this checkout")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    share = payload["metrics"][f"budget_{config.SELECTION_BUDGET}"]["full_support"]
+
+    assert round(share * config.N_DEV) == config.PHASE_8_1_C19_DEV_SUPPORTED["bge"]
+
+
+def test_the_historical_qwen_reproduction_count_is_the_one_phase_8_recorded():
+    """Same rule for the Qwen side; `data/phase8/dev.json` is untracked, hence the skip."""
+    import json
+
+    import pytest
+
+    path = config.PHASE_8_DIR / "dev.json"
+    if not path.exists():
+        pytest.skip("data/phase8/dev.json is not on this checkout")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    dense = payload["systems"]["dense"]
+
+    assert dense["supported_questions"] == config.PHASE_8_1_C19_DEV_SUPPORTED["qwen"]
+    assert dense["config"]["corpus_cache_key"] == config.PHASE_8_1_HISTORICAL_CORPUS_KEYS["qwen"]
+    assert (
+        dense["config"]["question_cache_key"] == config.PHASE_8_1_HISTORICAL_DEV_QUERY_KEYS["qwen"]
+    )

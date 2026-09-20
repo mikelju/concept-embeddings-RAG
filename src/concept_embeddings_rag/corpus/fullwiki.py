@@ -1,0 +1,528 @@
+"""Deviation 8.1, S1: the official HotpotQA FullWiki archive, as untrusted input.
+
+This is the only module of the deviation that reads bytes the project did not produce,
+which is why it is small, why it is separate, and why it is the whole reading list of the
+targeted security review. Four properties are structural rather than defended:
+
+1. **Nothing is ever extracted.** `tarfile.open(path, "r|bz2")` gives sequential access
+   to members, each read into memory and parsed. No member is written to disk, so path
+   traversal cannot happen; the member-name check below is a second, cheaper refusal that
+   runs first.
+2. **Every decompression is bounded.** A tar member larger than its ceiling is refused
+   before it is read, and a nested bz2 payload is decompressed incrementally against a
+   running total, so a member that expands past its ceiling raises rather than filling
+   memory. Lines and total records have their own ceilings.
+3. **Only JSON is parsed.** `json.loads`, and nothing else: no pickle, no `eval`, no
+   `allow_pickle`, no `tarfile.extractall`.
+4. **The layout is observed, not assumed.** Nobody has yet verified that the official
+   dump's textual representation matches the frozen C19 one. So `probe_layout` reads the
+   first few members, records their names, whether each payload carries the bz2 magic,
+   the sorted key set it actually saw, which candidate field names resolved against it,
+   and whether the first element of the sentence list repeats the article title - and all
+   of that is written into `source.json`. `iter_records` then dispatches on the recorded
+   fact. A recollection is a claim until the bytes are read.
+
+The md5 here exists for exactly one purpose: matching a checksum the publisher printed.
+The local integrity record is the sha256. `usedforsecurity=False` says so to hashlib and
+to the SAST gate alike.
+
+Records become `IndexingUnit`s through `unit_id_for` and `IndexingUnit` themselves, never
+a local copy, so a byte-identical FullWiki duplicate of a C19 paragraph hashes to the
+same id and collapses, and every distractor's `indexable_text` is `f"{title}. {text}"`
+exactly as a C19 unit's is.
+"""
+
+import bz2
+import hashlib
+import json
+import re
+import tarfile
+from collections.abc import Iterator, Mapping, Sequence
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+from concept_embeddings_rag import config
+from concept_embeddings_rag.corpus.download import sha256_of_file
+from concept_embeddings_rag.corpus.pool import IndexingUnit, unit_id_for
+
+__all__ = [
+    "MEMBER_NAME",
+    "ArchiveLayout",
+    "FullWikiError",
+    "FullWikiRecord",
+    "MemberCounts",
+    "describe_source",
+    "iter_members",
+    "iter_records",
+    "layout_of",
+    "md5_of_file",
+    "plaintext_of",
+    "probe_layout",
+    "unit_of",
+    "verify_archive",
+]
+
+# No leading separator, no `..` segment, no drive letter and no backslash. The negative
+# lookahead is what makes `..` impossible: `.` has to stay in the character class for
+# ordinary names like `wiki_00.bz2`, so a `..` segment would otherwise match. A name that
+# does not match is a refusal rather than a skip: an archive holding one is not the
+# archive this deviation declared, whatever else it contains.
+MEMBER_NAME = re.compile(r"^(?!.*(?:^|/)\.\.(?:/|$))[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*$")
+
+# The bz2 file magic. A nested member either starts with it or it does not, and which one
+# is the case is recorded rather than believed.
+BZ2_MAGIC = b"BZh"
+
+INTEGRITY_RECORD = (
+    "the local integrity record is measured_sha256; measured_md5 exists only to match "
+    "the checksum the publisher printed beside the release"
+)
+MD5_NOT_PUBLISHED = "not published on the source page"
+MD5_PUBLISHED = "compared against the checksum published beside the release"
+
+
+class FullWikiError(Exception):
+    """The archive in hand is not the one this deviation declared, or refuses to be read."""
+
+
+@dataclass
+class MemberCounts:
+    """What the stream saw, by kind. Recorded in `source.json` rather than discarded."""
+
+    regular: int = 0
+    skipped: int = 0
+    by_type: dict[str, int] = field(default_factory=dict)
+
+    def note(self, kind: str) -> None:
+        self.by_type[kind] = self.by_type.get(kind, 0) + 1
+        self.skipped += 1
+
+    def as_dict(self) -> dict[str, Any]:
+        return {"regular": self.regular, "skipped": self.skipped, "by_type": dict(self.by_type)}
+
+
+@dataclass(frozen=True)
+class ArchiveLayout:
+    """The layout and record schema **as observed at S1**, not as assumed.
+
+    `leading_title_sentence` is the one field reconciliation depends on: when the first
+    element of the sentence list repeats the article title, it is not a sentence, and
+    including it would make every official plaintext differ from its C19 counterpart. A
+    wrong reading here does not corrupt a result quietly - it makes the reconciliation
+    gate fail wholesale and stop the experiment with `data_stop`, which is the designed
+    safety net rather than a silent risk.
+    """
+
+    member_compression: str
+    title_field: str
+    sentences_field: str
+    page_id_field: str | None
+    leading_title_sentence: bool
+
+    @property
+    def compressed_members(self) -> bool:
+        return self.member_compression == "bz2"
+
+
+@dataclass(frozen=True)
+class FullWikiRecord:
+    """One official paragraph, with where it was read from."""
+
+    title: str
+    sentences: tuple[str, ...]
+    member: str
+    line: int
+    page_id: str | None
+
+
+def md5_of_file(path: Path, chunk_size: int = 1 << 20) -> str:
+    """The md5 of a file, for comparison against a published checksum and nothing else.
+
+    Not an integrity mechanism: the record this project keeps is the sha256 beside it.
+    `usedforsecurity=False` states that, and is what lets the SAST rule pass on a hash
+    that would otherwise be a finding.
+    """
+    digest = hashlib.md5(usedforsecurity=False)
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(chunk_size), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def verify_archive(
+    path: Path | str,
+    *,
+    published_bytes: int | None,
+    published_md5: str | None,
+) -> dict[str, Any]:
+    """Measure the archive's identity, refusing **before** anything is parsed.
+
+    A size or checksum mismatch raises here, which is upstream of every parse in this
+    module: a wrong archive may not spend a single line of parsing. Where the source page
+    publishes no checksum, `published_md5` is `None` and the artifact records that fact
+    rather than an invented figure.
+    """
+    path = Path(path)
+    if not path.is_file():
+        raise FullWikiError(f"{path} does not exist; stage the official archive there first")
+
+    measured_bytes = path.stat().st_size
+    if published_bytes is not None and measured_bytes != published_bytes:
+        raise FullWikiError(
+            f"{path.name} is {measured_bytes} bytes and the source page publishes "
+            f"{published_bytes}; refusing to parse an archive that is not the declared one"
+        )
+
+    measured_md5 = md5_of_file(path)
+    if published_md5 is not None and measured_md5.lower() != published_md5.lower():
+        raise FullWikiError(
+            f"{path.name} has md5 {measured_md5} and the source page publishes "
+            f"{published_md5}; refusing to parse it"
+        )
+
+    return {
+        "archive": path.name,
+        "published_bytes": published_bytes,
+        "published_md5": published_md5,
+        "measured_bytes": measured_bytes,
+        "measured_md5": measured_md5,
+        "measured_sha256": sha256_of_file(path),
+        "bytes_agree": None if published_bytes is None else measured_bytes == published_bytes,
+        "md5_agree": None if published_md5 is None else True,
+        "md5_basis": MD5_NOT_PUBLISHED if published_md5 is None else MD5_PUBLISHED,
+        "integrity_record": INTEGRITY_RECORD,
+    }
+
+
+def _member_kind(member: tarfile.TarInfo) -> str:
+    if member.isdir():
+        return "directory"
+    if member.issym():
+        return "symlink"
+    if member.islnk():
+        return "hardlink"
+    if member.ischr() or member.isblk() or member.isfifo():
+        return "device"
+    return "other"
+
+
+def _decompress_bounded(payload: bytes, name: str, ceiling: int) -> bytes:
+    """Inflate a nested bz2 member against a running total.
+
+    Decompressing first and checking the size afterwards would already have paid the
+    memory, which is the whole failure this guards.
+    """
+    decompressor = bz2.BZ2Decompressor()
+    chunks: list[bytes] = []
+    total = 0
+    pending = payload
+    while not decompressor.eof:
+        # Never ask for more than one byte past the ceiling: the bound has to hold on the
+        # allocation, not only on the check that follows it.
+        piece = decompressor.decompress(pending, max_length=min(1 << 20, ceiling + 1 - total))
+        pending = b""
+        if not piece:
+            # Input exhausted before the stream ended, or nothing more to drain: either
+            # way there is no further output to take, and looping would not produce any.
+            break
+        total += len(piece)
+        if total > ceiling:
+            raise FullWikiError(
+                f"member {name} expands past the {ceiling} byte ceiling; refusing to inflate it"
+            )
+        chunks.append(piece)
+    return b"".join(chunks)
+
+
+def iter_members(
+    path: Path | str,
+    *,
+    max_member_bytes: int = config.PHASE_8_1_MAX_MEMBER_BYTES,
+    counts: MemberCounts | None = None,
+) -> Iterator[tuple[str, bytes]]:
+    """Stream the archive's regular members as `(name, decompressed payload)`.
+
+    Sequential access, nothing written to disk, every member bounded, and anything that is
+    not a regular file skipped and counted. A member name that could escape a directory is
+    a refusal: nothing here would write it anywhere, and an archive containing one is not
+    the declared release.
+    """
+    path = Path(path)
+    counts = counts if counts is not None else MemberCounts()
+    with tarfile.open(path, "r|bz2") as tar:
+        for member in tar:
+            if not member.isfile():
+                counts.note(_member_kind(member))
+                continue
+            if not MEMBER_NAME.match(member.name):
+                raise FullWikiError(
+                    f"member name {member.name!r} is not a plain relative path; refusing to "
+                    "read an archive whose layout is not the declared one"
+                )
+            if member.size > max_member_bytes:
+                raise FullWikiError(
+                    f"member {member.name} declares {member.size} bytes, past the "
+                    f"{max_member_bytes} byte ceiling; refusing to read it"
+                )
+            handle = tar.extractfile(member)
+            if handle is None:
+                counts.note("unreadable")
+                continue
+            raw = handle.read(max_member_bytes + 1)
+            if len(raw) > max_member_bytes:
+                raise FullWikiError(
+                    f"member {member.name} exceeds the {max_member_bytes} byte ceiling"
+                )
+            counts.regular += 1
+            if raw.startswith(BZ2_MAGIC):
+                yield member.name, _decompress_bounded(raw, member.name, max_member_bytes)
+            else:
+                yield member.name, raw
+
+
+def _resolve_field(keys: Sequence[str], candidates: Sequence[str]) -> str | None:
+    """The first declared candidate the archive actually holds, or `None`.
+
+    A resolution against observed keys, not an assumption: the caller records which
+    candidate won and refuses when none did.
+    """
+    for candidate in candidates:
+        if candidate in keys:
+            return candidate
+    return None
+
+
+def probe_layout(
+    path: Path | str,
+    *,
+    members: int = config.PHASE_8_1_PROBE_MEMBERS,
+    records: int = config.PHASE_8_1_PROBE_RECORDS,
+) -> dict[str, Any]:
+    """Read the first few members and **record** the layout and schema they hold.
+
+    The return value goes verbatim into `source.json`, and `layout_of` turns it back into
+    the `ArchiveLayout` the parser dispatches on. Nothing about the dump is hardcoded: the
+    candidate field names in `config` are a resolution order, and an archive whose records
+    resolve against none of them is a refusal naming the keys that were actually seen.
+    """
+    probed_members: list[str] = []
+    observed_keys: set[str] = set()
+    parsed: list[Mapping[str, Any]] = []
+    counts = MemberCounts()
+
+    for name, payload in iter_members(path, counts=counts):
+        probed_members.append(name)
+        for line in payload.splitlines():
+            if not line.strip():
+                continue
+            record = json.loads(line)
+            if not isinstance(record, dict):
+                raise FullWikiError(
+                    f"member {name} holds a JSON {type(record).__name__} where a record object "
+                    "was expected"
+                )
+            observed_keys.update(str(key) for key in record)
+            parsed.append(record)
+            if len(parsed) >= records:
+                break
+        if len(probed_members) >= members or len(parsed) >= records:
+            break
+
+    if not probed_members:
+        raise FullWikiError(
+            f"{Path(path).name} holds no regular member to probe "
+            f"({counts.skipped} non-regular entries skipped)"
+        )
+    if not parsed:
+        raise FullWikiError(f"{Path(path).name} holds no JSON record in its first members")
+
+    # Re-read the first member's raw bytes to decide the nested compression: the streamer
+    # has already inflated what it yielded, so the fact has to come from the magic itself.
+    compression = _probe_compression(path)
+
+    keys = sorted(observed_keys)
+    title_field = _resolve_field(keys, config.PHASE_8_1_TITLE_FIELDS)
+    sentences_field = _resolve_field(keys, config.PHASE_8_1_SENTENCES_FIELDS)
+    if title_field is None or sentences_field is None:
+        raise FullWikiError(
+            "the records in this archive resolve against none of the declared field names; "
+            f"observed keys {keys}. Record the real schema in the deviation before parsing it"
+        )
+    page_id_field = _resolve_field(keys, config.PHASE_8_1_PAGE_ID_FIELDS)
+
+    leading = sum(1 for record in parsed if _repeats_title(record, title_field, sentences_field))
+    return {
+        "member_compression": compression,
+        "title_field": title_field,
+        "sentences_field": sentences_field,
+        "page_id_field": page_id_field,
+        "leading_title_sentence": leading == len(parsed),
+        "leading_title_matches": leading,
+        "probed_members": probed_members,
+        "probed_records": len(parsed),
+        "observed_keys": keys,
+        "candidates": {
+            "title": list(config.PHASE_8_1_TITLE_FIELDS),
+            "sentences": list(config.PHASE_8_1_SENTENCES_FIELDS),
+            "page_id": list(config.PHASE_8_1_PAGE_ID_FIELDS),
+        },
+        "basis": (
+            "layout and record schema read off the archive at S1; the parser dispatches on "
+            "this record rather than on an assumption about the release"
+        ),
+    }
+
+
+def _probe_compression(path: Path | str) -> str:
+    """Whether the first regular member's own bytes carry the bz2 magic."""
+    with tarfile.open(Path(path), "r|bz2") as tar:
+        for member in tar:
+            if not member.isfile():
+                continue
+            handle = tar.extractfile(member)
+            if handle is None:
+                continue
+            return "bz2" if handle.read(len(BZ2_MAGIC)).startswith(BZ2_MAGIC) else "none"
+    raise FullWikiError(f"{Path(path).name} holds no regular member to probe")
+
+
+def _repeats_title(record: Mapping[str, Any], title_field: str, sentences_field: str) -> bool:
+    title = record.get(title_field)
+    sentences = record.get(sentences_field)
+    if not isinstance(title, str) or not isinstance(sentences, list) or not sentences:
+        return False
+    first = sentences[0]
+    return isinstance(first, str) and first.strip() == title.strip()
+
+
+def layout_of(probe: Mapping[str, Any]) -> ArchiveLayout:
+    """Turn a recorded probe back into the layout the parser reads."""
+    try:
+        return ArchiveLayout(
+            member_compression=str(probe["member_compression"]),
+            title_field=str(probe["title_field"]),
+            sentences_field=str(probe["sentences_field"]),
+            page_id_field=(
+                None if probe.get("page_id_field") is None else str(probe["page_id_field"])
+            ),
+            leading_title_sentence=bool(probe["leading_title_sentence"]),
+        )
+    except KeyError as missing:
+        raise FullWikiError(f"the recorded layout lacks {missing}; re-run the probe") from missing
+
+
+def iter_records(
+    path: Path | str,
+    layout: ArchiveLayout,
+    *,
+    max_member_bytes: int = config.PHASE_8_1_MAX_MEMBER_BYTES,
+    max_line_bytes: int = config.PHASE_8_1_MAX_LINE_BYTES,
+    max_records: int = config.PHASE_8_1_MAX_TOTAL_RECORDS,
+) -> Iterator[FullWikiRecord]:
+    """Stream every official paragraph, in archive order, under the recorded layout.
+
+    Deterministic and repeatable: the same archive and the same layout yield the same
+    records in the same order, which is what lets the selection be frozen from two passes
+    over the stream instead of from a sorted copy of five million records in memory.
+    """
+    seen = 0
+    for name, payload in iter_members(path, max_member_bytes=max_member_bytes):
+        line_number = 0
+        for raw in payload.splitlines():
+            if not raw.strip():
+                continue
+            line_number += 1
+            if len(raw) > max_line_bytes:
+                raise FullWikiError(
+                    f"{name} line {line_number} is {len(raw)} bytes, past the {max_line_bytes} "
+                    "byte ceiling"
+                )
+            seen += 1
+            if seen > max_records:
+                raise FullWikiError(
+                    f"the archive holds more than the {max_records} record ceiling; refusing "
+                    "to read further"
+                )
+            yield _record_of(json.loads(raw), layout, name, line_number)
+
+
+def _record_of(
+    payload: Mapping[str, Any], layout: ArchiveLayout, member: str, line: int
+) -> FullWikiRecord:
+    title = payload.get(layout.title_field)
+    sentences = payload.get(layout.sentences_field)
+    if not isinstance(title, str) or not isinstance(sentences, list):
+        raise FullWikiError(
+            f"{member} line {line} lacks a string {layout.title_field!r} and a list "
+            f"{layout.sentences_field!r}; the recorded layout does not describe this record"
+        )
+    if any(not isinstance(sentence, str) for sentence in sentences):
+        raise FullWikiError(f"{member} line {line} holds a non-string sentence")
+    # Applying the recorded fact, not a belief about the release: when the first element
+    # repeats the title it is not a sentence, and keeping it would make every official
+    # plaintext differ from its C19 counterpart.
+    if layout.leading_title_sentence and sentences and sentences[0].strip() == title.strip():
+        sentences = sentences[1:]
+    page_id = None
+    if layout.page_id_field is not None:
+        raw_id = payload.get(layout.page_id_field)
+        page_id = None if raw_id is None else str(raw_id)
+    return FullWikiRecord(
+        title=title,
+        sentences=tuple(sentences),
+        member=member,
+        line=line,
+        page_id=page_id,
+    )
+
+
+def plaintext_of(record: FullWikiRecord) -> str:
+    """The official plaintext, derived from the recorded schema and nothing else.
+
+    Identical in construction to `IndexingUnit.text`, which is what makes an exact
+    reconciliation match against a C19 unit meaningful.
+    """
+    return " ".join(record.sentences)
+
+
+def unit_of(record: FullWikiRecord) -> IndexingUnit:
+    """The record as an indexing unit, built through the project's own constructors."""
+    return IndexingUnit(
+        unit_id=unit_id_for(record.title, record.sentences),
+        title=record.title,
+        sentences=record.sentences,
+    )
+
+
+def describe_source(
+    path: Path | str,
+    *,
+    url: str,
+    published_bytes: int | None,
+    published_md5: str | None,
+) -> dict[str, Any]:
+    """The body of `source.json`: identity first, then the observed layout.
+
+    Identity is verified before the probe runs, so a wrong archive is refused without
+    being parsed. The deviation's unverified recollection travels beside the measurement
+    so a later reader sees both what was claimed and what was read.
+    """
+    verified = verify_archive(path, published_bytes=published_bytes, published_md5=published_md5)
+    counts = MemberCounts()
+    # Counted over the whole archive rather than over the probe, so `members` describes
+    # the release and not the first three members of it.
+    for _name, _payload in iter_members(path, counts=counts):
+        pass
+    probe = probe_layout(path)
+    return {
+        **verified,
+        "url": url,
+        "license": config.PHASE_8_1_SOURCE_LICENSE,
+        "page_checked": published_bytes is not None or published_md5 is not None,
+        "declared_in_spec_bytes": config.PHASE_8_1_DECLARED_BYTES,
+        "declared_in_spec_md5": config.PHASE_8_1_DECLARED_MD5,
+        "declared_in_spec_basis": config.PHASE_8_1_DECLARED_BASIS,
+        "layout": probe,
+        "members": counts.as_dict(),
+    }

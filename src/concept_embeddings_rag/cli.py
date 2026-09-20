@@ -113,7 +113,7 @@ from concept_embeddings_rag.embeddings.cache import (
     resolved_revision,
     unit_set_hash,
 )
-from concept_embeddings_rag.evaluation import strong_dense
+from concept_embeddings_rag.evaluation import scale_sensitivity, strong_dense
 from concept_embeddings_rag.evaluation.budget import TokenCounter
 from concept_embeddings_rag.evaluation.cheap_extraction import (
     DEV_FILENAME,
@@ -2277,17 +2277,18 @@ def cmd_strong_embed(
         f"{config.PHASE_8_WEIGHTS_FILE} sha256 {weights_digest[:16]}..."
     )
 
-    corpus = corpus_backend if corpus_backend is not None else _phase_8_backend(
-        settings, prompted=False
+    corpus = (
+        corpus_backend if corpus_backend is not None else _phase_8_backend(settings, prompted=False)
     )
-    queries = query_backend if query_backend is not None else _phase_8_backend(
-        settings, prompted=True
+    queries = (
+        query_backend if query_backend is not None else _phase_8_backend(settings, prompted=True)
     )
     guarded_corpus = strong_dense.WidthCheckedBackend(corpus, settings.dim)
     guarded_queries = strong_dense.WidthCheckedBackend(queries, settings.dim)
 
-    cache, question_cache = EmbeddingCache(Path(cache_dir)), EmbeddingCache(
-        Path(question_cache_dir)
+    cache, question_cache = (
+        EmbeddingCache(Path(cache_dir)),
+        EmbeddingCache(Path(question_cache_dir)),
     )
     corpus_key = _cache_key_for(guarded_corpus, units)
     query_key = _phase_8_question_key(dev, guarded_queries)
@@ -2375,8 +2376,8 @@ def _strong_embed_test(
     if not held_out:
         _die(f"the pool holds no {TEST_SPLIT} questions: run 'build' first")
 
-    queries = query_backend if query_backend is not None else _phase_8_backend(
-        settings, prompted=True
+    queries = (
+        query_backend if query_backend is not None else _phase_8_backend(settings, prompted=True)
     )
     guarded = strong_dense.WidthCheckedBackend(queries, settings.dim)
     question_cache = EmbeddingCache(Path(question_cache_dir))
@@ -2442,13 +2443,8 @@ def _strong_inputs(
     query_key = _phase_8_question_key(subset, reader)
     if question_cache.load(query_key, expected_unit_ids=[q.qid for q in subset]) is None:
         mode = " --test" if split == TEST_SPLIT else ""
-        _die(
-            f"the Phase 8 {split} question embeddings are missing: "
-            f"run 'strong-embed{mode}' first"
-        )
-    dense = DenseRetriever(
-        cached[0], unit_ids, build_query_backend(subset, reader, question_cache)
-    )
+        _die(f"the Phase 8 {split} question embeddings are missing: run 'strong-embed{mode}' first")
+    dense = DenseRetriever(cached[0], unit_ids, build_query_backend(subset, reader, question_cache))
     run_config = {
         "model": reader.name,
         "revision": reader.revision,
@@ -2601,6 +2597,162 @@ def _check_pool_against_manifest(units: Sequence[IndexingUnit], manifest_path: P
         )
 
 
+# --- Deviation 8.1: Dense scale sensitivity ---------------------------------
+
+
+def _historical_dense(
+    key: str,
+    units: Sequence[IndexingUnit],
+    questions: Sequence[Question],
+    cache_dir: Path,
+    question_cache_dir: Path,
+) -> tuple[scale_sensitivity.ScaleDense, dict[str, Any]]:
+    """One encoder's C19 retriever, rebuilt from the caches its own phase already wrote.
+
+    Read-only, and no model is loaded anywhere on this path. Both cache keys are recomputed
+    and checked against the ones deviation 8.1 recorded **before** either file is opened: a
+    key that does not match is an alignment defect to diagnose, never a cache miss to fill
+    in by re-encoding, because re-encoding would replace the very vectors the gate holds
+    constant.
+    """
+    pins = scale_sensitivity.ModelPins.for_key(key)
+    unit_ids = [unit.unit_id for unit in units]
+    corpus_key = cache_key(
+        pins.model,
+        pins.revision,
+        unit_set_hash(unit_ids),
+        normalized=config.NORMALIZE_EMBEDDINGS,
+    )
+    expected_corpus = config.PHASE_8_1_HISTORICAL_CORPUS_KEYS[key]
+    if corpus_key != expected_corpus:
+        _die(
+            f"the {key} corpus cache key resolves to {corpus_key}, not the recorded "
+            f"{expected_corpus}: the pool or the model pin moved, and level 1 would no "
+            "longer be reading the historical vectors"
+        )
+    corpus = EmbeddingCache(Path(cache_dir)).load(corpus_key, expected_unit_ids=unit_ids)
+    if corpus is None:
+        _die(
+            f"the {key} C19 corpus cache embeddings-{corpus_key}.npz is not on this machine: "
+            "level 1 reads the historical caches and does not re-encode them"
+        )
+
+    qids = [question.qid for question in questions]
+    query_key = question_cache_key(
+        pins.model,
+        pins.revision,
+        question_set_hash(qids),
+        DEV_SPLIT,
+        normalized=config.NORMALIZE_EMBEDDINGS,
+        query_prompt=pins.query_prompt,
+    )
+    expected_query = config.PHASE_8_1_HISTORICAL_DEV_QUERY_KEYS[key]
+    if query_key != expected_query:
+        _die(
+            f"the {key} dev question cache key resolves to {query_key}, not the recorded "
+            f"{expected_query}: the question set, the pin or the query prompt moved"
+        )
+    queries = EmbeddingCache(Path(question_cache_dir)).load(query_key, expected_unit_ids=qids)
+    if queries is None:
+        _die(f"the {key} dev question cache embeddings-{query_key}.npz is not on this machine")
+
+    retriever = scale_sensitivity.historical_retriever(
+        corpus[0],
+        unit_ids,
+        questions=questions,
+        query_vectors=queries[0],
+        qids=queries[1],
+        pins=pins,
+        name=scale_sensitivity.run_name(key, config.EXPECTED_N_UNITS),
+    )
+    provenance = {
+        "model": pins.model,
+        "revision": pins.revision,
+        "unit_set_hash": unit_set_hash(unit_ids),
+        "seed": config.DEFAULT_SEED,
+        "tokenizer": config.BUDGET_TOKENIZER_ID,
+        "budget_tokenizer_revision": config.BUDGET_TOKENIZER_REVISION,
+        "code_version": __version__,
+        "top_k": config.EVALUATION_TOP_K,
+        "n_units": len(unit_ids),
+        "corpus_cache_key": corpus_key,
+        "question_cache_key": query_key,
+        "query_prompt": pins.query_prompt,
+        "dim": int(corpus[0].shape[1]),
+    }
+    return retriever, provenance
+
+
+def cmd_scale_repro(
+    data_dir: Path = config.DATA_DIR,
+    cache_dir: Path = config.CACHE_DIR,
+    question_cache_dir: Path = config.QUESTION_CACHE_DIR,
+    target_dir: Path = config.PHASE_8_1_DIR,
+) -> Path:
+    """Deviation 8.1, S5: the C19 reproduction gate, level 1.
+
+    Runs the new 8.1 evaluation path over the unchanged frozen C19 corpus using the existing
+    historical caches, so the vectors are the recorded ones and the only variable is the
+    code. Both counts must match exactly; anything else writes `reproduction_stop` and
+    blocks every later stage. Nothing is embedded, no model is loaded, and no cache is
+    written.
+    """
+    if not (data_dir / POOL_NAME).exists():
+        _die("no pool found: run 'build' first")
+    if not (data_dir / TOKENS_NAME).exists():
+        _die("no token counts found: run 'embed' first")
+    units, questions = load_pool(data_dir / POOL_NAME)
+    _check_pool_against_manifest(units, data_dir / MANIFEST_NAME)
+    dev = [question for question in questions if question.split == DEV_SPLIT]
+    if not dev:
+        _die(f"the pool holds no {DEV_SPLIT} questions: run 'build' first")
+    token_counts = json.loads((data_dir / TOKENS_NAME).read_text(encoding="utf-8"))
+
+    retrievers: dict[str, Any] = {}
+    provenance: dict[str, Any] = {}
+    for key in config.PHASE_8_1_MODELS:
+        retriever, model_provenance = _historical_dense(
+            key, units, dev, Path(cache_dir), Path(question_cache_dir)
+        )
+        retrievers[key] = retriever
+        provenance[key] = model_provenance
+        print(f"[OK] {key}: {model_provenance['n_units']} units, dim {model_provenance['dim']}")
+
+    host = {
+        "platform": sys.platform,
+        "device": "cpu",
+        "basis": (
+            "level 1 runs on the laptop because it gates the rental; level 2 runs on the "
+            "measurement host inside S6"
+        ),
+    }
+    try:
+        path = scale_sensitivity.measure_level_1(
+            Path(target_dir),
+            retrievers=retrievers,
+            questions=dev,
+            token_counts=token_counts,
+            provenance=provenance,
+            host=host,
+        )
+    except scale_sensitivity.ScaleSensitivityError as error:
+        _die(str(error))
+
+    body = json.loads(path.read_text(encoding="utf-8"))
+    for key in sorted(body["models"]):
+        reading = body["models"][key]
+        mark = "[OK]" if reading["matches"] else "[ERROR]"
+        print(
+            f"{mark} {key}: {reading['supported']} / {reading['n_questions']} supported, "
+            f"required {reading['required']}"
+        )
+    if body["terminal_state"] is None:
+        print(f"[OK] reproduction gate level 1 passed -> {path}")
+    else:
+        print(f"[ERROR] {body['terminal_state']} recorded in {path}")
+    return path
+
+
 def _cache_key_for(backend: EmbeddingBackend, units: Sequence[IndexingUnit]) -> str:
     return cache_key(
         backend.name,
@@ -2750,6 +2902,10 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="measure the three systems on the held-out split, once, refitting nothing",
     )
+    subparsers.add_parser(
+        "scale-repro",
+        help="deviation 8.1: reproduce the frozen C19 dev counts from the historical caches",
+    )
     extraction = subparsers.add_parser(
         "extract", help="read entities and concepts out of every paragraph (spends money)"
     )
@@ -2814,6 +2970,8 @@ def main(argv: list[str] | None = None) -> int:
         cmd_strong_embed(hourly_rate_usd=args.hourly_rate_usd, test=args.test)
     elif args.command == "strong-dense":
         cmd_strong_dense(test=args.test)
+    elif args.command == "scale-repro":
+        cmd_scale_repro()
     return 0
 
 
