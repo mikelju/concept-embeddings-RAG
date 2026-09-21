@@ -866,8 +866,10 @@ def test_the_official_source_is_declared_with_its_published_provenance():
     assert config.PHASE_8_1_DECLARED_MD5 == PHASE_8_1_DECLARED_MD5_LITERAL
     assert len(config.PHASE_8_1_DECLARED_MD5) == 32
     assert all(character in "0123456789abcdef" for character in config.PHASE_8_1_DECLARED_MD5)
-    # Recorded as unverified: S1 is what turns either into a measurement.
-    assert "confirm" in config.PHASE_8_1_DECLARED_BASIS.lower()
+    # S1 verified the declared identity against staged bytes, not the live source page.
+    basis = config.PHASE_8_1_DECLARED_BASIS.lower()
+    assert "verified against the staged archive bytes" in basis
+    assert "live hotpotqa page was not checked" in basis
 
 
 def test_the_four_corpus_sizes_and_their_prefixes_are_exactly_the_declared_arithmetic():

@@ -674,15 +674,14 @@ PHASE_8_1_SOURCE_ARCHIVE: Final[str] = (
     "enwiki-20171001-pages-meta-current-withlinks-abstracts.tar.bz2"
 )
 PHASE_8_1_SOURCE_LICENSE: Final[str] = "CC BY-SA 4.0"
-# A CLAIM, written from recollection of the published release and not read from the
-# source. S1 reads the live page and the downloaded bytes; if they differ, the live
-# values win and these two are corrected in place, which is the correction of an
-# unverified claim rather than the rewrite of a measured artifact.
+# The size and MD5 were carried into deviation 8.1 from its recorded release metadata.
+# S1 verified both against the staged archive bytes. The live HotpotQA page was not
+# checked, so neither this constant nor source.json claims that it was.
 PHASE_8_1_DECLARED_BYTES: Final[int] = 1_553_565_403
 PHASE_8_1_DECLARED_MD5: Final[str] = "01edf64cd120ecc03a2745352779514c"  # pragma: allowlist secret
 PHASE_8_1_DECLARED_BASIS: Final[str] = (
-    "published size and MD5 as recollected in the deviation record, to be confirmed "
-    "against the live HotpotQA page and the downloaded bytes at S1; unverified until then"
+    "size and MD5 recorded in deviation 8.1 and verified against the staged archive bytes; "
+    "the live HotpotQA page was not checked"
 )
 
 # The four nested corpora and the distractor prefixes that build them. C19 is always the

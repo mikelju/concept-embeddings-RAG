@@ -352,6 +352,36 @@ def factory(records: list[FullWikiRecord]):
     return lambda: iter(records)
 
 
+def test_persisted_normalized_match_is_excluded_from_distractor_selection(
+    tmp_path: Path,
+) -> None:
+    """S3 must consume the official ids S2 persisted, not reconstruct reconciliation."""
+    c19 = unit("Amélie Poulain", "She works in a café.")
+    normalized_twin = record("amélie   poulain", "She works in a  café.", line=1)
+    kept = record("Kept", "An ordinary distractor.", line=2)
+
+    reconciliation = scale_corpus.reconcile(
+        [c19], [normalized_twin, kept], dev_gold_ids=frozenset()
+    )
+    assert reconciliation.normalized == (c19.unit_id,)
+    official_id = unit_id_for(normalized_twin.title, normalized_twin.sentences)
+    assert official_id != c19.unit_id
+
+    scale_corpus.write_reconciliation(tmp_path, reconciliation)
+    persisted = scale_corpus.load_reconciliation(tmp_path)
+
+    selected = scale_corpus.select_distractors(
+        factory([normalized_twin, kept]),
+        mapped_ids=frozenset(persisted["mapped_official_ids"]),
+        excluded_titles=frozenset(persisted["excluded_titles"]),
+        limit=1,
+    )
+
+    assert persisted["mapping"][c19.unit_id] == official_id
+    assert official_id in persisted["mapped_official_ids"]
+    assert [item.title for item in selected] == ["Kept"]
+
+
 def test_order_key_is_the_declared_salted_digest() -> None:
     """`42` is a salt inside a hash input, and the input is exactly as declared."""
     title, plaintext = "Albedo", "It is the measure of diffuse reflection."

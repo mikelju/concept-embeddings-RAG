@@ -425,11 +425,13 @@ def test_describe_source_carries_identity_layout_and_member_counts(tmp_path):
     assert described["bytes_agree"] is True
     assert described["layout"]["sentences_field"] == "text"
     assert described["members"]["regular"] == 2
-    # The deviation's unverified recollection is kept beside the measurement, for the
-    # record, so a later reader can see what was claimed and what was read.
+    # The deviation's recorded identity is kept beside the staged-byte verification,
+    # without claiming that the live HotpotQA page was checked.
     assert described["declared_in_spec_bytes"] == config.PHASE_8_1_DECLARED_BYTES
     assert described["declared_in_spec_md5"] == config.PHASE_8_1_DECLARED_MD5
-    assert "confirm" in described["declared_in_spec_basis"].lower()
+    basis = described["declared_in_spec_basis"].lower()
+    assert "verified against the staged archive bytes" in basis
+    assert "live hotpotqa page was not checked" in basis
 
 
 # --- No unsafe deserialization, no network -------------------------------------
