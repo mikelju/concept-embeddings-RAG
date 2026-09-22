@@ -469,7 +469,9 @@ Full Phase 7 result:
 
 # Next phases
 
-Two sequential questions remain in the immediate roadmap.
+Phase 8 is closed and deviation 8.1 is complete. **Phase 9 is the next scheduled phase.**
+The stronger-Dense complementarity question remains open, but no substantially stronger Dense
+retriever has been selected and that question is not currently a separate scheduled phase.
 
 ## Phase 8 — Strong Dense
 
@@ -483,21 +485,26 @@ Two sequential questions remain in the immediate roadmap.
   not exist, by design;
 - **no second encoder was tried**, because choosing a model after seeing dev is the leaderboard the
   master plan forbids;
-- Phase 8 reaches **none** of its three planned outcomes, and Phase 9 inherits **no Dense model**.
+- Phase 8 reaches **none** of its three planned outcomes. It selected no Dense model itself.
 
 On dev only, and descriptively: BM25 recovered +43 questions over Qwen Dense (489 / 600) and Entity
 Hop +48 (494 / 600), Entity Hop +5 over BM25. Neither approached the inherited BGE-small hybrids at
 518 / 600. Full record: `docs/plans/phase_8/8.results.md`.
 
-**Deviation 8.1 is opened for corpus-scale sensitivity**: the ordering is bounded to the frozen
-19,366-paragraph HotpotQA distractor pool, and nothing measured says it survives a change of corpus
-scale or shape. The specification that follows is the phase as planned.
+**Deviation 8.1 is complete — `STABLE_RANKING` (rule A).** On the same 600 dev questions, BGE/Qwen
+Full Support @2,048 was **487/446 at C19, 463/420 at C100, 440/393 at C250 and 423/366 at C500**.
+Both headline Full Support reproduction checks matched exactly. The C500 deficit is 57 questions, so BGE-small becomes
+the task-validated primary Dense candidate for Phase 9; the Phase 9 spec decides whether Qwen remains
+as an external-comparability control. Full record:
+`docs/plans/phase_8/8.1_results.md`.
 
-Question:
+The Phase 8 scientific question itself remains open:
 
 > Does Entity Hop still provide complementary signal when Dense itself is substantially stronger?
 
-Stay on the same 19,366-paragraph corpus.
+Deviation 8.1 did not identify or test a substantially stronger Dense retriever.
+
+The original Phase 8 plan below is retained as historical context; it is not active work.
 
 Choose **one** modern strong open Dense model. Do not create a model leaderboard.
 
@@ -538,21 +545,23 @@ No other entity parameter should be introduced merely to rescue a weak result.
 
 ## Phase 9 — HotpotQA FullWiki
 
-Planned after Phase 8.
+Ready to specify after deviation 8.1.
 
 Question:
 
-> Does the simple Strong Dense + Entity Hop architecture remain useful when retrieval happens over the
+> Does the simple Dense + Entity Hop architecture remain useful when retrieval happens over the
 > standard multi-million-paragraph HotpotQA FullWiki search space?
 
 Carry forward:
 
 ```text
 GLiNER (urchade/gliner_medium-v2.1), the extractor selected in Phase 7
-Strong Dense selected in Phase 8
+BGE-small, the task-validated primary Dense candidate from deviation 8.1
 P1 only
 one Entity Hop
 ```
+
+The Phase 9 spec decides whether Qwen is retained as an external-comparability control.
 
 Phase 7's 5M extraction figures — 8.56 h / 6.34 USD — are **projections** from a measured
 162.178 paragraphs/s, not a budget and not an authorization. Phase 9 measures its own.
@@ -560,9 +569,9 @@ Phase 7's 5M extraction figures — 8.56 h / 6.34 USD — are **projections** fr
 At minimum compare:
 
 ```text
-Strong Dense
-Strong Dense + BM25
-Strong Dense + Entity Hop
+Primary Dense
+Primary Dense + BM25
+Primary Dense + Entity Hop
 ```
 
 Do not add:
