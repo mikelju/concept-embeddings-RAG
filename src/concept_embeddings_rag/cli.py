@@ -21,6 +21,13 @@
                     --test encodes the held-out questions, only after the dev gate passed
     strong-dense    fit both hybrids on dev and measure the three systems (Phase 8);
                     --test reads the held-out split once, refitting nothing
+    fullwiki-corpus verify the FullWiki archive and write every paragraph as a unit (Phase 9)
+    fullwiki-questions  freeze the three cohorts and the title-resolved gold (Phase 9)
+    fullwiki-repro  the Phase 9 path over the historical pool must give the Phase 7 dev counts
+    fullwiki-build  one build step over the whole corpus: tokens, embed, bm25, extract, index
+    fullwiki-probe  time the three systems on 100 historical dev questions, rankings only
+    fullwiki-eval   the single authorized evaluation pass over the 7,405 questions (Phase 9)
+    fullwiki-outcome  the exact McNemar test and the mechanical terminal label (Phase 9)
 
 Each stage is idempotent and refuses to run if its input is missing, saying which
 stage to run first rather than failing somewhere deep inside numpy.
@@ -30,6 +37,7 @@ import argparse
 import json
 import math
 import shutil
+import statistics
 import sys
 import time
 from collections.abc import Callable, Sequence
@@ -116,6 +124,7 @@ from concept_embeddings_rag.embeddings.cache import (
     resolved_revision,
     unit_set_hash,
 )
+from concept_embeddings_rag.evaluation import fullwiki as phase9
 from concept_embeddings_rag.evaluation import scale_sensitivity, strong_dense
 from concept_embeddings_rag.evaluation.budget import TokenCounter
 from concept_embeddings_rag.evaluation.cheap_extraction import (
@@ -171,6 +180,7 @@ from concept_embeddings_rag.evaluation.replacement_run import (
     run_freeze,
     run_test,
 )
+from concept_embeddings_rag.evaluation.second_hop import node_weights
 from concept_embeddings_rag.evaluation.selection import (
     DEV_SPLIT,
     SelectionError,
@@ -220,6 +230,10 @@ from concept_embeddings_rag.retrieval.conceptual import (
 )
 from concept_embeddings_rag.retrieval.dense import DenseRetriever
 from concept_embeddings_rag.retrieval.diffusion import EXPANSION_NAMES, DiffusionRetriever
+from concept_embeddings_rag.retrieval.entity_hop import (
+    ColumnwiseEntityHopStage,
+    EntityHopStage,
+)
 from concept_embeddings_rag.retrieval.fusion import FusedRetriever
 
 RAW_NAME = "hotpot_raw.json"
@@ -3198,8 +3212,7 @@ def _scale_measurement_host_preflight(
         _die(str(error))
 
     print(
-        f"[OK] measurement-host D-L1 {model}: {d_l1['supported']} / "
-        f"{d_l1['n_questions']} supported"
+        f"[OK] measurement-host D-L1 {model}: {d_l1['supported']} / {d_l1['n_questions']} supported"
     )
     print(f"[OK] measurement-host disk: {free} bytes free, {required_free} required")
     return {
@@ -3419,9 +3432,7 @@ def cmd_scale_run(
         except (strong_dense.StrongDenseError, CacheAlignmentError, QueryPromptError) as error:
             _die(str(error))
 
-        bytes_on_disk = _scale_cache_bytes(
-            corpus_cache, corpus_key, question_cache, query_key
-        )
+        bytes_on_disk = _scale_cache_bytes(corpus_cache, corpus_key, question_cache, query_key)
         try:
             embedding_path = scale_sensitivity.write_embedding(
                 target_dir,
@@ -3473,8 +3484,7 @@ def cmd_scale_run(
         "embedding_digest": embedding["digest"],
         "unit_set_hash": unit_set_hash(unit_ids),
         "unit_set_hashes": {
-            str(size): unit_set_hash(unit_ids[:size])
-            for size in config.PHASE_8_1_CORPUS_SIZES
+            str(size): unit_set_hash(unit_ids[:size]) for size in config.PHASE_8_1_CORPUS_SIZES
         },
         "seed": config.DEFAULT_SEED,
         "tokenizer": config.BUDGET_TOKENIZER_ID,
@@ -3537,7 +3547,6 @@ def cmd_scale_run(
     return path
 
 
-
 def cmd_scale_outcome(target_dir: Path = config.PHASE_8_1_DIR) -> Path:
     """Deviation 8.1 S7: classify the two complete S6 measurements once."""
     target_dir = Path(target_dir)
@@ -3570,6 +3579,587 @@ def cmd_scale_outcome(target_dir: Path = config.PHASE_8_1_DIR) -> Path:
         )
     print(f"[OK] outcome recorded -> {path}")
     return path
+
+
+# --- Phase 9: HotpotQA FullWiki ----------------------------------------------------------
+
+
+def cmd_fullwiki_corpus(
+    archive: str | None = None, target_dir: Path = config.PHASE_9_DIR
+) -> dict[str, Any]:
+    """S2: the verified official archive, whole, as `corpus.jsonl.gz` and `corpus.json`.
+
+    Identity is D1's: the 8.1 bytes and md5, and the sha256 8.1 measured. A recorded
+    `corpus.json` is a pin the stream must reproduce, which is how the measurement host
+    proves its rebuilt corpus is this one.
+    """
+    path = _source_path(archive)
+    print(f"[INFO] streaming {path.name} into {target_dir}")
+    try:
+        manifest = fullwiki.write_corpus(
+            path,
+            Path(target_dir),
+            expected_bytes=config.PHASE_8_1_DECLARED_BYTES,
+            expected_md5=config.PHASE_8_1_DECLARED_MD5,
+            expected_sha256=config.PHASE_9_ARCHIVE_SHA256,
+        )
+    except fullwiki.FullWikiError as error:
+        _die(str(error))
+    print(
+        f"[OK] corpus: {manifest['n_units']} units from {manifest['records_read']} records "
+        f"({manifest['duplicate_records_collapsed']} duplicates collapsed, "
+        f"{manifest['empty_text_units']} without a sentence), unit set "
+        f"{manifest['unit_set_hash']}"
+    )
+    return manifest
+
+
+def _phase_9_corpus(target_dir: Path) -> tuple[list[IndexingUnit], dict[str, Any]]:
+    try:
+        units = fullwiki.load_corpus(target_dir)
+    except fullwiki.FullWikiError as error:
+        _die(str(error))
+    manifest = json.loads((target_dir / fullwiki.CORPUS_MANIFEST).read_text(encoding="utf-8"))
+    return units, manifest
+
+
+def cmd_fullwiki_questions(
+    data_dir: Path = config.DATA_DIR, target_dir: Path = config.PHASE_9_DIR
+) -> Path:
+    """S3: the 7,405 / 2,000 / 5,405 cohorts by qid and the gold resolved by title (D4).
+
+    Written before any Phase 9 retrieval exists. A DATA_STOP is written too, with the
+    unresolved titles and qids, and the stage then exits non-zero: the stop is a result.
+    """
+    data_dir, target_dir = Path(data_dir), Path(target_dir)
+    if not (data_dir / RAW_NAME).exists() or not (data_dir / POOL_NAME).exists():
+        _die("the validation source or the Phase 1 pool is missing: run 'fetch' and 'build'")
+    raws = json.loads((data_dir / RAW_NAME).read_text(encoding="utf-8"))
+    _pool_units, historical = load_pool(data_dir / POOL_NAME)
+    units, corpus = _phase_9_corpus(target_dir)
+    try:
+        _questions, body = phase9.build_questions(
+            raws, [question.qid for question in historical], units, corpus=corpus
+        )
+        path = phase9.write_questions(target_dir, body)
+    except phase9.FullWikiPhaseError as error:
+        _die(str(error))
+    print(
+        f"[INFO] cohorts: {body['n_standard_dev']} standard, {body['n_historical_overlap']} "
+        f"historical overlap, {body['n_retrieval_unseen']} retrieval-unseen"
+    )
+    print(
+        f"[INFO] titles: {body['title_resolution']}; questions with unresolved gold "
+        f"{body['questions_with_unresolved_gold']} (ceiling {body['unresolved_ceiling']})"
+    )
+    if body["terminal_state"] is not None:
+        _die(f"{body['terminal_state']} recorded in {path}")
+    print(f"[OK] questions frozen -> {path}")
+    return path
+
+
+REPRODUCTION_NAME = "reproduction.json"
+
+
+def cmd_fullwiki_repro(
+    data_dir: Path = config.DATA_DIR,
+    cache_dir: Path = config.CACHE_DIR,
+    question_cache_dir: Path = config.QUESTION_CACHE_DIR,
+    target_dir: Path = config.PHASE_9_DIR,
+    backend: EmbeddingBackend | None = None,
+) -> Path:
+    """S4: the Phase 9 systems and measurement path, over the historical 19,366 pool.
+
+    The 600 historical dev questions, the historical caches and the Phase 7 GLiNER index:
+    every input a Phase 7 dev figure was read from, and nothing new. The three Full Support
+    @2,048 counts must equal the recorded ones exactly; a miss stops, and no code is changed
+    to make a recorded figure come back.
+    """
+    data_dir, target_dir = Path(data_dir), Path(target_dir)
+    unit_ids, dev, token_counts, dense, run_config = _cheap_inputs(
+        DEV_SPLIT, data_dir, cache_dir, question_cache_dir, backend
+    )
+    check_dev_only(dev)
+    units, _questions = load_pool(data_dir / POOL_NAME)
+    try:
+        index = load_node_index(
+            config.PHASE_8_GLINER_DIR,
+            extraction_digest=config.PHASE_8_GLINER_EXTRACTION_DIGEST,
+            expected_unit_ids=unit_ids,
+        )
+        if index.digest != config.PHASE_8_GLINER_INDEX_DIGEST:
+            _die(f"the Phase 7 GLiNER index has digest {index.digest}, not the pinned one")
+        weights = phase9.read_frozen_weights()
+    except (NodeIndexError, phase9.FullWikiPhaseError) as error:
+        _die(str(error))
+    stage = EntityHopStage(index, node_weights(index))
+    systems = phase9.build_systems(dense, BM25Retriever(units), stage, weights)
+    measured: dict[str, int] = {}
+    latency: dict[str, dict[str, Any]] = {}
+    primary = str(config.PHASE_9_PRIMARY_BUDGET)
+    for name, system in systems.items():
+        print(f"[INFO] measuring {name} over {len(dev)} historical dev questions")
+        records = phase9.measure_system(name, system, dev, token_counts, run_config=run_config)
+        measured[name] = int(sum(r["budgets"][primary]["full_support"] for r in records))
+        latency[name] = phase9.latency_summary(records)
+        print(f"[INFO] {name}: {measured[name]} / {len(dev)} supported @{primary}")
+    verdict = phase9.reproduction_verdict(measured, config.PHASE_9_REPRODUCTION_DEV_SUPPORTED)
+    body = {
+        **verdict,
+        "n_questions": len(dev),
+        "metric": f"full_support@{primary}_tokens",
+        "weights": weights,
+        "weights_files": {
+            "hybrid-bm25": str(config.PHASE_9_BM25_WEIGHTS_FILE.relative_to(config.DATA_DIR)),
+            "hybrid-entity-hop": str(
+                config.PHASE_9_ENTITY_WEIGHTS_FILE.relative_to(config.DATA_DIR)
+            ),
+        },
+        "node_index_digest": index.digest,
+        "extraction_digest": index.extraction_digest,
+        "run_config": run_config,
+        "latency": latency,
+        "code_commit": _git_commit(),
+        "created_at": datetime.now(UTC).isoformat(timespec="seconds"),
+    }
+    target_dir.mkdir(parents=True, exist_ok=True)
+    path = write_text_atomic(
+        target_dir / REPRODUCTION_NAME, json.dumps(body, indent=2, sort_keys=True)
+    )
+    if not verdict["reproduced"]:
+        _die(f"the reproduction missed the recorded counts {verdict['mismatches']}; see {path}")
+    print(f"[OK] Phase 7 dev counts reproduced exactly -> {path}")
+    return path
+
+
+BUILD_STAGES: tuple[str, ...] = ("tokens", "embed", "bm25", "extract", "index")
+SMOKE_DIRNAME = "smoke"
+SMOKE_QUESTIONS = 50
+
+
+def _build_inputs(
+    target_dir: Path, smoke: int | None
+) -> tuple[list[IndexingUnit], dict[str, Any], Path]:
+    """The corpus (or its first `smoke` units) and where this build writes.
+
+    A smoke build reads the real corpus and writes under `smoke/`, never beside the frozen
+    artifacts: it exists to exercise the code path, and its numbers are not Phase 9 figures.
+    """
+    units, corpus = _phase_9_corpus(target_dir)
+    if smoke is None:
+        return units, corpus, target_dir
+    units = units[:smoke]
+    corpus = {**corpus, "unit_set_hash": unit_set_hash([u.unit_id for u in units]), "smoke": smoke}
+    return units, corpus, target_dir / SMOKE_DIRNAME
+
+
+def cmd_fullwiki_build(
+    stage: str,
+    *,
+    hourly_rate_usd: float = 0.0,
+    smoke: int | None = None,
+    target_dir: Path = config.PHASE_9_DIR,
+) -> dict[str, Any]:
+    """S5: one build step, run as its own process so it records its own peak memory."""
+    target_dir = Path(target_dir)
+    if stage not in BUILD_STAGES:
+        _die(f"unknown build stage {stage!r}; expected one of {BUILD_STAGES}")
+    units, corpus, out = _build_inputs(target_dir, smoke)
+    corpus_hash = str(corpus["unit_set_hash"])
+    unit_ids = [unit.unit_id for unit in units]
+    device = _embedding_device()
+    print(f"[INFO] build {stage} over {len(units)} units into {out} ({device})")
+    try:
+        if stage == "tokens":
+            body = phase9.build_token_counts(units, TokenCounter(), out, unit_set_hash=corpus_hash)
+        elif stage == "embed":
+            questions, _body = phase9.load_questions(
+                target_dir,
+                corpus_unit_set_hash=str(
+                    json.loads((target_dir / fullwiki.CORPUS_MANIFEST).read_text("utf-8"))[
+                        "unit_set_hash"
+                    ]
+                ),
+            )
+            if smoke is not None:
+                questions = questions[:SMOKE_QUESTIONS]
+            snapshot = snapshot_directory(config.EMBEDDING_MODEL, config.EMBEDDING_REVISION)
+            body = phase9.build_embedding(
+                units,
+                questions,
+                SentenceTransformerBackend(),
+                out / "cache",
+                out / "cache" / "questions",
+                out,
+                unit_set_hash=corpus_hash,
+                weights_sha256=weights_sha256(snapshot, "model.safetensors"),
+                resolved_revision=snapshot.name,
+                hardware=local_extraction.hardware_block(device=device),
+                hourly_rate_usd=hourly_rate_usd,
+            )
+        elif stage == "bm25":
+            _retriever, body = phase9.build_bm25(units, unit_set_hash=corpus_hash)
+            write_text_atomic(
+                out / phase9.BM25_FILENAME, json.dumps(body, indent=2, sort_keys=True)
+            )
+        elif stage == "extract":
+            body = _fullwiki_extract(units, out, corpus_hash, hourly_rate_usd, smoke)
+        else:
+            gliner_dir = out / phase9.GLINER_DIRNAME
+            records, manifest = local_extraction.load_extraction(
+                gliner_dir, expected_unit_ids=unit_ids
+            )
+            body = phase9.build_entity_index(
+                records,
+                unit_ids,
+                gliner_dir,
+                extraction_digest=str(manifest["digest"]),
+                corpus_unit_set_hash=corpus_hash,
+            )
+    except (
+        phase9.FullWikiPhaseError,
+        LocalExtractionError,
+        NodeIndexError,
+        BackendError,
+        CacheAlignmentError,
+    ) as error:
+        _die(str(error))
+    print(f"[OK] build {stage}: {json.dumps(body.get('memory'))}")
+    return body
+
+
+def _fullwiki_extract(
+    units: Sequence[IndexingUnit],
+    out: Path,
+    corpus_hash: str,
+    hourly_rate_usd: float,
+    smoke: int | None,
+) -> dict[str, Any]:
+    """GLiNER over every unit in resumable shards, at the frozen Phase 7 configuration (D6).
+
+    The configuration digest covers the library versions, so it is checked before a single
+    paragraph is read; a smoke build on another stack records the mismatch instead, and
+    its records are never Phase 9 records.
+    """
+    gliner_dir = out / phase9.GLINER_DIRNAME
+    model_dir = config.PHASE_9_DIR / "models" / config.GLINER_EXTRACTOR
+    extractor, load_seconds = local_extraction.gliner_extractor(model_dir)
+    digest = extractor.configuration_digest
+    pinned = config.PHASE_9_GLINER_CONFIGURATION_DIGEST
+    if digest != pinned and smoke is None:
+        _die(
+            f"the GLiNER configuration digest here is {digest}, not the frozen {pinned}: the "
+            f"library stack differs from Phase 7's ({extractor.library_versions})"
+        )
+    weights = weights_sha256(model_dir, config.PHASE_9_GLINER_WEIGHTS_FILE)
+    print(f"[INFO] GLiNER {digest} on {extractor.hardware_device}, weights {weights[:16]}")
+    started = time.perf_counter()
+    records, summary = local_extraction.run_sharded_extraction(
+        units,
+        extractor,
+        gliner_dir,
+        shard_units=config.PHASE_9_EXTRACTION_SHARD_UNITS if smoke is None else 100,
+        on_progress=_progress("extract", started),
+    )
+    hardware = local_extraction.hardware_block(device=extractor.hardware_device)
+    manifest = local_extraction.build_manifest(
+        records,
+        extractor,
+        seconds=float(summary["seconds"]),
+        hardware=hardware,
+        usd=float(summary["seconds"]) / 3600.0 * hourly_rate_usd,
+        hourly_rate_usd=hourly_rate_usd,
+        model_load_seconds=load_seconds,
+    )
+    failures = manifest["failures"]
+    manifest.update(
+        {
+            "phase": 9,
+            "weights_sha256": weights,
+            "configuration_digest_pinned": pinned,
+            "configuration_digest_matches": digest == pinned,
+            "corpus_unit_set_hash": corpus_hash,
+            "attempted": summary["attempted"],
+            "succeeded": summary["attempted"] - sum(failures.values()),
+            "sharding": summary,
+            "wall_seconds": summary["seconds"],
+            "attributable_usd": manifest["usd"],
+            "attributable_usd_basis": "derived from measured shard seconds x contracted rate",
+            "memory": phase9.peak_memory(),
+            "smoke": smoke,
+        }
+    )
+    local_extraction.write_extraction(records, manifest, gliner_dir)
+    return manifest
+
+
+def _phase_9_inputs(target_dir: Path, hop: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Everything a probe or the pass reads, each artifact checked against its manifest.
+
+    Returns the three fresh systems plus the questions and token counts, and the provenance
+    chain every run records: corpus, questions, vectors, BM25, extraction and entity index.
+    """
+    units, corpus = _phase_9_corpus(target_dir)
+    corpus_hash = str(corpus["unit_set_hash"])
+    unit_ids = [unit.unit_id for unit in units]
+    embedding = json.loads((target_dir / phase9.EMBEDDING_FILENAME).read_text("utf-8"))
+    bm25_record = json.loads((target_dir / phase9.BM25_FILENAME).read_text("utf-8"))
+    gliner_dir = target_dir / phase9.GLINER_DIRNAME
+    entity_record = json.loads((gliner_dir / phase9.ENTITY_INDEX_FILENAME).read_text("utf-8"))
+    questions, question_body = phase9.load_questions(target_dir, corpus_unit_set_hash=corpus_hash)
+    token_counts = phase9.load_phase9_token_counts(target_dir, unit_set_hash=corpus_hash)
+    for name, record in (("embedding", embedding), ("entity index", entity_record)):
+        if record.get("unit_set_hash", record.get("corpus_unit_set_hash")) != corpus_hash:
+            _die(f"the {name} manifest names another corpus")
+    loaded = EmbeddingCache(target_dir / "cache").load(
+        str(embedding["corpus_cache_key"]), expected_unit_ids=unit_ids
+    )
+    if loaded is None:
+        _die("the FullWiki vectors are missing: run 'fullwiki-build --stage embed'")
+    vectors = loaded[0]
+    if (
+        phase9.digest_of(np.ascontiguousarray(vectors, dtype=np.float32))
+        != embedding["vectors_digest"]
+    ):
+        _die("the FullWiki vectors do not match the digest embedding.json records")
+    question_ids = [question.qid for question in questions]
+    question_vectors = EmbeddingCache(target_dir / "cache" / "questions").load(
+        str(embedding["question_cache_key"]), expected_unit_ids=question_ids
+    )
+    if question_vectors is None:
+        _die("the question vectors are missing: run 'fullwiki-build --stage embed'")
+    query_backend = CachedQueryBackend(
+        texts=[question.question for question in questions],
+        vectors=question_vectors[0],
+        name=str(embedding["model"]),
+        revision=str(embedding["revision"]),
+    )
+    dense = DenseRetriever(vectors, unit_ids, query_backend)
+    bm25, rebuilt = phase9.build_bm25(units, unit_set_hash=corpus_hash)
+    if rebuilt["index_digest"] != bm25_record["index_digest"]:
+        _die("the rebuilt BM25 index does not match the digest bm25.json records")
+    extraction = local_extraction.load_manifest(gliner_dir)
+    index = load_node_index(
+        gliner_dir, extraction_digest=str(extraction["digest"]), expected_unit_ids=unit_ids
+    )
+    if index.digest != entity_record["index_digest"]:
+        _die("the entity index does not match the digest entity-index.json records")
+    stage_type = ColumnwiseEntityHopStage if hop == phase9.COLUMNWISE_HOP else EntityHopStage
+    weights = phase9.read_frozen_weights()
+    stage = stage_type(index, node_weights(index))
+    systems = phase9.build_systems(dense, bm25, stage, weights)
+    provenance = {
+        "corpus_unit_set_hash": corpus_hash,
+        "corpus_ordered_unit_digest": corpus["ordered_unit_digest"],
+        "archive_sha256": corpus["archive_sha256"],
+        "question_digest": question_body["question_digest"],
+        "mapping_digest": question_body["mapping_digest"],
+        "embedding": {
+            key: embedding[key]
+            for key in (
+                "model",
+                "revision",
+                "weights_sha256",
+                "vectors_digest",
+                "corpus_cache_key",
+                "question_cache_key",
+            )
+        },
+        "bm25_index_digest": bm25_record["index_digest"],
+        "extraction": {
+            "model": extraction["model"],
+            "revision": extraction["revision"],
+            "configuration_digest": extraction["configuration_digest"],
+            "weights_sha256": extraction.get("weights_sha256"),
+            "records_digest": extraction["digest"],
+        },
+        "entity_index_digest": index.digest,
+        "weights": weights,
+        "hop_implementation": hop,
+    }
+    inputs = {"systems": systems, "questions": questions, "token_counts": token_counts}
+    return inputs, provenance
+
+
+def cmd_fullwiki_probe(
+    data_dir: Path = config.DATA_DIR, target_dir: Path = config.PHASE_9_DIR
+) -> Path:
+    """S6: mean query time per system on 100 seeded historical dev questions; no metric.
+
+    The reference Entity Hop is timed first. If its mean reaches the plan's share of the
+    ceiling, the exact column-wise hop - proven identical in candidates and scores - is
+    timed too and becomes the one the pass uses. A system past the ceiling is an
+    OPERATIONAL_STOP, written and reported.
+    """
+    data_dir, target_dir = Path(data_dir), Path(target_dir)
+    target = target_dir / phase9.PROBE_FILENAME
+    if target.exists():
+        _die(f"{target} already records the probe")
+    _pool_units, pool_questions = load_pool(data_dir / POOL_NAME)
+    dev_qids = {question.qid for question in pool_questions if question.split == DEV_SPLIT}
+    inputs, provenance = _phase_9_inputs(target_dir, phase9.REFERENCE_HOP)
+    sample = phase9.probe_sample(inputs["questions"], dev_qids)
+    seconds = {
+        name: phase9.time_system(system, sample) for name, system in inputs["systems"].items()
+    }
+    reference_mean = statistics.fmean(seconds["hybrid-entity-hop"])
+    hop = phase9.hop_implementation(reference_mean)
+    timings: dict[str, Any] = {
+        "reference_hybrid_entity_hop_mean_seconds": reference_mean,
+        "hop_implementation": hop,
+        "columnwise_rule": f"columnwise when the reference mean >= {phase9.COLUMNWISE_SHARE} x "
+        f"{config.PHASE_9_QUERY_SECONDS_CEILING} s",
+    }
+    if hop == phase9.COLUMNWISE_HOP:
+        columnwise, _provenance = _phase_9_inputs(target_dir, phase9.COLUMNWISE_HOP)
+        seconds["hybrid-entity-hop"] = phase9.time_system(
+            columnwise["systems"]["hybrid-entity-hop"], sample
+        )
+    means = {name: statistics.fmean(values) for name, values in seconds.items()}
+    body = {
+        **phase9.probe_verdict(means),
+        **timings,
+        "n_questions": len(sample),
+        "qids": [question.qid for question in sample],
+        "sample_rule": f"random.Random({config.PHASE_9_PROBE_SEED}).sample over historical "
+        f"dev qids sorted, n = {config.PHASE_9_PROBE_QUESTIONS}; rankings only",
+        "seconds": seconds,
+        "memory": phase9.peak_memory(),
+        "host": local_extraction.hardware_block(device=_embedding_device()),
+        "provenance": {**provenance, "hop_implementation": hop},
+        "code_commit": _git_commit(),
+        "created_at": datetime.now(UTC).isoformat(timespec="seconds"),
+    }
+    body["digest"] = phase9.digest_of(json.dumps(body, sort_keys=True))
+    path = write_text_atomic(target, json.dumps(body, indent=2, sort_keys=True))
+    for name, mean in means.items():
+        print(f"[INFO] {name}: {mean:.3f} s mean over {len(sample)} probe questions")
+    if body["terminal_state"] is not None:
+        _die(f"{body['terminal_state']}: {body['over_ceiling']} past the ceiling; see {path}")
+    print(f"[OK] probe within the envelope ({hop} hop) -> {path}")
+    return path
+
+
+def cmd_fullwiki_eval(*, authorized: bool, target_dir: Path = config.PHASE_9_DIR) -> list[Path]:
+    """S6: the single evaluation pass. Refuses without the author's explicit authorization.
+
+    Metrics over every cohort are computed here and nowhere else, once: a second start is
+    refused whatever the first one showed.
+    """
+    target_dir = Path(target_dir)
+    if not authorized:
+        _die(
+            "the evaluation pass opens the 1,400 historical held-out and the 5,405 new "
+            "questions; it runs only with --authorized-pass, after the author says so"
+        )
+    probe = json.loads((target_dir / phase9.PROBE_FILENAME).read_text("utf-8"))
+    if probe["terminal_state"] is not None:
+        _die(f"the probe recorded {probe['terminal_state']}; the pass does not run")
+    commit = _git_commit()
+    try:
+        phase9.start_pass(target_dir, probe_digest=str(probe["digest"]), code_commit=commit)
+    except phase9.FullWikiPhaseError as error:
+        _die(str(error))
+    inputs, provenance = _phase_9_inputs(target_dir, str(probe["hop_implementation"]))
+    host = local_extraction.hardware_block(device=_embedding_device())
+    written: list[Path] = []
+    for name, system in inputs["systems"].items():
+        print(f"[INFO] pass: {name} over {len(inputs['questions'])} questions")
+        records = phase9.measure_system(name, system, inputs["questions"], inputs["token_counts"])
+        described = system.describe() if hasattr(system, "describe") else None
+        body = {
+            "phase": 9,
+            "system": name,
+            "label": config.PHASE_9_SYSTEM_LABELS[name],
+            "corpus_unit_set_hash": provenance["corpus_unit_set_hash"],
+            "question_digest": provenance["question_digest"],
+            "ranking_depth": config.PHASE_9_RANKING_DEPTH,
+            "fusion": (
+                {"scheme": "none", "weights": {}}
+                if described is None
+                else {"scheme": described["scheme"], "weights": described["weights"]}
+            ),
+            "metrics": phase9.cohort_metrics(records),
+            "latency": phase9.latency_summary(records),
+            "entity_candidates": phase9.candidate_summary(records),
+            "provenance": {
+                **provenance,
+                "code_commit": commit,
+                "probe_digest": probe["digest"],
+                "created_at": datetime.now(UTC).isoformat(timespec="seconds"),
+                "host": host,
+                "memory": phase9.peak_memory(),
+            },
+        }
+        try:
+            path = phase9.write_run(target_dir, name, records, body=body)
+        except phase9.FullWikiPhaseError as error:
+            _die(str(error))
+        written.append(path)
+        print(f"[OK] {name} run written -> {path}")
+    return written
+
+
+OUTCOME_NAME = "outcome.json"
+
+
+def cmd_fullwiki_outcome(target_dir: Path = config.PHASE_9_DIR) -> Path:
+    """S7: P9-C against P9-A on the primary cohort, the exact test and the D10/D11 label."""
+    target_dir = Path(target_dir)
+    stop: str | None = None
+    reasons: list[str] = []
+    probe = json.loads((target_dir / phase9.PROBE_FILENAME).read_text("utf-8"))
+    if probe["terminal_state"] is not None:
+        stop = str(probe["terminal_state"])
+        reasons.append(f"probe: {probe['over_ceiling']} past the query ceiling")
+    runs = {
+        name: json.loads((target_dir / f"run-{name}.json").read_text("utf-8"))
+        for name in config.PHASE_9_SYSTEMS
+    }
+    slow = [
+        name
+        for name, run in runs.items()
+        if run["latency"]["mean_ms"] / 1000.0 > config.PHASE_9_QUERY_SECONDS_CEILING
+    ]
+    if slow:
+        stop = phase9.OPERATIONAL_STOP
+        reasons.append(f"pass: {slow} past the mean query ceiling")
+    dense = phase9.load_outcomes(target_dir, "dense")
+    entity = phase9.load_outcomes(target_dir, "hybrid-entity-hop")
+    bm25 = phase9.load_outcomes(target_dir, "hybrid-bm25")
+    body = {
+        **phase9.primary_outcome(dense, entity, stop=stop),
+        "stop_reasons": reasons,
+        "secondary_entity_vs_bm25": phase9.primary_outcome(bm25, entity),
+        "secondary_note": "P9-C against P9-B, descriptive only; it cannot change the label",
+        "runs": {name: run["outcomes_digest"] for name, run in runs.items()},
+        "code_commit": _git_commit(),
+        "created_at": datetime.now(UTC).isoformat(timespec="seconds"),
+    }
+    body["secondary_entity_vs_bm25"].pop("terminal_state")
+    path = write_text_atomic(target_dir / OUTCOME_NAME, json.dumps(body, indent=2, sort_keys=True))
+    print(
+        f"[OK] {body['terminal_state']}: wins {body['wins']}, losses {body['losses']}, "
+        f"p = {body['exact_two_sided_p']:.4g} -> {path}"
+    )
+    return path
+
+
+def _git_commit() -> str:
+    """The commit the code ran at, or `unknown` outside a checkout; recorded, never trusted."""
+    import subprocess  # nosec B404: a fixed argv, no shell, no input
+
+    try:
+        completed = subprocess.run(  # noqa: S603
+            ["git", "rev-parse", "HEAD"],  # noqa: S607
+            capture_output=True,
+            text=True,
+            check=True,
+            cwd=config.PROJECT_ROOT,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return "unknown"
+    return completed.stdout.strip()
 
 
 def _cache_key_for(backend: EmbeddingBackend, units: Sequence[IndexingUnit]) -> str:
@@ -3782,6 +4372,59 @@ def build_parser() -> argparse.ArgumentParser:
         "scale-outcome",
         help="deviation 8.1: classify the complete BGE/Qwen C19-C500 measurements",
     )
+    fullwiki_corpus = subparsers.add_parser(
+        "fullwiki-corpus",
+        help="Phase 9: verify the FullWiki archive and write every paragraph as a unit",
+    )
+    fullwiki_corpus.add_argument(
+        "--archive",
+        default=None,
+        help="path to the staged official archive (default: data/phase8_1/source/<name>)",
+    )
+    subparsers.add_parser(
+        "fullwiki-questions",
+        help="Phase 9: freeze the three cohorts and the title-resolved gold",
+    )
+    subparsers.add_parser(
+        "fullwiki-repro",
+        help="Phase 9: reproduce the Phase 7 dev counts through the Phase 9 path, historical pool",
+    )
+    build = subparsers.add_parser(
+        "fullwiki-build",
+        help="Phase 9: one build step over the whole FullWiki corpus (measurement host)",
+    )
+    build.add_argument("--stage", choices=BUILD_STAGES, required=True)
+    build.add_argument(
+        "--hourly-rate-usd",
+        type=float,
+        default=0.0,
+        dest="hourly_rate_usd",
+        help="contracted hourly rate, for the attributable cost of GPU steps",
+    )
+    subparsers.add_parser(
+        "fullwiki-probe",
+        help="Phase 9: time the three systems on 100 historical dev questions (rankings only)",
+    )
+    evaluation_pass = subparsers.add_parser(
+        "fullwiki-eval",
+        help="Phase 9: the single evaluation pass over the 7,405 questions (author-authorized)",
+    )
+    evaluation_pass.add_argument(
+        "--authorized-pass",
+        action="store_true",
+        dest="authorized",
+        help="the author has explicitly authorized the single evaluation pass",
+    )
+    subparsers.add_parser(
+        "fullwiki-outcome",
+        help="Phase 9: the exact McNemar test and the mechanical terminal label",
+    )
+    build.add_argument(
+        "--smoke",
+        type=int,
+        default=None,
+        help="build over the first N units into data/phase9/smoke/ (a code check, not a figure)",
+    )
     extraction = subparsers.add_parser(
         "extract", help="read entities and concepts out of every paragraph (spends money)"
     )
@@ -3864,6 +4507,20 @@ def main(argv: list[str] | None = None) -> int:
         )
     elif args.command == "scale-outcome":
         cmd_scale_outcome()
+    elif args.command == "fullwiki-corpus":
+        cmd_fullwiki_corpus(archive=args.archive)
+    elif args.command == "fullwiki-questions":
+        cmd_fullwiki_questions()
+    elif args.command == "fullwiki-repro":
+        cmd_fullwiki_repro()
+    elif args.command == "fullwiki-build":
+        cmd_fullwiki_build(args.stage, hourly_rate_usd=args.hourly_rate_usd, smoke=args.smoke)
+    elif args.command == "fullwiki-probe":
+        cmd_fullwiki_probe()
+    elif args.command == "fullwiki-eval":
+        cmd_fullwiki_eval(authorized=args.authorized)
+    elif args.command == "fullwiki-outcome":
+        cmd_fullwiki_outcome()
     return 0
 
 
