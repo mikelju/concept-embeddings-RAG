@@ -19,15 +19,15 @@ Se ejecuta ANTES de `/5-planear` para definir QUÉ construir y POR QUÉ, sin ent
 
 Lee en este orden:
 
-1. **`CLAUDE.md`** → reglas del proyecto, stack, permisos del agente.
-2. **`docs/plans/0_plan_maestro.md`** → identificar la fase y su descripción actual.
+1. **`CLAUDE.md`** → ya está en contexto (se carga solo); no lo releas. Las reglas de protocolo experimental están en la skill `research-protocol`.
+2. **`docs/plans/0_master_plan.md`** → identificar la fase y su descripción actual.
 3. **Código existente relacionado** (si lo hay) → leer archivos principales que afecten a esta fase para no especificar cosas que ya existen o contradecir la realidad del código.
 
 ### Paso 2: Identificar la fase
 
 - Si el usuario dice "especifica la fase 3" → fase 3.
 - Si no indica fase → la primera fase que NO tenga archivo `X.spec.md`.
-- Verificar que la carpeta `docs/plans/fase_X/` existe. Si no existe, crearla.
+- Verificar que la carpeta `docs/plans/phase_X/` existe. Si no existe, crearla.
 
 ### Paso 3: Conversación de especificación
 
@@ -59,7 +59,7 @@ No hagas todas a la vez — el objetivo es una conversación, no un formulario.
 
 ### Paso 4: Generar el borrador
 
-Lee la plantilla `docs/templates/X.spec.md` y úsala como base para generar el archivo `docs/plans/fase_X/X.spec.md`.
+Lee la plantilla `docs/templates/X.spec.md` y úsala como base para generar el archivo `docs/plans/phase_X/X.spec.md`.
 
 **Nivel de detalle según tamaño de la fase:**
 

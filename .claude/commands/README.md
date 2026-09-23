@@ -3,7 +3,7 @@
 ## `/prime`
 **Cuándo usarlo:** Al inicio de cada sesión, antes de cualquier tarea.
 
-Carga el contexto completo del proyecto: lee `CLAUDE.md`, el plan maestro, la spec y plan de fase activos, el historial de git y los archivos principales del código. Entrega un informe con la fase activa, estado de la spec, tareas pendientes, últimos commits y el próximo paso sugerido.
+Orientación barata: lee solo la tabla de estado del plan maestro, la cabecera de la spec activa y los pasos pendientes de su plan, y el estado de git y de las PR. No relee `CLAUDE.md` (ya está en contexto) ni lee código por adelantado. Entrega un informe corto con la fase activa, la rama, las PR abiertas y el próximo paso.
 
 ---
 
@@ -12,7 +12,7 @@ Carga el contexto completo del proyecto: lee `CLAUDE.md`, el plan maestro, la sp
 
 Conduce una conversación para entender qué se construye, para quién y en qué fases. Usa la plantilla `docs/templates/0_plan_maestro.md`.
 
-**Genera:** `docs/plans/0_plan_maestro.md`
+**Genera:** `docs/plans/0_master_plan.md`
 
 ---
 
@@ -41,7 +41,7 @@ Lee el código real del proyecto (`package.json`, archivos principales, `.env.ex
 
 Genera la especificación funcional (`X.spec.md`) para una fase del plan maestro. Define QUÉ construir y POR QUÉ mediante una conversación de descubrimiento con el usuario. Usa la plantilla `docs/templates/X.spec.md`.
 
-**Genera:** `docs/plans/fase_X/X.spec.md`
+**Genera:** `docs/plans/phase_X/X.spec.md`
 
 ---
 
@@ -51,18 +51,18 @@ Genera la especificación funcional (`X.spec.md`) para una fase del plan maestro
 Lee la spec de la fase, genera el plan de implementación y lo presenta para aprobación. Usa las plantillas de `docs/templates/`.
 
 **Genera:**
-- `docs/plans/fase_X/X.0_nombre.md` — plan principal de la fase
-- `docs/plans/fase_X/X.tasks.md` — tareas atómicas (opcional, si >10 pasos)
+- `docs/plans/phase_X/X.0_name.md` — plan principal de la fase
+- `docs/plans/phase_X/X.tasks.md` — tareas atómicas (opcional, si >10 pasos)
 
 ---
 
 ## `/6-implementar`
 **Cuándo usarlo:** Después de que el plan esté aprobado, para ejecutar los pasos.
 
-Ejecuta los pasos del plan de fase siguiendo el ciclo test-first: escribir test, verificar que falla, escribir código, verificar que pasa, marcar paso `[x]`. Gestiona desviaciones si aparecen.
+Ejecuta el plan aprobado de principio a fin sin pedir confirmación paso a paso: test donde importa, código, commit por paso en una rama de trabajo. Solo se detiene si algo obligaría a cambiar la spec congelada, en un punto ASK FIRST, antes de abrir test o gastar dinero, o tras dos intentos sin progreso. Al terminar carga la skill `deliver`.
 
 **Modos:**
-- `/6-implementar` — ejecuta todos los pasos pendientes
+- `/6-implementar` — ejecuta todos los pasos pendientes y entrega (PR que espera al autor)
 - `/6-implementar 3` — ejecuta solo el paso 3
 - `/6-implementar 3-5` — ejecuta los pasos 3 a 5
 - `/6-implementar siguiente` — ejecuta el siguiente paso pendiente
@@ -117,7 +117,7 @@ PROYECTO NUEVO
 CADA FASE
 4. /4-especificar        → define QUÉ construir (spec funcional)
 5. /5-planear            → define CÓMO implementar (plan de fase)
-6. /6-implementar        → código + tests (ciclo test-first por paso)
+6. /6-implementar        → implementación autónoma + skill deliver (PR para revisión)
 7. /7-verificar          → alineación spec ↔ código + marcar [x]
 8. /8-auditar            → auditoría de seguridad (fase o completo)
 9. /9-documentar         → guía de usuario (al terminar fase o proyecto)

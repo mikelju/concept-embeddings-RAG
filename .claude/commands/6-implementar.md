@@ -1,122 +1,75 @@
 # Comando /6-implementar
 
-Ejecuta los pasos del plan de fase siguiendo el ciclo test-first: escribir test, verificar que falla, escribir código, verificar que pasa, marcar paso completado.
+Ejecuta el plan aprobado de principio a fin **sin pedir confirmación paso a paso**. El autor revisa
+al final, en la PR. Su atención está en los dos extremos: la spec antes y la PR después.
 
 ---
 
 ## Modos de uso
 
 ```
-/6-implementar              → ejecuta todos los pasos pendientes de la fase activa
-/6-implementar 3            → ejecuta solo el paso 3
-/6-implementar 3-5          → ejecuta los pasos 3, 4 y 5
-/6-implementar siguiente    → ejecuta el siguiente paso pendiente
+/6-implementar              → todos los pasos pendientes del plan activo, y entrega
+/6-implementar 3            → solo el paso 3 (sin entregar)
+/6-implementar 3-5          → pasos 3 a 5 (sin entregar)
+/6-implementar siguiente    → el siguiente paso pendiente (sin entregar)
 ```
 
 ---
 
-## Protocolo
+## Precondiciones
 
-### Paso 1: Cargar contexto
+- Existen una spec y un plan de fase **aprobados por el autor** en `docs/plans/phase_X/`. Si la
+  spec está en borrador, o el plan no existe o no está aprobado, detente y dilo. El agente no se
+  escribe un plan y lo ejecuta en la misma sesión: la aprobación del plan es uno de los dos
+  momentos del autor.
+- Estás en una rama de trabajo, nunca en `main`. Si estás en `main`, crea la rama
+  (`phase-X-<nombre>` o `<fase>-<cambio>`) antes de tocar nada.
 
-Lee en este orden:
+## Paso 1: Cargar contexto
 
-1. **`CLAUDE.md`** → reglas del proyecto, comando de tests, convenciones, permisos.
-2. **`docs/plans/fase_X/X.spec.md`** → criterios de aceptación y contratos de datos.
-3. **`docs/plans/fase_X/X.0_nombre.md`** → pasos de implementación y estado actual.
-4. **`docs/plans/fase_X/X.tasks.md`** (si existe) → tareas atómicas.
+1. **`CLAUDE.md`** → ya está en contexto (se carga solo); no lo releas. Las reglas de protocolo experimental están en la skill `research-protocol`.
+2. Carga la skill `research-protocol`.
+3. Lee la spec y el plan `X.0_*.md` de la fase. Del plan, lee con detalle solo los pasos que vas
+   a ejecutar.
 
-Si no existe spec → comunicar:
-> "No hay spec para esta fase. Ejecuta `/4-especificar` primero."
+## Paso 2: Ejecutar cada paso
 
-Si no existe plan de fase → comunicar:
-> "No hay plan para esta fase. Ejecuta `/5-planear` primero."
+Para cada paso pendiente, en orden:
 
-### Paso 2: Determinar qué pasos ejecutar
+1. **Test donde importa.** Escribe primero un test para el código que puede cambiar un resultado
+   experimental (métricas, rankings, splits, fusión, cachés, selección). Compruébalo en rojo y luego
+   en verde. No hace falta un test por cada invariante de proceso: es la regla de simplificación.
+2. **Implementa** siguiendo el plan y las convenciones de `CLAUDE.md`.
+3. **Comprueba**: los tests del área tocada, y `uv run ruff check .` en los ficheros cambiados.
+4. **Marca** `[x]` en el plan.
+5. **Commit** del paso con rutas explícitas (`git add <rutas>`, nunca `git add -A`), mensaje en
+   inglés que nombre el paso. Haz `git push` de la rama cuando convenga: está autorizado.
+6. Sigue con el siguiente paso **sin preguntar**. Informa en una línea y continúa.
 
-Según el modo de invocación:
+## Paso 3: Cuándo sí detenerse
 
-- **Sin argumento**: todos los pasos marcados como `[ ]` en el plan de fase.
-- **Número** (`3`): solo ese paso. Verificar que existe y que está pendiente.
-- **Rango** (`3-5`): los pasos del 3 al 5. Verificar que existen.
-- **`siguiente`**: el primer paso marcado como `[ ]`.
+Solo en estos casos. Conserva el trabajo hecho, explica el bloqueo y di qué decisión hace falta:
 
-Comunicar al usuario qué pasos se van a ejecutar antes de empezar:
-> "Voy a ejecutar los pasos X, Y, Z del plan de fase. ¿Confirmas?"
+- el problema obligaría a cambiar la spec congelada, un umbral, una regla de selección o cualquier
+  parámetro experimental ya registrado → se documenta como desviación `X.Y_name.md` y la decide el
+  autor;
+- aparece un punto de **ASK FIRST** de `CLAUDE.md` (dependencias, caches, modelo de embeddings,
+  artefactos versionados, alcance);
+- el siguiente paso abre el split de test, cuesta dinero (GPU alquilada, API) o es una ejecución
+  única e irrepetible;
+- una comprobación de reproducción no da exactamente la cifra registrada (por ejemplo 487 / 600),
+  o se alcanza un gate, un estado de parada o un estado terminal definido en la spec. **Nunca se
+  modifica código para que una cifra registrada vuelva a cuadrar**: el desajuste es un hallazgo;
+- dos intentos seguidos sin progreso en el mismo problema.
 
-### Paso 3: Ejecutar cada paso (ciclo test-first)
+Lo demás (un test que falla, un error de tipos, una refactorización local necesaria, un fallo
+claro relacionado) se resuelve sin preguntar y se anota para la PR.
 
-Para cada paso a ejecutar, seguir este ciclo:
+## Paso 4: Entregar
 
-**3a. Identificar el criterio de aceptación.**
-¿Qué criterio de la spec cubre este paso? Si el paso no está vinculado a ningún criterio, anotarlo.
+Con todos los pasos pedidos completados (modo sin argumento), carga la skill **`deliver`** y
+síguela: validación completa, revisión adversarial en contexto limpio, evidencia y PR. La PR queda
+esperando la revisión del autor. Nunca se fusiona.
 
-**3b. Escribir el test.**
-Crear el test que verifica el criterio de aceptación. El test debe:
-- Estar en la carpeta de tests del proyecto (según estructura de `CLAUDE.md`).
-- Nombrar claramente qué criterio verifica.
-- Ser ejecutable con el comando de tests del proyecto.
-
-**3c. Verificar que el test falla (red).**
-Ejecutar el comando de tests. El test nuevo DEBE fallar porque el código aún no existe.
-- Si el test pasa sin código → el test no verifica nada útil. Reescribirlo.
-- Si otros tests que antes pasaban ahora fallan → detenerse, hay un problema. Investigar antes de continuar.
-
-**3d. Escribir el código.**
-Implementar el código que hace pasar el test, siguiendo:
-- Las convenciones de `CLAUDE.md`.
-- Los contratos de datos de la spec (campos, tipos, restricciones).
-- Los anti-patrones prohibidos.
-
-**3e. Verificar que el test pasa (green).**
-Ejecutar el comando de tests.
-- Si el test nuevo pasa y los demás siguen pasando → continuar.
-- Si el test nuevo falla → corregir el código y volver a ejecutar.
-- Si otros tests que antes pasaban ahora fallan → detenerse. Algo se ha roto. Corregir antes de continuar.
-
-**3f. Marcar el paso como completado.**
-- Marcar `[x]` en el plan de fase (`X.0_nombre.md`).
-- Si existe `X.tasks.md`, marcar también allí.
-
-**3g. Comunicar progreso.**
-> "Paso X completado. Test pasa. [Breve descripción de lo implementado]."
-
-### Paso 4: Gestionar desviaciones
-
-Si durante la ejecución de un paso aparece un problema inesperado:
-
-1. **Detenerse** — no seguir con el siguiente paso.
-2. **Comunicar** al usuario qué ha pasado y qué impacto tiene.
-3. **Crear desviación** (`X.Y_nombre.md`) usando la plantilla `docs/templates/X.Y_desviacion.md`.
-4. **Esperar confirmación** del usuario si el impacto es significativo.
-5. **Actualizar el plan de fase** para reflejar la decisión adoptada.
-6. Si el cambio altera los requisitos → **actualizar la spec** y propagar.
-7. Retomar la ejecución cuando el problema esté resuelto.
-
-### Paso 5: Al terminar
-
-Cuando se hayan ejecutado todos los pasos solicitados:
-
-1. **Actualizar el plan de fase**: verificar que todos los pasos ejecutados están marcados `[x]`.
-2. **Comunicar resumen**:
-
-```
-## Resumen de implementación
-
-### Pasos ejecutados
-- [x] Paso 3: [descripción] — test: `tests/ruta/test_archivo.py`
-- [x] Paso 4: [descripción] — test: `tests/ruta/test_archivo.py`
-- [x] Paso 5: [descripción] — test: `tests/ruta/test_archivo.py`
-
-### Estado de la fase
-[X de Y pasos completados]
-
-### Tests
-[N tests nuevos creados, todos pasan]
-
-### Siguiente acción
-[Siguiente paso pendiente | Ejecutar /7-verificar si la fase está completa]
-```
-
-3. Si **todos los pasos de la fase están completados** → sugerir:
-   > "Todos los pasos del plan están completados. Ejecuta `/7-verificar` para comprobar la alineación spec ↔ código antes de cerrar la fase."
+Con un paso o un rango, termina con un resumen corto (pasos hechos, tests, commits) y sugiere
+`/6-implementar` o `deliver` cuando el plan esté completo.

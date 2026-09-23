@@ -23,8 +23,8 @@ Se ejecuta al terminar una fase o al final del proyecto, cuando la funcionalidad
 
 Lee en este orden:
 
-1. **`CLAUDE.md`** → nombre del producto, qué hace, para quién.
-2. **Todas las specs completadas** (`docs/plans/fase_X/X.spec.md`) → historias de usuario y criterios de aceptación.
+1. **`CLAUDE.md`** → ya está en contexto; no lo releas.
+2. **Todas las specs completadas** (`docs/plans/phase_X/X.spec.md`) → historias de usuario y criterios de aceptación.
 3. **El código** → pantallas, rutas, menús, formularios, mensajes de error reales.
 
 ### Paso 2: Determinar alcance

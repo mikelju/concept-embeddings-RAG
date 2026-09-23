@@ -42,8 +42,8 @@ Por defecto audita la **fase activa**: scope acotado, feedback rápido, integrad
 
 ### Paso 1: Alcance
 
-1. Leer `CLAUDE.md`: stack, comandos, gotchas y superficie sensible declarada del proyecto.
-2. Leer `docs/plans/0_plan_maestro.md` para identificar la fase activa.
+1. `CLAUDE.md` ya está en contexto (stack, comandos, gotchas); no lo releas.
+2. Leer `docs/plans/0_master_plan.md` para identificar la fase activa.
 3. Leer la spec y el plan de esa fase para saber qué archivos toca.
 4. Comprobar qué herramientas hay instaladas (`command -v <tool>`). **Nunca instalar nada.**
 
