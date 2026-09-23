@@ -16,7 +16,11 @@
       "Bash(gh pr edit:*)",
       "Bash(gh pr view:*)",
       "Bash(gh pr list:*)",
-      "Bash(gh pr checks:*)"
+      "Bash(gh pr checks:*)",
+      "Bash(npx -y gh-axi@0.1.35 pr view:*)",
+      "Bash(npx -y gh-axi@0.1.35 pr list:*)",
+      "Bash(npx -y gh-axi@0.1.35 pr checks:*)",
+      "Bash(npx -y gh-axi@0.1.35 run:*)"
     ],
     "deny": [
       "Bash(git push origin main:*)",
@@ -24,6 +28,7 @@
       "Bash(git push --force:*)",
       "Bash(git push -f:*)",
       "Bash(gh pr merge:*)",
+      "Bash(npx -y gh-axi@0.1.35 pr merge:*)",
       "Read(./.env)"
     ]
   },

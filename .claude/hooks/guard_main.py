@@ -17,7 +17,9 @@ import sys
 GIT_PREFIX = r"\bgit(?:\s+(?:-[Cc]\s+\S+|--?[\w-]+(?:=\S+)?))*\s+"
 PUSH = re.compile(GIT_PREFIX + r"push\b([^;&|\n]*)")
 HISTORY_ON_MAIN = re.compile(GIT_PREFIX + r"(commit|merge|cherry-pick|revert|rebase|am|reset)\b")
-PR_MERGE = re.compile(r"\bgh\s+pr\s+merge\b|\bgh\s+api\b[^;&|\n]*/merge\b")
+# gh, or the gh-axi wrapper (possibly run as npx gh-axi@<version>), whose output suggests merges.
+GH = r"\bgh(?:-axi(?:@\S+)?)?\s+"
+PR_MERGE = re.compile(GH + r"pr\s+merge\b|" + GH + r"api\b[^;&|\n]*/merge\b")
 FORCE = re.compile(r"(^|\s)(-f|--force|--force-with-lease|--force-if-includes)(\s|=|$)|\s\+\S")
 PUSH_ALL = re.compile(r"(^|\s)(--all|--mirror)(\s|=|$)")
 TARGETS_MAIN = re.compile(r"(^|\s|:)(refs/heads/)?main(\s|$)")
