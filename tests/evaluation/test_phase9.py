@@ -639,3 +639,24 @@ def test_a_stop_overrides_the_scientific_label():
     assert p9.primary_outcome(dense, entity, stop=p9.OPERATIONAL_STOP)["terminal_state"] == (
         p9.OPERATIONAL_STOP
     )
+
+
+def test_the_vectors_digest_is_the_sha256_of_the_float32_bytes():
+    import hashlib
+
+    vectors = np.arange(12, dtype=np.float32).reshape(3, 4)
+
+    assert p9.vectors_digest(vectors) == hashlib.sha256(vectors.tobytes()).hexdigest()
+    assert p9.vectors_digest(vectors) != p9.vectors_digest(vectors[::-1])
+
+
+def test_blockwise_encoding_fills_every_row_in_corpus_order():
+    class Positional(StubBGE):
+        def encode(self, texts):
+            return np.array([[float(len(t)), 1.0, 0.0, 0.0] for t in texts], dtype=np.float32)
+
+    units = few_units()
+
+    blocked = p9.encode_blockwise(units, Positional(), block=2)
+
+    assert np.array_equal(blocked, Positional().encode([u.indexable_text for u in units]))

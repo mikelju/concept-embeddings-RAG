@@ -25,6 +25,7 @@ questions come from the distractor validation source, and retrieval searches the
 """
 
 import gzip
+import hashlib
 import importlib.metadata
 import json
 import math
@@ -54,7 +55,7 @@ from concept_embeddings_rag.corpus.scale_corpus import (
 from concept_embeddings_rag.embeddings.cache import (
     EmbeddingCache,
     cache_key,
-    embed_units,
+    query_prompt_of,
     question_cache_key,
     question_set_hash,
 )
@@ -711,6 +712,25 @@ def question_cache_key_for(questions: Sequence[Question], backend: Any) -> str:
     )
 
 
+EMBED_BLOCK = 262_144
+
+
+def encode_blockwise(units: Sequence[IndexingUnit], backend: Any, *, block: int) -> np.ndarray:
+    """`backend.encode` over `indexable_text`, block by block, into one float32 array."""
+    if query_prompt_of(backend):
+        raise FullWikiPhaseError("documents are encoded without a query prompt")
+    vectors: np.ndarray | None = None
+    for start in range(0, len(units), block):
+        encoded = backend.encode([unit.indexable_text for unit in units[start : start + block]])
+        if vectors is None:
+            vectors = np.empty((len(units), encoded.shape[1]), dtype=np.float32)
+        vectors[start : start + len(encoded)] = encoded
+        print(f"[INFO] encoded {min(start + block, len(units))}/{len(units)} units", flush=True)
+    if vectors is None:
+        raise FullWikiPhaseError("no unit to encode")
+    return vectors
+
+
 def build_embedding(
     units: Sequence[IndexingUnit],
     questions: Sequence[Question],
@@ -724,8 +744,15 @@ def build_embedding(
     resolved_revision: str,
     hardware: Mapping[str, Any],
     hourly_rate_usd: float,
+    block: int = EMBED_BLOCK,
 ) -> dict[str, Any]:
-    """BGE-small over every unit and every question, in Phase 9's own caches (D5, HU-3)."""
+    """BGE-small over every unit and every question, in Phase 9's own caches (D5, HU-3).
+
+    The corpus is encoded in blocks into one preallocated float32 array, then saved under
+    the key and sidecar fields `embed_units` writes. One call over 5.2M texts would hold the
+    batch list, its stacked copy and the normalized copy at once - about 8 GB each on a host
+    listed with 41 GB.
+    """
     if (backend.name, backend.revision) != (config.EMBEDDING_MODEL, config.EMBEDDING_REVISION):
         raise FullWikiPhaseError(f"Phase 9 measures BGE-small only, not {backend.name}")
     if resolved_revision != config.EMBEDDING_REVISION:
@@ -744,8 +771,21 @@ def build_embedding(
             f"{cache.path_for(key)} exists without {target.name}: its wall time is unknown"
         )
     started = time.perf_counter()
-    vectors, unit_ids = embed_units(units, backend, cache)
+    vectors = encode_blockwise(units, backend, block=block)
     corpus_seconds = time.perf_counter() - started
+    unit_ids = [unit.unit_id for unit in units]
+    cache.save(
+        key,
+        vectors,
+        unit_ids,
+        metadata={
+            "model": backend.name,
+            "revision": backend.revision,
+            "resolved_revision": resolved_revision,
+            "dim": int(vectors.shape[1]),
+            "normalized": True,
+        },
+    )
 
     question_started = time.perf_counter()
     question_vectors = backend.encode([question.question for question in questions])
@@ -775,7 +815,7 @@ def build_embedding(
         "n_units": len(unit_ids),
         "unit_set_hash": unit_set_hash,
         "corpus_cache_key": key,
-        "vectors_digest": digest_of(np.ascontiguousarray(vectors, dtype=np.float32)),
+        "vectors_digest": vectors_digest(vectors),
         "vector_bytes": int(vectors.nbytes),
         "cache_file_bytes": cache.path_for(key).stat().st_size,
         "wall_seconds": corpus_seconds,
@@ -791,6 +831,12 @@ def build_embedding(
     }
     _write_manifest(target, body)
     return body
+
+
+def vectors_digest(vectors: np.ndarray) -> str:
+    """sha256 over the float32 vector bytes, read in place: no 8 GB copy on a 41 GB host."""
+    block = np.ascontiguousarray(vectors, dtype=np.float32)
+    return hashlib.sha256(block.reshape(-1).view(np.uint8)).hexdigest()
 
 
 def bm25_digest(retriever: BM25Retriever) -> tuple[str, int]:

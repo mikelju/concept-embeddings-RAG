@@ -474,3 +474,88 @@ def test_the_pickle_refusal_passes_a_safetensors_only_directory(tmp_path):
     (tmp_path / "gliner_config.json").write_text("{}", encoding="utf-8")
 
     local._refuse_executable_weights(tmp_path)
+
+
+# --- Phase 9, S5: resumable shards over the whole corpus --------------------------------
+
+
+def shard_world(n: int = 7) -> tuple[list[IndexingUnit], dict[str, list[str]]]:
+    units = [a_unit(f"u{index:02d}", f"T{index}", f"Sentence {index}.") for index in range(n)]
+    answers = {unit.indexable_text: [f"E{index}"] for index, unit in enumerate(units)}
+    return units, answers
+
+
+class CountingSpans:
+    """Wraps an extractor's `spans`, counting how often each text is read."""
+
+    def __init__(self, extractor: local.LocalExtractor) -> None:
+        self.inner = extractor.spans
+        self.reads: dict[str, int] = {}
+
+    def __call__(self, texts: Sequence[str]) -> list[list[str]]:
+        for text in texts:
+            self.reads[text] = self.reads.get(text, 0) + 1
+        return self.inner(texts)
+
+
+def counted(answers: dict[str, list[str]]) -> tuple[local.LocalExtractor, CountingSpans]:
+    base = a_fake_extractor(answers)
+    counter = CountingSpans(base)
+    from dataclasses import replace
+
+    return replace(base, spans=counter), counter
+
+
+def test_sharded_extraction_equals_one_pass_and_reads_each_unit_once(tmp_path):
+    units, answers = shard_world()
+    extractor, counter = counted(answers)
+
+    records, summary = local.run_sharded_extraction(units, extractor, tmp_path, shard_units=3)
+    single, _seconds = local.run_extraction(units, a_fake_extractor(answers))
+
+    assert local.records_text(records) == local.records_text(single)
+    assert set(counter.reads.values()) == {1}
+    assert summary["shards"] == 3
+    assert summary["attempted"] == 7
+    assert summary["restarted_shards"] == 0
+
+
+def test_a_finished_shard_is_never_extracted_again(tmp_path):
+    units, answers = shard_world()
+    local.run_sharded_extraction(units, a_fake_extractor(answers), tmp_path, shard_units=3)
+    extractor, counter = counted(answers)
+
+    records, summary = local.run_sharded_extraction(units, extractor, tmp_path, shard_units=3)
+
+    assert counter.reads == {}
+    assert len(records) == 7
+    assert summary["reused_shards"] == 3
+
+
+def test_an_interrupted_shard_is_rerun_and_the_restart_is_recorded(tmp_path):
+    units, answers = shard_world()
+    local.run_sharded_extraction(units, a_fake_extractor(answers), tmp_path, shard_units=3)
+    # Shard 1 started but never finished: its marker is there and its record file is not.
+    (tmp_path / local.SHARDS_DIR / "shard-00001.json").unlink()
+
+    _records, summary = local.run_sharded_extraction(
+        units, a_fake_extractor(answers), tmp_path, shard_units=3
+    )
+
+    assert summary["restarted_shards"] == 1
+    assert summary["reused_shards"] == 2
+
+
+def test_a_shard_written_for_other_units_or_another_configuration_is_refused(tmp_path):
+    units, answers = shard_world()
+    local.run_sharded_extraction(units, a_fake_extractor(answers), tmp_path, shard_units=3)
+
+    with pytest.raises(local.LocalExtractionError, match="shard"):
+        local.run_sharded_extraction(
+            list(reversed(units)), a_fake_extractor(answers), tmp_path, shard_units=3
+        )
+    from dataclasses import replace
+
+    other = replace(a_fake_extractor(answers), parameters={"threshold": 0.9})
+    with pytest.raises(local.LocalExtractionError, match="configuration"):
+        local.run_sharded_extraction(units, other, tmp_path, shard_units=3)

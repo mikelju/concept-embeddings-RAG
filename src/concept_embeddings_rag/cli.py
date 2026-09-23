@@ -3734,7 +3734,11 @@ def cmd_fullwiki_repro(
 
 BUILD_STAGES: tuple[str, ...] = ("tokens", "embed", "bm25", "extract", "index")
 SMOKE_DIRNAME = "smoke"
-SMOKE_QUESTIONS = 50
+
+
+def _historical_dev_qids(data_dir: Path) -> set[str]:
+    _pool_units, pool_questions = load_pool(Path(data_dir) / POOL_NAME)
+    return {question.qid for question in pool_questions if question.split == DEV_SPLIT}
 
 
 def _build_inputs(
@@ -3782,7 +3786,8 @@ def cmd_fullwiki_build(
                 ),
             )
             if smoke is not None:
-                questions = questions[:SMOKE_QUESTIONS]
+                dev_qids = _historical_dev_qids(config.DATA_DIR)
+                questions = [question for question in questions if question.qid in dev_qids]
             snapshot = snapshot_directory(config.EMBEDDING_MODEL, config.EMBEDDING_REVISION)
             body = phase9.build_embedding(
                 units,
@@ -3893,37 +3898,44 @@ def _fullwiki_extract(
     return manifest
 
 
-def _phase_9_inputs(target_dir: Path, hop: str) -> tuple[dict[str, Any], dict[str, Any]]:
+def _phase_9_inputs(
+    target_dir: Path, hop: str, smoke: int | None = None
+) -> tuple[dict[str, Any], dict[str, Any]]:
     """Everything a probe or the pass reads, each artifact checked against its manifest.
 
     Returns the three fresh systems plus the questions and token counts, and the provenance
     chain every run records: corpus, questions, vectors, BM25, extraction and entity index.
+    A smoke build is read from `smoke/` with only the historical dev questions: it feeds the
+    probe's code path and nothing else.
     """
-    units, corpus = _phase_9_corpus(target_dir)
+    full_hash = str(
+        json.loads((target_dir / fullwiki.CORPUS_MANIFEST).read_text("utf-8"))["unit_set_hash"]
+    )
+    units, corpus, source_dir = _build_inputs(target_dir, smoke)
     corpus_hash = str(corpus["unit_set_hash"])
     unit_ids = [unit.unit_id for unit in units]
-    embedding = json.loads((target_dir / phase9.EMBEDDING_FILENAME).read_text("utf-8"))
-    bm25_record = json.loads((target_dir / phase9.BM25_FILENAME).read_text("utf-8"))
-    gliner_dir = target_dir / phase9.GLINER_DIRNAME
+    embedding = json.loads((source_dir / phase9.EMBEDDING_FILENAME).read_text("utf-8"))
+    bm25_record = json.loads((source_dir / phase9.BM25_FILENAME).read_text("utf-8"))
+    gliner_dir = source_dir / phase9.GLINER_DIRNAME
     entity_record = json.loads((gliner_dir / phase9.ENTITY_INDEX_FILENAME).read_text("utf-8"))
-    questions, question_body = phase9.load_questions(target_dir, corpus_unit_set_hash=corpus_hash)
-    token_counts = phase9.load_phase9_token_counts(target_dir, unit_set_hash=corpus_hash)
+    questions, question_body = phase9.load_questions(target_dir, corpus_unit_set_hash=full_hash)
+    if smoke is not None:
+        dev_qids = _historical_dev_qids(config.DATA_DIR)
+        questions = [question for question in questions if question.qid in dev_qids]
+    token_counts = phase9.load_phase9_token_counts(source_dir, unit_set_hash=corpus_hash)
     for name, record in (("embedding", embedding), ("entity index", entity_record)):
         if record.get("unit_set_hash", record.get("corpus_unit_set_hash")) != corpus_hash:
             _die(f"the {name} manifest names another corpus")
-    loaded = EmbeddingCache(target_dir / "cache").load(
+    loaded = EmbeddingCache(source_dir / "cache").load(
         str(embedding["corpus_cache_key"]), expected_unit_ids=unit_ids
     )
     if loaded is None:
         _die("the FullWiki vectors are missing: run 'fullwiki-build --stage embed'")
     vectors = loaded[0]
-    if (
-        phase9.digest_of(np.ascontiguousarray(vectors, dtype=np.float32))
-        != embedding["vectors_digest"]
-    ):
+    if phase9.vectors_digest(vectors) != embedding["vectors_digest"]:
         _die("the FullWiki vectors do not match the digest embedding.json records")
     question_ids = [question.qid for question in questions]
-    question_vectors = EmbeddingCache(target_dir / "cache" / "questions").load(
+    question_vectors = EmbeddingCache(source_dir / "cache" / "questions").load(
         str(embedding["question_cache_key"]), expected_unit_ids=question_ids
     )
     if question_vectors is None:
@@ -3982,7 +3994,9 @@ def _phase_9_inputs(target_dir: Path, hop: str) -> tuple[dict[str, Any], dict[st
 
 
 def cmd_fullwiki_probe(
-    data_dir: Path = config.DATA_DIR, target_dir: Path = config.PHASE_9_DIR
+    data_dir: Path = config.DATA_DIR,
+    target_dir: Path = config.PHASE_9_DIR,
+    smoke: int | None = None,
 ) -> Path:
     """S6: mean query time per system on 100 seeded historical dev questions; no metric.
 
@@ -3992,12 +4006,12 @@ def cmd_fullwiki_probe(
     OPERATIONAL_STOP, written and reported.
     """
     data_dir, target_dir = Path(data_dir), Path(target_dir)
-    target = target_dir / phase9.PROBE_FILENAME
+    out = target_dir if smoke is None else target_dir / SMOKE_DIRNAME
+    target = out / phase9.PROBE_FILENAME
     if target.exists():
         _die(f"{target} already records the probe")
-    _pool_units, pool_questions = load_pool(data_dir / POOL_NAME)
-    dev_qids = {question.qid for question in pool_questions if question.split == DEV_SPLIT}
-    inputs, provenance = _phase_9_inputs(target_dir, phase9.REFERENCE_HOP)
+    dev_qids = _historical_dev_qids(data_dir)
+    inputs, provenance = _phase_9_inputs(target_dir, phase9.REFERENCE_HOP, smoke)
     sample = phase9.probe_sample(inputs["questions"], dev_qids)
     seconds = {
         name: phase9.time_system(system, sample) for name, system in inputs["systems"].items()
@@ -4011,7 +4025,7 @@ def cmd_fullwiki_probe(
         f"{config.PHASE_9_QUERY_SECONDS_CEILING} s",
     }
     if hop == phase9.COLUMNWISE_HOP:
-        columnwise, _provenance = _phase_9_inputs(target_dir, phase9.COLUMNWISE_HOP)
+        columnwise, _provenance = _phase_9_inputs(target_dir, phase9.COLUMNWISE_HOP, smoke)
         seconds["hybrid-entity-hop"] = phase9.time_system(
             columnwise["systems"]["hybrid-entity-hop"], sample
         )
@@ -4029,6 +4043,7 @@ def cmd_fullwiki_probe(
         "provenance": {**provenance, "hop_implementation": hop},
         "code_commit": _git_commit(),
         "created_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        "smoke": smoke,
     }
     body["digest"] = phase9.digest_of(json.dumps(body, sort_keys=True))
     path = write_text_atomic(target, json.dumps(body, indent=2, sort_keys=True))
@@ -4401,9 +4416,15 @@ def build_parser() -> argparse.ArgumentParser:
         dest="hourly_rate_usd",
         help="contracted hourly rate, for the attributable cost of GPU steps",
     )
-    subparsers.add_parser(
+    probe = subparsers.add_parser(
         "fullwiki-probe",
         help="Phase 9: time the three systems on 100 historical dev questions (rankings only)",
+    )
+    probe.add_argument(
+        "--smoke",
+        type=int,
+        default=None,
+        help="probe the smoke build of the first N units (a code check, not a figure)",
     )
     evaluation_pass = subparsers.add_parser(
         "fullwiki-eval",
@@ -4516,7 +4537,7 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == "fullwiki-build":
         cmd_fullwiki_build(args.stage, hourly_rate_usd=args.hourly_rate_usd, smoke=args.smoke)
     elif args.command == "fullwiki-probe":
-        cmd_fullwiki_probe()
+        cmd_fullwiki_probe(smoke=args.smoke)
     elif args.command == "fullwiki-eval":
         cmd_fullwiki_eval(authorized=args.authorized)
     elif args.command == "fullwiki-outcome":

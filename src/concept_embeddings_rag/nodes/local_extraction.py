@@ -255,6 +255,137 @@ def run_extraction(
     return records, time.perf_counter() - started
 
 
+# --- Phase 9, S5: the same pass in resumable shards ------------------------------------
+#
+# FullWiki is millions of paragraphs and hours of GPU time, so the pass is cut into
+# consecutive shards of the corpus order. A finished shard is never read again, which is
+# what keeps "every unit attempted exactly once" true across an interruption; a shard that
+# started and did not finish is re-run from its first unit, and that restart is counted in
+# the summary rather than hidden. Each shard is `run_extraction` itself, so a record is
+# built exactly as Phase 7 built it.
+
+SHARDS_DIR = "shards"
+
+
+def _shard_names(index: int) -> tuple[str, str, str]:
+    stem = f"shard-{index:05d}"
+    return f"{stem}.json", f"{stem}.jsonl.gz", f"{stem}.started"
+
+
+def _read_shard(
+    directory: Path, index: int, unit_ids: Sequence[str], configuration_digest: str
+) -> list[ExtractionRecord] | None:
+    """A finished shard's records, or `None` when the shard has not finished."""
+    manifest_name, records_name, _started = _shard_names(index)
+    manifest_path = directory / manifest_name
+    if not manifest_path.exists():
+        return None
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if manifest["unit_ids"] != list(unit_ids):
+        raise LocalExtractionError(
+            f"shard {index} was written for other units than this corpus order assigns it; "
+            "a shard layout is never re-cut over existing shards"
+        )
+    if manifest["configuration_digest"] != configuration_digest:
+        raise LocalExtractionError(
+            f"shard {index} was extracted under configuration {manifest['configuration_digest']}"
+            f", not {configuration_digest}"
+        )
+    text = gzip.decompress((directory / records_name).read_bytes()).decode("utf-8")
+    if digest_of_records(text) != manifest["digest"]:
+        raise LocalExtractionError(f"shard {index} does not match its recorded digest")
+    return [
+        ExtractionRecord(
+            unit_id=str(entry["unit_id"]),
+            model=str(manifest["model"]),
+            prompt_digest=configuration_digest,
+            status=str(entry["status"]),
+            entities=tuple(entry["entities"]),
+            concepts=tuple(entry["concepts"]),
+            failure=entry["failure"],
+            input_tokens=int(entry["input_tokens"]),
+            output_tokens=int(entry["output_tokens"]),
+        )
+        for entry in map(json.loads, text.splitlines())
+    ]
+
+
+def run_sharded_extraction(
+    units: Sequence[IndexingUnit],
+    extractor: LocalExtractor,
+    directory: Path | str,
+    *,
+    shard_units: int = config.PHASE_9_EXTRACTION_SHARD_UNITS,
+    on_progress: Callable[[int, int], None] | None = None,
+) -> tuple[list[ExtractionRecord], dict[str, Any]]:
+    """Every unit read once, shard by shard, resuming after the last finished shard.
+
+    Returns the records of every shard and a summary: how many shards, how many were reused
+    or restarted, and the extraction seconds summed over the shards run by any invocation
+    (each shard records its own clock, so a resumed pass still reports its whole cost).
+    """
+    if shard_units <= 0:
+        raise LocalExtractionError(f"a shard needs a positive size, not {shard_units}")
+    directory = Path(directory) / SHARDS_DIR
+    directory.mkdir(parents=True, exist_ok=True)
+    digest = extractor.configuration_digest
+    records: list[ExtractionRecord] = []
+    reused = restarted = 0
+    seconds = 0.0
+    starts = range(0, len(units), shard_units)
+    for index, start in enumerate(starts):
+        shard = units[start : start + shard_units]
+        unit_ids = [unit.unit_id for unit in shard]
+        finished = _read_shard(directory, index, unit_ids, digest)
+        manifest_name, records_name, started_name = _shard_names(index)
+        if finished is not None:
+            reused += 1
+            records.extend(finished)
+            seconds += float(
+                json.loads((directory / manifest_name).read_text(encoding="utf-8"))["seconds"]
+            )
+            continue
+        marker = directory / started_name
+        attempts = int(marker.read_text(encoding="utf-8")) if marker.exists() else 0
+        restarted += 1 if attempts else 0
+        write_text_atomic(marker, str(attempts + 1))
+        shard_records, shard_seconds = run_extraction(shard, extractor)
+        text = records_text(shard_records)
+        archive = directory / records_name
+        temporary = archive.with_name(archive.name + ".tmp")
+        with temporary.open("wb") as raw, gzip.GzipFile(fileobj=raw, mode="wb", mtime=0) as packed:
+            packed.write(text.encode("utf-8"))
+        temporary.replace(archive)
+        write_text_atomic(
+            directory / manifest_name,
+            json.dumps(
+                {
+                    "index": index,
+                    "unit_ids": unit_ids,
+                    "model": extractor.model,
+                    "configuration_digest": digest,
+                    "digest": digest_of_records(text),
+                    "seconds": shard_seconds,
+                    "attempts": attempts + 1,
+                },
+                sort_keys=True,
+            ),
+        )
+        records.extend(shard_records)
+        seconds += shard_seconds
+        if on_progress is not None:
+            on_progress(min(start + shard_units, len(units)), len(units))
+    summary = {
+        "shards": len(starts),
+        "shard_units": shard_units,
+        "attempted": len(records),
+        "reused_shards": reused,
+        "restarted_shards": restarted,
+        "seconds": seconds,
+    }
+    return records, summary
+
+
 # --- The artifact -----------------------------------------------------------------------
 
 
