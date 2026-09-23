@@ -24,7 +24,7 @@ What is established (figures and full records in each phase's `X.results.md`):
   paragraphs (Phase 8 and deviation 8.1). No substantially stronger Dense has been tested yet.
 
 **Current state (2026-09-23):** deviation 8.1 is closed (`STABLE_RANKING`). Phase 9 (HotpotQA
-FullWiki) is next; its spec is being drafted locally and is not approved or committed yet. If this line and the master plan disagree,
+FullWiki) spec is approved (`docs/plans/phase_9/9.spec.md`); planning is next. If this line and the master plan disagree,
 the master plan wins; fix this line.
 
 ## Where things live

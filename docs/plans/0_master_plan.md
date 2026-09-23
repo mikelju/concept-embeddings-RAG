@@ -75,7 +75,7 @@ From Phase 7 onward:
 | 7 | Cheap entity extraction | Available | **Complete — GLINER SELECTED** |
 | 8 | Strong Dense + Entity Hop | Available | **STOP at dev gate — premise failed** |
 | 8.1 | **Deviation** — Dense scale sensitivity | Available | **Complete — STABLE_RANKING (rule A)** |
-| 9 | HotpotQA FullWiki at literature-comparable scale | Pending | **Ready to specify — BGE primary candidate** |
+| 9 | HotpotQA FullWiki at literature-comparable scale | [Approved](phase_9/9.spec.md) | **Spec approved 2026-09-23 — planning** |
 
 **The first research line is closed** (2026-09-15): concepts induced from pooled embeddings, tested through Phases 2-4, gave a negative and bounded result. The original Phase 5 — a comparative evaluation of that method — was not run; the plan was renumbered so Phase 5 tests the representation the proposal actually described. See [`phase_4/4.1_research_line_closure.md`](phase_4/4.1_research_line_closure.md).
 
@@ -89,7 +89,7 @@ From Phase 7 onward:
 
 **Deviation 8.1 is measured and closed** (2026-09-22) with **`STABLE_RANKING` (rule A)**. On the frozen 600 dev questions, BGE/Qwen Full Support @2,048 was **487/446 at C19, 463/420 at C100, 440/393 at C250 and 423/366 at C500**. The deficit therefore widened from 41 to 57 questions rather than converging. Both headline Full Support reproduction checks matched exactly and neither scale run hit the retrieval-feasibility ceiling. See [`phase_8/8.1_results.md`](phase_8/8.1_results.md).
 
-Phase 9 now carries **BGE-small as the task-validated primary Dense candidate**. Its specification decides whether Qwen is retained as an external-comparability control. The broader Phase 8 question — Entity Hop beside a substantially stronger Dense retriever — remains open because deviation 8.1 did not produce or test such a retriever.
+Phase 9 now carries **BGE-small as the task-validated primary Dense candidate**. Its specification, approved 2026-09-23, excludes Qwen from FullWiki measurement and makes Full Support @2,048 tokens on the 5,405 retrieval-unseen questions the primary endpoint ([`phase_9/9.spec.md`](phase_9/9.spec.md)). The broader Phase 8 question — Entity Hop beside a substantially stronger Dense retriever — remains open because deviation 8.1 did not produce or test such a retriever.
 
 The remaining scheduled work deliberately does **not** try to improve the Entity Hop with canonicalization, relations, multiple seeds or additional hops. Phase 9 asks whether the simple mechanism already discovered survives **corpus scale** with BGE-small as the validated primary Dense candidate. The separate question of Entity Hop beside a substantially stronger Dense retriever remains open.
 
@@ -482,7 +482,7 @@ Phase 9 opens only after:
 
 - Phase 7 identifies an affordable entity extraction path — **done: GLiNER**; and
 - deviation 8.1 resolves the Dense candidate after Phase 8's stop — **done: `STABLE_RANKING`,
-  BGE-small primary; Qwen control left to the Phase 9 spec**.
+  BGE-small primary; the Phase 9 spec excludes Qwen**.
 
 ## Scope
 
@@ -504,7 +504,6 @@ Keep:
 - one hop;
 - GLiNER, the cheap extractor selected in Phase 7;
 - BGE-small, the primary Dense candidate validated by deviation 8.1;
-- optionally Qwen as an external-comparability control, if the Phase 9 spec retains it;
 - no canonicalization;
 - no explicit relations;
 - no query-aware entity reranking;
@@ -531,9 +530,7 @@ Report both:
 1. the project's existing retrieval metrics where feasible; and
 2. the standard FullWiki retrieval metrics used in the most relevant published work, so that numerical comparison is meaningful.
 
-The exact standard metric set should be fixed in the Phase 9 spec after checking the principal comparison papers, rather than guessed now.
-
-Likely metrics include passage/supporting-fact recall at fixed depths such as `Recall@2/5/10/20`.
+The approved spec fixes them: Full Support @2,048 tokens on the 5,405 retrieval-unseen questions is the primary endpoint; Full Support and gold recall at @2/5/10/20 are reported descriptively for literature comparison, with a protocol ledger that keeps pooled-corpus results out of FullWiki comparisons.
 
 ## Scaling measurements
 
