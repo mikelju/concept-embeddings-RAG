@@ -19,9 +19,9 @@ Se ejecuta al terminar una fase o a mitad de fase para comprobar el progreso.
 
 Lee en este orden:
 
-1. **`CLAUDE.md`** → obtener el comando de tests del proyecto (sección "Comandos de desarrollo").
-2. **`docs/plans/fase_X/X.spec.md`** → criterios de aceptación, contratos de datos, anti-objetivos.
-3. **`docs/plans/fase_X/X.0_nombre.md`** → estado del plan, archivos afectados.
+1. **`CLAUDE.md`** → ya está en contexto; el comando de tests está en su sección "Commands". No lo releas.
+2. **`docs/plans/phase_X/X.spec.md`** → criterios de aceptación, contratos de datos, anti-objetivos.
+3. **`docs/plans/phase_X/X.0_name.md`** → estado del plan, archivos afectados.
 
 Si no existe spec para la fase → comunicar:
 > "No hay spec para esta fase. No se puede verificar alineación. Ejecuta `/4-especificar` primero."
