@@ -76,6 +76,15 @@ ON_WORK_BRANCH = [
     (f"{AXI} pr merge 12", BLOCKED),
     (f"{AXI} api -X PUT repos/o/r/pulls/9/merge", BLOCKED),
     ("node dist/bin/gh-axi.js pr merge 1", BLOCKED),
+    # Second review of PR #12: Windows paths must not glue gh-axi to its folder.
+    (r".\node_modules\.bin\gh-axi.cmd pr merge 1", BLOCKED),
+    (r"node C:\tools\gh-axi\dist\bin\gh-axi.js pr merge 1", BLOCKED),
+    (r"gh\-axi pr merge 1", BLOCKED),
+    (r"C:\tools\gh.exe pr merge 3", BLOCKED),
+    # Second review of PR #12: a body executed as a script is still a command.
+    (f"sh <<'EOF'\n{AXI} pr merge 12\nEOF", BLOCKED),
+    ("Invoke-Expression @'\ngh pr merge 12\n'@", BLOCKED),
+    ("bash <<EOF\ngit push origin main\nEOF", BLOCKED),
     ("npx -p gh-axi@0.1.35 gh-axi pr merge 1", BLOCKED),
     (f"{AXI} pr view 12; {AXI} pr merge 12", BLOCKED),
     # gh: merges blocked, quoted or not; reads and PR writes allowed.
@@ -97,9 +106,10 @@ ON_WORK_BRANCH = [
     ("git push --force origin work", BLOCKED),
     ("git push origin +work", BLOCKED),
     ("uv run pytest && git push origin main", BLOCKED),
-    # Inline messages are matched too; heredoc bodies are not.
+    # Inline text is matched, heredoc bodies included; messages go through files.
     ("git commit -F msg.txt", ALLOWED),
-    ("git commit -F - <<'EOF'\nmentions gh pr merge\nEOF\ngit log -1", ALLOWED),
+    ("git commit -F - <<'EOF'\nfix the parser\nEOF\ngit log -1", ALLOWED),
+    ("git commit -F - <<'EOF'\nmentions gh pr merge\nEOF", BLOCKED),
     ("git commit -F - <<'EOF'\nmsg\nEOF\ngh pr merge 3", BLOCKED),
     # .env
     ("cat .env", BLOCKED),
