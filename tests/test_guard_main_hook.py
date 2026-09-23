@@ -138,6 +138,18 @@ ON_WORK_BRANCH = [
     ('cat .e"n"v', BLOCKED),
     (r"cat .e\nv", BLOCKED),
     (r"type C:\repo\.env", BLOCKED),
+    # Fourth review of PR #12: .env read from inside code, once quotes are removed.
+    ("python -c \"print(open('.env').read())\"", BLOCKED),
+    ("uv run python -c \"import pathlib; pathlib.Path('.env').read_text()\"", BLOCKED),
+    ("Get-Content -Path:'.env'", BLOCKED),
+    ("python -c \"x=['.env',1]\"", BLOCKED),
+    ("cat .envrc", ALLOWED),
+    ("cat settings.env", ALLOWED),
+    # Fourth review of PR #12: gh as a folder name is not a call; gh as a word still is.
+    ("cat docs/gh/x", ALLOWED),
+    ("ls .github/workflows", ALLOWED),
+    ("git log --grep gh-axi", BLOCKED),
+    ("sh -c 'gh pr merge 9'", BLOCKED),
     ("ls", ALLOWED),
 ]
 

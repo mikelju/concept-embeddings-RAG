@@ -15,6 +15,10 @@ Invoke-Expression @'...'@ executes them. The price is that any inline text that 
 blocked command is blocked too: pass commit messages and PR bodies through files
 (-F <file>, --body-file <file>).
 
+A command that merely mentions gh or gh-axi as a word (git log --grep gh-axi) is blocked on
+purpose: telling a mention from a call is what quoting and sh -c defeat. Search with the Grep
+tool instead.
+
 Limits: this is a best-effort local guard, not a shell interpreter. Indirection through
 variables, globs, command substitution or eval is out of its reach. The server-side barriers are
 branch protection on main and the permission rules in .claude/settings.json.
@@ -34,8 +38,10 @@ HISTORY_ON_MAIN = re.compile(GIT_PREFIX + r"(commit|merge|cherry-pick|revert|reb
 
 # Any gh invocation (gh, gh.exe, a path to it) and any gh-axi invocation (direct,
 # npx gh-axi@<version>, gh-axi.cmd/.js/.ps1, a path to it).
-GH = re.compile(r"(?<![\w.-])gh(?:\.\w+)?(?![\w.-])")
-GH_AXI = re.compile(r"(?<![\w-])gh-axi(?:\.\w+)?(?:@[^\s;&|()]*)?(?![\w-])")
+# The program name must end its word, so a folder called gh (docs/gh/x) is not a call.
+PROGRAM_END = r"(?=\s|$|[;&|)])"
+GH = re.compile(r"(?<![\w.-])gh(?:\.\w+)?" + PROGRAM_END)
+GH_AXI = re.compile(r"(?<![\w-])gh-axi(?:\.\w+)?(?:@[^\s;&|()]*)?" + PROGRAM_END)
 GH_ALLOWED = {
     ("pr", "create"),
     ("pr", "edit"),
@@ -59,7 +65,9 @@ SEGMENT_END = re.compile(r"[;&|\n()]")
 FORCE = re.compile(r"(^|\s)(-f|--force|--force-with-lease|--force-if-includes)(\s|=|$)|\s\+\S")
 PUSH_ALL = re.compile(r"(^|\s)(--all|--mirror)(\s|=|$)")
 TARGETS_MAIN = re.compile(r"(^|\s|:)(refs/heads/)?main(\s|$)")
-READS_ENV = re.compile(r"(^|[\s/\\=])\.env(\.(?!example\b)[\w.-]+)?(?=$|[\s;|&)])")
+# .env or .env.<suffix> (not .env.example) as its own word, whatever precedes it: a space, a
+# path separator, or code punctuation such as open(.env) once quotes are removed.
+READS_ENV = re.compile(r"(?<![\w.-])\.env(?:\.(?!example\b)[\w.-]+)?(?![\w.-])")
 QUOTE_CHARS = re.compile(r"['\"`]")
 
 
