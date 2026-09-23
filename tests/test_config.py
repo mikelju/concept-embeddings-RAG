@@ -1029,3 +1029,94 @@ def test_the_historical_qwen_reproduction_count_is_the_one_phase_8_recorded():
     assert (
         dense["config"]["question_cache_key"] == config.PHASE_8_1_HISTORICAL_DEV_QUERY_KEYS["qwen"]
     )
+
+
+# --- Phase 9 ----------------------------------------------------------------------
+
+
+def test_the_phase_9_cohorts_are_the_declared_qid_arithmetic():
+    sizes = config.PHASE_9_COHORT_SIZES
+
+    assert set(sizes) == set(config.PHASE_9_COHORTS)
+    assert sizes[config.PHASE_9_HISTORICAL_OVERLAP] == config.N_DEV + config.N_TEST
+    assert (
+        sizes[config.PHASE_9_STANDARD] - sizes[config.PHASE_9_HISTORICAL_OVERLAP]
+        == sizes[config.PHASE_9_RETRIEVAL_UNSEEN]
+    )
+
+
+def test_the_unresolved_gold_ceiling_is_one_percent_of_the_standard_cohort():
+    assert (
+        config.PHASE_9_COHORT_SIZES[config.PHASE_9_STANDARD] // 100
+        == config.PHASE_9_UNRESOLVED_CEILING
+    )
+
+
+def test_the_phase_9_directories_are_its_own_and_are_created(tmp_path):
+    assert config.PHASE_9_DIR.parent == config.DATA_DIR
+    for historical in (config.CACHE_DIR, config.QUESTION_CACHE_DIR, config.PHASE_8_1_CACHE_DIR):
+        assert historical != config.PHASE_9_CACHE_DIR
+        assert historical != config.PHASE_9_QUESTION_CACHE_DIR
+    config.ensure_directories()
+    assert config.PHASE_9_QUESTION_CACHE_DIR.is_dir()
+
+
+def test_the_phase_9_frozen_weights_are_convex_and_name_the_inherited_components():
+    for system, weights in config.PHASE_9_FROZEN_WEIGHTS.items():
+        assert system in config.PHASE_9_SYSTEMS
+        assert abs(sum(weights.values()) - 1.0) < 1e-12
+        assert "dense" in weights
+    assert config.PHASE_9_FROZEN_WEIGHTS["hybrid-entity-hop"]["dense"] == 0.7
+
+
+def test_the_phase_9_frozen_weights_are_the_ones_the_recorded_fits_hold():
+    """Data-dependent: the weights are read from the fits, never typed from memory."""
+    import json
+
+    import pytest
+
+    if not (
+        config.PHASE_9_BM25_WEIGHTS_FILE.exists() and config.PHASE_9_ENTITY_WEIGHTS_FILE.exists()
+    ):
+        pytest.skip("the recorded fits are not on this checkout")
+    bm25 = json.loads(config.PHASE_9_BM25_WEIGHTS_FILE.read_text(encoding="utf-8"))
+    entity = json.loads(config.PHASE_9_ENTITY_WEIGHTS_FILE.read_text(encoding="utf-8"))
+    recorded = {
+        "hybrid-bm25": bm25["config"]["fusion_weights"],
+        "hybrid-entity-hop": entity["fit"]["weights"],
+    }
+    for system, frozen in config.PHASE_9_FROZEN_WEIGHTS.items():
+        assert sorted(recorded[system]) == sorted(frozen)
+        for name, weight in frozen.items():
+            assert abs(recorded[system][name] - weight) < config.PHASE_9_WEIGHT_TOLERANCE
+
+
+def test_the_phase_9_reproduction_counts_are_the_ones_the_phase_7_artifacts_record():
+    import json
+
+    import pytest
+
+    files = {
+        "dense": config.DATA_DIR / config.PHASE_8_INHERITED_DEV_FILES["dense"],
+        "hybrid-bm25": config.DATA_DIR / config.PHASE_8_INHERITED_DEV_FILES["hybrid-bm25"],
+        "hybrid-entity-hop": (
+            config.DATA_DIR / config.PHASE_8_INHERITED_DEV_FILES["hybrid-entity-hop-gliner"]
+        ),
+    }
+    if not all(path.exists() for path in files.values()):
+        pytest.skip("the Phase 7 dev runs are not on this checkout")
+    for system, path in files.items():
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        share = payload["metrics"][f"budget_{config.PHASE_9_PRIMARY_BUDGET}"]["full_support"]
+        assert round(share * config.N_DEV) == config.PHASE_9_REPRODUCTION_DEV_SUPPORTED[system]
+
+
+def test_the_phase_9_endpoint_and_envelope_are_the_ones_the_spec_freezes():
+    assert config.PHASE_9_PRIMARY_BUDGET in config.PHASE_9_BUDGETS
+    assert config.PHASE_9_BUDGETS == (512, 1024, 2048, 4096)
+    assert config.PHASE_9_KS == (2, 5, 10, 20)
+    assert config.PHASE_9_RANKING_DEPTH == 100
+    assert config.PHASE_9_ALPHA == 0.05
+    assert config.PHASE_9_QUERY_SECONDS_CEILING == 1.0
+    assert config.PHASE_9_SPEND_CEILING_USD == 25.0
+    assert config.PHASE_9_GLINER_CONFIGURATION_DIGEST == "2f7864661b8ce7ff"

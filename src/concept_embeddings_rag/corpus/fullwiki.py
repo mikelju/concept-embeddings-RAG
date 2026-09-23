@@ -298,6 +298,7 @@ def probe_layout(
     *,
     members: int = config.PHASE_8_1_PROBE_MEMBERS,
     records: int = config.PHASE_8_1_PROBE_RECORDS,
+    max_line_bytes: int = config.PHASE_8_1_MAX_LINE_BYTES,
 ) -> dict[str, Any]:
     """Read the first few members and **record** the layout and schema they hold.
 
@@ -313,9 +314,17 @@ def probe_layout(
 
     for name, payload in iter_members(path, counts=counts):
         probed_members.append(name)
-        for line in payload.splitlines():
+        for number, line in enumerate(payload.splitlines(), start=1):
             if not line.strip():
                 continue
+            # SEC-033: the same per-line ceiling `iter_records` enforces, applied before the
+            # parser sees the line. The member ceiling alone let a single line of up to that
+            # size reach `json.loads` here.
+            if len(line) > max_line_bytes:
+                raise FullWikiError(
+                    f"{name} line {number} is {len(line)} bytes, past the {max_line_bytes} "
+                    "byte ceiling"
+                )
             record = json.loads(line)
             if not isinstance(record, dict):
                 raise FullWikiError(

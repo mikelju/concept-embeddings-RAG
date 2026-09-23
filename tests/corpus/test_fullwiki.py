@@ -389,6 +389,37 @@ def test_a_line_past_the_line_ceiling_raises(tmp_path):
         list(fullwiki.iter_records(archive, layout, max_line_bytes=256))
 
 
+def test_the_probe_refuses_a_line_past_the_line_ceiling_before_parsing_it(tmp_path, monkeypatch):
+    # SEC-033 (Phase 9, R1): the probe used to hand any line the member ceiling admitted
+    # to `json.loads`. It now enforces the same per-line ceiling as `iter_records`, and
+    # refuses before the parser ever sees the oversized line.
+    long_record = {"id": "9", "title": "X", "text": ["y" * 5000]}
+    archive = an_archive(
+        tmp_path / "long.tar.bz2",
+        {"AA/wiki_00.bz2": a_member_payload([long_record], compress=True)},
+    )
+    parsed: list[bytes] = []
+    real_loads = fullwiki.json.loads
+
+    def spying_loads(raw, *args, **kwargs):
+        parsed.append(raw)
+        return real_loads(raw, *args, **kwargs)
+
+    monkeypatch.setattr(fullwiki.json, "loads", spying_loads)
+
+    with pytest.raises(fullwiki.FullWikiError, match="ceiling"):
+        fullwiki.probe_layout(archive, max_line_bytes=256)
+    assert parsed == []
+
+
+def test_the_probe_line_ceiling_defaults_to_the_canonical_one():
+    import inspect
+
+    probe = inspect.signature(fullwiki.probe_layout).parameters["max_line_bytes"].default
+    canonical = inspect.signature(fullwiki.iter_records).parameters["max_line_bytes"].default
+    assert probe == canonical == config.PHASE_8_1_MAX_LINE_BYTES
+
+
 def test_a_record_missing_its_declared_fields_is_a_refusal_naming_the_member_and_line(tmp_path):
     archive = an_archive(
         tmp_path / "ragged.tar.bz2",
