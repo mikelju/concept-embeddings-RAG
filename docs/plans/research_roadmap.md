@@ -108,24 +108,40 @@ The roadmap should preserve this simplicity until evidence shows that a more com
 
 # 3. Immediate committed roadmap
 
-The next three phases form one dependency chain:
+The dependency chain now reads:
 
 ```text
 Phase 7
 Cheap entity extraction        COMPLETE - GLiNER selected
         ↓
 Phase 8
-Strong Dense                   next
+Strong Dense                   STOP at dev gate - premise failed
+        ↓
+Deviation 8.1
+Dense scale sensitivity        COMPLETE - STABLE_RANKING (rule A)
         ↓
 Phase 9
-HotpotQA FullWiki
+HotpotQA FullWiki              READY TO SPECIFY - BGE primary candidate
 ```
+
+`Phase 8 closed → deviation 8.1 → Phase 9` remains the committed sequence. 8.1 is a deviation, not a
+new numbered phase, and it did not reopen Phase 8.
 
 Phase 7 did not fail economically: extraction fell from 25.9848 USD to an attributable 0.03 USD over the same 19,366 paragraphs, while retrieval kept 83.5% of the gain. FullWiki remains practical, subject to Phase 9 measuring its own costs rather than inheriting Phase 7's projection.
 
-If Phase 8 shows Entity Hop adds nothing beside a strong Dense retriever, the interpretation of Phase 6 changes substantially and Phase 9 must be reconsidered accordingly.
+Phase 8 still leaves the stronger-Dense complementarity question open: Qwen failed its preregistered
+dev gate, so its held-out split was never encoded or measured and Phase 8 reached none of its planned
+outcomes. See [`phase_8/8.results.md`](phase_8/8.results.md).
 
-If both survive, Phase 9 becomes the central comparison experiment.
+**Deviation 8.1 closed on 2026-09-22 with `STABLE_RANKING` (rule A).** On the frozen 600 dev
+questions, BGE/Qwen Full Support @2,048 was **487/446 at C19, 463/420 at C100, 440/393 at C250 and
+423/366 at C500**. The deficit widened from 41 to 57 questions; both headline Full Support
+reproduction checks were exact.
+See [`phase_8/8.1_results.md`](phase_8/8.1_results.md).
+
+Phase 9 therefore carries **BGE-small as the task-validated primary Dense candidate**. Its
+specification decides whether Qwen remains as an external-comparability control. This is a scale
+decision, not evidence that BGE is a generally stronger modern encoder.
 
 ---
 
@@ -216,6 +232,11 @@ Nothing here says which extractor reads entities *correctly*: NER quality was an
 ---
 
 # 5. Phase 8 — Strong Dense
+
+> **Measured, and stopped at the dev gate** (2026-09-19). The goal below was not reached: the chosen
+> model was weaker than the inherited baseline on this corpus, so the held-out split was never
+> opened. What follows is the phase as planned; [`phase_8/8.results.md`](phase_8/8.results.md) is
+> what it found. Deviation 8.1 follows.
 
 ## Goal
 
@@ -343,7 +364,7 @@ Rather than reimplementing every prior paper, the first useful comparison is the
 Carry forward only the components already selected:
 
 ```text
-Strong Dense from Phase 8
+BGE-small, the task-validated primary Dense candidate from deviation 8.1
 +
 GLiNER, the cheap entity extractor selected in Phase 7
 +
@@ -352,16 +373,17 @@ P1
 one Entity Hop
 ```
 
-No new research mechanism is added while scaling.
+The Phase 9 spec decides whether Qwen is retained as an external-comparability control. No new
+research mechanism is added while scaling.
 
 ## Systems
 
 Measure at least:
 
 ```text
-Strong Dense
-Strong Dense + BM25
-Strong Dense + Entity Hop
+Primary Dense
+Primary Dense + BM25
+Primary Dense + Entity Hop
 ```
 
 ## Evaluation

@@ -18,7 +18,7 @@ from pathlib import Path
 import numpy as np
 
 from concept_embeddings_rag.corpus.pool import IndexingUnit, Question
-from concept_embeddings_rag.embeddings.backend import EmbeddingBackend
+from concept_embeddings_rag.embeddings.backend import EmbeddingBackend, QueryPromptError
 
 
 class CacheAlignmentError(Exception):
@@ -104,12 +104,33 @@ def resolved_revision(backend: EmbeddingBackend) -> str:
     return resolver() if callable(resolver) else backend.revision
 
 
+def query_prompt_of(backend: EmbeddingBackend) -> str:
+    """The instruction prefix a backend encodes questions with, or `""` for none.
+
+    Phase 8, decision 5. Every backend written before Phase 8 has no such attribute
+    and answers `""`, which is what keeps every key and sidecar of Phases 1-7
+    byte-identical.
+    """
+    prompt = getattr(backend, "resolved_query_prompt", "")
+    return str(prompt) if prompt else ""
+
+
 def embed_units(
     units: Sequence[IndexingUnit],
     backend: EmbeddingBackend,
     cache: EmbeddingCache,
 ) -> tuple[np.ndarray, list[str]]:
-    """Return embeddings for `units`, computing them only if they are not cached."""
+    """Return embeddings for `units`, computing them only if they are not cached.
+
+    A backend carrying a query prompt is refused rather than used: documents are
+    encoded without an instruction prefix, and making that structural is cheaper than
+    trusting every future caller to remember it.
+    """
+    if query_prompt_of(backend):
+        raise QueryPromptError(
+            "this backend carries a query prompt and documents are encoded without one; "
+            "build a second, unprompted backend for the corpus pass"
+        )
     unit_ids = [unit.unit_id for unit in units]
     key = cache_key(
         backend.name,
@@ -168,13 +189,22 @@ def question_cache_key(
     question_set: str,
     split: str,
     normalized: bool,
+    query_prompt: str = "",
 ) -> str:
     """Key a question artifact by everything that decides what is in it.
 
     The split is part of the key and not merely of the metadata: dev and test must
     never be able to land in the same file, whatever their ids happen to hash to.
+
+    `query_prompt` joins the payload **only when it is non-empty** (Phase 8, decision
+    5). An asymmetric model encodes the same question differently under two prompts, so
+    the prompt has to be part of the key; appending it unconditionally would instead
+    change every key Phases 1-7 wrote and orphan every question cache on disk, which is
+    an invalidation by arithmetic rather than by deletion.
     """
     payload = f"question|{model}|{revision}|{question_set}|{split}|{int(normalized)}"
+    if query_prompt:
+        payload = f"{payload}|{query_prompt}"
     return hashlib.sha1(payload.encode("utf-8"), usedforsecurity=False).hexdigest()[:16]
 
 
@@ -192,6 +222,7 @@ def _question_artifact_key(questions: Sequence[Question], backend: EmbeddingBack
         question_set_hash([question.qid for question in questions]),
         _single_split(questions),
         normalized=bool(getattr(backend, "normalize", True)),
+        query_prompt=query_prompt_of(backend),
     )
 
 
@@ -215,19 +246,19 @@ def embed_questions(
 
     print(f"[INFO] embedding {len(qids)} {split} questions with {backend.name}")
     vectors = backend.encode([question.question for question in questions])
-    cache.save(
-        key,
-        vectors,
-        qids,
-        metadata={
-            "model": backend.name,
-            "revision": backend.revision,
-            "resolved_revision": resolved_revision(backend),
-            "dim": int(vectors.shape[1]),
-            "normalized": bool(getattr(backend, "normalize", True)),
-            "split": split,
-        },
-    )
+    metadata = {
+        "model": backend.name,
+        "revision": backend.revision,
+        "resolved_revision": resolved_revision(backend),
+        "dim": int(vectors.shape[1]),
+        "normalized": bool(getattr(backend, "normalize", True)),
+        "split": split,
+    }
+    # Written only when there is one, so a Phase 1-7 sidecar keeps its exact shape.
+    prompt = query_prompt_of(backend)
+    if prompt:
+        metadata["query_prompt"] = prompt
+    cache.save(key, vectors, qids, metadata=metadata)
     return vectors, qids
 
 
@@ -319,13 +350,19 @@ def _verify_question_sidecar(
         raise CacheAlignmentError(f"question cache {key} has no sidecar; refusing to use it")
 
     recorded = json.loads(path.read_text(encoding="utf-8"))
-    expected = {
+    expected: dict[str, object] = {
         "model": backend.name,
         "revision": backend.revision,
         "dim": int(vectors.shape[1]),
         "n_units": len(qids),
         "split": split,
     }
+    # Checked only when a prompt is in force: an empty one leaves this verification
+    # byte-identical to what Phases 1-7 ran, and a cache whose sidecar disagrees with
+    # the prompt in hand is refused rather than used.
+    prompt = query_prompt_of(backend)
+    if prompt:
+        expected["query_prompt"] = prompt
     for field, value in expected.items():
         if recorded.get(field) != value:
             raise CacheAlignmentError(

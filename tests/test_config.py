@@ -174,6 +174,8 @@ def test_ensure_directories_creates_the_phase_3_directories(tmp_path, monkeypatc
     monkeypatch.setattr(config, "QUESTION_CACHE_DIR", tmp_path / "data" / "cache" / "questions")
     # Phase 6 added a directory; patched so this test writes nothing under the real data/.
     monkeypatch.setattr(config, "REPLACEMENT_DIR", tmp_path / "data" / "replacement")
+    # Phase 8 added another; same reason.
+    monkeypatch.setattr(config, "PHASE_8_DIR", tmp_path / "data" / "phase8")
 
     config.ensure_directories()
 
@@ -249,6 +251,7 @@ def test_ensure_directories_creates_the_phase_4_directories(tmp_path, monkeypatc
     monkeypatch.setattr(config, "EXPANSION_DIR", tmp_path / "data" / "expansion")
     monkeypatch.setattr(config, "TRACES_DIR", tmp_path / "data" / "traces")
     monkeypatch.setattr(config, "REPLACEMENT_DIR", tmp_path / "data" / "replacement")
+    monkeypatch.setattr(config, "PHASE_8_DIR", tmp_path / "data" / "phase8")
 
     config.ensure_directories()
 
@@ -336,6 +339,7 @@ def test_ensure_directories_creates_the_phase_5_directories(tmp_path, monkeypatc
         "QUESTION_CACHE_DIR",
         "EXPANSION_DIR",
         "TRACES_DIR",
+        "PHASE_8_DIR",
     ):
         monkeypatch.setattr(config, name, tmp_path / "other" / name.lower())
 
@@ -451,6 +455,7 @@ def test_ensure_directories_creates_the_phase_6_directory(tmp_path, monkeypatch)
         "NODES_DIR",
         "NAVIGATION_DIR",
         "PHASE_7_DIR",
+        "PHASE_8_DIR",
     ):
         monkeypatch.setattr(config, name, tmp_path / "other" / name.lower())
 
@@ -493,6 +498,8 @@ def test_ensure_directories_creates_the_phase_7_directory(tmp_path, monkeypatch)
         "NODES_DIR",
         "NAVIGATION_DIR",
         "REPLACEMENT_DIR",
+        # Added with Phase 8: without it, this test creates the real `data/phase8/`.
+        "PHASE_8_DIR",
     ):
         monkeypatch.setattr(config, name, tmp_path / "other" / name.lower())
 
@@ -629,3 +636,396 @@ def test_the_inherited_figures_are_the_ones_the_phase_6_artifacts_record():
             assert payload["system"] == system
             measured = payload["metrics"][f"budget_{config.SELECTION_BUDGET}"]["full_support"]
             assert measured == figures[system]
+
+
+# --- Phase 8 (S1): the constants that decide what "Strong Dense" is ----------
+#
+# The Phase 8 literals, at the indentation the line length allows. Each is a public
+# commit sha or the sha256 of a pipeline-written artifact; the inline pragma records
+# that the secret scanner's finding on it was audited, exactly as D2's are above.
+PHASE_8_LITERALS = (
+    "97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3",  # pragma: allowlist secret
+    "840b4f78325d5c3393588e82312b29e168bc265e42127896c588e75a422a0aba",  # pragma: allowlist secret
+    "0aec5c32440ff600c1abbc7d866ad143ddf5c5263bf8252f1dbacdffc1496be5",  # pragma: allowlist secret
+    "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a",  # pragma: allowlist secret
+)
+PHASE_8_DENSE_REVISION_LITERAL = PHASE_8_LITERALS[0]
+PHASE_8_EXTRACTION_DIGEST_LITERAL = PHASE_8_LITERALS[1]
+PHASE_8_INDEX_DIGEST_LITERAL = PHASE_8_LITERALS[2]
+BUDGET_TOKENIZER_REVISION_LITERAL = PHASE_8_LITERALS[3]
+#
+# Every value is fixed by the approved spec before the first Phase 8 number exists,
+# exactly as Phase 7's were (decision 10 there, decisions 1-3 and 6 here). These
+# assertions are what makes "fixed before measuring" checkable afterwards: a changed
+# model, revision, dimension, prompt or bar has to break a test rather than quietly
+# redefine what the phase measured.
+
+
+def test_the_phase_8_directory_is_its_own_and_under_the_data_directory():
+    assert config.PHASE_8_DIR == config.DATA_DIR / "phase8"
+    assert config.PHASE_8_DIR not in (
+        config.PHASE_7_DIR,
+        config.EXTRACTION_DIR,
+        config.NODES_DIR,
+        config.REPLACEMENT_DIR,
+        config.RESULTS_DIR,
+    )
+
+
+def test_ensure_directories_creates_the_phase_8_directory(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "PHASE_8_DIR", tmp_path / "data" / "phase8")
+    for name in (
+        "DATA_DIR",
+        "CACHE_DIR",
+        "RESULTS_DIR",
+        "CONCEPTS_DIR",
+        "SELECTION_DIR",
+        "QUESTION_CACHE_DIR",
+        "EXPANSION_DIR",
+        "TRACES_DIR",
+        "PILOT_DIR",
+        "EXTRACTION_DIR",
+        "NODES_DIR",
+        "NAVIGATION_DIR",
+        "REPLACEMENT_DIR",
+        "PHASE_7_DIR",
+    ):
+        monkeypatch.setattr(config, name, tmp_path / "other" / name.lower())
+
+    config.ensure_directories()
+
+    assert config.PHASE_8_DIR.is_dir()
+
+
+def test_the_dense_model_is_pinned_to_a_commit_and_to_its_full_width():
+    """Decision 1: one model, one commit, 1024 dimensions and no MRL truncation."""
+    assert config.PHASE_8_DENSE_MODEL == "Qwen/Qwen3-Embedding-0.6B"
+    assert config.PHASE_8_DENSE_REVISION == PHASE_8_DENSE_REVISION_LITERAL
+    assert config.PHASE_8_DENSE_REVISION.startswith("97b0c614")
+    assert len(config.PHASE_8_DENSE_REVISION) == 40
+    assert all(char in "0123456789abcdef" for char in config.PHASE_8_DENSE_REVISION)
+    assert config.PHASE_8_DENSE_DIM == 1024
+    assert config.PHASE_8_DENSE_MODEL != config.EMBEDDING_MODEL
+
+
+def test_the_query_prompt_is_the_exact_string_the_spec_settles():
+    """Restriction R2: one newline, no trailing space, never tuned for this benchmark."""
+    prompt = config.PHASE_8_QUERY_PROMPT
+
+    assert prompt == (
+        "Instruct: Given a web search query, retrieve relevant passages that answer "
+        "the query\nQuery:"
+    )
+    assert prompt.count("\n") == 1
+    assert prompt.endswith("Query:")
+    assert prompt == prompt.rstrip()
+    assert prompt.isascii()
+
+
+def test_the_entity_index_is_inherited_from_phase_7_by_its_digests():
+    """The phase changes the Dense retriever and nothing else: GLiNER is pinned, not rebuilt."""
+    assert config.PHASE_8_GLINER_DIR == config.PHASE_7_DIR / "gliner"
+    assert config.PHASE_8_GLINER_EXTRACTION_DIGEST == PHASE_8_EXTRACTION_DIGEST_LITERAL
+    assert config.PHASE_8_GLINER_INDEX_DIGEST == PHASE_8_INDEX_DIGEST_LITERAL
+    # The prefixes the spec quotes, so a swapped pair fails rather than passes quietly.
+    assert config.PHASE_8_GLINER_EXTRACTION_DIGEST.startswith("840b4f78")
+    assert config.PHASE_8_GLINER_INDEX_DIGEST.startswith("0aec5c32")
+    for digest in (
+        config.PHASE_8_GLINER_EXTRACTION_DIGEST,
+        config.PHASE_8_GLINER_INDEX_DIGEST,
+    ):
+        assert len(digest) == 64
+        assert all(char in "0123456789abcdef" for char in digest)
+
+
+def test_the_three_systems_are_the_ones_the_spec_measures():
+    assert config.PHASE_8_SYSTEMS == ("dense", "hybrid-bm25", "hybrid-entity-hop")
+
+
+def test_the_inherited_figures_carry_the_gliner_row_the_phase_is_read_against():
+    """Phase 8 inherits the GLiNER index, so the GLiNER row is its comparison baseline."""
+    for figures in (
+        config.PHASE_8_INHERITED_DEV_FULL_SUPPORT,
+        config.PHASE_8_INHERITED_HELD_OUT_FULL_SUPPORT,
+    ):
+        assert sorted(figures) == [
+            "dense",
+            "hybrid-bm25",
+            "hybrid-entity-hop-claude",
+            "hybrid-entity-hop-gliner",
+        ]
+    assert sorted(config.PHASE_8_INHERITED_DEV_FILES) == sorted(
+        config.PHASE_8_INHERITED_DEV_FULL_SUPPORT
+    )
+    assert sorted(config.PHASE_8_INHERITED_HELD_OUT_FILES) == sorted(
+        config.PHASE_8_INHERITED_HELD_OUT_FULL_SUPPORT
+    )
+    # The Phase 6 rows are the ones Phase 7 already pinned, never typed a second time.
+    dev, test = (
+        config.PHASE_8_INHERITED_DEV_FULL_SUPPORT,
+        config.PHASE_8_INHERITED_HELD_OUT_FULL_SUPPORT,
+    )
+    assert dev["dense"] == config.PHASE_7_REFERENCE_DEV_FULL_SUPPORT["dense"]
+    assert dev["hybrid-bm25"] == config.PHASE_7_REFERENCE_DEV_FULL_SUPPORT["hybrid-bm25"]
+    assert (
+        dev["hybrid-entity-hop-claude"]
+        == config.PHASE_7_REFERENCE_DEV_FULL_SUPPORT["hybrid-entity-hop"]
+    )
+    assert test["dense"] == config.PHASE_7_REFERENCE_HELD_OUT_FULL_SUPPORT["dense"]
+
+
+def test_the_stop_rule_bar_is_the_inherited_dense_dev_reading_in_whole_questions():
+    """Decision 4 and D10: 487/600 is a tie, and a tie is not 'substantially stronger'."""
+    dense = config.PHASE_8_INHERITED_DEV_FULL_SUPPORT["dense"]
+
+    assert round(dense * config.N_DEV) == config.PHASE_8_STOP_RULE_BASELINE_QUESTIONS
+    assert config.PHASE_8_STOP_RULE_BASELINE_QUESTIONS == 487
+
+
+def test_the_budget_tokenizer_is_declared_independently_of_the_embedding_model():
+    """Restriction R1: the ruler does not move when the Dense model does.
+
+    The two constants hold exactly the values `TOKENIZER_ID = EMBEDDING_MODEL` resolved
+    to in Phases 1-7, so this is a change of meaning and not of number; what it buys is
+    that repointing the Dense model can no longer move the context budget.
+    """
+    assert config.BUDGET_TOKENIZER_ID == "BAAI/bge-small-en-v1.5"
+    assert config.BUDGET_TOKENIZER_REVISION == BUDGET_TOKENIZER_REVISION_LITERAL
+    assert config.BUDGET_TOKENIZER_REVISION == config.EMBEDDING_REVISION
+    assert config.TOKENIZER_ID == config.BUDGET_TOKENIZER_ID
+    assert config.BUDGET_TOKENIZER_ID != config.PHASE_8_DENSE_MODEL
+    assert config.BUDGET_TOKENIZER_REVISION != config.PHASE_8_DENSE_REVISION
+
+
+def test_the_inherited_gliner_figures_are_the_ones_its_artifacts_record():
+    """Data-dependent: the baseline this phase is read against is never typed twice."""
+    import json
+
+    import pytest
+
+    dev_path = config.PHASE_8_GLINER_DIR / "dev.json"
+    test_path = config.PHASE_7_DIR / "test.json"
+    if not dev_path.exists() or not test_path.exists():
+        pytest.skip("the Phase 7 GLiNER artifacts are not on this checkout")
+
+    dev = json.loads(dev_path.read_text(encoding="utf-8"))
+    test = json.loads(test_path.read_text(encoding="utf-8"))
+    budget = f"budget_{config.SELECTION_BUDGET}"
+
+    assert dev["index"]["digest"] == config.PHASE_8_GLINER_INDEX_DIGEST
+    assert dev["extraction"]["digest"] == config.PHASE_8_GLINER_EXTRACTION_DIGEST
+    assert (
+        dev["metrics"][budget]["full_support"]
+        == config.PHASE_8_INHERITED_DEV_FULL_SUPPORT["hybrid-entity-hop-gliner"]
+    )
+    assert (
+        test["metrics"][budget]["full_support"]
+        == config.PHASE_8_INHERITED_HELD_OUT_FULL_SUPPORT["hybrid-entity-hop-gliner"]
+    )
+    for figures, files in (
+        (config.PHASE_8_INHERITED_DEV_FULL_SUPPORT, config.PHASE_8_INHERITED_DEV_FILES),
+        (config.PHASE_8_INHERITED_HELD_OUT_FULL_SUPPORT, config.PHASE_8_INHERITED_HELD_OUT_FILES),
+    ):
+        for system, relative in files.items():
+            path = config.DATA_DIR / relative
+            if not path.exists():
+                pytest.skip(f"{relative} is not on this checkout")
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            assert payload["metrics"][budget]["full_support"] == figures[system]
+
+
+# --- Deviation 8.1: the constants that decide what the scale diagnostic is ----
+#
+# Every threshold, ceiling, size and required count below is fixed before the first
+# 8.1 number exists, for the reason the Phase 7 and Phase 8 blocks above are: a rule
+# adjusted after seeing a scale result is not a rule. These assertions are what make
+# "fixed before measuring" checkable afterwards.
+#
+# The published MD5 is a **claim** copied from the deviation's recollection of the
+# release page, not a measurement. S1 reads the live page and the downloaded bytes and
+# corrects it in place if they differ; until then the artifact records both.
+PHASE_8_1_DECLARED_MD5_LITERAL = "01edf64cd120ecc03a2745352779514c"  # pragma: allowlist secret
+
+
+def test_the_deviation_8_1_directory_is_its_own_and_under_the_data_directory():
+    assert config.PHASE_8_1_DIR == config.DATA_DIR / "phase8_1"
+    assert config.PHASE_8_1_DIR != config.PHASE_8_DIR
+    assert config.PHASE_8_1_CACHE_DIR == config.PHASE_8_1_DIR / "cache"
+    assert config.PHASE_8_1_QUESTION_CACHE_DIR == config.PHASE_8_1_CACHE_DIR / "questions"
+    # The whole point of the separate directories: `question_cache_key` does not depend
+    # on the corpus, so the 600 dev questions would hash onto the historical file.
+    assert config.PHASE_8_1_CACHE_DIR != config.CACHE_DIR
+    assert config.PHASE_8_1_QUESTION_CACHE_DIR != config.QUESTION_CACHE_DIR
+
+
+def test_the_official_source_is_declared_with_its_published_provenance():
+    assert config.PHASE_8_1_SOURCE_URL.startswith("https://")
+    assert config.PHASE_8_1_SOURCE_ARCHIVE.endswith(".tar.bz2")
+    assert config.PHASE_8_1_SOURCE_LICENSE
+    assert config.PHASE_8_1_DECLARED_BYTES == 1_553_565_403
+    assert config.PHASE_8_1_DECLARED_MD5 == PHASE_8_1_DECLARED_MD5_LITERAL
+    assert len(config.PHASE_8_1_DECLARED_MD5) == 32
+    assert all(character in "0123456789abcdef" for character in config.PHASE_8_1_DECLARED_MD5)
+    # S1 verified the declared identity against staged bytes, not the live source page.
+    basis = config.PHASE_8_1_DECLARED_BASIS.lower()
+    assert "verified against the staged archive bytes" in basis
+    assert "live hotpotqa page was not checked" in basis
+
+
+def test_the_four_corpus_sizes_and_their_prefixes_are_exactly_the_declared_arithmetic():
+    assert config.PHASE_8_1_CORPUS_SIZES == (19366, 100000, 250000, 500000)
+    assert config.PHASE_8_1_CORPUS_LABELS == ("c19", "c100", "c250", "c500")
+    assert config.PHASE_8_1_DISTRACTOR_PREFIXES == (80634, 230634, 480634)
+    assert config.PHASE_8_1_CORPUS_SIZES[0] == config.EXPECTED_N_UNITS
+    # C100 = C19 + 80,634, and so on: the prefixes are the sizes minus the C19 block.
+    for size, prefix in zip(
+        config.PHASE_8_1_CORPUS_SIZES[1:], config.PHASE_8_1_DISTRACTOR_PREFIXES, strict=True
+    ):
+        assert config.PHASE_8_1_CORPUS_SIZES[0] + prefix == size
+    assert len(config.PHASE_8_1_CORPUS_SIZES) == len(config.PHASE_8_1_CORPUS_LABELS)
+    prefixes = config.PHASE_8_1_DISTRACTOR_PREFIXES
+    assert tuple(sorted(prefixes)) == prefixes
+
+
+def test_the_ordering_rule_declares_42_as_a_hash_salt_and_not_as_rng_state():
+    assert config.PHASE_8_1_ORDER_SALT == "42"
+    assert config.PHASE_8_1_ORDER_RULE == "sha256-salted-title-plaintext-v1"
+    assert "salt" in config.PHASE_8_1_ORDER_SALT_BASIS.lower()
+    assert "rng" in config.PHASE_8_1_ORDER_SALT_BASIS.lower()
+    assert str(config.DEFAULT_SEED) == config.PHASE_8_1_ORDER_SALT
+
+
+def test_the_reconciliation_ceiling_is_fifty_units():
+    assert config.PHASE_8_1_UNMATCHED_CEILING == 50
+    # 0.26% of the frozen pool: large enough for source drift, small enough to be safe.
+    assert config.PHASE_8_1_UNMATCHED_CEILING / config.EXPECTED_N_UNITS < 0.003
+
+
+def test_the_two_reproduction_counts_are_the_historical_readings_keyed_by_model():
+    """Keyed by model, never by split: `config` is on the Phase 3 selection's closure."""
+    assert config.PHASE_8_1_C19_DEV_SUPPORTED == {"bge": 487, "qwen": 446}
+    assert sorted(config.PHASE_8_1_C19_DEV_SUPPORTED) == sorted(config.PHASE_8_1_MODELS)
+    assert config.PHASE_8_1_MODELS == ("bge", "qwen")
+    assert config.PHASE_8_1_REENCODE_TOLERANCE == 1
+    # The BGE reading is the same 487 Phase 8's stop rule was read against.
+    assert config.PHASE_8_1_C19_DEV_SUPPORTED["bge"] == config.PHASE_8_STOP_RULE_BASELINE_QUESTIONS
+    assert round(config.PHASE_8_1_C19_DEV_SUPPORTED["bge"] / config.N_DEV, 4) == 0.8117
+
+
+def test_the_outcome_thresholds_are_the_declared_arithmetic_on_the_c19_deficit():
+    assert config.PHASE_8_1_CONVERGENCE_QUESTIONS == 20
+    assert config.PHASE_8_1_BGE_RETENTION_FLOOR == 244
+    deficit = config.PHASE_8_1_C19_DEV_SUPPORTED["qwen"] - config.PHASE_8_1_C19_DEV_SUPPORTED["bge"]
+    assert deficit == -41
+    # "at least half the initial deficit removed", on a 41-question deficit.
+    assert abs(deficit) // 2 >= config.PHASE_8_1_CONVERGENCE_QUESTIONS
+    # The floor is half BGE's own C19 reading, rounded up.
+    half_of_bge = -(-config.PHASE_8_1_C19_DEV_SUPPORTED["bge"] // 2)
+    assert half_of_bge == config.PHASE_8_1_BGE_RETENTION_FLOOR
+
+
+def test_the_four_outcomes_and_two_stops_are_the_only_terminal_labels():
+    assert config.PHASE_8_1_OUTCOMES == (
+        "crossover",
+        "convergence",
+        "both_degrade",
+        "stable_ranking",
+    )
+    assert config.PHASE_8_1_STOPS == ("data_stop", "reproduction_stop")
+    assert not set(config.PHASE_8_1_OUTCOMES) & set(config.PHASE_8_1_STOPS)
+
+
+def test_the_historical_cache_keys_are_the_ones_the_recorded_counts_were_read_from():
+    assert config.PHASE_8_1_HISTORICAL_CORPUS_KEYS == {
+        "bge": "bacd74e7f468f0d4",
+        "qwen": "66ef5c19a95f6cbe",
+    }
+    assert config.PHASE_8_1_HISTORICAL_DEV_QUERY_KEYS == {
+        "bge": "35329d9e75da1d4f",
+        "qwen": "c9c589c29c226fb3",
+    }
+    for keys in (
+        config.PHASE_8_1_HISTORICAL_CORPUS_KEYS,
+        config.PHASE_8_1_HISTORICAL_DEV_QUERY_KEYS,
+    ):
+        assert sorted(keys) == sorted(config.PHASE_8_1_MODELS)
+        for key in keys.values():
+            assert len(key) == 16
+            assert all(character in "0123456789abcdef" for character in key)
+    # `a28365b7ed90ed10` holds the same vectors under revision "main" and is a
+    # migration artifact; the revision-pinned key is the one 8.1 reads.
+    assert config.PHASE_8_1_HISTORICAL_CORPUS_KEYS["bge"] != "a28365b7ed90ed10"
+
+
+def test_the_archive_ceilings_are_finite_and_ordered():
+    assert config.PHASE_8_1_MAX_MEMBER_BYTES > 0
+    assert config.PHASE_8_1_MAX_LINE_BYTES > 0
+    assert config.PHASE_8_1_MAX_TOTAL_RECORDS > 0
+    # A line cannot be larger than the member that holds it.
+    assert config.PHASE_8_1_MAX_LINE_BYTES < config.PHASE_8_1_MAX_MEMBER_BYTES
+    # Room above the 5M paragraphs the official release holds.
+    assert config.PHASE_8_1_MAX_TOTAL_RECORDS > config.PROJECTION_PARAGRAPHS
+    assert config.PHASE_8_1_PROBE_MEMBERS > 0
+    assert config.PHASE_8_1_TOKENIZE_BATCH > 0
+    # Batching is the point: a batch that held every distractor would not be one.
+    assert config.PHASE_8_1_DISTRACTOR_PREFIXES[-1] > config.PHASE_8_1_TOKENIZE_BATCH
+    assert config.PHASE_8_1_QUERY_SECONDS_CEILING > 0.0
+
+
+def test_the_schema_candidates_are_ordered_preferences_and_not_a_single_assumption():
+    """S1 records the schema it observed; the parser dispatches on the record.
+
+    The candidate lists exist so a probe can *resolve* a field name against what the
+    archive actually holds and refuse when none of them is there - not so the code can
+    assume one.
+    """
+    for candidates in (
+        config.PHASE_8_1_TITLE_FIELDS,
+        config.PHASE_8_1_SENTENCES_FIELDS,
+        config.PHASE_8_1_PAGE_ID_FIELDS,
+    ):
+        assert len(candidates) >= 1
+        assert len(set(candidates)) == len(candidates)
+    assert config.PHASE_8_1_TITLE_FIELDS[0] == "title"
+    assert config.PHASE_8_1_SENTENCES_FIELDS[0] == "text"
+
+
+def test_the_deviation_8_1_directory_is_created_by_ensure_directories():
+    config.ensure_directories()
+    assert config.PHASE_8_1_DIR.is_dir()
+    assert config.PHASE_8_1_CACHE_DIR.is_dir()
+    assert config.PHASE_8_1_QUESTION_CACHE_DIR.is_dir()
+
+
+def test_the_historical_bge_reproduction_count_is_the_one_its_run_file_records():
+    """Data-dependent: the count the gate requires is never a number typed from memory."""
+    import json
+
+    import pytest
+
+    path = config.DATA_DIR / config.PHASE_8_INHERITED_DEV_FILES["dense"]
+    if not path.exists():
+        pytest.skip(f"{path.name} is not on this checkout")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    share = payload["metrics"][f"budget_{config.SELECTION_BUDGET}"]["full_support"]
+
+    assert round(share * config.N_DEV) == config.PHASE_8_1_C19_DEV_SUPPORTED["bge"]
+
+
+def test_the_historical_qwen_reproduction_count_is_the_one_phase_8_recorded():
+    """Same rule for the Qwen side; `data/phase8/dev.json` is untracked, hence the skip."""
+    import json
+
+    import pytest
+
+    path = config.PHASE_8_DIR / "dev.json"
+    if not path.exists():
+        pytest.skip("data/phase8/dev.json is not on this checkout")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    dense = payload["systems"]["dense"]
+
+    assert dense["supported_questions"] == config.PHASE_8_1_C19_DEV_SUPPORTED["qwen"]
+    assert dense["config"]["corpus_cache_key"] == config.PHASE_8_1_HISTORICAL_CORPUS_KEYS["qwen"]
+    assert (
+        dense["config"]["question_cache_key"] == config.PHASE_8_1_HISTORICAL_DEV_QUERY_KEYS["qwen"]
+    )

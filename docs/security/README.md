@@ -1,13 +1,13 @@
 # Security audits
 
-Consolidated catalogue of the audits run with `/8-auditar`, and the only persistent record they
-leave: one row per finding. The audit presents its findings in chat and fixes them in the same
-session — it writes no report.
+Consolidated catalogue of the audits run with `/8-auditar`, with one catalogue row per finding.
+Later audits normally leave no separate report; **deviation 8.1 is an explicit exception** because
+its implementation plan pre-declared a targeted report before measurement.
 
 ## Reports (historical)
 
-The two Phase 1 passes predate that change and left a full report each. They are kept as they were
-written; later audits add rows below, not documents.
+The two Phase 1 passes predate that convention and left a full report each. They are kept as written.
+Deviation 8.1 also has a focused report because its frozen implementation plan required one.
 
 | Date | Mode | Scope | Critical | High | Medium | Low | Info |
 |---|---|---|---:|---:|---:|---:|---:|
@@ -16,12 +16,11 @@ written; later audits add rows below, not documents.
 
 ## Open findings
 
-**Thirteen, none blocking**: four from Phase 5 (one Medium, three Low), SEC-020 to SEC-023,
-seven Low from Phase 6, SEC-024 to SEC-030, and two Low from Phase 7, SEC-031 and SEC-032. Every
-one of the first eleven needs a change under `src/`, `.github/` or the workflow, and the author
-closed both rounds to source changes, so they are reported and catalogued rather than fixed — the
-decision is recorded in each phase's section below. The two Phase 7 rows are catalogued for the
-reasons given in that section. No Critical and no High finding exists in any audited phase.
+**Fourteen, none blocking**: four from Phase 5 (one Medium, three Low), SEC-020 to SEC-023,
+seven Low from Phase 6, SEC-024 to SEC-030, two Low from Phase 7, SEC-031 and SEC-032, and one Low
+from deviation 8.1, SEC-033. The Phase 5/6 rows remain deferred as recorded in their sections; the
+Phase 7 rows remain catalogued for the reasons given there; SEC-033 is prospective remediation
+before the FullWiki loader is reused. No Critical and no High finding exists in any audited phase.
 
 Phases 1 and 2 have nothing outstanding: every finding of their three passes is closed and held
 closed by a regression test. Phases 3 and 4 have not been audited — see "Deferred audits" below.
@@ -275,6 +274,34 @@ but does not cryptographically bind its manifest to the exact weight-file bytes.
 
 > The earlier reason given here — that no Phase 7 extraction artifact existed yet — was true when
 > the review was written on 2026-09-18 and stopped being true when the passes ran on 2026-09-19.
+
+### Deviation 8.1 — 2026-09-22 (targeted review)
+
+Scope: exactly the three modules declared by the deviation's implementation plan —
+`corpus/fullwiki.py`, `corpus/scale_corpus.py` and `evaluation/scale_sensitivity.py` — and the
+specific questions fixed before implementation: archive identity, byte-size/MD5 comparison, local
+SHA-256, bounded tar/bz2 handling, path traversal, executable serialization and model
+revision/weight provenance.
+
+The archive is streamed and never extracted; non-regular members are not followed; archive member
+names are restricted to plain relative paths; member decompression is bounded; the full record
+iterator separately bounds lines and total records; JSON is the only external record parser; the
+local integrity record is SHA-256. The deterministic selection re-derives unit IDs and its ordered
+digest on load. The new model artifact path enforces pinned revision, query prompt and width and
+records the SHA-256 of the weight bytes used.
+
+| ID | Severity | Title | Status |
+|---|---|---|---|
+| SEC-033 | Low | `probe_layout` parses probe records without applying `PHASE_8_1_MAX_LINE_BYTES`, so a malformed archive can make the probe hand a line up to the 256 MiB member ceiling to `json.loads` | Open — fix before the FullWiki loader is reused in Phase 9 |
+
+There is **no Critical, High or Medium finding** in the declared surface. SEC-033 is bounded by the
+member ceiling and affects resource use in the schema probe, not the measured retrieval semantics.
+The later zero-byte copy of `embedding-qwen.json` is separately recorded as an operational
+artifact-preservation incident, not a security finding; the successful run's scale artifact
+preserves the original embedding digest and provenance and no replacement artifact was fabricated.
+
+Full targeted record:
+[`audit-2026-09-22-deviation-8.1.md`](audit-2026-09-22-deviation-8.1.md).
 
 ## Deferred audits
 
@@ -585,6 +612,6 @@ byte-identical and covers no Phase 6 file.
 - Every Critical or High finding is resolved with a `fix-N` in `docs/plans/fixes/` before the
   phase closes, or the decision to defer it is recorded in the master plan with its reason.
 - Finding ids are unique per project: continue the `SEC-NNN` sequence rather than restarting it
-  per audit. Next free id: **SEC-033** (`OBS-NNN` for observations: next free is **OBS-013**).
+  per audit. Next free id: **SEC-034** (`OBS-NNN` for observations: next free is **OBS-013**).
 - A phase exempted from the audit (the command's escape hatch) is recorded here too, with its
   reason: an exempt phase is a decision on record, not a phase nobody looked at.

@@ -48,7 +48,21 @@ NORMALIZE_EMBEDDINGS: Final[bool] = True
 
 # Tokenizer used to measure context budgets. Its absolute values do not matter;
 # what matters is that every system is measured with the same ruler.
-TOKENIZER_ID: Final[str] = EMBEDDING_MODEL
+#
+# Phase 8, restriction R1: this used to be `TOKENIZER_ID = EMBEDDING_MODEL`, which made
+# the ruler follow the Dense model. Repointing the embedding model would then have
+# re-tokenized the corpus with a different tokenizer and rewritten
+# `data/token_counts.json`, the single file that defines the fixed context budget behind
+# every Phase 1-7 result - so no new number would have been comparable to any inherited
+# one, and the inherited ones would have stopped being reproducible from the repository.
+# The budget tokenizer is therefore its own configuration item, declared at exactly the
+# values the alias resolved to in Phases 1-7: a change of meaning, not of number.
+BUDGET_TOKENIZER_ID: Final[str] = "BAAI/bge-small-en-v1.5"
+BUDGET_TOKENIZER_REVISION: Final[str] = "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a"
+# The name four provenance sites already record. Kept so every artifact written since
+# Phase 1 keeps meaning what it meant, and now defined by the ruler rather than by the
+# embedding model.
+TOKENIZER_ID: Final[str] = BUDGET_TOKENIZER_ID
 
 # --- Evaluation ------------------------------------------------------------
 CONTEXT_BUDGETS: Final[tuple[int, ...]] = (512, 1024, 2048, 4096)
@@ -535,6 +549,228 @@ PHASE_7_INFRASTRUCTURE_CEILING_USD: Final[float] = 30.0
 PROJECTION_PARAGRAPHS: Final[int] = 5_000_000
 
 
+# --- Strong Dense + Entity Hop (Phase 8) -------------------------------------
+# Declared before the first Phase 8 number exists. The spec (`8.spec.md`) settles every
+# value below and closes all ten of its decisions; `8.0_strong_dense.md` gives the
+# implementation reason for each (D1-D3, D10). Exactly one variable changes in this
+# phase - the Dense retriever - so `EMBEDDING_MODEL` is deliberately *not* repointed:
+# every inherited stage builds `SentenceTransformerBackend()` from it and would look for
+# a corpus cache that does not exist. The Phase 8 stages construct their backend from the
+# constants below instead, and nothing else in the project changes model by accident.
+
+PHASE_8_DIR: Final[Path] = DATA_DIR / "phase8"
+
+# Decision 1, approved in the spec: one modern strong open Dense model, chosen a priori
+# from published evidence rather than by comparing dev scores across encoders, which is
+# the leaderboard the master plan forbids. Pinned to a commit and never to a branch, for
+# the same reason `EMBEDDING_REVISION` is. Full width, no MRL truncation.
+PHASE_8_DENSE_MODEL: Final[str] = "Qwen/Qwen3-Embedding-0.6B"
+PHASE_8_DENSE_REVISION: Final[str] = (
+    "97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3"  # pragma: allowlist secret
+)
+PHASE_8_DENSE_DIM: Final[int] = 1024
+# What is fetched, and therefore what cannot be deserialized: the pinned revision ships
+# `model.safetensors` as its only weight file, and its sha256 is recorded over the bytes
+# actually loaded (R7, the prospective answer to Phase 7's SEC-031).
+PHASE_8_WEIGHTS_FILE: Final[str] = "model.safetensors"
+
+# Decision 3 / R2: the model is asymmetric, so the query instruction is a declared
+# configuration item rather than a free parameter. The run reads `model.prompts["query"]`
+# and aborts on any inexact match before producing a single embedding; documents stay
+# unprefixed. It is never customized or tuned for HotpotQA - a prompt fitted to this
+# benchmark would be a hyperparameter chosen on our own data.
+PHASE_8_QUERY_PROMPT: Final[str] = (
+    "Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery:"
+)
+
+# The inherited entity representation, pinned by digest and read-only for this phase.
+# Phase 8 loads the Phase 7 GLiNER index and writes nothing into `data/phase7/`.
+PHASE_8_GLINER_DIR: Final[Path] = PHASE_7_DIR / "gliner"
+PHASE_8_GLINER_EXTRACTION_DIGEST: Final[str] = (
+    "840b4f78325d5c3393588e82312b29e168bc265e42127896c588e75a422a0aba"  # pragma: allowlist secret
+)
+PHASE_8_GLINER_INDEX_DIGEST: Final[str] = (
+    "0aec5c32440ff600c1abbc7d866ad143ddf5c5263bf8252f1dbacdffc1496be5"  # pragma: allowlist secret
+)
+
+# The three systems the phase measures, and nothing else.
+PHASE_8_SYSTEMS: Final[tuple[str, ...]] = ("dense", "hybrid-bm25", "hybrid-entity-hop")
+
+# The inherited BGE-small figures this phase is read against, Full Support @2,048. The
+# Phase 6 rows are taken from the constants Phase 7 already pinned rather than typed a
+# second time; the GLiNER rows come from `data/phase7/` and are held equal to those
+# artifacts by a data-dependent test. The GLiNER row is the comparison baseline, because
+# Phase 8 inherits the GLiNER index; the Claude row is historical context only.
+PHASE_8_INHERITED_DEV_FULL_SUPPORT: Final[dict[str, float]] = {
+    "dense": PHASE_7_REFERENCE_DEV_FULL_SUPPORT["dense"],
+    "hybrid-bm25": PHASE_7_REFERENCE_DEV_FULL_SUPPORT["hybrid-bm25"],
+    "hybrid-entity-hop-claude": PHASE_7_REFERENCE_DEV_FULL_SUPPORT["hybrid-entity-hop"],
+    "hybrid-entity-hop-gliner": 0.8633333333333333,
+}
+PHASE_8_INHERITED_HELD_OUT_FULL_SUPPORT: Final[dict[str, float]] = {
+    "dense": PHASE_7_REFERENCE_HELD_OUT_FULL_SUPPORT["dense"],
+    "hybrid-bm25": PHASE_7_REFERENCE_HELD_OUT_FULL_SUPPORT["hybrid-bm25"],
+    "hybrid-entity-hop-claude": PHASE_7_REFERENCE_HELD_OUT_FULL_SUPPORT["hybrid-entity-hop"],
+    "hybrid-entity-hop-gliner": 0.8792857142857143,
+}
+# Where each inherited figure is read from, relative to `DATA_DIR`, so a report can name
+# the file behind every number it quotes.
+PHASE_8_INHERITED_DEV_FILES: Final[dict[str, str]] = {
+    "dense": f"{REPLACEMENT_DIR.name}/{PHASE_7_REFERENCE_DEV_FILES['dense']}",
+    "hybrid-bm25": f"{REPLACEMENT_DIR.name}/{PHASE_7_REFERENCE_DEV_FILES['hybrid-bm25']}",
+    "hybrid-entity-hop-claude": (
+        f"{REPLACEMENT_DIR.name}/{PHASE_7_REFERENCE_DEV_FILES['hybrid-entity-hop']}"
+    ),
+    "hybrid-entity-hop-gliner": (
+        f"{PHASE_7_DIR.name}/{PHASE_8_GLINER_DIR.name}/"
+        "run-hybrid-entity-hop-dev-20260919T070042+0000.json"
+    ),
+}
+PHASE_8_INHERITED_HELD_OUT_FILES: Final[dict[str, str]] = {
+    "dense": f"{REPLACEMENT_DIR.name}/{PHASE_7_REFERENCE_HELD_OUT_FILES['dense']}",
+    "hybrid-bm25": f"{REPLACEMENT_DIR.name}/{PHASE_7_REFERENCE_HELD_OUT_FILES['hybrid-bm25']}",
+    "hybrid-entity-hop-claude": (
+        f"{REPLACEMENT_DIR.name}/{PHASE_7_REFERENCE_HELD_OUT_FILES['hybrid-entity-hop']}"
+    ),
+    "hybrid-entity-hop-gliner": (
+        f"{PHASE_7_DIR.name}/{PHASE_8_GLINER_DIR.name}/"
+        "run-hybrid-entity-hop-test-20260919T070735+0000.json"
+    ),
+}
+
+# Decision 4 / D10, the stop rule: if Strong Dense alone does not beat the inherited
+# Dense dev reading, the phase's premise has failed and the held-out split is neither
+# measured nor encoded. The comparison is made in whole questions, never on floats: 487
+# of 600 is a tie, and a tie is not "substantially stronger", so the rule passes only on
+# at least one more supported question. The count below is that reading, and a test holds
+# it equal to the arithmetic rather than to a number typed beside it.
+PHASE_8_STOP_RULE_BASELINE_QUESTIONS: Final[int] = 487
+
+
+# --- Deviation 8.1: Dense model ranking under larger retrieval corpora --------
+# Every value below is fixed by `8.1_dense_scale_sensitivity.md` before the first 8.1
+# number exists, and `8.1_implementation_plan.md` gives the implementation reason for
+# each. Phase 8 stays closed with its STOP: this block adds a bounded, dev-only
+# diagnostic and repoints nothing the earlier phases measured.
+#
+# The dictionaries below are keyed by **model** and by **outcome**, never by split name.
+# This module is on the import closure of `evaluation/selection.py`, whose static guard
+# forbids any string literal naming a split other than dev.
+
+PHASE_8_1_DIR: Final[Path] = DATA_DIR / "phase8_1"
+# 8.1's own cache directories, and the reason they exist at all: `question_cache_key`
+# does not depend on the corpus, so the 600 dev questions under the same model, revision
+# and prompt hash to the **same key** as the Phase 1-8 question caches. Encoding them
+# into the shared directory would overwrite the artifact behind 487/600 with vectors
+# produced on other hardware. Separate directories make that impossible, not unlikely.
+PHASE_8_1_CACHE_DIR: Final[Path] = PHASE_8_1_DIR / "cache"
+PHASE_8_1_QUESTION_CACHE_DIR: Final[Path] = PHASE_8_1_CACHE_DIR / "questions"
+
+# The official HotpotQA FullWiki release of introductory paragraphs, English Wikipedia
+# 2017-10-01. A modern snapshot or an independently reconstructed corpus cannot replace
+# it inside 8.1 without another written deviation.
+PHASE_8_1_SOURCE_URL: Final[str] = "https://nlp.stanford.edu/projects/hotpotqa/"
+PHASE_8_1_SOURCE_ARCHIVE: Final[str] = (
+    "enwiki-20171001-pages-meta-current-withlinks-abstracts.tar.bz2"
+)
+PHASE_8_1_SOURCE_LICENSE: Final[str] = "CC BY-SA 4.0"
+# The size and MD5 were carried into deviation 8.1 from its recorded release metadata.
+# S1 verified both against the staged archive bytes. The live HotpotQA page was not
+# checked, so neither this constant nor source.json claims that it was.
+PHASE_8_1_DECLARED_BYTES: Final[int] = 1_553_565_403
+PHASE_8_1_DECLARED_MD5: Final[str] = "01edf64cd120ecc03a2745352779514c"  # pragma: allowlist secret
+PHASE_8_1_DECLARED_BASIS: Final[str] = (
+    "size and MD5 recorded in deviation 8.1 and verified against the staged archive bytes; "
+    "the live HotpotQA page was not checked"
+)
+
+# The four nested corpora and the distractor prefixes that build them. C19 is always the
+# frozen Phase 1 pool in its existing order, and the three larger corpora are index
+# prefixes of one single frozen ordering, so `C19 < C100 < C250 < C500` as subsets.
+PHASE_8_1_CORPUS_SIZES: Final[tuple[int, ...]] = (19366, 100000, 250000, 500000)
+PHASE_8_1_CORPUS_LABELS: Final[tuple[str, ...]] = ("c19", "c100", "c250", "c500")
+PHASE_8_1_DISTRACTOR_PREFIXES: Final[tuple[int, ...]] = (80634, 230634, 480634)
+
+# The ordering rule. `42` is a fixed salt inside a hash input string: there is no RNG on
+# this path, no `default_rng`, no `shuffle` and no sampling call, and a test asserts the
+# module that applies it names none of them.
+PHASE_8_1_ORDER_SALT: Final[str] = "42"
+PHASE_8_1_ORDER_RULE: Final[str] = "sha256-salted-title-plaintext-v1"
+PHASE_8_1_ORDER_SALT_BASIS: Final[str] = "fixed hash salt, not RNG state"
+
+# The reconciliation gate. At or below this many unresolved C19 units, conservative
+# title exclusion is the remedy and the experiment continues; above it, the terminal
+# state is `data_stop`. 50 is 0.26% of 19,366, and the ceiling is never raised after
+# seeing how many units actually missed.
+PHASE_8_1_UNMATCHED_CEILING: Final[int] = 50
+
+# The C19 reproduction gate. Level 1 must reproduce both counts exactly from the
+# historical caches; level 2 - C19 as a prefix of the new C500 encode - may differ by at
+# most this many questions in either model before it becomes `reproduction_stop`.
+PHASE_8_1_C19_DEV_SUPPORTED: Final[dict[str, int]] = {"bge": 487, "qwen": 446}
+PHASE_8_1_REENCODE_TOLERANCE: Final[int] = 1
+
+# The pre-declared outcome thresholds. 20 questions is roughly half the 41-question C19
+# deficit; 244 is half BGE's own 487, rounded up, and is the floor that separates
+# `convergence` from `both_degrade`. Neither is adjusted after a scale result is seen.
+PHASE_8_1_CONVERGENCE_QUESTIONS: Final[int] = 20
+PHASE_8_1_BGE_RETENTION_FLOOR: Final[int] = 244
+# Evaluated in this order by `classify_outcome`, and no other label is invented.
+PHASE_8_1_OUTCOMES: Final[tuple[str, ...]] = (
+    "crossover",
+    "convergence",
+    "both_degrade",
+    "stable_ranking",
+)
+PHASE_8_1_STOPS: Final[tuple[str, ...]] = ("data_stop", "reproduction_stop")
+
+# The two encoders, by short name. Their model ids, revisions, widths and query handling
+# are **reused** from the constants above rather than re-declared: two declarations of
+# one pin are two places for it to disagree with itself.
+PHASE_8_1_MODELS: Final[tuple[str, ...]] = ("bge", "qwen")
+
+# The historical caches level 1 reads, read-only. The BGE corpus key is the
+# revision-pinned one: `a28365b7ed90ed10` holds the same vectors under revision "main"
+# and is a migration artifact, not the file to read.
+PHASE_8_1_HISTORICAL_CORPUS_KEYS: Final[dict[str, str]] = {
+    "bge": "bacd74e7f468f0d4",
+    "qwen": "66ef5c19a95f6cbe",
+}
+PHASE_8_1_HISTORICAL_DEV_QUERY_KEYS: Final[dict[str, str]] = {
+    "bge": "35329d9e75da1d4f",
+    "qwen": "c9c589c29c226fb3",
+}
+
+# Ceilings on the untrusted archive. Every decompression is bounded, so a member that
+# expands past its ceiling raises instead of filling memory - the `MAX_CORPUS_BYTES`
+# precedent of `corpus/download.py`, applied to a nested archive.
+PHASE_8_1_MAX_MEMBER_BYTES: Final[int] = 256 * 1024 * 1024
+PHASE_8_1_MAX_LINE_BYTES: Final[int] = 4 * 1024 * 1024
+PHASE_8_1_MAX_TOTAL_RECORDS: Final[int] = 8_000_000
+# How many members the layout probe reads before the schema is recorded.
+PHASE_8_1_PROBE_MEMBERS: Final[int] = 3
+# How many records the probe parses per probed member.
+PHASE_8_1_PROBE_RECORDS: Final[int] = 20
+
+# Candidate field names, in preference order, for the layout probe to **resolve** the
+# observed record schema against. The probe records which candidate the archive actually
+# holds and refuses when none of them is there; the parser then dispatches on the
+# recorded fact. This is a resolution mechanism, not an assumption about the dump.
+PHASE_8_1_TITLE_FIELDS: Final[tuple[str, ...]] = ("title",)
+PHASE_8_1_SENTENCES_FIELDS: Final[tuple[str, ...]] = ("text", "sentences")
+PHASE_8_1_PAGE_ID_FIELDS: Final[tuple[str, ...]] = ("id", "page_id", "pageid")
+
+# Texts per tokenizer call. `TokenCounter.count_units` tokenizes its whole input in one
+# call, which is correct at 19,366 texts and a memory fault at 480,634; the batching
+# wrapper lives in `corpus/scale_corpus.py` and `evaluation/budget.py` is not edited.
+PHASE_8_1_TOKENIZE_BATCH: Final[int] = 2048
+
+# Above this mean seconds per query at C500, the blockwise exact fallback of the plan's
+# D3 is written. Below it, `DenseRetriever` is reused unchanged and no second retriever
+# exists - a branch for a failure that has not occurred is not written.
+PHASE_8_1_QUERY_SECONDS_CEILING: Final[float] = 1.0
+
+
 def ensure_directories() -> None:
     """Create the data directories if they do not exist yet."""
     for path in (
@@ -552,5 +788,9 @@ def ensure_directories() -> None:
         NAVIGATION_DIR,
         REPLACEMENT_DIR,
         PHASE_7_DIR,
+        PHASE_8_DIR,
+        PHASE_8_1_DIR,
+        PHASE_8_1_CACHE_DIR,
+        PHASE_8_1_QUESTION_CACHE_DIR,
     ):
         path.mkdir(parents=True, exist_ok=True)

@@ -73,8 +73,9 @@ From Phase 7 onward:
 | 5 | Text-derived concepts: navigation pilot | Available | **Complete — NAMES ONLY** |
 | 6 | Dense + Entity Navigation — end-to-end comparison | Available | **Complete — ENTITY_REPLACEMENT_SUPPORTED** |
 | 7 | Cheap entity extraction | Available | **Complete — GLINER SELECTED** |
-| 8 | Strong Dense + Entity Hop | Pending | **Planned next** |
-| 9 | HotpotQA FullWiki at literature-comparable scale | Pending | **Planned after Phase 8** |
+| 8 | Strong Dense + Entity Hop | Available | **STOP at dev gate — premise failed** |
+| 8.1 | **Deviation** — Dense scale sensitivity | Available | **Complete — STABLE_RANKING (rule A)** |
+| 9 | HotpotQA FullWiki at literature-comparable scale | Pending | **Ready to specify — BGE primary candidate** |
 
 **The first research line is closed** (2026-09-15): concepts induced from pooled embeddings, tested through Phases 2-4, gave a negative and bounded result. The original Phase 5 — a comparative evaluation of that method — was not run; the plan was renumbered so Phase 5 tests the representation the proposal actually described. See [`phase_4/4.1_research_line_closure.md`](phase_4/4.1_research_line_closure.md).
 
@@ -84,7 +85,13 @@ From Phase 7 onward:
 
 **Phase 7 is measured and closed** (2026-09-19): `data/phase7/selection.json` records `selected: "gliner"`, and the single held-out run scores **0.8793 Full Support @2,048** on the 1,400 test questions, keeping **83.5%** of what the 25.9848 USD Claude extraction bought, for an attributable **0.03 USD** of rented GPU compute. The entity representation can be built cheaply. See [`phase_7/7.results.md`](phase_7/7.results.md).
 
-The remaining two phases deliberately do **not** try to improve the Entity Hop with canonicalization, relations, multiple seeds or additional hops. They ask whether the simple mechanism already discovered survives a substantially stronger dense retriever, and scales to the standard FullWiki setting used by the literature.
+**Phase 8 stopped at its pre-declared dev gate** (2026-09-19): `Qwen/Qwen3-Embedding-0.6B` scored **446 / 600** dev Full Support @2,048 against the inherited BGE-small Dense reading of **487 / 600**, below the 488 the rule required. The premise failed — the model chosen a priori as substantially stronger is weaker on this corpus — so **the held-out split was neither encoded nor measured** and no second encoder was tried. Phase 8 therefore reaches **none** of its three planned outcomes: its research question remains open. See [`phase_8/8.results.md`](phase_8/8.results.md).
+
+**Deviation 8.1 is measured and closed** (2026-09-22) with **`STABLE_RANKING` (rule A)**. On the frozen 600 dev questions, BGE/Qwen Full Support @2,048 was **487/446 at C19, 463/420 at C100, 440/393 at C250 and 423/366 at C500**. The deficit therefore widened from 41 to 57 questions rather than converging. Both headline Full Support reproduction checks matched exactly and neither scale run hit the retrieval-feasibility ceiling. See [`phase_8/8.1_results.md`](phase_8/8.1_results.md).
+
+Phase 9 now carries **BGE-small as the task-validated primary Dense candidate**. Its specification decides whether Qwen is retained as an external-comparability control. The broader Phase 8 question — Entity Hop beside a substantially stronger Dense retriever — remains open because deviation 8.1 did not produce or test such a retriever.
+
+The remaining scheduled work deliberately does **not** try to improve the Entity Hop with canonicalization, relations, multiple seeds or additional hops. Phase 9 asks whether the simple mechanism already discovered survives **corpus scale** with BGE-small as the validated primary Dense candidate. The separate question of Entity Hop beside a substantially stronger Dense retriever remains open.
 
 ---
 
@@ -390,6 +397,12 @@ Full result: [`phase_7/7.results.md`](phase_7/7.results.md).
 
 # Phase 8: Strong Dense + Entity Hop
 
+> **STOPPED AT THE DEV GATE** (2026-09-19). `Qwen/Qwen3-Embedding-0.6B` scored 446 / 600 dev against
+> the inherited 487 / 600, below the 488 required, so the held-out split was never opened and the
+> question below remains **unanswered**. Deviation 8.1 is opened for corpus-scale sensitivity. The
+> description that follows is the phase as specified; [`phase_8/8.results.md`](phase_8/8.results.md)
+> is what it measured.
+
 ## Question
 
 > **Does Entity Hop still add useful complementary signal when the dense retriever itself is substantially stronger than `BAAI/bge-small-en-v1.5`?**
@@ -446,6 +459,13 @@ Do not add canonicalization, explicit relations or extra hops to rescue a weak r
 
 Phase 8 selects the Dense configuration that Phase 9 will carry into FullWiki.
 
+**It did not.** The gate fired before any held-out reading existed, so no Dense configuration was
+selected by Phase 8 itself.
+
+**Deviation 8.1 subsequently resolved the scale-sensitive Dense choice without reopening Phase 8.**
+Its `STABLE_RANKING` result makes BGE-small the task-validated primary Dense candidate for Phase 9;
+the Phase 9 specification decides whether Qwen is retained as an external-comparability control.
+
 ---
 
 # Phase 9: HotpotQA FullWiki — literature-comparable scale
@@ -461,7 +481,8 @@ This is the first phase designed primarily to make the project's numbers directl
 Phase 9 opens only after:
 
 - Phase 7 identifies an affordable entity extraction path — **done: GLiNER**; and
-- Phase 8 selects the strong dense retriever.
+- deviation 8.1 resolves the Dense candidate after Phase 8's stop — **done: `STABLE_RANKING`,
+  BGE-small primary; Qwen control left to the Phase 9 spec**.
 
 ## Scope
 
@@ -471,7 +492,7 @@ Carry forward the mechanism without adding new retrieval ideas:
 
 ```text
 question
-→ Strong Dense
+→ Primary Dense (BGE-small)
 → P1
 → one raw Entity Hop
 → Dense + Entity fusion
@@ -482,7 +503,8 @@ Keep:
 - one seed: P1;
 - one hop;
 - GLiNER, the cheap extractor selected in Phase 7;
-- the Strong Dense model selected in Phase 8;
+- BGE-small, the primary Dense candidate validated by deviation 8.1;
+- optionally Qwen as an external-comparability control, if the Phase 9 spec retains it;
 - no canonicalization;
 - no explicit relations;
 - no query-aware entity reranking;
@@ -493,9 +515,9 @@ Keep:
 At minimum measure:
 
 ```text
-Strong Dense
-Strong Dense + BM25
-Strong Dense + Entity Hop
+Primary Dense
+Primary Dense + BM25
+Primary Dense + Entity Hop
 ```
 
 The purpose is not to reimplement every published retriever.

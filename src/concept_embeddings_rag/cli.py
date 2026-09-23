@@ -17,6 +17,10 @@
     replace-test    the ordered test protocol, once, under the freeze: the state (Phase 6)
     cheap-extract   read entities out of every paragraph with a local extractor (Phase 7)
     cheap-eval      measure each local extractor on dev and select; --test reads test once
+    strong-embed    encode the pool and the dev questions under the Phase 8 Dense model;
+                    --test encodes the held-out questions, only after the dev gate passed
+    strong-dense    fit both hybrids on dev and measure the three systems (Phase 8);
+                    --test reads the held-out split once, refitting nothing
 
 Each stage is idempotent and refuses to run if its input is missing, saying which
 stage to run first rather than failing somewhere deep inside numpy.
@@ -25,6 +29,7 @@ stage to run first rather than failing somewhere deep inside numpy.
 import argparse
 import json
 import math
+import shutil
 import sys
 import time
 from collections.abc import Callable, Sequence
@@ -37,6 +42,7 @@ import numpy as np
 from scipy import sparse
 
 from concept_embeddings_rag import __version__, config
+from concept_embeddings_rag.artifacts import write_text_atomic
 from concept_embeddings_rag.concepts.coding import (
     ConceptMatrix,
     calibrate_coding_alpha,
@@ -77,7 +83,7 @@ from concept_embeddings_rag.concepts.labeling import (
     read_api_key,
     save_labels,
 )
-from concept_embeddings_rag.corpus import hf_source
+from concept_embeddings_rag.corpus import fullwiki, hf_source, scale_corpus
 from concept_embeddings_rag.corpus.download import CorpusIntegrityError, sha256_of_file
 from concept_embeddings_rag.corpus.manifest import CorpusManifest
 from concept_embeddings_rag.corpus.pool import (
@@ -89,20 +95,28 @@ from concept_embeddings_rag.corpus.pool import (
 )
 from concept_embeddings_rag.corpus.split import select_subset, split_questions
 from concept_embeddings_rag.embeddings.backend import (
+    BackendError,
     EmbeddingBackend,
+    QueryPromptError,
     SentenceTransformerBackend,
+    snapshot_directory,
+    weights_sha256,
 )
 from concept_embeddings_rag.embeddings.cache import (
+    CacheAlignmentError,
+    CachedQueryBackend,
     EmbeddingCache,
     build_query_backend,
     cache_key,
     embed_questions,
     embed_units,
+    query_prompt_of,
     question_cache_key,
     question_set_hash,
     resolved_revision,
     unit_set_hash,
 )
+from concept_embeddings_rag.evaluation import scale_sensitivity, strong_dense
 from concept_embeddings_rag.evaluation.budget import TokenCounter
 from concept_embeddings_rag.evaluation.cheap_extraction import (
     DEV_FILENAME,
@@ -212,6 +226,7 @@ RAW_NAME = "hotpot_raw.json"
 MANIFEST_NAME = "manifest.json"
 POOL_NAME = "pool.json"
 TOKENS_NAME = "token_counts.json"
+SOURCE_NAME = "source.json"
 
 
 def _die(message: str) -> NoReturn:
@@ -2133,6 +2148,445 @@ def _cheap_test(
     return path
 
 
+# --- Phase 8: Strong Dense + Entity Hop -------------------------------------------------
+#
+# Two stages, two modes each, in the order the plan fixes: embed the corpus and the dev
+# questions under the new Dense model, run the dev gate, and only then encode and measure
+# the held-out split. Neither stage ever calls `TokenCounter`, so neither can rewrite
+# `data/token_counts.json` - the ruler behind every inherited figure (R1).
+
+SnapshotResolver = Callable[[str, str], Path]
+
+
+def _embedding_device() -> str:
+    """Where the encoding actually ran, as observed rather than as assumed."""
+    try:
+        import torch
+
+        return "cuda" if torch.cuda.is_available() else "cpu"
+    except Exception:
+        return "cpu"
+
+
+def _max_seq_length(backend: EmbeddingBackend) -> int | None:
+    reader = getattr(backend, "max_seq_length", None)
+    return reader() if callable(reader) else None
+
+
+def _phase_8_question_key(questions: Sequence[Question], backend: EmbeddingBackend) -> str:
+    """The question cache key, prompt included: an asymmetric model keys queries by it."""
+    splits = sorted({question.split for question in questions})
+    if len(splits) != 1:
+        _die(f"the questions handed to this stage span more than one split: {splits}")
+    return question_cache_key(
+        backend.name,
+        backend.revision,
+        question_set_hash([question.qid for question in questions]),
+        splits[0],
+        normalized=bool(getattr(backend, "normalize", True)),
+        query_prompt=query_prompt_of(backend),
+    )
+
+
+def _refuse_existing_cache(cache: EmbeddingCache, key: str, label: str) -> None:
+    """A stage that measures an encoding may not record a wall clock it did not take."""
+    if cache.path_for(key).exists():
+        _die(
+            f"the Phase 8 {label} embedding cache {key} already exists; this stage measures "
+            "the encoding pass and refuses to write a timing for work it did not do - remove "
+            f"{cache.path_for(key).name} deliberately to encode it again"
+        )
+
+
+def _phase_8_backend(
+    settings: strong_dense.Phase8Pins, *, prompted: bool
+) -> SentenceTransformerBackend:
+    return SentenceTransformerBackend(
+        name=settings.model,
+        revision=settings.revision,
+        dim=settings.dim,
+        query_prompt=settings.query_prompt if prompted else "",
+    )
+
+
+def _scale_backend(
+    pins: scale_sensitivity.ModelPins, *, prompted: bool
+) -> SentenceTransformerBackend:
+    """Reuse the Phase 8 backend shape with the model pins chosen by deviation 8.1."""
+    return SentenceTransformerBackend(
+        name=pins.model,
+        revision=pins.revision,
+        dim=pins.dim,
+        query_prompt=pins.query_prompt if prompted else "",
+    )
+
+
+def cmd_strong_embed(
+    data_dir: Path = config.DATA_DIR,
+    cache_dir: Path = config.CACHE_DIR,
+    question_cache_dir: Path = config.QUESTION_CACHE_DIR,
+    phase_8_dir: Path = config.PHASE_8_DIR,
+    hourly_rate_usd: float = 0.0,
+    test: bool = False,
+    corpus_backend: EmbeddingBackend | None = None,
+    query_backend: EmbeddingBackend | None = None,
+    resolve_snapshot: SnapshotResolver = snapshot_directory,
+    pins: strong_dense.Phase8Pins | None = None,
+) -> Path:
+    """Encode the pool and one split under the Phase 8 Dense model (Phase 8, S3 and S5).
+
+    Without `--test` this is the initial pass: the provenance checks that need no
+    measurement run **before the model is loaded**, the 19,366 paragraphs and the 600 dev
+    questions are encoded under new cache keys, every block is checked for the pinned
+    width before anything is cached, and `embedding.json` records which model, which
+    weights and which caches produced the vectors.
+
+    With `--test` it encodes the held-out questions, and only if the dev gate passed. The
+    two modes never run together, which is what keeps the held-out split unencoded until
+    Strong Dense has proved itself on dev.
+
+    Existing caches are never overwritten and `data/token_counts.json` is never touched.
+    """
+    if not math.isfinite(hourly_rate_usd) or hourly_rate_usd < 0:
+        _die("hourly-rate-usd must be finite and non-negative")
+    settings = pins if pins is not None else strong_dense.Phase8Pins.from_config()
+    data_dir, phase_8_dir = Path(data_dir), Path(phase_8_dir)
+    pool_path = data_dir / POOL_NAME
+    if not pool_path.exists():
+        _die("no pool found: run 'build' first")
+    units, questions = load_pool(pool_path)
+    _check_pool_against_manifest(units, data_dir / MANIFEST_NAME)
+    phase_8_dir.mkdir(parents=True, exist_ok=True)
+
+    if test:
+        return _strong_embed_test(
+            questions,
+            question_cache_dir=Path(question_cache_dir),
+            phase_8_dir=phase_8_dir,
+            hourly_rate_usd=hourly_rate_usd,
+            query_backend=query_backend,
+            settings=settings,
+        )
+
+    target = phase_8_dir / strong_dense.EMBEDDING_FILENAME
+    if target.exists():
+        _die(
+            f"{target} already records this phase's encoding; it is written once and the dev "
+            "fit is anchored on its digest"
+        )
+    dev = [question for question in questions if question.split == DEV_SPLIT]
+    if not dev:
+        _die("the pool holds no dev questions: run 'build' first")
+
+    # D11: every check that needs no measurement runs here, before the first model load
+    # and before a single vector exists. A check that only happens while writing the
+    # report is a check that cannot stop a bad run.
+    try:
+        strong_dense.check_model_pin(settings.revision, settings.model)
+        snapshot = Path(resolve_snapshot(settings.model, settings.revision))
+        strong_dense.check_resolved_revision(snapshot.name, settings.revision)
+        weights_digest = weights_sha256(snapshot)
+    except (strong_dense.StrongDenseError, BackendError) as error:
+        _die(str(error))
+    print(
+        f"[OK] model provenance verified: {settings.model} at {snapshot.name}, "
+        f"{config.PHASE_8_WEIGHTS_FILE} sha256 {weights_digest[:16]}..."
+    )
+
+    corpus = (
+        corpus_backend if corpus_backend is not None else _phase_8_backend(settings, prompted=False)
+    )
+    queries = (
+        query_backend if query_backend is not None else _phase_8_backend(settings, prompted=True)
+    )
+    guarded_corpus = strong_dense.WidthCheckedBackend(corpus, settings.dim)
+    guarded_queries = strong_dense.WidthCheckedBackend(queries, settings.dim)
+
+    cache, question_cache = (
+        EmbeddingCache(Path(cache_dir)),
+        EmbeddingCache(Path(question_cache_dir)),
+    )
+    corpus_key = _cache_key_for(guarded_corpus, units)
+    query_key = _phase_8_question_key(dev, guarded_queries)
+    _refuse_existing_cache(cache, corpus_key, "corpus")
+    _refuse_existing_cache(question_cache, query_key, "dev question")
+
+    print(f"[INFO] encoding {len(units)} paragraphs and {len(dev)} dev questions")
+    try:
+        started = time.perf_counter()
+        vectors, unit_ids = embed_units(units, guarded_corpus, cache)
+        corpus_seconds = time.perf_counter() - started
+        started = time.perf_counter()
+        build_query_backend(dev, guarded_queries, question_cache)
+        question_seconds = time.perf_counter() - started
+    except (strong_dense.StrongDenseError, CacheAlignmentError, QueryPromptError) as error:
+        _die(str(error))
+
+    bytes_on_disk = sum(
+        path.stat().st_size
+        for path in (
+            cache.path_for(corpus_key),
+            cache.sidecar_for(corpus_key),
+            question_cache.path_for(query_key),
+            question_cache.sidecar_for(query_key),
+        )
+        if path.exists()
+    )
+    try:
+        path = strong_dense.write_embedding(
+            phase_8_dir,
+            resolved_revision=snapshot.name,
+            weights_sha256=weights_digest,
+            max_seq_length=_max_seq_length(corpus),
+            query_prompt=query_prompt_of(guarded_queries),
+            corpus_cache_key=corpus_key,
+            question_cache_key=query_key,
+            unit_ids=unit_ids,
+            n_questions=len(dev),
+            dim=int(vectors.shape[1]),
+            hardware=local_extraction.hardware_block(device=_embedding_device()),
+            corpus_seconds=corpus_seconds,
+            question_seconds=question_seconds,
+            bytes_on_disk=bytes_on_disk,
+            hourly_rate_usd=hourly_rate_usd,
+            pins=settings,
+        )
+    except strong_dense.StrongDenseError as error:
+        _die(str(error))
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    projection_5m = payload["projection_5m"]
+    print(
+        f"[INFO] {payload['n_units']} paragraphs in {corpus_seconds / 60:.1f} min "
+        f"({payload['paragraphs_per_second']:.3f} paragraphs/s), "
+        f"{payload['dim']} dimensions, max_seq_length {payload['max_seq_length']}"
+    )
+    print(
+        f"[INFO] projection to {projection_5m['paragraphs']} paragraphs: "
+        f"{projection_5m['hours']:.1f} h, {projection_5m['usd']:.2f} USD "
+        f"({projection_5m['method']}); this pass costs {payload['embedding_usd']:.2f} USD"
+    )
+    print(f"[OK] embedding artifact written -> {path}")
+    return path
+
+
+def _strong_embed_test(
+    questions: Sequence[Question],
+    *,
+    question_cache_dir: Path,
+    phase_8_dir: Path,
+    hourly_rate_usd: float,
+    query_backend: EmbeddingBackend | None,
+    settings: strong_dense.Phase8Pins,
+) -> Path:
+    """The gated held-out encoding: it runs only after the dev stop rule said `pass`."""
+    if (phase_8_dir / strong_dense.EMBEDDING_TEST_FILENAME).exists():
+        _die(
+            f"{phase_8_dir / strong_dense.EMBEDDING_TEST_FILENAME} already records the held-out "
+            "encoding; it is written once"
+        )
+    try:
+        strong_dense.check_gate(strong_dense.load_dev(phase_8_dir))
+    except strong_dense.StrongDenseError as error:
+        _die(str(error))
+    held_out = [question for question in questions if question.split == TEST_SPLIT]
+    if not held_out:
+        _die(f"the pool holds no {TEST_SPLIT} questions: run 'build' first")
+
+    queries = (
+        query_backend if query_backend is not None else _phase_8_backend(settings, prompted=True)
+    )
+    guarded = strong_dense.WidthCheckedBackend(queries, settings.dim)
+    question_cache = EmbeddingCache(Path(question_cache_dir))
+    query_key = _phase_8_question_key(held_out, guarded)
+    _refuse_existing_cache(question_cache, query_key, "held-out question")
+
+    print(f"[INFO] encoding {len(held_out)} held-out questions")
+    try:
+        started = time.perf_counter()
+        build_query_backend(held_out, guarded, question_cache)
+        question_seconds = time.perf_counter() - started
+        path = strong_dense.write_test_embedding(
+            phase_8_dir,
+            question_cache_key=query_key,
+            n_questions=len(held_out),
+            hardware=local_extraction.hardware_block(device=_embedding_device()),
+            question_seconds=question_seconds,
+            hourly_rate_usd=hourly_rate_usd,
+            pins=settings,
+        )
+    except (strong_dense.StrongDenseError, CacheAlignmentError, QueryPromptError) as error:
+        _die(str(error))
+    print(f"[OK] held-out encoding written -> {path}")
+    return path
+
+
+def _strong_inputs(
+    split: str,
+    data_dir: Path,
+    cache_dir: Path,
+    question_cache_dir: Path,
+    backend: EmbeddingBackend | None,
+    settings: strong_dense.Phase8Pins,
+) -> tuple[
+    list[IndexingUnit], list[str], list[Question], dict[str, int], DenseRetriever, dict[str, Any]
+]:
+    """The loader both Phase 8 measurement paths share: pool, caches, dense, provenance.
+
+    Nothing is embedded here and no model is loaded: both splits were encoded by
+    `strong-embed`, their caches are the record, and a missing one is a refusal rather
+    than a quiet re-encoding on whatever machine happens to be running the measurement.
+    """
+    if not (data_dir / POOL_NAME).exists():
+        _die("no pool found: run 'build' first")
+    if not (data_dir / TOKENS_NAME).exists():
+        _die("no token counts found: run 'embed' first")
+    units, questions = load_pool(data_dir / POOL_NAME)
+    _check_pool_against_manifest(units, data_dir / MANIFEST_NAME)
+    subset = [question for question in questions if question.split == split]
+    if not subset:
+        _die(f"the pool holds no {split} questions: run 'build' first")
+    unit_ids = [unit.unit_id for unit in units]
+    token_counts = json.loads((data_dir / TOKENS_NAME).read_text(encoding="utf-8"))
+    if set(token_counts) != set(unit_ids):
+        _die("token counts belong to another pool")
+
+    reader = backend if backend is not None else _phase_8_backend(settings, prompted=True)
+    corpus_key = _cache_key_for(reader, units)
+    cached = EmbeddingCache(Path(cache_dir)).load(corpus_key, expected_unit_ids=unit_ids)
+    if cached is None:
+        _die("the Phase 8 corpus embeddings are not cached: run 'strong-embed' first")
+    question_cache = EmbeddingCache(Path(question_cache_dir))
+    query_key = _phase_8_question_key(subset, reader)
+    if question_cache.load(query_key, expected_unit_ids=[q.qid for q in subset]) is None:
+        mode = " --test" if split == TEST_SPLIT else ""
+        _die(f"the Phase 8 {split} question embeddings are missing: run 'strong-embed{mode}' first")
+    dense = DenseRetriever(cached[0], unit_ids, build_query_backend(subset, reader, question_cache))
+    run_config = {
+        "model": reader.name,
+        "revision": reader.revision,
+        "unit_set_hash": unit_set_hash(unit_ids),
+        "seed": config.DEFAULT_SEED,
+        "tokenizer": config.BUDGET_TOKENIZER_ID,
+        "budget_tokenizer_revision": config.BUDGET_TOKENIZER_REVISION,
+        "code_version": __version__,
+        "top_k": config.EVALUATION_TOP_K,
+        "n_units": len(units),
+        "corpus_cache_key": corpus_key,
+        "question_cache_key": query_key,
+        "query_prompt": query_prompt_of(reader),
+        "dim": int(cached[0].shape[1]),
+    }
+    return units, unit_ids, subset, token_counts, dense, run_config
+
+
+def _baseline_dense(
+    units: Sequence[IndexingUnit],
+    questions: Sequence[Question],
+    cache_dir: Path,
+    question_cache_dir: Path,
+    backend: EmbeddingBackend | None,
+) -> DenseRetriever | None:
+    """The BGE-small retriever, rebuilt from its existing caches for the `p1` diagnostic.
+
+    No model is loaded and nothing is re-embedded: both caches are already on disk. When
+    either is absent the diagnostic is declared unmeasured rather than invented.
+    """
+    reader = backend if backend is not None else SentenceTransformerBackend()
+    unit_ids = [unit.unit_id for unit in units]
+    cached = EmbeddingCache(Path(cache_dir)).load(
+        _cache_key_for(reader, units), expected_unit_ids=unit_ids
+    )
+    if cached is None:
+        return None
+    question_cache = EmbeddingCache(Path(question_cache_dir))
+    key = _phase_8_question_key(questions, reader)
+    if question_cache.load(key, expected_unit_ids=[q.qid for q in questions]) is None:
+        return None
+    return DenseRetriever(
+        cached[0], unit_ids, build_query_backend(questions, reader, question_cache)
+    )
+
+
+def cmd_strong_dense(
+    data_dir: Path = config.DATA_DIR,
+    cache_dir: Path = config.CACHE_DIR,
+    question_cache_dir: Path = config.QUESTION_CACHE_DIR,
+    phase_8_dir: Path = config.PHASE_8_DIR,
+    gliner_dir: Path = config.PHASE_8_GLINER_DIR,
+    backend: EmbeddingBackend | None = None,
+    baseline_backend: EmbeddingBackend | None = None,
+    pins: strong_dense.Phase8Pins | None = None,
+    test: bool = False,
+) -> Path:
+    """Fit on dev and measure the three systems; with `--test`, read the held-out split once.
+
+    Both paths read cached vectors only, so neither loads a model and both run on the
+    development machine. The Phase 7 GLiNER index is loaded and verified against its
+    pinned digest; nothing is written into `data/phase7/`.
+    """
+    settings = pins if pins is not None else strong_dense.Phase8Pins.from_config()
+    data_dir, phase_8_dir = Path(data_dir), Path(phase_8_dir)
+    split = TEST_SPLIT if test else DEV_SPLIT
+    units, unit_ids, questions, token_counts, dense, run_config = _strong_inputs(
+        split, data_dir, Path(cache_dir), Path(question_cache_dir), backend, settings
+    )
+    try:
+        index = load_node_index(
+            Path(gliner_dir),
+            extraction_digest=settings.extraction_digest,
+            expected_unit_ids=unit_ids,
+        )
+    except NodeIndexError as error:
+        _die(str(error))
+    baseline = _baseline_dense(
+        units, questions, Path(cache_dir), Path(question_cache_dir), baseline_backend
+    )
+    if baseline is None:
+        print("[WARN] no BGE-small cache for this split; the p1 comparison stays unmeasured")
+
+    arguments: dict[str, Any] = {
+        "unit_ids": unit_ids,
+        "dense": dense,
+        "bm25": BM25Retriever(units),
+        "index": index,
+        "questions": questions,
+        "token_counts": token_counts,
+        "run_config": run_config,
+        "baseline_dense": baseline,
+        "pins": settings,
+    }
+    print(f"[INFO] measuring {len(config.PHASE_8_SYSTEMS)} systems on {split} ({len(questions)})")
+    try:
+        measure = strong_dense.measure_held_out if test else strong_dense.measure_dev
+        path = measure(phase_8_dir, **arguments)
+    except (strong_dense.StrongDenseError, SelectionError, NodeIndexError) as error:
+        _die(str(error))
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    for name in config.PHASE_8_SYSTEMS:
+        system = payload["systems"][name]
+        print(
+            f"[INFO] {name} on {split}: full support @{config.SELECTION_BUDGET} "
+            f"{system['full_support']:.4f} "
+            f"({system['supported_questions']}/{payload['n_questions']})"
+        )
+    if test:
+        gain = payload["surviving_gain"]
+        print(
+            f"[INFO] entity gain over Strong Dense: {gain['entity_gain_questions']} questions, "
+            f"{gain['entity_gain_points']:+.4f} points; inherited GLiNER gain "
+            f"{gain['inherited_entity_gain_questions']} questions, "
+            f"{gain['inherited_entity_gain_points']:+.4f} points"
+        )
+    else:
+        rule = payload["stop_rule"]
+        print(
+            f"[INFO] stop rule: {rule['count']}/{rule['n_questions']} supported, "
+            f"{rule['required_count']} required to continue, verdict {rule['verdict'].upper()}"
+        )
+    print(f"[OK] {split} measurement written -> {path}")
+    return path
+
+
 def _poll_pause() -> None:
     """How long the full run waits between two looks at a batch. Most end within an hour."""
     time.sleep(60)
@@ -2157,6 +2611,965 @@ def _check_pool_against_manifest(units: Sequence[IndexingUnit], manifest_path: P
             f"pool hashes to {actual} but the manifest expects {manifest.unit_set_hash}; "
             "re-run 'build' so the corpus and the pool agree"
         )
+
+
+# --- Deviation 8.1: Dense scale sensitivity ---------------------------------
+
+
+def _source_path(archive: str | None) -> Path:
+    """Where the operator staged the official archive. It is never downloaded here."""
+    if archive is not None:
+        return Path(archive)
+    return config.PHASE_8_1_DIR / "source" / config.PHASE_8_1_SOURCE_ARCHIVE
+
+
+def _scale_source(
+    target_dir: Path,
+    archive: Path,
+    published_bytes: int | None,
+    published_md5: str | None,
+    page_checked: bool,
+) -> dict[str, Any]:
+    """S1: the archive's identity and observed layout, written once.
+
+    Identity is verified before a single record is parsed. `page_checked` records whether
+    the published figures came from the live source page or from the deviation's own
+    unverified recollection - the artifact must never imply the former when only the latter
+    happened.
+    """
+    path = target_dir / SOURCE_NAME
+    if path.exists():
+        print(f"[OK] {path} already exists; S1 is not re-run")
+        return json.loads(path.read_text(encoding="utf-8"))
+
+    started = time.perf_counter()
+    try:
+        source = fullwiki.describe_source(
+            archive,
+            url=config.PHASE_8_1_SOURCE_URL,
+            published_bytes=published_bytes,
+            published_md5=published_md5,
+        )
+    except fullwiki.FullWikiError as error:
+        _die(str(error))
+    source["page_checked"] = page_checked
+    source["published_basis"] = (
+        "read from the live HotpotQA page by the operator"
+        if page_checked
+        else "the deviation's recorded values, verified against the staged bytes but not "
+        "against the live page"
+    )
+    source["elapsed_seconds"] = round(time.perf_counter() - started, 3)
+    write_text_atomic(path, json.dumps(source, indent=2, sort_keys=True))
+
+    print(f"[OK] archive {source['archive']}")
+    print(f"[OK] bytes {source['measured_bytes']} (agree: {source['bytes_agree']})")
+    print(f"[OK] md5 {source['measured_md5']} (agree: {source['md5_agree']})")
+    print(f"[OK] sha256 {source['measured_sha256']}")
+    print(f"[OK] members {source['members']}")
+    print(f"[OK] layout {source['layout']}")
+    print(f"[OK] S1 in {source['elapsed_seconds']} s -> {path}")
+    return source
+
+
+def _scale_reconciliation(
+    target_dir: Path,
+    archive: Path,
+    source: dict[str, Any],
+    units: Sequence[IndexingUnit],
+    dev: Sequence[Question],
+) -> dict[str, Any]:
+    """S2: map every frozen C19 unit onto the official source. C19 is never rebuilt."""
+    path = target_dir / scale_corpus.RECONCILIATION_FILENAME
+    if path.exists():
+        print(f"[OK] {path} already exists; S2 is not re-run")
+        return json.loads(path.read_text(encoding="utf-8"))
+
+    layout = fullwiki.layout_of(source["layout"])
+    gold = frozenset(unit_id for question in dev for unit_id in question.gold_unit_ids)
+    started = time.perf_counter()
+    result = scale_corpus.reconcile(
+        units, fullwiki.iter_records(archive, layout), dev_gold_ids=gold
+    )
+    elapsed = round(time.perf_counter() - started, 3)
+    scale_corpus.write_reconciliation(target_dir, result)
+    body = json.loads(path.read_text(encoding="utf-8"))
+    body["elapsed_seconds"] = elapsed
+    write_text_atomic(path, json.dumps(body, indent=2, ensure_ascii=False, sort_keys=True))
+
+    print(
+        f"[OK] exact {body['exact']}, normalized {body['normalized_unique']}, "
+        f"ambiguous {body['ambiguous']}, unmatched {body['unmatched']} of {body['total_units']}"
+    )
+    print(
+        f"[OK] dev gold matched {body['dev_gold_matched']} of {body['dev_gold_total']}, "
+        f"excluded gold units {len(body['excluded_gold_units'])}"
+    )
+    print(
+        f"[OK] excluded titles {len(body['excluded_titles'])}, "
+        f"official paragraphs removed {body['excluded_official_paragraphs']}"
+    )
+    print(f"[OK] mapping digest {body['mapping_digest']}")
+    print(f"[OK] S2 in {elapsed} s -> {path}")
+    if body["terminal_state"] is not None:
+        _die(
+            f"[ERROR] {body['terminal_state']}: "
+            f"{body['ambiguous'] + body['unmatched']} C19 units did not resolve, past the "
+            f"ceiling of {body['unmatched_ceiling']}. Recorded in {path}; no selection is "
+            "frozen and no corpus is embedded"
+        )
+    return body
+
+
+def _scale_selection(
+    target_dir: Path,
+    archive: Path,
+    source: dict[str, Any],
+    reconciliation: dict[str, Any],
+    units: Sequence[IndexingUnit],
+) -> None:
+    """S3: freeze one ordering of the added distractors, and count their tokens."""
+    path = target_dir / scale_corpus.SELECTION_FILENAME
+    if path.exists():
+        print(f"[OK] {path} already exists; S3 is not re-run")
+        return
+
+    layout = fullwiki.layout_of(source["layout"])
+    mapped = frozenset(reconciliation["mapped_official_ids"])
+    excluded = frozenset(reconciliation["excluded_titles"])
+    limit = config.PHASE_8_1_DISTRACTOR_PREFIXES[-1]
+
+    started = time.perf_counter()
+    try:
+        selected = scale_corpus.select_distractors(
+            lambda: fullwiki.iter_records(archive, layout),
+            mapped_ids=mapped,
+            excluded_titles=excluded,
+            limit=limit,
+        )
+    except scale_corpus.ScaleCorpusError as error:
+        _die(str(error))
+    selection_seconds = round(time.perf_counter() - started, 3)
+
+    try:
+        scale_corpus.freeze_selection(
+            target_dir,
+            c19_unit_ids=[unit.unit_id for unit in units],
+            selected=selected,
+            source_sha256=source["measured_sha256"],
+            reconciliation_digest=reconciliation["mapping_digest"],
+        )
+    except scale_corpus.ScaleCorpusError as error:
+        _die(str(error))
+    body = json.loads(path.read_text(encoding="utf-8"))
+    print(f"[OK] selected {body['selected']} distractors of the eligible pool")
+    print(f"[OK] selection digest {body['ordered_selection_digest']}")
+    print(f"[OK] S3 selection in {selection_seconds} s -> {path}")
+
+    started = time.perf_counter()
+    counter = TokenCounter()
+    counts = scale_corpus.token_counts_for([item.unit for item in selected], counter)
+    sidecar = scale_corpus.write_token_counts(
+        target_dir, counts, selection_digest=body["ordered_selection_digest"]
+    )
+    token_seconds = round(time.perf_counter() - started, 3)
+
+    historical = json.loads((config.DATA_DIR / TOKENS_NAME).read_text(encoding="utf-8"))
+    corpus_ids = [unit.unit_id for unit in units] + [item.unit_id for item in selected]
+    try:
+        scale_corpus.check_token_coverage(
+            historical=historical, new=counts, corpus_unit_ids=corpus_ids
+        )
+    except scale_corpus.ScaleCorpusError as error:
+        _die(str(error))
+    print(f"[OK] token counts for {len(counts)} added units in {token_seconds} s -> {sidecar}")
+    print(f"[OK] C500 covered by {len(historical)} historical + {len(counts)} new counts")
+
+
+def cmd_scale_corpus(
+    archive: str | None = None,
+    published_bytes: int | None = config.PHASE_8_1_DECLARED_BYTES,
+    published_md5: str | None = config.PHASE_8_1_DECLARED_MD5,
+    page_checked: bool = False,
+    stop_after: str = "s3",
+    data_dir: Path = config.DATA_DIR,
+    target_dir: Path = config.PHASE_8_1_DIR,
+) -> None:
+    """Deviation 8.1, S1-S3: verify the archive, reconcile C19, freeze the nested corpora.
+
+    Each step writes one artifact and is skipped when that artifact already exists, so the
+    stage can be resumed without re-reading 1.5 GB for work already done. Nothing is
+    downloaded and nothing is embedded here.
+    """
+    if not (data_dir / POOL_NAME).exists():
+        _die("no pool found: run 'build' first")
+    if not (data_dir / TOKENS_NAME).exists():
+        _die("no token counts found: run 'embed' first")
+    path = _source_path(archive)
+    target_dir = Path(target_dir)
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    source = _scale_source(target_dir, path, published_bytes, published_md5, page_checked)
+    if stop_after == "s1":
+        print("[OK] stopping after S1 as asked")
+        return
+
+    units, questions = load_pool(data_dir / POOL_NAME)
+    _check_pool_against_manifest(units, data_dir / MANIFEST_NAME)
+    dev = [question for question in questions if question.split == DEV_SPLIT]
+    if not dev:
+        _die(f"the pool holds no {DEV_SPLIT} questions: run 'build' first")
+
+    reconciliation = _scale_reconciliation(target_dir, path, source, units, dev)
+    if stop_after == "s2":
+        print("[OK] stopping after S2 as asked")
+        return
+
+    _scale_selection(target_dir, path, source, reconciliation, units)
+    print("[OK] S1-S3 complete; the nested selection is frozen")
+
+
+def _historical_dense(
+    key: str,
+    units: Sequence[IndexingUnit],
+    questions: Sequence[Question],
+    cache_dir: Path,
+    question_cache_dir: Path,
+) -> tuple[scale_sensitivity.ScaleDense, dict[str, Any]]:
+    """One encoder's C19 retriever, rebuilt from the caches its own phase already wrote.
+
+    Read-only, and no model is loaded anywhere on this path. Both cache keys are recomputed
+    and checked against the ones deviation 8.1 recorded **before** either file is opened: a
+    key that does not match is an alignment defect to diagnose, never a cache miss to fill
+    in by re-encoding, because re-encoding would replace the very vectors the gate holds
+    constant.
+    """
+    pins = scale_sensitivity.ModelPins.for_key(key)
+    unit_ids = [unit.unit_id for unit in units]
+    corpus_key = cache_key(
+        pins.model,
+        pins.revision,
+        unit_set_hash(unit_ids),
+        normalized=config.NORMALIZE_EMBEDDINGS,
+    )
+    expected_corpus = config.PHASE_8_1_HISTORICAL_CORPUS_KEYS[key]
+    if corpus_key != expected_corpus:
+        _die(
+            f"the {key} corpus cache key resolves to {corpus_key}, not the recorded "
+            f"{expected_corpus}: the pool or the model pin moved, and level 1 would no "
+            "longer be reading the historical vectors"
+        )
+    corpus = EmbeddingCache(Path(cache_dir)).load(corpus_key, expected_unit_ids=unit_ids)
+    if corpus is None:
+        _die(
+            f"the {key} C19 corpus cache embeddings-{corpus_key}.npz is not on this machine: "
+            "level 1 reads the historical caches and does not re-encode them"
+        )
+
+    qids = [question.qid for question in questions]
+    query_key = question_cache_key(
+        pins.model,
+        pins.revision,
+        question_set_hash(qids),
+        DEV_SPLIT,
+        normalized=config.NORMALIZE_EMBEDDINGS,
+        query_prompt=pins.query_prompt,
+    )
+    expected_query = config.PHASE_8_1_HISTORICAL_DEV_QUERY_KEYS[key]
+    if query_key != expected_query:
+        _die(
+            f"the {key} dev question cache key resolves to {query_key}, not the recorded "
+            f"{expected_query}: the question set, the pin or the query prompt moved"
+        )
+    queries = EmbeddingCache(Path(question_cache_dir)).load(query_key, expected_unit_ids=qids)
+    if queries is None:
+        _die(f"the {key} dev question cache embeddings-{query_key}.npz is not on this machine")
+
+    retriever = scale_sensitivity.historical_retriever(
+        corpus[0],
+        unit_ids,
+        questions=questions,
+        query_vectors=queries[0],
+        qids=queries[1],
+        pins=pins,
+        name=scale_sensitivity.run_name(key, config.EXPECTED_N_UNITS),
+    )
+    provenance = {
+        "model": pins.model,
+        "revision": pins.revision,
+        "unit_set_hash": unit_set_hash(unit_ids),
+        "seed": config.DEFAULT_SEED,
+        "tokenizer": config.BUDGET_TOKENIZER_ID,
+        "budget_tokenizer_revision": config.BUDGET_TOKENIZER_REVISION,
+        "code_version": __version__,
+        "top_k": config.EVALUATION_TOP_K,
+        "n_units": len(unit_ids),
+        "corpus_cache_key": corpus_key,
+        "question_cache_key": query_key,
+        "query_prompt": pins.query_prompt,
+        "dim": int(corpus[0].shape[1]),
+    }
+    return retriever, provenance
+
+
+def cmd_scale_repro(
+    data_dir: Path = config.DATA_DIR,
+    cache_dir: Path = config.CACHE_DIR,
+    question_cache_dir: Path = config.QUESTION_CACHE_DIR,
+    target_dir: Path = config.PHASE_8_1_DIR,
+) -> Path:
+    """Deviation 8.1, S5: the C19 reproduction gate, level 1.
+
+    Runs the new 8.1 evaluation path over the unchanged frozen C19 corpus using the existing
+    historical caches, so the vectors are the recorded ones and the only variable is the
+    code. Both counts must match exactly; anything else writes `reproduction_stop` and
+    blocks every later stage. Nothing is embedded, no model is loaded, and no cache is
+    written.
+    """
+    if not (data_dir / POOL_NAME).exists():
+        _die("no pool found: run 'build' first")
+    if not (data_dir / TOKENS_NAME).exists():
+        _die("no token counts found: run 'embed' first")
+    units, questions = load_pool(data_dir / POOL_NAME)
+    _check_pool_against_manifest(units, data_dir / MANIFEST_NAME)
+    dev = [question for question in questions if question.split == DEV_SPLIT]
+    if not dev:
+        _die(f"the pool holds no {DEV_SPLIT} questions: run 'build' first")
+    token_counts = json.loads((data_dir / TOKENS_NAME).read_text(encoding="utf-8"))
+
+    retrievers: dict[str, Any] = {}
+    provenance: dict[str, Any] = {}
+    for key in config.PHASE_8_1_MODELS:
+        retriever, model_provenance = _historical_dense(
+            key, units, dev, Path(cache_dir), Path(question_cache_dir)
+        )
+        retrievers[key] = retriever
+        provenance[key] = model_provenance
+        print(f"[OK] {key}: {model_provenance['n_units']} units, dim {model_provenance['dim']}")
+
+    host = {
+        "platform": sys.platform,
+        "device": "cpu",
+        "basis": (
+            "level 1 runs on the laptop because it gates the rental; level 2 runs on the "
+            "measurement host inside S6"
+        ),
+    }
+    try:
+        path = scale_sensitivity.measure_level_1(
+            Path(target_dir),
+            retrievers=retrievers,
+            questions=dev,
+            token_counts=token_counts,
+            provenance=provenance,
+            host=host,
+        )
+    except scale_sensitivity.ScaleSensitivityError as error:
+        _die(str(error))
+
+    body = json.loads(path.read_text(encoding="utf-8"))
+    for key in sorted(body["models"]):
+        reading = body["models"][key]
+        mark = "[OK]" if reading["matches"] else "[ERROR]"
+        print(
+            f"{mark} {key}: {reading['supported']} / {reading['n_questions']} supported, "
+            f"required {reading['required']}"
+        )
+    if body["terminal_state"] is None:
+        print(f"[OK] reproduction gate level 1 passed -> {path}")
+    else:
+        print(f"[ERROR] {body['terminal_state']} recorded in {path}")
+    return path
+
+
+def _scale_local_preflight(
+    model: str,
+    *,
+    data_dir: Path,
+    target_dir: Path,
+    cache_dir: Path,
+    phase_cache_dir: Path,
+    phase_question_cache_dir: Path,
+) -> dict[str, Any]:
+    """CPU-only S6 checks. No model, CUDA probe or historical cache is required here."""
+    try:
+        pins = scale_sensitivity.ModelPins.for_key(model)
+    except scale_sensitivity.ScaleSensitivityError as error:
+        _die(str(error))
+
+    data_dir = Path(data_dir)
+    target_dir = Path(target_dir)
+    cache_dir = Path(cache_dir)
+    phase_cache_dir = Path(phase_cache_dir)
+    phase_question_cache_dir = Path(phase_question_cache_dir)
+
+    for path, stage in (
+        (data_dir / POOL_NAME, "build"),
+        (data_dir / MANIFEST_NAME, "build"),
+        (data_dir / TOKENS_NAME, "embed"),
+        (target_dir / SOURCE_NAME, "scale-corpus"),
+        (target_dir / scale_corpus.RECONCILIATION_FILENAME, "scale-corpus"),
+        (target_dir / scale_corpus.SELECTION_FILENAME, "scale-corpus"),
+        (target_dir / scale_corpus.COUNTS_FILENAME, "scale-corpus"),
+        (target_dir / scale_corpus.COUNTS_SIDECAR, "scale-corpus"),
+        (target_dir / scale_sensitivity.REPRODUCTION_FILENAME, "scale-repro"),
+    ):
+        if not path.exists():
+            _die(f"{path} does not exist: run '{stage}' first")
+
+    if phase_cache_dir.resolve() == cache_dir.resolve():
+        _die("the deviation 8.1 embedding cache must be separate from the historical cache")
+    if phase_question_cache_dir.resolve().parent != phase_cache_dir.resolve():
+        _die("the deviation 8.1 question cache must live under its own phase8_1 cache directory")
+
+    units, questions = load_pool(data_dir / POOL_NAME)
+    _check_pool_against_manifest(units, data_dir / MANIFEST_NAME)
+    if len(units) != config.EXPECTED_N_UNITS:
+        _die(f"C19 holds {len(units)} units, not the frozen {config.EXPECTED_N_UNITS}")
+
+    dev = [question for question in questions if question.split == DEV_SPLIT]
+    held_out = [question for question in questions if question.split == TEST_SPLIT]
+    if (
+        len(questions) != config.N_QUESTIONS
+        or len(dev) != config.N_DEV
+        or len(held_out) != config.N_TEST
+    ):
+        _die(
+            "the frozen pool split sizes moved: "
+            f"{len(questions)} total, {len(dev)} dev, {len(held_out)} test; expected "
+            f"{config.N_QUESTIONS}/{config.N_DEV}/{config.N_TEST}"
+        )
+
+    source = json.loads((target_dir / SOURCE_NAME).read_text(encoding="utf-8"))
+    if source.get("bytes_agree") is not True or source.get("md5_agree") is not True:
+        _die("S1 source identity did not pass both the recorded byte-size and MD5 checks")
+    source_sha256 = str(source.get("measured_sha256", ""))
+    if len(source_sha256) != 64:
+        _die("S1 records no valid measured SHA-256 for the staged FullWiki bytes")
+
+    try:
+        reconciliation = scale_corpus.load_reconciliation(target_dir)
+        if reconciliation.get("terminal_state") is not None:
+            _die(
+                f"the reconciliation recorded {reconciliation['terminal_state']}: "
+                "no scale run is permitted"
+            )
+        if int(reconciliation.get("total_units", -1)) != len(units):
+            _die("the reconciliation belongs to another C19 pool")
+
+        corpus = scale_corpus.load_selection(target_dir, c19_units=units)
+        selection = json.loads(
+            (target_dir / scale_corpus.SELECTION_FILENAME).read_text(encoding="utf-8")
+        )
+        if tuple(selection.get("corpus_sizes", ())) != tuple(config.PHASE_8_1_CORPUS_SIZES):
+            _die("selection.json does not carry the four frozen 8.1 corpus sizes")
+        if selection.get("reconciliation_digest") != reconciliation.get("mapping_digest"):
+            _die("the frozen selection was built from another reconciliation")
+        if selection.get("source_sha256") != source_sha256:
+            _die("the frozen selection was built from another FullWiki source")
+        expected_total = config.PHASE_8_1_CORPUS_SIZES[-1]
+        if corpus.total != expected_total:
+            _die(f"the frozen nested corpus holds {corpus.total} units, not C500={expected_total}")
+
+        new_counts = scale_corpus.load_token_counts(target_dir)
+        counts_sidecar = json.loads(
+            (target_dir / scale_corpus.COUNTS_SIDECAR).read_text(encoding="utf-8")
+        )
+        if counts_sidecar.get("selection_digest") != corpus.selection_digest:
+            _die("the 8.1 token counts belong to another frozen selection")
+        if counts_sidecar.get("tokenizer_id") != config.BUDGET_TOKENIZER_ID:
+            _die("the 8.1 token counts were measured with another budget tokenizer")
+        if counts_sidecar.get("tokenizer_revision") != config.BUDGET_TOKENIZER_REVISION:
+            _die("the 8.1 token counts were measured with another tokenizer revision")
+        if int(counts_sidecar.get("units", -1)) != len(corpus.distractors):
+            _die("the 8.1 token-count sidecar does not describe every added distractor")
+
+        historical_counts = json.loads((data_dir / TOKENS_NAME).read_text(encoding="utf-8"))
+        corpus_ids = [unit.unit_id for unit in (*corpus.c19, *corpus.distractors)]
+        scale_corpus.check_token_coverage(
+            historical=historical_counts,
+            new=new_counts,
+            corpus_unit_ids=corpus_ids,
+        )
+    except scale_corpus.ScaleCorpusError as error:
+        _die(str(error))
+
+    try:
+        reproduction = scale_sensitivity.check_reproduction(target_dir)
+    except scale_sensitivity.ScaleSensitivityError as error:
+        _die(str(error))
+    if int(reproduction.get("corpus_units", -1)) != config.EXPECTED_N_UNITS:
+        _die("the level-1 reproduction artifact belongs to another C19 corpus")
+    if int(reproduction.get("questions", -1)) != config.N_DEV:
+        _die("the level-1 reproduction artifact does not contain the frozen 600 dev questions")
+    if set(reproduction.get("models", {})) != set(config.PHASE_8_1_MODELS):
+        _die("the level-1 reproduction artifact does not contain exactly BGE and Qwen")
+    required = {key: int(value) for key, value in reproduction.get("required", {}).items()}
+    if required != dict(config.PHASE_8_1_C19_DEV_SUPPORTED):
+        _die("the level-1 reproduction artifact was checked against different frozen counts")
+
+    scale_target = target_dir / scale_sensitivity.scale_filename(model)
+    if scale_target.exists():
+        _die(f"{scale_target} already records this model's S6 measurement; it is not overwritten")
+
+    return {
+        "model": model,
+        "model_id": pins.model,
+        "revision": pins.revision,
+        "dim": pins.dim,
+        "c19_units": len(corpus.c19),
+        "c500_units": corpus.total,
+        "dev_questions": len(dev),
+        "selection_digest": corpus.selection_digest,
+        "reproduction_matches": True,
+        "phase_cache_dir": str(phase_cache_dir),
+        "phase_question_cache_dir": str(phase_question_cache_dir),
+    }
+
+
+def _scale_cuda_available() -> bool:
+    """CUDA is mandatory only on the real S6 measurement host, never on local preflight."""
+    return _embedding_device() == "cuda"
+
+
+def _scale_free_bytes(path: Path) -> int:
+    return int(shutil.disk_usage(path).free)
+
+
+def _scale_peak_rss_mb() -> float:
+    """Linux process RSS high-water mark, sampled after the C500 retrieval pass."""
+    status = Path("/proc/self/status")
+    if not status.exists():
+        _die("measurement-host RSS probe requires Linux /proc/self/status")
+    for line in status.read_text(encoding="utf-8").splitlines():
+        if line.startswith("VmHWM:"):
+            fields = line.split()
+            if len(fields) >= 2:
+                return int(fields[1]) / 1024.0
+    _die("measurement-host RSS probe could not read VmHWM from /proc/self/status")
+
+
+def _scale_required_free_bytes(pins: scale_sensitivity.ModelPins) -> int:
+    """Operational disk floor: two raw vector blocks plus 1 GiB of working headroom."""
+    rows = config.PHASE_8_1_CORPUS_SIZES[-1] + config.N_DEV
+    raw_vectors = rows * pins.dim * np.dtype(np.float32).itemsize
+    return 2 * raw_vectors + 1024**3
+
+
+def _scale_measurement_host_preflight(
+    model: str,
+    *,
+    units: Sequence[IndexingUnit],
+    questions: Sequence[Question],
+    historical_token_counts: dict[str, int],
+    cache_dir: Path,
+    question_cache_dir: Path,
+    target_dir: Path,
+) -> dict[str, Any]:
+    """RunPod-only checks and D-L1, all before an embedding model is constructed."""
+    pins = scale_sensitivity.ModelPins.for_key(model)
+    if not _scale_cuda_available():
+        _die("measurement-host preflight requires CUDA before any S6 model is loaded")
+
+    required_free = _scale_required_free_bytes(pins)
+    free = _scale_free_bytes(target_dir)
+    if free < required_free:
+        _die(
+            f"measurement host has {free} free bytes but {model} requires at least "
+            f"{required_free} bytes for the 8.1 vector cache and working headroom"
+        )
+
+    retriever, provenance = _historical_dense(
+        model, units, questions, Path(cache_dir), Path(question_cache_dir)
+    )
+    host = local_extraction.hardware_block(device="cuda")
+    try:
+        d_l1 = scale_sensitivity.measure_level_one_on_measurement_host(
+            model=model,
+            retriever=retriever,
+            questions=questions,
+            token_counts=historical_token_counts,
+            provenance=provenance,
+            host=host,
+            required=config.PHASE_8_1_C19_DEV_SUPPORTED[model],
+            expected_questions=config.N_DEV,
+        )
+    except scale_sensitivity.ScaleSensitivityError as error:
+        _die(str(error))
+
+    print(
+        f"[OK] measurement-host D-L1 {model}: {d_l1['supported']} / "
+        f"{d_l1['n_questions']} supported"
+    )
+    print(f"[OK] measurement-host disk: {free} bytes free, {required_free} required")
+    return {
+        "cuda": True,
+        "free_bytes": free,
+        "required_free_bytes": required_free,
+        "host": host,
+        "level_one_on_measurement_host": d_l1,
+    }
+
+
+def _cached_scale_query_backend(
+    questions: Sequence[Question],
+    *,
+    vectors: np.ndarray,
+    qids: Sequence[str],
+    pins: scale_sensitivity.ModelPins,
+) -> CachedQueryBackend:
+    by_qid = {question.qid: question.question for question in questions}
+    missing = [qid for qid in qids if qid not in by_qid]
+    if missing:
+        _die(
+            f"the 8.1 question cache holds qid {missing[0]!r}, which is not in the frozen dev split"
+        )
+    return CachedQueryBackend(
+        texts=[by_qid[qid] for qid in qids],
+        vectors=vectors,
+        name=pins.model,
+        revision=pins.revision,
+    )
+
+
+def _scale_cache_bytes(
+    corpus_cache: EmbeddingCache,
+    corpus_key: str,
+    question_cache: EmbeddingCache,
+    question_key: str,
+) -> dict[str, int]:
+    corpus = sum(
+        path.stat().st_size
+        for path in (corpus_cache.path_for(corpus_key), corpus_cache.sidecar_for(corpus_key))
+        if path.exists()
+    )
+    questions = sum(
+        path.stat().st_size
+        for path in (
+            question_cache.path_for(question_key),
+            question_cache.sidecar_for(question_key),
+        )
+        if path.exists()
+    )
+    return {"corpus": corpus, "questions": questions, "total": corpus + questions}
+
+
+def cmd_scale_run(
+    model: str,
+    *,
+    preflight_only: bool = False,
+    hourly_rate_usd: float = 0.0,
+    data_dir: Path = config.DATA_DIR,
+    target_dir: Path = config.PHASE_8_1_DIR,
+    cache_dir: Path = config.CACHE_DIR,
+    historical_question_cache_dir: Path = config.QUESTION_CACHE_DIR,
+    phase_cache_dir: Path = config.PHASE_8_1_CACHE_DIR,
+    phase_question_cache_dir: Path = config.PHASE_8_1_QUESTION_CACHE_DIR,
+    corpus_backend: EmbeddingBackend | None = None,
+    query_backend: EmbeddingBackend | None = None,
+    resolve_snapshot: SnapshotResolver = snapshot_directory,
+) -> Path | dict[str, Any]:
+    """Deviation 8.1 S6: one C500 encode, then exact nested-prefix measurements."""
+    if not math.isfinite(hourly_rate_usd) or hourly_rate_usd < 0:
+        _die("hourly-rate-usd must be finite and non-negative")
+
+    data_dir = Path(data_dir)
+    target_dir = Path(target_dir)
+    phase_cache_dir = Path(phase_cache_dir)
+    phase_question_cache_dir = Path(phase_question_cache_dir)
+    summary = _scale_local_preflight(
+        model,
+        data_dir=data_dir,
+        target_dir=target_dir,
+        cache_dir=Path(cache_dir),
+        phase_cache_dir=phase_cache_dir,
+        phase_question_cache_dir=phase_question_cache_dir,
+    )
+    print(
+        f"[OK] local preflight {model}: C19={summary['c19_units']}, "
+        f"C500={summary['c500_units']}, dev={summary['dev_questions']}"
+    )
+    print(f"[OK] selection digest {summary['selection_digest']}")
+    print(
+        f"[OK] fresh caches isolated under {summary['phase_cache_dir']} "
+        f"(questions: {summary['phase_question_cache_dir']})"
+    )
+    if preflight_only:
+        print("[OK] local preflight complete; no model was loaded and no embedding was written")
+        return summary
+
+    pins = scale_sensitivity.ModelPins.for_key(model)
+    units, questions = load_pool(data_dir / POOL_NAME)
+    dev = [question for question in questions if question.split == DEV_SPLIT]
+    try:
+        corpus = scale_corpus.load_selection(target_dir, c19_units=units)
+        new_counts = scale_corpus.load_token_counts(target_dir)
+    except scale_corpus.ScaleCorpusError as error:
+        _die(str(error))
+    historical_counts = json.loads((data_dir / TOKENS_NAME).read_text(encoding="utf-8"))
+    token_counts = {**historical_counts, **new_counts}
+    c500_units = [*corpus.c19, *corpus.distractors]
+    unit_ids = [unit.unit_id for unit in c500_units]
+
+    measurement_host = _scale_measurement_host_preflight(
+        model,
+        units=units,
+        questions=dev,
+        historical_token_counts=historical_counts,
+        cache_dir=Path(cache_dir),
+        question_cache_dir=Path(historical_question_cache_dir),
+        target_dir=target_dir,
+    )
+
+    try:
+        strong_dense.check_model_pin(pins.revision, pins.model)
+        snapshot = Path(resolve_snapshot(pins.model, pins.revision))
+        strong_dense.check_resolved_revision(snapshot.name, pins.revision)
+        weights_digest = weights_sha256(snapshot)
+    except (strong_dense.StrongDenseError, BackendError) as error:
+        _die(str(error))
+
+    corpus_cache = EmbeddingCache(phase_cache_dir)
+    question_cache = EmbeddingCache(phase_question_cache_dir)
+    corpus_key = cache_key(
+        pins.model,
+        pins.revision,
+        unit_set_hash(unit_ids),
+        normalized=config.NORMALIZE_EMBEDDINGS,
+    )
+    # MetadataBackend never encodes. This key is the same key the real prompted backend
+    # will use, while the separate 8.1 directory prevents collision with historical vectors.
+    dev_question_hash = question_set_hash([question.qid for question in dev])
+    query_key = question_cache_key(
+        pins.model,
+        pins.revision,
+        dev_question_hash,
+        DEV_SPLIT,
+        normalized=config.NORMALIZE_EMBEDDINGS,
+        query_prompt=pins.query_prompt,
+    )
+
+    embedding_path = target_dir / scale_sensitivity.embedding_filename(model)
+    corpus_exists = corpus_cache.path_for(corpus_key).exists()
+    questions_exist = question_cache.path_for(query_key).exists()
+    if not embedding_path.exists() and (corpus_exists or questions_exist):
+        _die(
+            "an 8.1 cache exists without its embedding artifact; refusing to guess whether "
+            "that partial encoding is reusable"
+        )
+
+    if embedding_path.exists():
+        try:
+            embedding = scale_sensitivity.load_embedding(target_dir, model)
+        except scale_sensitivity.ScaleSensitivityError as error:
+            _die(str(error))
+        expected = {
+            "corpus_cache_key": corpus_key,
+            "question_cache_key": query_key,
+            "selection_digest": corpus.selection_digest,
+            "revision": pins.revision,
+            "dim": pins.dim,
+            "n_questions": len(dev),
+            "corpus_units": len(c500_units),
+        }
+        for field, value in expected.items():
+            if embedding.get(field) != value:
+                _die(
+                    f"{embedding_path} says {field}={embedding.get(field)!r}, "
+                    f"but this run requires {value!r}"
+                )
+        loaded_corpus = corpus_cache.load(corpus_key, expected_unit_ids=unit_ids)
+        qids = [question.qid for question in dev]
+        loaded_questions = question_cache.load(query_key, expected_unit_ids=qids)
+        if loaded_corpus is None or loaded_questions is None:
+            _die(
+                f"{embedding_path} exists but one of its recorded caches is missing; "
+                "the expensive encoding is not silently repeated"
+            )
+        vectors, cached_unit_ids = loaded_corpus
+        query_vectors, cached_qids = loaded_questions
+        query_lookup = _cached_scale_query_backend(
+            dev, vectors=query_vectors, qids=cached_qids, pins=pins
+        )
+        if int(vectors.shape[1]) != pins.dim or int(query_vectors.shape[1]) != pins.dim:
+            _die(f"the reused {model} caches do not have the pinned width {pins.dim}")
+        print(f"[OK] reusing {embedding_path.name} and its two 8.1 caches")
+    else:
+        corpus_model = (
+            corpus_backend if corpus_backend is not None else _scale_backend(pins, prompted=False)
+        )
+        query_model = (
+            query_backend if query_backend is not None else _scale_backend(pins, prompted=True)
+        )
+        guarded_corpus = strong_dense.WidthCheckedBackend(corpus_model, pins.dim)
+        guarded_queries = strong_dense.WidthCheckedBackend(query_model, pins.dim)
+        if _cache_key_for(guarded_corpus, c500_units) != corpus_key:
+            _die("the real corpus backend does not resolve to the preflighted 8.1 cache key")
+        if _phase_8_question_key(dev, guarded_queries) != query_key:
+            _die("the real query backend does not resolve to the preflighted 8.1 question key")
+
+        print(f"[INFO] encoding C500 once for {model}: {len(c500_units)} paragraphs")
+        try:
+            started = time.perf_counter()
+            vectors, cached_unit_ids = embed_units(c500_units, guarded_corpus, corpus_cache)
+            embedding_seconds = time.perf_counter() - started
+            started = time.perf_counter()
+            query_lookup = build_query_backend(dev, guarded_queries, question_cache)
+            question_seconds = time.perf_counter() - started
+        except (strong_dense.StrongDenseError, CacheAlignmentError, QueryPromptError) as error:
+            _die(str(error))
+
+        bytes_on_disk = _scale_cache_bytes(
+            corpus_cache, corpus_key, question_cache, query_key
+        )
+        try:
+            embedding_path = scale_sensitivity.write_embedding(
+                target_dir,
+                model=model,
+                resolved_revision=snapshot.name,
+                weights_sha256=weights_digest,
+                query_prompt=query_prompt_of(guarded_queries),
+                corpus_cache_key=corpus_key,
+                question_cache_key=query_key,
+                unit_ids=cached_unit_ids,
+                n_questions=len(dev),
+                dim=int(vectors.shape[1]),
+                max_seq_length=_max_seq_length(corpus_model),
+                selection_digest=corpus.selection_digest,
+                hardware=measurement_host["host"],
+                embedding_seconds=embedding_seconds,
+                question_seconds=question_seconds,
+                bytes_on_disk=bytes_on_disk,
+                hourly_rate_usd=hourly_rate_usd,
+            )
+            embedding = scale_sensitivity.load_embedding(target_dir, model)
+        except scale_sensitivity.ScaleSensitivityError as error:
+            _die(str(error))
+        print(f"[OK] one C500 encoding recorded -> {embedding_path}")
+
+    def retriever_for_size(size: int):
+        return scale_sensitivity.prefix_retriever(
+            vectors,
+            cached_unit_ids,
+            size=size,
+            backend=query_lookup,
+            name=scale_sensitivity.run_name(model, size),
+        )
+
+    reproduction = scale_sensitivity.load_reproduction(target_dir)
+    level_1_supported = int(reproduction["models"][model]["supported"])
+    provenance = {
+        "model": pins.model,
+        "model_key": model,
+        "revision": pins.revision,
+        "resolved_revision": snapshot.name,
+        "weights_sha256": weights_digest,
+        "dim": pins.dim,
+        "query_prompt": pins.query_prompt,
+        "corpus_cache_key": corpus_key,
+        "question_cache_key": query_key,
+        "question_set_hash": dev_question_hash,
+        "selection_digest": corpus.selection_digest,
+        "embedding_digest": embedding["digest"],
+        "unit_set_hash": unit_set_hash(unit_ids),
+        "unit_set_hashes": {
+            str(size): unit_set_hash(unit_ids[:size])
+            for size in config.PHASE_8_1_CORPUS_SIZES
+        },
+        "seed": config.DEFAULT_SEED,
+        "tokenizer": config.BUDGET_TOKENIZER_ID,
+        "code_version": __version__,
+        "top_k": config.EVALUATION_TOP_K,
+    }
+    retrieval_cost = {
+        "method": "exact DenseRetriever over aligned prefixes of one C500 vector block",
+        "query_seconds_ceiling": config.PHASE_8_1_QUERY_SECONDS_CEILING,
+        "fallback_used": False,
+        "basis": (
+            "per-scale mean latency is recorded by the evaluation harness; the C500 "
+            "measurement is the feasibility probe"
+        ),
+    }
+    try:
+        path = scale_sensitivity.measure_scales(
+            target_dir,
+            model=model,
+            retriever_for_size=retriever_for_size,
+            questions=dev,
+            token_counts=token_counts,
+            provenance=provenance,
+            level_1_supported=level_1_supported,
+            retrieval_cost=retrieval_cost,
+            host=measurement_host["host"],
+            sizes=config.PHASE_8_1_CORPUS_SIZES,
+            level_one_on_measurement_host=measurement_host["level_one_on_measurement_host"],
+            expected_questions=config.N_DEV,
+            peak_rss_mb=_scale_peak_rss_mb,
+        )
+    except scale_sensitivity.ScaleSensitivityError as error:
+        _die(str(error))
+
+    body = json.loads(path.read_text(encoding="utf-8"))
+    probe = body["retrieval_cost"]
+    if "mean_seconds_per_query" in probe:
+        print(
+            f"[INFO] C500 retrieval probe {model}: "
+            f"{probe['mean_seconds_per_query']:.6f} s/query, "
+            f"peak RSS {probe['peak_rss_mb']:.1f} MiB"
+        )
+        if probe["exceeds_query_seconds_ceiling"]:
+            print(
+                "[WARN] C500 exact-retrieval probe exceeds the frozen ceiling; "
+                "preserve this measurement and implement the declared blockwise exact fallback "
+                "before any further scale run"
+            )
+
+    level_2 = body["level_2"]
+    mark = "[OK]" if level_2["within_tolerance"] else "[ERROR]"
+    print(
+        f"{mark} level 2 {model}: {level_2['supported']} vs "
+        f"{level_2['level_1_supported']} ({level_2['difference']:+d})"
+    )
+    if body["terminal_state"] is None:
+        print(f"[OK] measured C19/C100/C250/C500 -> {path}")
+    else:
+        print(f"[ERROR] {body['terminal_state']} recorded -> {path}")
+    return path
+
+
+
+def cmd_scale_outcome(target_dir: Path = config.PHASE_8_1_DIR) -> Path:
+    """Deviation 8.1 S7: classify the two complete S6 measurements once."""
+    target_dir = Path(target_dir)
+    reconciliation_path = target_dir / scale_corpus.RECONCILIATION_FILENAME
+    if not reconciliation_path.exists():
+        _die(
+            f"{reconciliation_path} does not exist: run 'scale-corpus' before classifying "
+            "the scale measurements"
+        )
+    reconciliation = json.loads(reconciliation_path.read_text(encoding="utf-8"))
+    try:
+        bge = scale_sensitivity.load_scale(target_dir, "bge")
+        qwen = scale_sensitivity.load_scale(target_dir, "qwen")
+        path = scale_sensitivity.classify_outcome(
+            target_dir,
+            bge=bge,
+            qwen=qwen,
+            reconciliation=reconciliation,
+        )
+    except scale_sensitivity.ScaleSensitivityError as error:
+        _die(str(error))
+
+    body = json.loads(path.read_text(encoding="utf-8"))
+    print(f"[OK] deviation 8.1 outcome: {body['terminal_state']} (rule {body['rule']})")
+    for reading in body["headline"]:
+        print(
+            f"[OK] C{reading['corpus']}: BGE {reading['bge']} / {reading['n_questions']}, "
+            f"Qwen {reading['qwen']} / {reading['n_questions']}, "
+            f"difference {reading['deficit_questions']:+d}"
+        )
+    print(f"[OK] outcome recorded -> {path}")
+    return path
 
 
 def _cache_key_for(backend: EmbeddingBackend, units: Sequence[IndexingUnit]) -> str:
@@ -2279,6 +3692,96 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="measure the selected extractor on the held-out split, once",
     )
+    # Phase 8, D5 and D9: the encoding runs on a rented GPU and the measurement on the
+    # laptop, so they are two stages rather than one; `--test` is the gated mode of each.
+    embedding = subparsers.add_parser(
+        "strong-embed", help="encode the pool and one split under the Phase 8 Dense model"
+    )
+    embedding.add_argument(
+        "--test",
+        action="store_true",
+        help="encode the held-out questions, only after the dev stop rule passed",
+    )
+    embedding.add_argument(
+        "--hourly-rate-usd",
+        type=float,
+        default=0.0,
+        dest="hourly_rate_usd",
+        help=(
+            "machine rate behind the attributable cost and the 5M projection; 0.0 on owned "
+            "hardware (default). The total rented-session charge is a different quantity and "
+            "is reported in 8.results.md"
+        ),
+    )
+    measurement = subparsers.add_parser(
+        "strong-dense", help="fit both Phase 8 hybrids on dev and measure the three systems"
+    )
+    measurement.add_argument(
+        "--test",
+        action="store_true",
+        help="measure the three systems on the held-out split, once, refitting nothing",
+    )
+    scale = subparsers.add_parser(
+        "scale-corpus",
+        help="deviation 8.1: verify the FullWiki archive, reconcile C19, freeze C100/C250/C500",
+    )
+    scale.add_argument(
+        "--archive",
+        default=None,
+        help="path to the staged official archive (default: data/phase8_1/source/<name>)",
+    )
+    scale.add_argument(
+        "--published-bytes",
+        type=int,
+        default=config.PHASE_8_1_DECLARED_BYTES,
+        help="the byte size the source page publishes; 0 means the page publishes none",
+    )
+    scale.add_argument(
+        "--published-md5",
+        default=config.PHASE_8_1_DECLARED_MD5,
+        help="the md5 the source page publishes, or 'none' when it publishes none",
+    )
+    scale.add_argument(
+        "--page-checked",
+        action="store_true",
+        help="the published figures above were read off the live source page, not recollected",
+    )
+    scale.add_argument(
+        "--stop-after",
+        choices=("s1", "s2", "s3"),
+        default="s3",
+        help="stop after this step instead of running S1-S3",
+    )
+    subparsers.add_parser(
+        "scale-repro",
+        help="deviation 8.1: reproduce the frozen C19 dev counts from the historical caches",
+    )
+    scale_run = subparsers.add_parser(
+        "scale-run",
+        help="deviation 8.1: preflight or measure one Dense encoder over C19-C500",
+    )
+    scale_run.add_argument(
+        "--model",
+        choices=config.PHASE_8_1_MODELS,
+        required=True,
+        help="which of the two frozen Dense encoders to prepare",
+    )
+    scale_run.add_argument(
+        "--preflight-only",
+        action="store_true",
+        help="validate CPU-side artifacts and gates only; never load a model or require CUDA",
+    )
+    scale_run.add_argument(
+        "--hourly-rate-usd",
+        type=float,
+        default=0.0,
+        dest="hourly_rate_usd",
+        help="rented-machine hourly rate used for attributable C500 encoding cost",
+    )
+    subparsers.add_parser(
+        "scale-outcome",
+        help="deviation 8.1: classify the complete BGE/Qwen C19-C500 measurements",
+    )
     extraction = subparsers.add_parser(
         "extract", help="read entities and concepts out of every paragraph (spends money)"
     )
@@ -2339,6 +3842,28 @@ def main(argv: list[str] | None = None) -> int:
         )
     elif args.command == "cheap-eval":
         cmd_cheap_eval(test=args.test)
+    elif args.command == "strong-embed":
+        cmd_strong_embed(hourly_rate_usd=args.hourly_rate_usd, test=args.test)
+    elif args.command == "strong-dense":
+        cmd_strong_dense(test=args.test)
+    elif args.command == "scale-corpus":
+        cmd_scale_corpus(
+            archive=args.archive,
+            published_bytes=args.published_bytes or None,
+            published_md5=None if args.published_md5 == "none" else args.published_md5,
+            page_checked=args.page_checked,
+            stop_after=args.stop_after,
+        )
+    elif args.command == "scale-repro":
+        cmd_scale_repro()
+    elif args.command == "scale-run":
+        cmd_scale_run(
+            model=args.model,
+            preflight_only=args.preflight_only,
+            hourly_rate_usd=args.hourly_rate_usd,
+        )
+    elif args.command == "scale-outcome":
+        cmd_scale_outcome()
     return 0
 
 
