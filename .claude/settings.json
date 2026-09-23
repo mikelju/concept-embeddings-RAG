@@ -20,7 +20,8 @@
       "Bash(npx -y gh-axi@0.1.35 pr view:*)",
       "Bash(npx -y gh-axi@0.1.35 pr list:*)",
       "Bash(npx -y gh-axi@0.1.35 pr checks:*)",
-      "Bash(npx -y gh-axi@0.1.35 run:*)"
+      "Bash(npx -y gh-axi@0.1.35 run list:*)",
+      "Bash(npx -y gh-axi@0.1.35 run view:*)"
     ],
     "deny": [
       "Bash(git push origin main:*)",

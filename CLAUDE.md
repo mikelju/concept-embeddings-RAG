@@ -74,7 +74,7 @@ uv run mypy src
 uv run cer <stage>       # fetch build embed evaluate induce label select expand pilot extract
                          # nodes navigate replace-check|freeze|test cheap-extract cheap-eval
                          # strong-embed strong-dense scale-corpus scale-repro scale-run scale-outcome
-npx -y gh-axi@0.1.35 pr view|list|checks   # GitHub reads: compact output. Writes use gh
+npx -y gh-axi@0.1.35 pr view|list|checks, run list|view   # only these; writes use gh
 ```
 
 Do not rerun one-shot historical stages to inspect them: their versioned artifacts are the record.
