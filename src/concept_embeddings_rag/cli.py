@@ -3898,15 +3898,15 @@ def _fullwiki_extract(
     return manifest
 
 
-def _phase_9_inputs(
-    target_dir: Path, hop: str, smoke: int | None = None
-) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Everything a probe or the pass reads, each artifact checked against its manifest.
+def _phase_9_inputs(target_dir: Path, smoke: int | None = None) -> dict[str, Any]:
+    """Everything a probe or the pass reads, loaded once and checked against its manifest.
 
-    Returns the three fresh systems plus the questions and token counts, and the provenance
-    chain every run records: corpus, questions, vectors, BM25, extraction and entity index.
-    A smoke build is read from `smoke/` with only the historical dev questions: it feeds the
-    probe's code path and nothing else.
+    Returns the verified components - Dense, BM25, the node index and its weights, the fusion
+    weights, the questions and token counts - and the provenance chain every run records:
+    corpus, questions, vectors, BM25, extraction and entity index. Systems are built from
+    these by `_phase_9_systems`, so a second Entity Hop implementation never reloads or
+    rebuilds anything. A smoke build is read from `smoke/` with only the historical dev
+    questions: it feeds the probe's code path and nothing else.
     """
     full_hash = str(
         json.loads((target_dir / fullwiki.CORPUS_MANIFEST).read_text("utf-8"))["unit_set_hash"]
@@ -3956,10 +3956,7 @@ def _phase_9_inputs(
     )
     if index.digest != entity_record["index_digest"]:
         _die("the entity index does not match the digest entity-index.json records")
-    stage_type = ColumnwiseEntityHopStage if hop == phase9.COLUMNWISE_HOP else EntityHopStage
     weights = phase9.read_frozen_weights()
-    stage = stage_type(index, node_weights(index))
-    systems = phase9.build_systems(dense, bm25, stage, weights)
     provenance = {
         "corpus_unit_set_hash": corpus_hash,
         "corpus_ordered_unit_digest": corpus["ordered_unit_digest"],
@@ -3987,10 +3984,26 @@ def _phase_9_inputs(
         },
         "entity_index_digest": index.digest,
         "weights": weights,
-        "hop_implementation": hop,
     }
-    inputs = {"systems": systems, "questions": questions, "token_counts": token_counts}
-    return inputs, provenance
+    return {
+        "dense": dense,
+        "bm25": bm25,
+        "index": index,
+        "node_weights": node_weights(index),
+        "weights": weights,
+        "questions": questions,
+        "token_counts": token_counts,
+        "provenance": provenance,
+    }
+
+
+def _phase_9_systems(components: dict[str, Any], hop: str) -> dict[str, Any]:
+    """Fresh P9-A/B/C over already-loaded components; only the Entity Hop stage differs by hop."""
+    stage_type = ColumnwiseEntityHopStage if hop == phase9.COLUMNWISE_HOP else EntityHopStage
+    stage = stage_type(components["index"], components["node_weights"])
+    return phase9.build_systems(
+        components["dense"], components["bm25"], stage, components["weights"]
+    )
 
 
 def cmd_fullwiki_probe(
@@ -4011,11 +4024,11 @@ def cmd_fullwiki_probe(
     if target.exists():
         _die(f"{target} already records the probe")
     dev_qids = _historical_dev_qids(data_dir)
-    inputs, provenance = _phase_9_inputs(target_dir, phase9.REFERENCE_HOP, smoke)
-    sample = phase9.probe_sample(inputs["questions"], dev_qids)
-    seconds = {
-        name: phase9.time_system(system, sample) for name, system in inputs["systems"].items()
-    }
+    components = _phase_9_inputs(target_dir, smoke)
+    provenance = components["provenance"]
+    sample = phase9.probe_sample(components["questions"], dev_qids)
+    systems = _phase_9_systems(components, phase9.REFERENCE_HOP)
+    seconds = {name: phase9.time_system(system, sample) for name, system in systems.items()}
     reference_mean = statistics.fmean(seconds["hybrid-entity-hop"])
     hop = phase9.hop_implementation(reference_mean)
     timings: dict[str, Any] = {
@@ -4025,10 +4038,11 @@ def cmd_fullwiki_probe(
         f"{config.PHASE_9_QUERY_SECONDS_CEILING} s",
     }
     if hop == phase9.COLUMNWISE_HOP:
-        columnwise, _provenance = _phase_9_inputs(target_dir, phase9.COLUMNWISE_HOP, smoke)
-        seconds["hybrid-entity-hop"] = phase9.time_system(
-            columnwise["systems"]["hybrid-entity-hop"], sample
-        )
+        # Built from the components already in memory: the reference systems are dropped
+        # first, and nothing is reloaded or rebuilt for the second hop.
+        del systems
+        columnwise = _phase_9_systems(components, phase9.COLUMNWISE_HOP)
+        seconds["hybrid-entity-hop"] = phase9.time_system(columnwise["hybrid-entity-hop"], sample)
     means = {name: statistics.fmean(values) for name, values in seconds.items()}
     body = {
         **phase9.probe_verdict(means),
@@ -4070,17 +4084,26 @@ def cmd_fullwiki_eval(*, authorized: bool, target_dir: Path = config.PHASE_9_DIR
     probe = json.loads((target_dir / phase9.PROBE_FILENAME).read_text("utf-8"))
     if probe["terminal_state"] is not None:
         _die(f"the probe recorded {probe['terminal_state']}; the pass does not run")
+    if (target_dir / phase9.EVALUATION_MARKER).exists():
+        _die(f"{target_dir / phase9.EVALUATION_MARKER} exists: the pass has already started once")
     commit = _git_commit()
+    hop = str(probe["hop_implementation"])
+    components = _phase_9_inputs(target_dir)
+    provenance = {**components["provenance"], "hop_implementation": hop}
+    systems = _phase_9_systems(components, hop)
+    host = local_extraction.hardware_block(device=_embedding_device())
+    # Marked here, after every input loaded and verified and before the first question is
+    # evaluated: a load failure leaves the pass unstarted and retryable; anything later
+    # leaves it started, and a second start is refused.
     try:
         phase9.start_pass(target_dir, probe_digest=str(probe["digest"]), code_commit=commit)
     except phase9.FullWikiPhaseError as error:
         _die(str(error))
-    inputs, provenance = _phase_9_inputs(target_dir, str(probe["hop_implementation"]))
-    host = local_extraction.hardware_block(device=_embedding_device())
     written: list[Path] = []
-    for name, system in inputs["systems"].items():
-        print(f"[INFO] pass: {name} over {len(inputs['questions'])} questions")
-        records = phase9.measure_system(name, system, inputs["questions"], inputs["token_counts"])
+    questions, token_counts = components["questions"], components["token_counts"]
+    for name, system in systems.items():
+        print(f"[INFO] pass: {name} over {len(questions)} questions")
+        records = phase9.measure_system(name, system, questions, token_counts)
         described = system.describe() if hasattr(system, "describe") else None
         body = {
             "phase": 9,
@@ -4123,10 +4146,34 @@ def cmd_fullwiki_outcome(target_dir: Path = config.PHASE_9_DIR) -> Path:
     target_dir = Path(target_dir)
     stop: str | None = None
     reasons: list[str] = []
-    probe = json.loads((target_dir / phase9.PROBE_FILENAME).read_text("utf-8"))
-    if probe["terminal_state"] is not None:
+    questions = json.loads((target_dir / phase9.QUESTIONS_FILENAME).read_text("utf-8"))
+    probe_path = target_dir / phase9.PROBE_FILENAME
+    probe = json.loads(probe_path.read_text("utf-8")) if probe_path.exists() else None
+    if questions.get("terminal_state") is not None:
+        stop = str(questions["terminal_state"])
+        reasons.append(
+            f"questions: {questions['questions_with_unresolved_gold']} with unresolved gold, "
+            f"ceiling {questions['unresolved_ceiling']}"
+        )
+    elif probe is not None and probe["terminal_state"] is not None:
         stop = str(probe["terminal_state"])
         reasons.append(f"probe: {probe['over_ceiling']} past the query ceiling")
+    if stop is not None:
+        # D11: the pass never ran, so there is no run to read and no retrieval score to
+        # publish. The label and its reason are the whole outcome.
+        body_stop = {
+            "primary_cohort": config.PHASE_9_RETRIEVAL_UNSEEN,
+            "primary_metric": f"full_support@{config.PHASE_9_PRIMARY_BUDGET}_tokens",
+            "terminal_state": stop,
+            "stop_reasons": reasons,
+            "code_commit": _git_commit(),
+            "created_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        }
+        path = write_text_atomic(
+            target_dir / OUTCOME_NAME, json.dumps(body_stop, indent=2, sort_keys=True)
+        )
+        print(f"[OK] {stop}: {'; '.join(reasons)} -> {path}")
+        return path
     runs = {
         name: json.loads((target_dir / f"run-{name}.json").read_text("utf-8"))
         for name in config.PHASE_9_SYSTEMS
