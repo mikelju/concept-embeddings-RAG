@@ -1,8 +1,9 @@
 """Regression tests for the PreToolUse guard in .claude/hooks/guard_main.py.
 
 The hook is the local barrier behind the agent workflow: no pushes to main, no PR merges, no
-.env reads, and gh-axi limited to an allowlist of reads. Each case runs the real hook script
-with a Claude Code style payload, against a scratch repository on a working branch or on main.
+.env reads, gh limited to an allowlist of subcommands and gh-axi to an allowlist of reads.
+Each case runs the real hook script with a Claude Code style payload, against a scratch
+repository on a working branch or on main.
 """
 
 import json
@@ -93,6 +94,22 @@ ON_WORK_BRANCH = [
     ("gh api -X PUT repos/o/r/pulls/9/merge", BLOCKED),
     ("gh pr view 9", ALLOWED),
     ("gh pr create --base main --title t --body-file body.md", ALLOWED),
+    ("gh pr edit 12 --body-file body.md", ALLOWED),
+    ("gh pr checks 12", ALLOWED),
+    ("gh run view 35839937890 --log-failed", ALLOWED),
+    ("gh repo view --json visibility", ALLOWED),
+    # Third review of PR #12: gh is allowlisted too, so flags before the subcommand and
+    # every api call (REST or GraphQL) are blocked.
+    ("gh pr --repo o/r merge 9", BLOCKED),
+    ("gh -R o/r pr merge 9", BLOCKED),
+    (
+        "gh api graphql -f query='mutation { mergePullRequest(input: {}) { clientMutationId } }'",
+        BLOCKED,
+    ),
+    ("gh api graphql -f query=enablePullRequestAutoMerge", BLOCKED),
+    ("gh api repos/o/r/pulls/9", BLOCKED),
+    ("gh pr ready 9", BLOCKED),
+    ("gh foo", BLOCKED),
     # git push on a working branch.
     ("git push -u origin work", ALLOWED),
     ("git push", ALLOWED),
@@ -116,6 +133,11 @@ ON_WORK_BRANCH = [
     ('Get-Content ".env"', BLOCKED),
     ("type .env.local", BLOCKED),
     ("cat .env.example", ALLOWED),
+    # Third review of PR #12: quotes or escapes splitting the name must not hide .env.
+    ("cat .e'n'v", BLOCKED),
+    ('cat .e"n"v', BLOCKED),
+    (r"cat .e\nv", BLOCKED),
+    (r"type C:\repo\.env", BLOCKED),
     ("ls", ALLOWED),
 ]
 

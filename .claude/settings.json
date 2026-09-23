@@ -29,6 +29,7 @@
       "Bash(git push --force:*)",
       "Bash(git push -f:*)",
       "Bash(gh pr merge:*)",
+      "Bash(gh api:*)",
       "Bash(npx -y gh-axi@0.1.35 pr merge:*)",
       "Read(./.env)"
     ]
