@@ -33,20 +33,26 @@ exactly as a C19 unit's is.
 """
 
 import bz2
+import gzip
 import hashlib
 import json
 import re
 import tarfile
+import time
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from concept_embeddings_rag import config
+from concept_embeddings_rag.artifacts import digest_of, write_text_atomic
 from concept_embeddings_rag.corpus.download import sha256_of_file
 from concept_embeddings_rag.corpus.pool import IndexingUnit, unit_id_for
 
 __all__ = [
+    "CORPUS_MANIFEST",
+    "CORPUS_NAME",
     "MEMBER_NAME",
     "ArchiveLayout",
     "FullWikiError",
@@ -56,11 +62,13 @@ __all__ = [
     "iter_members",
     "iter_records",
     "layout_of",
+    "load_corpus",
     "md5_of_file",
     "plaintext_of",
     "probe_layout",
     "unit_of",
     "verify_archive",
+    "write_corpus",
 ]
 
 # No leading separator, no `..` segment, no drive letter and no backslash. The negative
@@ -535,3 +543,150 @@ def describe_source(
         "layout": probe,
         "members": counts.as_dict(),
     }
+
+
+# --- Phase 9, S2: the whole archive is the corpus -----------------------------------------
+#
+# Deviation 8.1 selected a nested prefix of the archive; Phase 9 indexes all of it. Every
+# record becomes one whole-paragraph unit through `unit_of`, in archive order, with nothing
+# selected, trimmed or merged (D2). A byte-identical repeat hashes to the same content id
+# and collapses onto the first occurrence, exactly as `build_pool` deduplicates, and the
+# count is recorded rather than hidden. A record with no sentence is still a record of the
+# release and stays, counted.
+
+CORPUS_NAME = "corpus.jsonl.gz"
+CORPUS_MANIFEST = "corpus.json"
+
+
+def _corpus_line(unit: IndexingUnit) -> str:
+    return json.dumps(
+        {"unit_id": unit.unit_id, "title": unit.title, "sentences": list(unit.sentences)},
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+
+
+def _unit_set_hash(unit_ids: Sequence[str]) -> str:
+    """The project's corpus identity (`embeddings.cache.unit_set_hash`), without its imports."""
+    joined = "\n".join(sorted(unit_ids))
+    return hashlib.sha1(joined.encode("utf-8"), usedforsecurity=False).hexdigest()[:16]
+
+
+def _pinned_fields(manifest: Mapping[str, Any]) -> dict[str, Any]:
+    return {key: manifest.get(key) for key in ("n_units", "unit_set_hash", "ordered_unit_digest")}
+
+
+def write_corpus(
+    archive: Path | str,
+    directory: Path | str,
+    *,
+    expected_bytes: int,
+    expected_md5: str,
+    expected_sha256: str,
+) -> dict[str, Any]:
+    """Stream the verified archive into `corpus.jsonl.gz` and its `corpus.json` manifest.
+
+    Identity comes first and refuses before a single record is parsed. An existing
+    `corpus.json` is a pin: a stream that does not reproduce its unit count and digests is
+    refused, and the recorded manifest is never replaced. That is what lets the measurement
+    host rebuild the corpus from the downloaded archive and prove it is the laptop's.
+    """
+    archive, directory = Path(archive), Path(directory)
+    verified = verify_archive(archive, published_bytes=expected_bytes, published_md5=expected_md5)
+    if verified["measured_sha256"] != expected_sha256:
+        raise FullWikiError(
+            f"{archive.name} has sha256 {verified['measured_sha256']}, not the declared "
+            f"{expected_sha256}; refusing to parse it"
+        )
+    target = directory / CORPUS_MANIFEST
+    recorded = json.loads(target.read_text(encoding="utf-8")) if target.exists() else None
+
+    started = time.perf_counter()
+    probe = probe_layout(archive)
+    layout = layout_of(probe)
+    directory.mkdir(parents=True, exist_ok=True)
+    corpus_path = directory / CORPUS_NAME
+    temporary = corpus_path.with_name(corpus_path.name + ".tmp")
+
+    seen: set[str] = set()
+    unit_ids: list[str] = []
+    records_read = empty = text_bytes = 0
+    # mtime=0 so the same stream always compresses to the same bytes.
+    with temporary.open("wb") as raw, gzip.GzipFile(fileobj=raw, mode="wb", mtime=0) as packed:
+        for record in iter_records(archive, layout):
+            records_read += 1
+            unit = unit_of(record)
+            if unit.unit_id in seen:
+                continue
+            seen.add(unit.unit_id)
+            unit_ids.append(unit.unit_id)
+            empty += 0 if unit.sentences else 1
+            text_bytes += len(unit.indexable_text.encode("utf-8"))
+            packed.write((_corpus_line(unit) + "\n").encode("utf-8"))
+
+    manifest: dict[str, Any] = {
+        "phase": 9,
+        "archive": archive.name,
+        "archive_bytes": verified["measured_bytes"],
+        "archive_md5": verified["measured_md5"],
+        "archive_sha256": verified["measured_sha256"],
+        "layout": probe,
+        "layout_digest": digest_of(json.dumps(probe, sort_keys=True, ensure_ascii=True)),
+        "n_units": len(unit_ids),
+        "records_read": records_read,
+        "duplicate_records_collapsed": records_read - len(unit_ids),
+        "empty_text_units": empty,
+        "indexable_text_bytes": text_bytes,
+        "unit_set_hash": _unit_set_hash(unit_ids),
+        "ordered_unit_digest": digest_of(*unit_ids),
+        "corpus_file": CORPUS_NAME,
+        "corpus_file_bytes": temporary.stat().st_size,
+        "unit_contract": (
+            'indexable_text = f"{title}. {plaintext}", plaintext = " ".join(sentences)'
+        ),
+        "stream_seconds": time.perf_counter() - started,
+        "created_at": datetime.now(UTC).isoformat(timespec="seconds"),
+    }
+    if recorded is not None and _pinned_fields(recorded) != _pinned_fields(manifest):
+        temporary.unlink(missing_ok=True)
+        raise FullWikiError(
+            f"{target} already records {_pinned_fields(recorded)}, and this stream gives "
+            f"{_pinned_fields(manifest)}; a recorded corpus is never replaced"
+        )
+    temporary.replace(corpus_path)
+    if recorded is not None:
+        return dict(recorded)
+    write_text_atomic(target, json.dumps(manifest, indent=2, ensure_ascii=False, sort_keys=True))
+    return manifest
+
+
+def load_corpus(directory: Path | str) -> list[IndexingUnit]:
+    """The corpus in archive order, every id re-derived from its content and the order proved.
+
+    A unit whose id does not hash to its text, or an order whose digest is not the recorded
+    one, is a refusal: every downstream vector, token count and entity row is aligned to it.
+    """
+    directory = Path(directory)
+    target = directory / CORPUS_MANIFEST
+    if not target.exists():
+        raise FullWikiError(f"{target} does not exist: run 'fullwiki-corpus' first")
+    manifest = json.loads(target.read_text(encoding="utf-8"))
+    units: list[IndexingUnit] = []
+    with gzip.open(directory / str(manifest["corpus_file"]), "rt", encoding="utf-8") as handle:
+        for number, line in enumerate(handle, start=1):
+            entry = json.loads(line)
+            title = str(entry["title"])
+            sentences = tuple(str(sentence) for sentence in entry["sentences"])
+            unit_id = unit_id_for(title, sentences)
+            if unit_id != entry["unit_id"]:
+                raise FullWikiError(
+                    f"{CORPUS_NAME} line {number}: {entry['unit_id']} does not hash to its "
+                    f"content ({unit_id}); the corpus has been modified"
+                )
+            units.append(IndexingUnit(unit_id=unit_id, title=title, sentences=sentences))
+    if digest_of(*(unit.unit_id for unit in units)) != manifest["ordered_unit_digest"]:
+        raise FullWikiError(
+            f"{CORPUS_NAME} is not in the recorded order: its ordered digest differs from "
+            f"{target.name}"
+        )
+    return units
