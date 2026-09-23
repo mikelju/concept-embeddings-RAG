@@ -24,7 +24,7 @@ What is established (figures and full records in each phase's `X.results.md`):
   paragraphs (Phase 8 and deviation 8.1). No substantially stronger Dense has been tested yet.
 
 **Current state (2026-09-23):** deviation 8.1 is closed (`STABLE_RANKING`). Phase 9 (HotpotQA
-FullWiki) has a draft spec pending author approval. If this line and the master plan disagree,
+FullWiki) is next; its spec is being drafted locally and is not approved or committed yet. If this line and the master plan disagree,
 the master plan wins; fix this line.
 
 ## Where things live
@@ -34,7 +34,7 @@ the master plan wins; fix this line.
 | Status of every phase, the plan ahead | `docs/plans/0_master_plan.md` ("Phase status") |
 | Deferred directions and their rationale | `docs/plans/research_roadmap.md` |
 | What a phase measured | `docs/plans/phase_X/X.results.md` |
-| Active spec and plan | `docs/plans/phase_X/X.spec.md`, `X.0_*.md`, deviations `X.Y_*.md` |
+| Active spec and plan | `docs/plans/phase_X/`: `X.spec.md`, plan `X.0_*.md`, deviations `X.Y_*.md` (a deviation may carry its own plan, results and recipe) |
 | Original hypothesis and literature (Spanish, stays Spanish) | `docs/refs/descripcion-proyecto.md`, `docs/refs/bibliografia.md` |
 | Plain-Spanish glossary for the author | `docs/GLOSARIO.md` |
 | Dev/test discipline, selection, integrity, simplification rule | skill `research-protocol` |
@@ -50,13 +50,16 @@ autonomous.
 
 1. Anything that can change a measured result starts from a spec the author approves
    (`/4-especificar`, then `/5-planear`). Once approved, a spec is frozen.
-2. `/6-implementar` runs the whole plan without step-by-step confirmation, on a working branch,
-   committing each step. Commits and pushes to non-`main` branches are authorized.
+2. Once the author approves the plan, `/6-implementar` runs it whole without step-by-step
+   confirmation, on a working branch, committing each step. Commits and pushes to non-`main`
+   branches are a standing authorization from the author (2026-09-23) for this repository, which
+   is not a public-zone replica in the root zone map; the root rules on private data still apply.
 3. The `deliver` skill closes the work: checks, end-to-end evidence, adversarial review in a
    fresh context, doc pass, PR with a risk assessment.
 4. **The PR waits for the author. Never push to `main`, never merge, never force-push.**
 5. Stop and ask only for ASK FIRST items, a problem that would change the frozen spec, a step that
-   opens the test split or spends money, or two attempts without progress.
+   opens the test split or spends money, a reproduction check that misses its recorded figure, a
+   spec gate or stop state being reached, or two attempts without progress.
 
 Small fixes and doc changes need no spec: branch, fix, `deliver`.
 
@@ -108,7 +111,9 @@ for it; changing the indexing unit; deleting caches; invalidating or modifying a
 artifact or a recorded experimental parameter; changing the scope of the active phase; adding a
 new representation or graph mechanism the spec does not request.
 
-**Never:** tune or choose anything by looking at test results; rewrite historical results or
+**Never:** tune or choose anything by looking at test results; run a candidate on test that dev
+did not select, or retry a failed gate with another model inside the same phase, even
+"descriptively"; rewrite historical results or
 artifacts (provenance problems get a prospective fix in the producer); report estimates or
 projections as measurements; invent missing data; read, print or commit `.env` or credentials;
 commit the raw corpus; silently expand a phase into canonicalization, relations, more seeds or

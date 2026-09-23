@@ -18,8 +18,10 @@ al final, en la PR. Su atención está en los dos extremos: la spec antes y la P
 
 ## Precondiciones
 
-- Existe una spec **aprobada** y un plan de fase en `docs/plans/phase_X/`. Si la spec está en
-  borrador o falta el plan, detente y dilo: no se implementa sobre una spec no aprobada.
+- Existen una spec y un plan de fase **aprobados por el autor** en `docs/plans/phase_X/`. Si la
+  spec está en borrador, o el plan no existe o no está aprobado, detente y dilo. El agente no se
+  escribe un plan y lo ejecuta en la misma sesión: la aprobación del plan es uno de los dos
+  momentos del autor.
 - Estás en una rama de trabajo, nunca en `main`. Si estás en `main`, crea la rama
   (`phase-X-<nombre>` o `<fase>-<cambio>`) antes de tocar nada.
 
@@ -55,6 +57,9 @@ Solo en estos casos. Conserva el trabajo hecho, explica el bloqueo y di qué dec
   artefactos versionados, alcance);
 - el siguiente paso abre el split de test, cuesta dinero (GPU alquilada, API) o es una ejecución
   única e irrepetible;
+- una comprobación de reproducción no da exactamente la cifra registrada (por ejemplo 487 / 600),
+  o se alcanza un gate, un estado de parada o un estado terminal definido en la spec. **Nunca se
+  modifica código para que una cifra registrada vuelva a cuadrar**: el desajuste es un hallazgo;
 - dos intentos seguidos sin progreso en el mismo problema.
 
 Lo demás (un test que falla, un error de tipos, una refactorización local necesaria, un fallo

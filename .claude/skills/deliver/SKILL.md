@@ -62,7 +62,9 @@ Unit tests are not enough. Show the change working through the real path:
   (for example BGE-small Dense 487 / 600 dev Full Support @2,048) that must still match exactly;
 - for documentation-only changes: the links and paths it adds resolve.
 
-Never open the test split, spend money or rerun a one-shot historical stage to produce evidence.
+A reproduction mismatch is a finding to report and stop on. It is never a failure to fix by
+changing code until the number matches. Never open the test split, spend money or rerun a one-shot
+historical stage to produce evidence.
 If evidence cannot be produced, say why in the PR; do not invent it.
 
 ## 6. Adversarial review in a fresh context
@@ -93,8 +95,12 @@ rewritten.
 
 ## 8. Commit, push, PR
 
+Write the commit message and the PR body to files in the scratchpad with the Write tool and pass
+them with `-F` / `--body-file`. The guard hook reads inline shell text and blocks, on purpose, any
+inline text that looks like a push to main or an env-file read.
+
 ```bash
-git commit -m "<type>: <what>"        # English, explicit paths already staged
+git commit -F <message file>          # English, explicit paths already staged
 git push -u origin <branch>
 gh pr create --base <base> --title "<title>" --body-file <tmp file in the scratchpad>
 ```
