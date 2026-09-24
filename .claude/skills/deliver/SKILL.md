@@ -13,6 +13,11 @@ deep to look.
 **Hard limits.** Never push to `main`, never merge, never enable auto-merge, never force-push.
 This repository is public: anything pushed is published.
 
+GitHub reads go through `npx -y gh-axi@0.1.35`, whose output is 40-70 % smaller than `gh` on
+this repo's PRs. Only `pr view`, `pr checks`, `pr list`, `run list` and `run view` are allowed;
+the guard hook blocks every other gh-axi call. Writes (`pr create`, `pr edit`) stay on `gh` with
+`--body-file`. Ignore gh-axi's merge suggestions: merging is the author's.
+
 ## 1. Frame the intent
 
 Write 3-6 lines: what was asked, from which spec/plan/conversation, and what "done" means. This

@@ -22,7 +22,7 @@ cerradas ni los planes de implementación ya ejecutados salvo que la tarea lo pi
 git branch --show-current
 git log --oneline -8
 git status --short
-gh pr list --state open --limit 5
+npx -y gh-axi@0.1.35 pr list --state open --limit 5
 ```
 
 ## 4. Código
