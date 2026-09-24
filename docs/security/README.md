@@ -434,6 +434,7 @@ five are false positives, audited here rather than in a commit message:
 | `docs/plans/phase_2/2.results.md:236` | Hex High Entropy String | A dictionary key: a digest of public configuration |
 | `tests/concepts/test_dedup.py:50` | Hex High Entropy String | The pool hash in a test fixture, a digest of the public corpus |
 | `tests/concepts/test_dictionary_artifact.py:33` | Hex High Entropy String | The same fixture value |
+| `docs/plans/phase_9/9.spec.md:576,577,610,611,655` | Hex High Entropy String | Public identities frozen by the Phase 9 spec: the FullWiki archive's MD5 and SHA-256, the GLiNER and BGE Hub revisions, and the GLiNER configuration digest. Added to the baseline by hand with forward-slash paths, because a Windows scan does not see them (2026-09-24) |
 | `docs/security/README.md` (the row above) | Secret Keyword | Documenting the first finding meant quoting the flagged line verbatim, so the catalogue reproduces the pattern it explains. Auditing a false positive should not create one, but writing it down is still worth more than the noise |
 
 Regenerate deliberately, and note the two traps:
