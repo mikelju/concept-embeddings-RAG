@@ -85,6 +85,11 @@ data/extraction/*
 data/replacement/*
 !data/replacement/*.json
 
+# Phase 10: the dev fit is committed before the held-out pass opens test-10 (D5).
+!data/phase10/
+data/phase10/*
+!data/phase10/fit.json
+
 # Phase 7: cheap entity extraction.
 # Keep the measured extraction record and evaluation artifacts; models and
 # regenerable node-index files remain ignored. Every run-*.json a versioned

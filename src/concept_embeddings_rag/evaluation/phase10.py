@@ -7,6 +7,7 @@ test and a set reserved for the next phase. The corpus, vectors, BM25, entity in
 counts are Phase 9's, read-only.
 """
 
+import gzip
 import json
 import random
 from collections.abc import Iterable, Mapping, Sequence
@@ -14,9 +15,10 @@ from pathlib import Path
 from typing import Any
 
 from concept_embeddings_rag import config
-from concept_embeddings_rag.artifacts import write_text_atomic
+from concept_embeddings_rag.artifacts import digest_of, write_text_atomic
 from concept_embeddings_rag.corpus.pool import IndexingUnit, Question
 from concept_embeddings_rag.evaluation import fullwiki as phase9
+from concept_embeddings_rag.retrieval.base import Hit
 
 QUESTIONS_FILENAME = "questions.json"
 DATA_STOP = "DATA_STOP"
@@ -227,3 +229,177 @@ def load_set(directory: Path | str, name: str, *, corpus_unit_set_hash: str) -> 
     ):
         raise Phase10Error(f"the {name} set does not match its recorded digests")
     return questions
+
+
+# --- S4/S5: scoring rankings that were computed once --------------------------------------
+
+
+class ReplayRetriever:
+    """Serves precomputed rankings, in question order, to the unchanged Phase 9 harness.
+
+    The dev grid re-fuses cached component lists instead of re-running retrieval 66 times;
+    this hands each fused list to `measure_system` exactly as a live system would, and
+    refuses a query that is not the one the list was computed for.
+    """
+
+    def __init__(self, name: str, rankings: Sequence[tuple[str, list[Hit]]]) -> None:
+        self.name = name
+        self._rankings = list(rankings)
+        self._position = 0
+
+    def retrieve(self, query: str, top_k: int) -> list[Hit]:
+        expected, hits = self._rankings[self._position]
+        if query != expected:
+            raise Phase10Error(f"replay out of order at {self._position}: {query!r}")
+        self._position += 1
+        return list(hits[:top_k])
+
+
+def supported(records: Sequence[Mapping[str, Any]], budget: int = 2048) -> int:
+    """Full Support successes at `budget`, in whole questions."""
+    return int(sum(r["budgets"][str(budget)]["full_support"] for r in records))
+
+
+def gold_recall_sum(records: Sequence[Mapping[str, Any]], budget: int = 2048) -> float:
+    return float(sum(r["budgets"][str(budget)]["gold_recall"] for r in records))
+
+
+DEV_LISTS_FILENAME = "dev-lists.jsonl.gz"
+DEV_LISTS_MANIFEST = "dev-lists.json"
+LIST_NAMES: tuple[str, ...] = ("dense", "bm25", config.ENTITY_HOP_NAME)
+
+
+def write_dev_lists(
+    directory: Path | str, rows: Sequence[Mapping[str, Any]], *, provenance: Mapping[str, Any]
+) -> Path:
+    """The three component lists per dev question, written once with their digest."""
+    directory = Path(directory)
+    target = directory / DEV_LISTS_FILENAME
+    if target.exists():
+        raise Phase10Error(f"{target} already holds the dev lists")
+    text = "".join(json.dumps(dict(row), sort_keys=True) + "\n" for row in rows)
+    temporary = target.with_name(target.name + ".tmp")
+    with temporary.open("wb") as raw, gzip.GzipFile(fileobj=raw, mode="wb", mtime=0) as packed:
+        packed.write(text.encode("utf-8"))
+    temporary.replace(target)
+    body = {"rows": len(rows), "digest": digest_of(text), "lists": list(LIST_NAMES), **provenance}
+    write_text_atomic(directory / DEV_LISTS_MANIFEST, json.dumps(body, indent=2, sort_keys=True))
+    return target
+
+
+def load_dev_lists(directory: Path | str) -> list[dict[str, Any]]:
+    directory = Path(directory)
+    body = json.loads((directory / DEV_LISTS_MANIFEST).read_text(encoding="utf-8"))
+    text = gzip.decompress((directory / DEV_LISTS_FILENAME).read_bytes()).decode("utf-8")
+    if digest_of(text) != body["digest"]:
+        raise Phase10Error(f"{DEV_LISTS_FILENAME} does not match its recorded digest")
+    rows = [json.loads(line) for line in text.splitlines()]
+    for row in rows:
+        for name in LIST_NAMES:
+            row[name] = [(str(u), float(s)) for u, s in row[name]]
+    return rows
+
+
+def reproduction_verdict(counts: Mapping[str, int]) -> dict[str, Any]:
+    """D4: the laptop's dev counts against Phase 9's, exact."""
+    reference = config.PHASE_10_DEV_REFERENCE_SUPPORTED
+    checks = {
+        name: {"observed": int(counts[name]), "recorded": reference[name]} for name in reference
+    }
+    return {
+        "checks": checks,
+        "passed": all(c["observed"] == c["recorded"] for c in checks.values()),
+        "metric": "full_support@2048_tokens over the 7,405 dev questions",
+    }
+
+
+# --- D3: the contamination probe ----------------------------------------------------------
+
+
+def probe_verdict(
+    probe_supported: int, probe_n: int, dev_supported: int, dev_n: int
+) -> dict[str, Any]:
+    probe_fs = 100.0 * probe_supported / probe_n
+    dev_fs = 100.0 * dev_supported / dev_n
+    difference = probe_fs - dev_fs
+    over = difference > config.PHASE_10_PROBE_MARGIN_PP
+    return {
+        "probe_supported": probe_supported,
+        "probe_n": probe_n,
+        "probe_fs_pct": probe_fs,
+        "dev_supported": dev_supported,
+        "dev_n": dev_n,
+        "dev_fs_pct": dev_fs,
+        "difference_pp": difference,
+        "margin_pp": config.PHASE_10_PROBE_MARGIN_PP,
+        "terminal_state": DATA_STOP if over else None,
+    }
+
+
+# --- D5: the dev grid and its gate ---------------------------------------------------------
+
+
+def weight_grid(tenths: int = config.PHASE_10_GRID_TENTHS) -> list[tuple[float, float, float]]:
+    """Every convex triple on a grid of `1 / tenths`, ordered by (dense, bm25) descending."""
+    return [
+        (d / tenths, b / tenths, (tenths - d - b) / tenths)
+        for d in range(tenths, -1, -1)
+        for b in range(tenths - d, -1, -1)
+    ]
+
+
+def choose_point(curve: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    """Most Full Support; then gold recall; then larger dense weight; then larger BM25 weight."""
+    return dict(
+        max(
+            curve,
+            key=lambda p: (p["supported"], p["gold_recall_sum"], p["weights"][0], p["weights"][1]),
+        )
+    )
+
+
+def dev_gate(chosen: Mapping[str, Any], control_supported: int) -> str | None:
+    """`DEV_STOP` when the fit drops the Entity Hop or does not beat the control on dev."""
+    if chosen["weights"][2] == 0.0 or chosen["supported"] <= control_supported:
+        return DEV_STOP
+    return None
+
+
+# --- D6: the label -------------------------------------------------------------------------
+
+
+def three_way_outcome(
+    control: Sequence[Mapping[str, Any]], candidate: Sequence[Mapping[str, Any]]
+) -> dict[str, Any]:
+    """P10-C against P10-B, Full Support @2,048, exact McNemar, and the D6 label."""
+    budget = "2048"
+    b = {r["qid"]: r["budgets"][budget]["full_support"] for r in control}
+    c = {r["qid"]: r["budgets"][budget]["full_support"] for r in candidate}
+    if set(b) != set(c) or len(b) != config.PHASE_10_SET_SIZES[config.PHASE_10_TEST]:
+        raise Phase10Error("the two runs do not hold the same test-10 questions")
+    wins = sum(1 for q in b if c[q] == 1.0 and b[q] == 0.0)
+    losses = sum(1 for q in b if b[q] == 1.0 and c[q] == 0.0)
+    p = phase9.exact_two_sided_p(wins, losses)
+    if wins > losses and p < config.PHASE_9_ALPHA:
+        label = "THREE_WAY_SUPPORTED"
+    elif losses > wins and p < config.PHASE_9_ALPHA:
+        label = "THREE_WAY_REGRESSION"
+    else:
+        label = "THREE_WAY_NOT_SUPPORTED"
+    n = len(b)
+    control_successes, candidate_successes = int(sum(b.values())), int(sum(c.values()))
+    return {
+        "set": config.PHASE_10_TEST,
+        "metric": "full_support@2048_tokens",
+        "n_questions": n,
+        "control_successes": control_successes,
+        "candidate_successes": candidate_successes,
+        "wins": wins,
+        "losses": losses,
+        "ties": n - wins - losses,
+        "delta_percentage_points": 100.0 * (candidate_successes - control_successes) / n,
+        "exact_two_sided_p": p,
+        "alpha": config.PHASE_9_ALPHA,
+        "test": "exact two-sided McNemar (binomial on discordant questions, p = 1/2)",
+        "terminal_state": label,
+    }

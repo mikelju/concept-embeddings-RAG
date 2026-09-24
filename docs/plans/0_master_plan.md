@@ -76,7 +76,7 @@ From Phase 7 onward:
 | 8 | Strong Dense + Entity Hop | Available | **STOP at dev gate — premise failed** |
 | 8.1 | **Deviation** — Dense scale sensitivity | Available | **Complete — STABLE_RANKING (rule A)** |
 | 9 | HotpotQA FullWiki at literature-comparable scale | [Approved](phase_9/9.spec.md) | **Complete — SCALE_SUPPORTED** |
-| 10 | Dense + BM25 + Entity Hop at FullWiki scale (step 1 of 2) | [Approved](phase_10/10.spec.md) | **Plan written 2026-09-24 — awaiting approval** |
+| 10 | Dense + BM25 + Entity Hop at FullWiki scale (step 1 of 2) | [Approved](phase_10/10.spec.md) | **Plan approved 2026-09-24 — in progress** |
 
 **The first research line is closed** (2026-09-15): concepts induced from pooled embeddings, tested through Phases 2-4, gave a negative and bounded result. The original Phase 5 — a comparative evaluation of that method — was not run; the plan was renumbered so Phase 5 tests the representation the proposal actually described. See [`phase_4/4.1_research_line_closure.md`](phase_4/4.1_research_line_closure.md).
 
