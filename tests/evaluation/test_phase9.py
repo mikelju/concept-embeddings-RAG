@@ -445,21 +445,23 @@ def few_units() -> list[IndexingUnit]:
 
 def test_the_token_counts_cover_the_corpus_and_refuse_another_one(tmp_path):
     units = few_units()
-    corpus = corpus_hash([unit.unit_id for unit in units])
+    ids = [unit.unit_id for unit in units]
+    corpus = corpus_hash(ids)
 
     body = p9.build_token_counts(units, WordCounter(), tmp_path, unit_set_hash=corpus)
-    counts = p9.load_phase9_token_counts(tmp_path, unit_set_hash=corpus)
+    counts = p9.load_phase9_token_counts(tmp_path, unit_set_hash=corpus, unit_ids=ids)
 
     assert counts == WordCounter().count_units(units)
     assert body["n_units"] == 3
     with pytest.raises(p9.FullWikiPhaseError, match="another corpus"):
-        p9.load_phase9_token_counts(tmp_path, unit_set_hash="other")
+        p9.load_phase9_token_counts(tmp_path, unit_set_hash="other", unit_ids=ids)
 
 
 def test_altered_token_counts_are_refused_sec_034(tmp_path):
     """SEC-034: a count changed on disk would move every budget metric; it must not load."""
     units = few_units()
-    corpus = corpus_hash([unit.unit_id for unit in units])
+    ids = [unit.unit_id for unit in units]
+    corpus = corpus_hash(ids)
     p9.build_token_counts(units, WordCounter(), tmp_path, unit_set_hash=corpus)
     path = tmp_path / p9.TOKENS_FILENAME
     with np.load(path, allow_pickle=False) as payload:
@@ -468,12 +470,29 @@ def test_altered_token_counts_are_refused_sec_034(tmp_path):
     np.savez_compressed(path, unit_ids=unit_ids, counts=counts)
 
     with pytest.raises(p9.FullWikiPhaseError, match="does not match the digest"):
-        p9.load_phase9_token_counts(tmp_path, unit_set_hash=corpus)
+        p9.load_phase9_token_counts(tmp_path, unit_set_hash=corpus, unit_ids=ids)
+
+
+def test_shuffled_token_count_ids_are_refused_sec_034(tmp_path):
+    """Same id set, same values array, ids permuted: each unit would get another's count."""
+    units = few_units()
+    ids = [unit.unit_id for unit in units]
+    corpus = corpus_hash(ids)
+    p9.build_token_counts(units, WordCounter(), tmp_path, unit_set_hash=corpus)
+    path = tmp_path / p9.TOKENS_FILENAME
+    with np.load(path, allow_pickle=False) as payload:
+        unit_ids, counts = payload["unit_ids"].copy(), payload["counts"]
+    unit_ids[[0, 1]] = unit_ids[[1, 0]]
+    np.savez_compressed(path, unit_ids=unit_ids, counts=counts)
+
+    with pytest.raises(p9.FullWikiPhaseError, match="not keyed by the corpus units in order"):
+        p9.load_phase9_token_counts(tmp_path, unit_set_hash=corpus, unit_ids=ids)
 
 
 def test_token_counts_keyed_by_other_units_are_refused_sec_034(tmp_path):
     units = few_units()
-    corpus = corpus_hash([unit.unit_id for unit in units])
+    ids = [unit.unit_id for unit in units]
+    corpus = corpus_hash(ids)
     p9.build_token_counts(units, WordCounter(), tmp_path, unit_set_hash=corpus)
     path = tmp_path / p9.TOKENS_FILENAME
     with np.load(path, allow_pickle=False) as payload:
@@ -481,8 +500,8 @@ def test_token_counts_keyed_by_other_units_are_refused_sec_034(tmp_path):
     unit_ids[0] = "x" * len(str(unit_ids[0]))
     np.savez_compressed(path, unit_ids=unit_ids, counts=counts)
 
-    with pytest.raises(p9.FullWikiPhaseError, match="outside the corpus"):
-        p9.load_phase9_token_counts(tmp_path, unit_set_hash=corpus)
+    with pytest.raises(p9.FullWikiPhaseError, match="not keyed by the corpus units in order"):
+        p9.load_phase9_token_counts(tmp_path, unit_set_hash=corpus, unit_ids=ids)
 
 
 def test_the_bm25_digest_is_a_function_of_the_corpus_alone():

@@ -3922,7 +3922,9 @@ def _phase_9_inputs(target_dir: Path, smoke: int | None = None) -> dict[str, Any
     if smoke is not None:
         dev_qids = _historical_dev_qids(config.DATA_DIR)
         questions = [question for question in questions if question.qid in dev_qids]
-    token_counts = phase9.load_phase9_token_counts(source_dir, unit_set_hash=corpus_hash)
+    token_counts = phase9.load_phase9_token_counts(
+        source_dir, unit_set_hash=corpus_hash, unit_ids=unit_ids
+    )
     for name, record in (("embedding", embedding), ("entity index", entity_record)):
         if record.get("unit_set_hash", record.get("corpus_unit_set_hash")) != corpus_hash:
             _die(f"the {name} manifest names another corpus")

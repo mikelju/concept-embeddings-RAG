@@ -314,7 +314,7 @@ searches over the branch diff.
 
 | ID | Severity | Title | Status |
 |---|---|---|---|
-| SEC-034 | Low | `load_phase9_token_counts` checked only the manifest's corpus and the entry count; the recorded `counts_digest` and the unit set were not re-verified, so an altered `token-counts.npz` would move every budget metric unnoticed | Fixed 2026-09-24, regression tests in `tests/evaluation/test_phase9.py`; the Phase 9 artifact verifies under the fix |
+| SEC-034 | Low | `load_phase9_token_counts` checked only the manifest's corpus and the entry count; the recorded `counts_digest` and the unit set were not re-verified, so an altered `token-counts.npz` would move every budget metric unnoticed | Fixed 2026-09-24: ids must equal the corpus units in corpus order and the values must match `counts_digest`; three regression tests in `tests/evaluation/test_phase9.py` (altered count, shuffled ids, foreign id); the Phase 9 artifact verifies under the fix |
 | OBS-013 | Info | The GLiNER weight file's SHA-256 is recorded but not compared with a pinned value; integrity rests on the Hub revision pin. The measured value (`922214c0…c023`) could be pinned prospectively | Open, observation |
 
 There is **no Critical, High or Medium finding** in the declared surface.

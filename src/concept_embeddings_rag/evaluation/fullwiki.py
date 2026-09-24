@@ -690,7 +690,11 @@ def build_token_counts(
     return body
 
 
-def load_phase9_token_counts(directory: Path | str, *, unit_set_hash: str) -> dict[str, int]:
+def load_phase9_token_counts(
+    directory: Path | str, *, unit_set_hash: str, unit_ids: Sequence[str]
+) -> dict[str, int]:
+    """The budget ruler, refused unless it is keyed by exactly `unit_ids`, in that order, and
+    its counts are the ones the build digested."""
     directory = Path(directory)
     manifest = json.loads((directory / TOKENS_MANIFEST).read_text(encoding="utf-8"))
     if manifest["unit_set_hash"] != unit_set_hash:
@@ -699,10 +703,11 @@ def load_phase9_token_counts(directory: Path | str, *, unit_set_hash: str) -> di
     if len(counts) != manifest["n_units"]:
         raise FullWikiPhaseError("the token counts do not cover the corpus they name")
     # SEC-034: the counts decide every budget metric, so they are verified like every other
-    # input rather than trusted by length. `load_token_counts` keeps the stored order, which
-    # is the order the digest was taken in.
-    if corpus_hash(list(counts)) != unit_set_hash:
-        raise FullWikiPhaseError("the token counts are keyed by units outside the corpus")
+    # input rather than trusted by length. The ids must be the corpus's, in the corpus's order
+    # (a set check would let shuffled ids hand each unit another unit's count), and the values
+    # in that order must be the ones digested at build time.
+    if list(counts) != list(unit_ids):
+        raise FullWikiPhaseError("the token counts are not keyed by the corpus units in order")
     if digest_of(np.array(list(counts.values()), dtype=np.int32)) != manifest["counts_digest"]:
         raise FullWikiPhaseError(
             f"{TOKENS_FILENAME} does not match the digest {TOKENS_MANIFEST} records"
