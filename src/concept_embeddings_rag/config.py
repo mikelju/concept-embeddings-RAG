@@ -771,6 +771,101 @@ PHASE_8_1_TOKENIZE_BATCH: Final[int] = 2048
 PHASE_8_1_QUERY_SECONDS_CEILING: Final[float] = 1.0
 
 
+# --- Phase 9: HotpotQA FullWiki ------------------------------------------------
+# Every value below is fixed by `9.spec.md` (approved and frozen 2026-09-23) before the
+# first Phase 9 number exists. One variable changes - corpus scale - so the models, the
+# extractor, the Entity Hop and both fusion weights are the inherited ones, read from the
+# constants and artifacts that already pin them. Keyed by cohort and system, never by a
+# split name: this module is on the import closure of `evaluation/selection.py`.
+
+PHASE_9_DIR: Final[Path] = DATA_DIR / "phase9"
+# Own caches, never the historical ones: `question_cache_key` does not include the corpus.
+PHASE_9_CACHE_DIR: Final[Path] = PHASE_9_DIR / "cache"
+PHASE_9_QUESTION_CACHE_DIR: Final[Path] = PHASE_9_CACHE_DIR / "questions"
+
+# D1: the archive 8.1 verified. Bytes and md5 are the 8.1 constants; the sha256 is the
+# local integrity record 8.1 measured.
+PHASE_9_ARCHIVE_SHA256: Final[str] = (
+    "1acca1c5cc93c4890ea51091d2bad7c3ef6987aead127ab88728dc9e26555729"  # pragma: allowlist secret
+)
+
+# D3: the three cohorts, by qid, and their sizes as acceptance conditions.
+PHASE_9_RETRIEVAL_UNSEEN: Final[str] = "retrieval-unseen"
+PHASE_9_STANDARD: Final[str] = "standard-dev"
+PHASE_9_HISTORICAL_OVERLAP: Final[str] = "historical-overlap"
+PHASE_9_COHORTS: Final[tuple[str, ...]] = (
+    PHASE_9_RETRIEVAL_UNSEEN,
+    PHASE_9_STANDARD,
+    PHASE_9_HISTORICAL_OVERLAP,
+)
+PHASE_9_COHORT_SIZES: Final[dict[str, int]] = {
+    PHASE_9_RETRIEVAL_UNSEEN: 5405,
+    PHASE_9_STANDARD: 7405,
+    PHASE_9_HISTORICAL_OVERLAP: N_QUESTIONS,
+}
+
+# D4: more questions than this with an unresolved gold title is DATA_STOP (1% of 7,405).
+PHASE_9_UNRESOLVED_CEILING: Final[int] = 74
+
+# D5: the only Dense model measured, and D6: the only extractor, at the frozen Phase 7
+# configuration digest. The digest covers the library versions, so a host whose stack
+# differs from Phase 7's cannot pass as the same extractor.
+PHASE_9_GLINER_CONFIGURATION_DIGEST: Final[str] = "2f7864661b8ce7ff"
+PHASE_9_GLINER_WEIGHTS_FILE: Final[str] = "model.safetensors"
+# Units per resumable extraction shard: a finished shard is never re-extracted.
+PHASE_9_EXTRACTION_SHARD_UNITS: Final[int] = 100_000
+
+# D8: the three systems, by their inherited names, and their frozen weights. The weights
+# are read from the recorded fits named below and must equal these, or nothing runs.
+PHASE_9_SYSTEMS: Final[tuple[str, ...]] = ("dense", "hybrid-bm25", "hybrid-entity-hop")
+PHASE_9_SYSTEM_LABELS: Final[dict[str, str]] = {
+    "dense": "P9-A",
+    "hybrid-bm25": "P9-B",
+    "hybrid-entity-hop": "P9-C",
+}
+PHASE_9_FROZEN_WEIGHTS: Final[dict[str, dict[str, float]]] = {
+    "hybrid-bm25": {"dense": 0.5, "bm25": 0.5},
+    "hybrid-entity-hop": {"dense": 0.7, ENTITY_HOP_NAME: 0.3},
+}
+PHASE_9_WEIGHT_TOLERANCE: Final[float] = 1e-9
+# Phase 3 fitted the BM25 control; Phase 6 recorded it in its dev run's configuration.
+PHASE_9_BM25_WEIGHTS_FILE: Final[Path] = (
+    REPLACEMENT_DIR / PHASE_7_REFERENCE_DEV_FILES["hybrid-bm25"]
+)
+# Phase 7 fitted the GLiNER Entity Hop weight and recorded it in its dev artifact.
+PHASE_9_ENTITY_WEIGHTS_FILE: Final[Path] = PHASE_8_GLINER_DIR / "dev.json"
+
+# S4: the Phase 7 dev Full Support @2,048 counts the Phase 9 path must reproduce on the
+# historical pool, in whole questions. Held equal to the artifacts by a data-dependent test.
+PHASE_9_REPRODUCTION_DEV_SUPPORTED: Final[dict[str, int]] = {
+    "dense": 487,
+    "hybrid-bm25": 518,
+    "hybrid-entity-hop": 518,
+}
+
+# D9/D10: the primary endpoint and its one test.
+PHASE_9_BUDGETS: Final[tuple[int, ...]] = CONTEXT_BUDGETS
+PHASE_9_PRIMARY_BUDGET: Final[int] = 2048
+PHASE_9_KS: Final[tuple[int, ...]] = (2, 5, 10, 20)
+PHASE_9_RANKING_DEPTH: Final[int] = EVALUATION_TOP_K
+PHASE_9_ALPHA: Final[float] = 0.05
+PHASE_9_TERMINAL_STATES: Final[tuple[str, ...]] = (
+    "SCALE_SUPPORTED",
+    "SCALE_NOT_SUPPORTED",
+    "SCALE_REGRESSION",
+    "DATA_STOP",
+    "OPERATIONAL_STOP",
+)
+
+# D11: the frozen envelope.
+PHASE_9_QUERY_SECONDS_CEILING: Final[float] = 1.0
+PHASE_9_SPEND_CEILING_USD: Final[float] = 25.0
+# The operational probe: a seeded sample of already-used historical dev questions,
+# timed for rankings only; no metric is computed on it.
+PHASE_9_PROBE_QUESTIONS: Final[int] = 100
+PHASE_9_PROBE_SEED: Final[int] = DEFAULT_SEED
+
+
 def ensure_directories() -> None:
     """Create the data directories if they do not exist yet."""
     for path in (
@@ -792,5 +887,8 @@ def ensure_directories() -> None:
         PHASE_8_1_DIR,
         PHASE_8_1_CACHE_DIR,
         PHASE_8_1_QUESTION_CACHE_DIR,
+        PHASE_9_DIR,
+        PHASE_9_CACHE_DIR,
+        PHASE_9_QUESTION_CACHE_DIR,
     ):
         path.mkdir(parents=True, exist_ok=True)

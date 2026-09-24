@@ -116,9 +116,7 @@ class EntityHopStage:
         if cached is None:
             rows = [self._row_of(unit_id) for unit_id in read]
             p1 = second_hop.origin(rows)
-            candidates, positives = second_hop.node_hop(
-                self._index, self._weights, types=TYPES, p1=p1, read=rows, depth=top_k
-            )
+            candidates, positives = self._hop(p1, rows, top_k)
             incidence = self._index.incidence
             p1_nodes = incidence.indices[incidence.indptr[p1] : incidence.indptr[p1 + 1]]
             cached = EntityExpansion(
@@ -131,7 +129,34 @@ class EntityHopStage:
             self._memo[key] = cached
         return replace(cached)
 
+    def _hop(self, p1: int, rows: list[int], top_k: int) -> tuple[list[RankedCandidate], int]:
+        return second_hop.node_hop(
+            self._index, self._weights, types=TYPES, p1=p1, read=rows, depth=top_k
+        )
+
     def propose(self, first: Sequence[Hit], top_k: int) -> list[Hit]:
         """`E(q)` as hits, best first: what the fusion receives."""
         expansion = self.expand(first, top_k)
         return [(candidate.unit_id, candidate.score) for candidate in expansion.candidates]
+
+
+class ColumnwiseEntityHopStage(EntityHopStage):
+    """The same stage over `second_hop.node_hop_columnwise`: same output, bit for bit.
+
+    Phase 9, S6: used only when the operational probe shows the reference too slow at
+    FullWiki scale. It changes how the scores are computed, never which units are eligible
+    or what they score; `tests/retrieval/test_columnwise_hop.py` holds the two equal.
+    """
+
+    def __init__(self, index: NodeIndex, weights: np.ndarray) -> None:
+        super().__init__(index, weights)
+        self._columns = self.columns_for(index)
+
+    @staticmethod
+    def columns_for(index: NodeIndex) -> second_hop.ArmColumns:
+        return second_hop.arm_columns(index, TYPES)
+
+    def _hop(self, p1: int, rows: list[int], top_k: int) -> tuple[list[RankedCandidate], int]:
+        return second_hop.node_hop_columnwise(
+            self._index, self._weights, self._columns, p1=p1, read=rows, depth=top_k
+        )

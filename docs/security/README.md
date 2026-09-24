@@ -250,7 +250,7 @@ digest-verified JSON and `np.load` over `.npz` (no `allow_pickle`).
 
 | ID | Severity | Title | Status |
 |---|---|---|---|
-| SEC-031 | Low | The extraction manifest names model, revision and library versions but records no digest of the weight file actually loaded, so the artifact cannot prove which bytes produced it | Open, deferred (artifact preservation; remediation is prospective, see note below) |
+| SEC-031 | Low | The extraction manifest names model, revision and library versions but records no digest of the weight file actually loaded, so the artifact cannot prove which bytes produced it | Open for the Phase 7 artifact (preserved as measured); remediated prospectively in Phase 9, whose extraction manifest records the weight file's SHA-256 |
 | SEC-032 | Low | `spacy.load` of `en_core_web_sm` executes publisher code: the pipeline is an installed Python package, not a data file | Open, accepted (pinned version, official wheel, hash in `uv.lock`) |
 
 **OBS-012** — `gliner` drags `typer`, `rich`, `click`, `shellingham` and `pygments` into the project
@@ -292,7 +292,7 @@ records the SHA-256 of the weight bytes used.
 
 | ID | Severity | Title | Status |
 |---|---|---|---|
-| SEC-033 | Low | `probe_layout` parses probe records without applying `PHASE_8_1_MAX_LINE_BYTES`, so a malformed archive can make the probe hand a line up to the 256 MiB member ceiling to `json.loads` | Open — fix before the FullWiki loader is reused in Phase 9 |
+| SEC-033 | Low | `probe_layout` parses probe records without applying `PHASE_8_1_MAX_LINE_BYTES`, so a malformed archive can make the probe hand a line up to the 256 MiB member ceiling to `json.loads` | Fixed in Phase 9 S1 (regression test `tests/corpus/test_fullwiki.py`) |
 
 There is **no Critical, High or Medium finding** in the declared surface. SEC-033 is bounded by the
 member ceiling and affects resource use in the schema probe, not the measured retrieval semantics.
@@ -302,6 +302,22 @@ preserves the original embedding digest and provenance and no replacement artifa
 
 Full targeted record:
 [`audit-2026-09-22-deviation-8.1.md`](audit-2026-09-22-deviation-8.1.md).
+
+### Phase 9 — 2026-09-24 (targeted review)
+
+Surfaces: untrusted FullWiki archive parsing (`corpus/fullwiki.py`), model download and weight
+loading (GLiNER, BGE), artifact deserialization (JSON/NPZ) in `evaluation/fullwiki.py`,
+`nodes/local_extraction.py` and `nodes/index.py`, the column-wise hop and the `fullwiki-*` CLI
+stages. Tools: `pip-audit` (no known vulnerabilities; `torch` from the PyTorch index not
+auditable); bandit, semgrep and gitleaks not installed, replaced by targeted sink and secret
+searches over the branch diff.
+
+| ID | Severity | Title | Status |
+|---|---|---|---|
+| SEC-034 | Low | `load_phase9_token_counts` checked only the manifest's corpus and the entry count; the recorded `counts_digest` and the unit set were not re-verified, so an altered `token-counts.npz` would move every budget metric unnoticed | Fixed 2026-09-24: ids must equal the corpus units in corpus order and the values must match `counts_digest`; three regression tests in `tests/evaluation/test_phase9.py` (altered count, shuffled ids, foreign id); the Phase 9 artifact verifies under the fix |
+| OBS-013 | Info | The GLiNER weight file's SHA-256 is recorded but not compared with a pinned value; integrity rests on the Hub revision pin. The measured value (`922214c0…c023`) could be pinned prospectively | Open, observation |
+
+There is **no Critical, High or Medium finding** in the declared surface.
 
 ## Deferred audits
 
@@ -418,6 +434,7 @@ five are false positives, audited here rather than in a commit message:
 | `docs/plans/phase_2/2.results.md:236` | Hex High Entropy String | A dictionary key: a digest of public configuration |
 | `tests/concepts/test_dedup.py:50` | Hex High Entropy String | The pool hash in a test fixture, a digest of the public corpus |
 | `tests/concepts/test_dictionary_artifact.py:33` | Hex High Entropy String | The same fixture value |
+| `docs/plans/phase_9/9.spec.md:576,577,610,611,655` | Hex High Entropy String | Public identities frozen by the Phase 9 spec: the FullWiki archive's MD5 and SHA-256, the GLiNER and BGE Hub revisions, and the GLiNER configuration digest. Added to the baseline by hand with forward-slash paths, because a Windows scan does not see them (2026-09-24) |
 | `docs/security/README.md` (the row above) | Secret Keyword | Documenting the first finding meant quoting the flagged line verbatim, so the catalogue reproduces the pattern it explains. Auditing a false positive should not create one, but writing it down is still worth more than the noise |
 
 Regenerate deliberately, and note the two traps:
@@ -612,6 +629,6 @@ byte-identical and covers no Phase 6 file.
 - Every Critical or High finding is resolved with a `fix-N` in `docs/plans/fixes/` before the
   phase closes, or the decision to defer it is recorded in the master plan with its reason.
 - Finding ids are unique per project: continue the `SEC-NNN` sequence rather than restarting it
-  per audit. Next free id: **SEC-034** (`OBS-NNN` for observations: next free is **OBS-013**).
+  per audit. Next free id: **SEC-035** (`OBS-NNN` for observations: next free is **OBS-014**).
 - A phase exempted from the audit (the command's escape hatch) is recorded here too, with its
   reason: an exempt phase is a decision on record, not a phase nobody looked at.

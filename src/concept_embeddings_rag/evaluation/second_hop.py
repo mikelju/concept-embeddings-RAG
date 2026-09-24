@@ -211,9 +211,21 @@ def node_hop(
         (int(row) for row in positive_rows),
         key=lambda row: (-float(scores[row]), index.unit_ids[row]),
     )
+    return _candidates(index, weights, scores, ordered[:depth], shared), int(positive_rows.size)
+
+
+def _candidates(
+    index: NodeIndex,
+    weights: np.ndarray,
+    scores: np.ndarray,
+    rows: Sequence[int],
+    shared: np.ndarray,
+) -> list[RankedCandidate]:
+    """The ranked rows as candidates, each with its shared nodes, heaviest first."""
+    incidence = index.incidence
     shared_set = {int(node) for node in shared}
     candidates: list[RankedCandidate] = []
-    for row in ordered[:depth]:
+    for row in rows:
         row_nodes = incidence.indices[incidence.indptr[row] : incidence.indptr[row + 1]]
         contributions = sorted(
             (
@@ -236,4 +248,72 @@ def node_hop(
                 nodes=tuple(contributions),
             )
         )
-    return candidates, int(positive_rows.size)
+    return candidates
+
+
+# --- The same hop, column-wise (Phase 9, S6) ---------------------------------------------
+
+
+@dataclass(frozen=True, eq=False)
+class ArmColumns:
+    """The arm's node mask and a column-major copy of the incidence, built once per index."""
+
+    mask: np.ndarray
+    indptr: np.ndarray
+    indices: np.ndarray
+
+
+def arm_columns(index: NodeIndex, types: Sequence[str]) -> ArmColumns:
+    """What `node_hop` recomputes on every call - the arm mask - computed once, plus CSC.
+
+    The reference builds the mask by walking every node of the vocabulary per call, which
+    is linear in millions of nodes at FullWiki scale. Row indices must be sorted, because the
+    column-wise sum reproduces the row-wise one only when both add in ascending node order.
+    """
+    incidence = index.incidence
+    if not incidence.has_sorted_indices:
+        raise ValueError("the column-wise hop needs an index whose rows list nodes in order")
+    mask = np.zeros(incidence.shape[1], dtype=bool)
+    mask[index.columns_of(types)] = True
+    csc = incidence.tocsc()
+    return ArmColumns(mask=mask, indptr=csc.indptr, indices=csc.indices)
+
+
+def node_hop_columnwise(
+    index: NodeIndex,
+    weights: np.ndarray,
+    columns: ArmColumns,
+    *,
+    p1: int,
+    read: Collection[int],
+    depth: int,
+) -> tuple[list[RankedCandidate], int]:
+    """`node_hop`, exactly, touching only the rows of the nodes `p1` shares.
+
+    Scores: for each shared node in ascending id, its weight is added to the rows holding it.
+    The reference computes `incidence @ query` row by row, adding the same weights in the same
+    ascending node order and `1.0 * 0.0` for every other node of the row, which leaves a
+    float sum unchanged; the two are therefore equal bit for bit. Ranking: the rows strictly
+    above the depth-th best score, plus the tied rows at it, are sorted by (score, unit id)
+    and cut at the depth - the head of the reference's full sort, without sorting the rest.
+    """
+    incidence = index.incidence
+    p1_nodes = incidence.indices[incidence.indptr[p1] : incidence.indptr[p1 + 1]]
+    shared = np.sort(p1_nodes[columns.mask[p1_nodes]])
+    scores = np.zeros(incidence.shape[0])
+    for node in shared:
+        rows = columns.indices[columns.indptr[node] : columns.indptr[node + 1]]
+        scores[rows] += weights[node]
+    excluded = np.zeros(incidence.shape[0], dtype=bool)
+    excluded[list(read)] = True
+    positive_rows = np.nonzero((scores > 0.0) & ~excluded)[0]
+    kept = positive_rows
+    if positive_rows.size > depth:
+        values = scores[positive_rows]
+        threshold = -np.partition(-values, depth - 1)[depth - 1]
+        kept = positive_rows[values >= threshold]
+    ordered = sorted(
+        (int(row) for row in kept),
+        key=lambda row: (-float(scores[row]), index.unit_ids[row]),
+    )
+    return _candidates(index, weights, scores, ordered[:depth], shared), int(positive_rows.size)

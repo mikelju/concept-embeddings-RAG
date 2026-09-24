@@ -22,10 +22,12 @@ What is established (figures and full records in each phase's `X.results.md`):
 - GLiNER keeps most of that gain for a fraction of Claude's extraction cost (Phase 7);
 - BGE-small stayed ahead of Qwen3-Embedding-0.6B on dev at every corpus size up to 500k
   paragraphs (Phase 8 and deviation 8.1). No substantially stronger Dense has been tested yet.
+- the Entity Hop keeps its gain over Dense at full FullWiki scale (+4.48 pp), where Dense + BM25
+  is slightly ahead of it (Phase 9).
 
-**Current state (2026-09-23):** deviation 8.1 is closed (`STABLE_RANKING`). Phase 9 (HotpotQA
-FullWiki) is next; its spec is being drafted locally and is not approved or committed yet. If this line and the master plan disagree,
-the master plan wins; fix this line.
+**Current state (2026-09-24):** Phase 9 (HotpotQA FullWiki, 5.23M paragraphs) is measured:
+`SCALE_SUPPORTED`, and Dense + BM25 edges the Entity Hop at scale (`phase_9/9.results.md`). The next
+phase is the author's decision. If this line and the master plan disagree, the master plan wins; fix this line.
 
 ## Where things live
 

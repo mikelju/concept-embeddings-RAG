@@ -389,6 +389,37 @@ def test_a_line_past_the_line_ceiling_raises(tmp_path):
         list(fullwiki.iter_records(archive, layout, max_line_bytes=256))
 
 
+def test_the_probe_refuses_a_line_past_the_line_ceiling_before_parsing_it(tmp_path, monkeypatch):
+    # SEC-033 (Phase 9, R1): the probe used to hand any line the member ceiling admitted
+    # to `json.loads`. It now enforces the same per-line ceiling as `iter_records`, and
+    # refuses before the parser ever sees the oversized line.
+    long_record = {"id": "9", "title": "X", "text": ["y" * 5000]}
+    archive = an_archive(
+        tmp_path / "long.tar.bz2",
+        {"AA/wiki_00.bz2": a_member_payload([long_record], compress=True)},
+    )
+    parsed: list[bytes] = []
+    real_loads = fullwiki.json.loads
+
+    def spying_loads(raw, *args, **kwargs):
+        parsed.append(raw)
+        return real_loads(raw, *args, **kwargs)
+
+    monkeypatch.setattr(fullwiki.json, "loads", spying_loads)
+
+    with pytest.raises(fullwiki.FullWikiError, match="ceiling"):
+        fullwiki.probe_layout(archive, max_line_bytes=256)
+    assert parsed == []
+
+
+def test_the_probe_line_ceiling_defaults_to_the_canonical_one():
+    import inspect
+
+    probe = inspect.signature(fullwiki.probe_layout).parameters["max_line_bytes"].default
+    canonical = inspect.signature(fullwiki.iter_records).parameters["max_line_bytes"].default
+    assert probe == canonical == config.PHASE_8_1_MAX_LINE_BYTES
+
+
 def test_a_record_missing_its_declared_fields_is_a_refusal_naming_the_member_and_line(tmp_path):
     archive = an_archive(
         tmp_path / "ragged.tar.bz2",
@@ -432,6 +463,104 @@ def test_describe_source_carries_identity_layout_and_member_counts(tmp_path):
     basis = described["declared_in_spec_basis"].lower()
     assert "verified against the staged archive bytes" in basis
     assert "live hotpotqa page was not checked" in basis
+
+
+# --- Phase 9, S2: the whole archive is the corpus --------------------------------
+
+
+def a_corpus_archive(tmp_path: Path) -> Path:
+    """Two members, one repeated paragraph and one paragraph with no sentence at all."""
+    empty = {"id": "50", "title": "Empty", "text": []}
+    return an_archive(
+        tmp_path / "corpus.tar.bz2",
+        {
+            "AA/wiki_00.bz2": a_member_payload([*BODY_ONLY, *PLAIN], compress=True),
+            "AA/wiki_01.bz2": a_member_payload([*PLAIN, empty], compress=True),
+        },
+        directories=("AA",),
+    )
+
+
+def identity_of(archive: Path) -> dict[str, object]:
+    return {
+        "expected_bytes": archive.stat().st_size,
+        "expected_md5": fullwiki.md5_of_file(archive),
+        "expected_sha256": fullwiki.sha256_of_file(archive),
+    }
+
+
+def test_the_corpus_holds_every_record_once_in_archive_order(tmp_path):
+    archive = a_corpus_archive(tmp_path)
+
+    manifest = fullwiki.write_corpus(archive, tmp_path / "out", **identity_of(archive))
+    units = fullwiki.load_corpus(tmp_path / "out")
+
+    titles = [unit.title for unit in units]
+    assert titles == ["Aristotle", "Albedo", "Empty"]
+    assert [unit.unit_id for unit in units] == [
+        unit_id_for(unit.title, unit.sentences) for unit in units
+    ]
+    # The whole paragraph, as the D2 contract builds it, and nothing trimmed or merged.
+    assert units[0].indexable_text == (
+        "Aristotle. Aristotle was a Greek philosopher.  He studied under Plato."
+    )
+    assert manifest["n_units"] == 3
+    assert manifest["records_read"] == 4
+    assert manifest["duplicate_records_collapsed"] == 1
+    assert manifest["empty_text_units"] == 1
+    assert manifest["archive_sha256"] == fullwiki.sha256_of_file(archive)
+    assert manifest["phase"] == 9
+
+
+def test_the_corpus_digests_are_stable_under_a_rerun(tmp_path):
+    archive = a_corpus_archive(tmp_path)
+
+    first = fullwiki.write_corpus(archive, tmp_path / "a", **identity_of(archive))
+    second = fullwiki.write_corpus(archive, tmp_path / "b", **identity_of(archive))
+
+    for key in ("n_units", "unit_set_hash", "ordered_unit_digest", "layout_digest"):
+        assert first[key] == second[key]
+
+
+def test_an_archive_whose_sha256_is_not_the_declared_one_is_refused_before_parsing(
+    tmp_path, monkeypatch
+):
+    archive = a_corpus_archive(tmp_path)
+    identity = {**identity_of(archive), "expected_sha256": "0" * 64}
+
+    def never(*_args, **_kwargs):
+        raise AssertionError("a record was parsed from an archive that failed identity")
+
+    monkeypatch.setattr(fullwiki, "iter_records", never)
+    monkeypatch.setattr(fullwiki, "probe_layout", never)
+
+    with pytest.raises(fullwiki.FullWikiError, match="sha256"):
+        fullwiki.write_corpus(archive, tmp_path / "out", **identity)
+    assert not (tmp_path / "out" / fullwiki.CORPUS_MANIFEST).exists()
+
+
+def test_a_recorded_corpus_is_a_pin_a_different_stream_cannot_replace(tmp_path):
+    archive = a_corpus_archive(tmp_path)
+    out = tmp_path / "out"
+    fullwiki.write_corpus(archive, out, **identity_of(archive))
+    other = a_standard_archive(tmp_path)
+
+    with pytest.raises(fullwiki.FullWikiError, match="already records"):
+        fullwiki.write_corpus(other, out, **identity_of(other))
+
+
+def test_a_corpus_edited_on_disk_is_refused_on_load(tmp_path):
+    import gzip
+
+    archive = a_corpus_archive(tmp_path)
+    out = tmp_path / "out"
+    fullwiki.write_corpus(archive, out, **identity_of(archive))
+    path = out / fullwiki.CORPUS_NAME
+    text = gzip.decompress(path.read_bytes()).decode("utf-8").replace("Plato", "Socrates")
+    path.write_bytes(gzip.compress(text.encode("utf-8")))
+
+    with pytest.raises(fullwiki.FullWikiError, match="does not hash"):
+        fullwiki.load_corpus(out)
 
 
 # --- No unsafe deserialization, no network -------------------------------------
