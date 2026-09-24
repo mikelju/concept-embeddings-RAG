@@ -1,6 +1,7 @@
 # Research summary — minimum structure for multi-hop retrieval
 
-> Status on 2026-09-24: the planned research line (Phases 1-9) is complete. This page summarises
+> Status on 2026-09-24: the planned research line (Phases 1-9) is complete, and Phase 10 (step 1
+> of the next line) is measured. This page summarises
 > what was asked, what was measured and what it establishes. Every figure links back to the
 > phase document that records it with its artifact; nothing here is new measurement.
 
@@ -41,6 +42,7 @@ has a baseline it must justify itself against.
 | [7](plans/phase_7/7.results.md) | Can the costly LLM extraction be replaced by a local one? | **GLiNER selected.** It keeps 83.5 % of the gain for about a thousandth of the cost |
 | [8](plans/phase_8/8.results.md) / [8.1](plans/phase_8/8.1_results.md) | Does the hop still help beside a stronger Dense? | **Premise failed.** Qwen3-Embedding-0.6B was weaker than BGE-small on this task at every corpus size up to 500k; no stronger Dense was tested |
 | [9](plans/phase_9/9.results.md) | Does it survive the real FullWiki search space? | **`SCALE_SUPPORTED`**, with Dense + BM25 slightly ahead at scale |
+| [10](plans/phase_10/10.results.md) | Does the Entity Hop add anything on top of Dense + BM25 at FullWiki scale? | **`THREE_WAY_SUPPORTED`**: +3.92 pp on 5,000 fresh train questions |
 
 ## The mechanism that worked
 
@@ -93,6 +95,21 @@ the corpus size, while Dense itself falls by about 25 points.
 **4. Cheap zero-shot extraction is enough to carry most of the signal.** Claude entities gave the
 larger gain at pool scale, but GLiNER kept 83.5 % of it.
 
+**5. At full scale, the Entity Hop adds to BM25 rather than competing with it.** Phase 10 fused
+the same frozen hop as a third component (Dense 0.5 / BM25 0.3 / Entity Hop 0.2, fitted on the
+7,405 validation questions). On 5,000 fresh HotpotQA train questions, level `hard`, over the same
+5.2 million paragraphs:
+
+| System | Full Support @2,048 |
+|---|---:|
+| Dense | 58.32 % |
+| Dense + BM25 | 62.58 % |
+| Dense + BM25 + Entity Hop | 66.50 % (+3.92 pp over Dense + BM25; 306 wins, 110 losses, exact McNemar p = 1.9e-22) |
+
+The mean query latency on the laptop rose 1.33×, with a tail of up to 16.5 s. BGE-small was
+fine-tuned on HotpotQA, and Dense reads these train questions 2.6-2.9 points better than the
+validation ones. That bias leaves less for a complement to add, so it works against the result.
+
 ## What did not work, and what is not established
 
 - **Concepts, in two operationalizations**, add nothing. The first used concepts induced from
@@ -101,8 +118,8 @@ larger gain at pool scale, but GLiNER kept 83.5 % of it.
 - **At FullWiki scale, BM25 is the slightly better complement to Dense at the primary budget**
   (61.30 % against 60.09 %, p = 0.024, descriptive). The Entity Hop is ahead at 4,096 tokens and
   at pool scale. The two signals are not redundant: at scale, 371 questions go the Entity Hop's way
-  and 436 go BM25's. **The frozen Entity Hop is therefore not, as it stands, a better system than
-  Dense + BM25 over the full search space.**
+  and 436 go BM25's. **The frozen Entity Hop is therefore not, as it stands, a better
+  replacement for BM25 over the full search space.** Added beside it, it is (Phase 10, point 5).
 - **No stronger Dense was tested.** The one candidate tried (Qwen3-Embedding-0.6B) was weaker on
   this task at every corpus size up to 500k paragraphs. Whether the hop still adds value beside a
   substantially stronger Dense retriever is open.
@@ -123,10 +140,12 @@ cheap local extractor recovers a large share of the multi-hop evidence Dense mis
 scale tested.** At pool scale that is enough to beat the standard Dense + BM25 hybrid. Over the
 full 5.2-million-paragraph space it is not, by 1.2 points at the primary budget.
 
-What the next line has to show is therefore concrete: **a system that is better than Dense + BM25 at
-FullWiki scale.** Any added structure must beat that bar, not just Dense. The measured disagreement
-between the two complements is the first evidence to use. The 7,405 validation questions are now
-spent as held-out data, so a new experiment needs a fresh, untouched question set.
+What the next line had to show was concrete: **a system that is better than Dense + BM25 at
+FullWiki scale.** Phase 10 shows one: the unchanged entity signal, fused as a third component,
+beats Dense + BM25 by 3.92 points on fresh questions. The natural bar for any richer use of the
+entities is now Dense + BM25 + Entity Hop; the step-2 spec decides which bar it tests against. The 7,405 validation
+questions are now dev. A 5,000-question held-out set (`test-11`) is drawn, frozen and untouched for
+step 2.
 
 ## Reproducibility
 

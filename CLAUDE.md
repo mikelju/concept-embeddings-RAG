@@ -23,10 +23,12 @@ What is established (figures and full records in each phase's `X.results.md`):
 - BGE-small stayed ahead of Qwen3-Embedding-0.6B on dev at every corpus size up to 500k
   paragraphs (Phase 8 and deviation 8.1). No substantially stronger Dense has been tested yet.
 - the Entity Hop keeps its gain over Dense at full FullWiki scale (+4.48 pp), where Dense + BM25
-  is slightly ahead of it (Phase 9).
+  is slightly ahead of it (Phase 9);
+- added as a third component, the Entity Hop lifts Dense + BM25 at FullWiki scale (+3.92 pp on
+  5,000 train questions, Phase 10). The 7,405 validation questions are now dev.
 
-**Current state (2026-09-24):** Phase 9 (HotpotQA FullWiki, 5.23M paragraphs) is measured:
-`SCALE_SUPPORTED`, and Dense + BM25 edges the Entity Hop at scale (`phase_9/9.results.md`). The next
+**Current state (2026-09-24):** Phase 10 (Dense + BM25 + Entity Hop at FullWiki scale) is measured:
+`THREE_WAY_SUPPORTED` (`phase_10/10.results.md`). `test-11` is reserved for step 2. The next
 phase is the author's decision. If this line and the master plan disagree, the master plan wins; fix this line.
 
 ## Where things live
