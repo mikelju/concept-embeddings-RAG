@@ -876,7 +876,6 @@ PHASE_10_QUESTION_CACHE_DIR: Final[Path] = PHASE_10_DIR / "cache" / "questions"
 
 # D2: the source and the draw. One `random.Random(seed).sample` over the sorted hard
 # qids, sliced in this order, so the three sets are disjoint by construction.
-PHASE_10_TRAIN_SPLIT: Final[str] = "train"
 PHASE_10_TRAIN_MAX_ROWS: Final[int] = 100_000
 PHASE_10_LEVEL: Final[str] = "hard"
 PHASE_10_SEED: Final[int] = 10

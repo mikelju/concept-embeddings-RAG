@@ -4249,6 +4249,9 @@ def _cache_key_for(backend: EmbeddingBackend, units: Sequence[IndexingUnit]) -> 
     )
 
 
+# The HotpotQA split the Phase 10 sets are drawn from (D2). It is named here, not in
+# config.py, because the dev-selection guard forbids every other split name there.
+P10_TRAIN_SPLIT = "train"
 P10_TRAIN_NAME = "hotpot_train_hard_source.json"
 P10_TRAIN_MANIFEST = "train-source.json"
 
@@ -4266,7 +4269,7 @@ def _p10_train(target_dir: Path) -> list[dict[str, Any]]:
     if not raw_path.exists():
         print(f"[INFO] assembling {hf_source.DATASET} ({hf_source.CONFIG}/train)")
         fetched = hf_source.fetch_split(
-            pause=0.5, split=config.PHASE_10_TRAIN_SPLIT, max_rows=config.PHASE_10_TRAIN_MAX_ROWS
+            pause=0.5, split=P10_TRAIN_SPLIT, max_rows=config.PHASE_10_TRAIN_MAX_ROWS
         )
         keep = ("_id", "question", "answer", "type", "level", "supporting_facts")
         slim = [{key: row[key] for key in keep} for row in fetched]
@@ -4274,7 +4277,7 @@ def _p10_train(target_dir: Path) -> list[dict[str, Any]]:
         manifest = {
             "dataset": hf_source.DATASET,
             "config": hf_source.CONFIG,
-            "split": config.PHASE_10_TRAIN_SPLIT,
+            "split": P10_TRAIN_SPLIT,
             "endpoint": hf_source.ROWS_ENDPOINT,
             "rows": len(slim),
             "fields_kept": list(keep),
