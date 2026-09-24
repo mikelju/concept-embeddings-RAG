@@ -4803,6 +4803,8 @@ def cmd_p10_outcome(target_dir: Path = config.PHASE_10_DIR) -> Path:
     }
     body = {
         **outcome,
+        # DATA_STOP and DEV_STOP end the phase before a pass exists, so none can reach here.
+        "stop_reasons": [],
         "latency": latency,
         "latency_ratio_candidate_over_control": (
             latency[candidate]["mean_ms"] / latency[control]["mean_ms"]

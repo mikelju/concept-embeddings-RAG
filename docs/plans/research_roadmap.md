@@ -736,7 +736,7 @@ Does BM25 still contain complementary information after Entity Hop is present?
 Potentially useful, but not required for the current scientific story.
 
 **Measured in Phase 10 (2026-09-24): `THREE_WAY_SUPPORTED`.** At FullWiki scale the three-way
-fusion beats Dense + BM25 by 3.92 pp Full Support @2,048 on 5,000 fresh questions. See
+fusion beats Dense + BM25 by 3.92 pp Full Support @2,048 on 5,000 held-out HotpotQA train questions (seen by BGE-small in fine-tuning). See
 [`phase_10/10.results.md`](phase_10/10.results.md).
 
 ---

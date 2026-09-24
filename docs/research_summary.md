@@ -42,7 +42,7 @@ has a baseline it must justify itself against.
 | [7](plans/phase_7/7.results.md) | Can the costly LLM extraction be replaced by a local one? | **GLiNER selected.** It keeps 83.5 % of the gain for about a thousandth of the cost |
 | [8](plans/phase_8/8.results.md) / [8.1](plans/phase_8/8.1_results.md) | Does the hop still help beside a stronger Dense? | **Premise failed.** Qwen3-Embedding-0.6B was weaker than BGE-small on this task at every corpus size up to 500k; no stronger Dense was tested |
 | [9](plans/phase_9/9.results.md) | Does it survive the real FullWiki search space? | **`SCALE_SUPPORTED`**, with Dense + BM25 slightly ahead at scale |
-| [10](plans/phase_10/10.results.md) | Does the Entity Hop add anything on top of Dense + BM25 at FullWiki scale? | **`THREE_WAY_SUPPORTED`**: +3.92 pp on 5,000 fresh train questions |
+| [10](plans/phase_10/10.results.md) | Does the Entity Hop add anything on top of Dense + BM25 at FullWiki scale? | **`THREE_WAY_SUPPORTED`**: +3.92 pp on 5,000 held-out train questions (seen by BGE in fine-tuning) |
 
 ## The mechanism that worked
 
@@ -97,7 +97,7 @@ larger gain at pool scale, but GLiNER kept 83.5 % of it.
 
 **5. At full scale, the Entity Hop adds to BM25 rather than competing with it.** Phase 10 fused
 the same frozen hop as a third component (Dense 0.5 / BM25 0.3 / Entity Hop 0.2, fitted on the
-7,405 validation questions). On 5,000 fresh HotpotQA train questions, level `hard`, over the same
+7,405 validation questions). On 5,000 held-out HotpotQA train questions, level `hard` (seen by BGE-small in fine-tuning), over the same
 5.2 million paragraphs:
 
 | System | Full Support @2,048 |
@@ -142,7 +142,7 @@ full 5.2-million-paragraph space it is not, by 1.2 points at the primary budget.
 
 What the next line had to show was concrete: **a system that is better than Dense + BM25 at
 FullWiki scale.** Phase 10 shows one: the unchanged entity signal, fused as a third component,
-beats Dense + BM25 by 3.92 points on fresh questions. The natural bar for any richer use of the
+beats Dense + BM25 by 3.92 points on held-out train questions. The natural bar for any richer use of the
 entities is now Dense + BM25 + Entity Hop; the step-2 spec decides which bar it tests against. The 7,405 validation
 questions are now dev. A 5,000-question held-out set (`test-11`) is drawn, frozen and untouched for
 step 2.
