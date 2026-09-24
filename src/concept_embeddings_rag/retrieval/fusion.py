@@ -384,3 +384,79 @@ class FusedRetriever:
             None if self.weights is None else tuple(self.weights[name] for name in self.components)
         )
         return fuse(hits, scheme=self.scheme, top_k=top_k, weights=ordered)
+
+
+# --- Phase 10: three components -----------------------------------------------------------
+
+BM25_NAME = "bm25"
+TRIPLE_COMPONENTS: tuple[str, ...] = (DENSE, BM25_NAME, config.ENTITY_HOP_NAME)
+
+
+def fuse_lists(
+    lists: Sequence[Sequence[Hit]], weights: Sequence[float], *, top_k: int
+) -> list[Hit]:
+    """The weighted, min-max fusion of already-gathered component lists, in fixed order.
+
+    Exactly the call a hybrid's `retrieve` makes once it holds its lists, so a dev grid
+    that re-fuses cached lists ranks what the hybrid would have ranked.
+    """
+    return fuse(lists, scheme=WEIGHTED, top_k=top_k, weights=tuple(weights))
+
+
+class TripleFusedRetriever:
+    """Dense + BM25 + Entity Hop (Phase 10, P10-C), fused by the weighted scheme.
+
+    Dense is asked once; BM25 reads the question; the Entity Hop stage is handed Dense's
+    list, as in Phase 6. Each is asked for the same `top_k`, and the best `top_k` of the
+    union is returned by the existing `fuse`. The components are fixed in role and order:
+    a system whose second or third slot held something else would not be P10-C.
+    """
+
+    scheme = WEIGHTED
+    normalization = MIN_MAX
+    fitted_on = FITTED_ON
+
+    def __init__(
+        self,
+        dense: Retriever,
+        bm25: Retriever,
+        stage: SecondStage,
+        *,
+        weights: Mapping[str, float],
+    ) -> None:
+        roles = ((dense, DENSE, "retrieve"), (bm25, BM25_NAME, "retrieve"))
+        for component, name, method in roles:
+            if getattr(component, "name", None) != name or not callable(
+                getattr(component, method, None)
+            ):
+                raise ValueError(f"the {name!r} slot must hold a retriever named {name!r}")
+        if getattr(stage, "name", None) != config.ENTITY_HOP_NAME or not _is_stage(stage):
+            raise ValueError(f"the third slot must hold the {config.ENTITY_HOP_NAME!r} stage")
+        self._dense, self._bm25, self._stage = dense, bm25, stage
+        self.components = list(TRIPLE_COMPONENTS)
+        self.name = f"hybrid-{BM25_NAME}-{config.ENTITY_HOP_NAME}"
+        checked = _checked_weights(WEIGHTED, self.components, weights)
+        if checked is None:  # unreachable for the weighted scheme; keeps the type narrow
+            raise ValueError("the weighted scheme cannot run without weights")
+        self.weights = checked
+
+    def describe(self) -> dict:
+        return {
+            "name": self.name,
+            "components": list(self.components),
+            "scheme": self.scheme,
+            "normalization": self.normalization,
+            "weights": dict(self.weights),
+            "fitted_on": self.fitted_on,
+        }
+
+    def gather(self, query: str, top_k: int) -> tuple[list[Hit], list[Hit], list[Hit]]:
+        """The three component lists this hybrid fuses, in fixed order."""
+        first = self._dense.retrieve(query, top_k)
+        return first, self._bm25.retrieve(query, top_k), self._stage.propose(list(first), top_k)
+
+    def retrieve(self, query: str, top_k: int) -> list[Hit]:
+        if top_k <= 0:
+            raise ValueError(f"top_k must be positive, not {top_k}")
+        ordered = tuple(self.weights[name] for name in self.components)
+        return fuse_lists(self.gather(query, top_k), ordered, top_k=top_k)
