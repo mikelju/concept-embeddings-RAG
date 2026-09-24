@@ -1119,4 +1119,4 @@ def test_the_phase_9_endpoint_and_envelope_are_the_ones_the_spec_freezes():
     assert config.PHASE_9_ALPHA == 0.05
     assert config.PHASE_9_QUERY_SECONDS_CEILING == 1.0
     assert config.PHASE_9_SPEND_CEILING_USD == 25.0
-    assert config.PHASE_9_GLINER_CONFIGURATION_DIGEST == "2f7864661b8ce7ff"
+    assert config.PHASE_9_GLINER_CONFIGURATION_DIGEST == "2f7864661b8ce7ff"  # pragma: allowlist secret
