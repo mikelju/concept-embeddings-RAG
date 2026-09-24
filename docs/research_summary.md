@@ -142,8 +142,9 @@ full 5.2-million-paragraph space it is not, by 1.2 points at the primary budget.
 
 What the next line had to show was concrete: **a system that is better than Dense + BM25 at
 FullWiki scale.** Phase 10 shows one: the unchanged entity signal, fused as a third component,
-beats Dense + BM25 by 3.92 points on held-out train questions. The natural bar for any richer use of the
-entities is now Dense + BM25 + Entity Hop; the step-2 spec decides which bar it tests against. The 7,405 validation
+beats Dense + BM25 by 3.92 points on held-out train questions. From step 2 on, every new system is reported
+against both: Dense + BM25 + Entity Hop, the project's own bar, which decides whether a new use of
+the entities is kept; and Dense + BM25, the reference the literature understands. The 7,405 validation
 questions are now dev. A 5,000-question held-out set (`test-11`) is drawn, frozen and untouched for
 step 2.
 

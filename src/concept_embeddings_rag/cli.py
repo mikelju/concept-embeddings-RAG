@@ -4268,9 +4268,13 @@ def _p10_train(target_dir: Path) -> list[dict[str, Any]]:
     manifest_path = target_dir / P10_TRAIN_MANIFEST
     if not raw_path.exists():
         print(f"[INFO] assembling {hf_source.DATASET} ({hf_source.CONFIG}/train)")
+        revisions = hf_source.dataset_revisions()
         fetched = hf_source.fetch_split(
             pause=0.5, split=P10_TRAIN_SPLIT, max_rows=config.PHASE_10_TRAIN_MAX_ROWS
         )
+        # A ref that moved while the rows were paged would leave the pin ambiguous.
+        if hf_source.dataset_revisions() != revisions:
+            _die(f"{hf_source.DATASET} changed revision during the download; fetch again")
         keep = ("_id", "question", "answer", "type", "level", "supporting_facts")
         slim = [{key: row[key] for key in keep} for row in fetched]
         raw_path.write_text(json.dumps(slim, sort_keys=True), encoding="utf-8")
@@ -4279,6 +4283,7 @@ def _p10_train(target_dir: Path) -> list[dict[str, Any]]:
             "config": hf_source.CONFIG,
             "split": P10_TRAIN_SPLIT,
             "endpoint": hf_source.ROWS_ENDPOINT,
+            "revisions": revisions,
             "rows": len(slim),
             "fields_kept": list(keep),
             "bytes": raw_path.stat().st_size,

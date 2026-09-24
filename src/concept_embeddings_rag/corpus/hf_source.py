@@ -91,6 +91,28 @@ def _http_page_fetcher(offset: int, length: int, split: str = SPLIT) -> dict:
     return response.json()
 
 
+REVISION_ENDPOINT = "https://huggingface.co/api/datasets/{dataset}/revision/{ref}"
+# The rows endpoint serves the Parquet conversion; `main` is the dataset it was converted from.
+REVISION_REFS = ("main", "refs/convert/parquet")
+
+RevisionFetcher = Callable[[str], dict]
+
+
+def _http_revision_fetcher(ref: str) -> dict:
+    import httpx
+
+    url = REVISION_ENDPOINT.format(dataset=DATASET, ref=ref.replace("/", "%2F"))
+    response = httpx.get(url, timeout=60.0)
+    response.raise_for_status()
+    return response.json()
+
+
+def dataset_revisions(fetcher: RevisionFetcher | None = None) -> dict[str, str]:
+    """The commit each served ref points at now: the pin a rows-API download cannot carry."""
+    fetcher = fetcher or _http_revision_fetcher
+    return {ref: str(fetcher(ref)["sha"]) for ref in REVISION_REFS}
+
+
 def fetch_split(
     page_fetcher: PageFetcher | None = None,
     page_size: int = 100,
