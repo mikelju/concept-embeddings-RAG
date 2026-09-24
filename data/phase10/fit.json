@@ -1,0 +1,619 @@
+{
+  "chosen": {
+    "gold_recall_sum": 6007.0,
+    "supported": 4801,
+    "weights": [
+      0.5,
+      0.3,
+      0.2
+    ]
+  },
+  "code_commit": "dc4e17e9abe04e6f004a5ad6970c6dd928b6ac8b",
+  "control_supported": 4536,
+  "curve": [
+    {
+      "gold_recall_sum": 5591.0,
+      "supported": 4125,
+      "weights": [
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "gold_recall_sum": 5654.0,
+      "supported": 4224,
+      "weights": [
+        0.9,
+        0.1,
+        0.0
+      ]
+    },
+    {
+      "gold_recall_sum": 5648.5,
+      "supported": 4232,
+      "weights": [
+        0.9,
+        0.0,
+        0.1
+      ]
+    },
+    {
+      "gold_recall_sum": 5749.0,
+      "supported": 4375,
+      "weights": [
+        0.8,
+        0.2,
+        0.0
+      ]
+    },
+    {
+      "gold_recall_sum": 5742.0,
+      "supported": 4384,
+      "weights": [
+        0.8,
+        0.1,
+        0.1
+      ]
+    },
+    {
+      "gold_recall_sum": 5746.0,
+      "supported": 4417,
+      "weights": [
+        0.8,
+        0.0,
+        0.2
+      ]
+    },
+    {
+      "gold_recall_sum": 5839.0,
+      "supported": 4496,
+      "weights": [
+        0.7,
+        0.3,
+        0.0
+      ]
+    },
+    {
+      "gold_recall_sum": 5847.5,
+      "supported": 4551,
+      "weights": [
+        0.7,
+        0.2,
+        0.1
+      ]
+    },
+    {
+      "gold_recall_sum": 5838.5,
+      "supported": 4561,
+      "weights": [
+        0.7,
+        0.1,
+        0.2
+      ]
+    },
+    {
+      "gold_recall_sum": 5759.0,
+      "supported": 4441,
+      "weights": [
+        0.7,
+        0.0,
+        0.3
+      ]
+    },
+    {
+      "gold_recall_sum": 5879.0,
+      "supported": 4541,
+      "weights": [
+        0.6,
+        0.4,
+        0.0
+      ]
+    },
+    {
+      "gold_recall_sum": 5933.5,
+      "supported": 4665,
+      "weights": [
+        0.6,
+        0.3,
+        0.1
+      ]
+    },
+    {
+      "gold_recall_sum": 5943.0,
+      "supported": 4714,
+      "weights": [
+        0.6,
+        0.2,
+        0.2
+      ]
+    },
+    {
+      "gold_recall_sum": 5847.0,
+      "supported": 4586,
+      "weights": [
+        0.6,
+        0.1,
+        0.3
+      ]
+    },
+    {
+      "gold_recall_sum": 5676.5,
+      "supported": 4329,
+      "weights": [
+        0.6,
+        0.0,
+        0.4
+      ]
+    },
+    {
+      "gold_recall_sum": 5876.5,
+      "supported": 4536,
+      "weights": [
+        0.5,
+        0.5,
+        0.0
+      ]
+    },
+    {
+      "gold_recall_sum": 5970.5,
+      "supported": 4723,
+      "weights": [
+        0.5,
+        0.4,
+        0.1
+      ]
+    },
+    {
+      "gold_recall_sum": 6007.0,
+      "supported": 4801,
+      "weights": [
+        0.5,
+        0.3,
+        0.2
+      ]
+    },
+    {
+      "gold_recall_sum": 5936.0,
+      "supported": 4709,
+      "weights": [
+        0.5,
+        0.2,
+        0.3
+      ]
+    },
+    {
+      "gold_recall_sum": 5759.0,
+      "supported": 4441,
+      "weights": [
+        0.5,
+        0.1,
+        0.4
+      ]
+    },
+    {
+      "gold_recall_sum": 5439.5,
+      "supported": 4051,
+      "weights": [
+        0.5,
+        0.0,
+        0.5
+      ]
+    },
+    {
+      "gold_recall_sum": 5835.0,
+      "supported": 4448,
+      "weights": [
+        0.4,
+        0.6,
+        0.0
+      ]
+    },
+    {
+      "gold_recall_sum": 5956.5,
+      "supported": 4687,
+      "weights": [
+        0.4,
+        0.5,
+        0.1
+      ]
+    },
+    {
+      "gold_recall_sum": 5994.0,
+      "supported": 4765,
+      "weights": [
+        0.4,
+        0.4,
+        0.2
+      ]
+    },
+    {
+      "gold_recall_sum": 5967.0,
+      "supported": 4735,
+      "weights": [
+        0.4,
+        0.3,
+        0.3
+      ]
+    },
+    {
+      "gold_recall_sum": 5830.0,
+      "supported": 4532,
+      "weights": [
+        0.4,
+        0.2,
+        0.4
+      ]
+    },
+    {
+      "gold_recall_sum": 5494.0,
+      "supported": 4151,
+      "weights": [
+        0.4,
+        0.1,
+        0.5
+      ]
+    },
+    {
+      "gold_recall_sum": 5021.5,
+      "supported": 3612,
+      "weights": [
+        0.4,
+        0.0,
+        0.6
+      ]
+    },
+    {
+      "gold_recall_sum": 5737.5,
+      "supported": 4284,
+      "weights": [
+        0.3,
+        0.7,
+        0.0
+      ]
+    },
+    {
+      "gold_recall_sum": 5863.0,
+      "supported": 4517,
+      "weights": [
+        0.3,
+        0.6,
+        0.1
+      ]
+    },
+    {
+      "gold_recall_sum": 5916.5,
+      "supported": 4619,
+      "weights": [
+        0.3,
+        0.5,
+        0.2
+      ]
+    },
+    {
+      "gold_recall_sum": 5888.5,
+      "supported": 4580,
+      "weights": [
+        0.3,
+        0.4,
+        0.3
+      ]
+    },
+    {
+      "gold_recall_sum": 5789.0,
+      "supported": 4440,
+      "weights": [
+        0.3,
+        0.3,
+        0.4
+      ]
+    },
+    {
+      "gold_recall_sum": 5511.5,
+      "supported": 4137,
+      "weights": [
+        0.3,
+        0.2,
+        0.5
+      ]
+    },
+    {
+      "gold_recall_sum": 5076.5,
+      "supported": 3708,
+      "weights": [
+        0.3,
+        0.1,
+        0.6
+      ]
+    },
+    {
+      "gold_recall_sum": 4412.0,
+      "supported": 3100,
+      "weights": [
+        0.3,
+        0.0,
+        0.7
+      ]
+    },
+    {
+      "gold_recall_sum": 5527.5,
+      "supported": 3968,
+      "weights": [
+        0.2,
+        0.8,
+        0.0
+      ]
+    },
+    {
+      "gold_recall_sum": 5661.5,
+      "supported": 4212,
+      "weights": [
+        0.2,
+        0.7,
+        0.1
+      ]
+    },
+    {
+      "gold_recall_sum": 5692.5,
+      "supported": 4263,
+      "weights": [
+        0.2,
+        0.6,
+        0.2
+      ]
+    },
+    {
+      "gold_recall_sum": 5671.0,
+      "supported": 4237,
+      "weights": [
+        0.2,
+        0.5,
+        0.3
+      ]
+    },
+    {
+      "gold_recall_sum": 5597.5,
+      "supported": 4131,
+      "weights": [
+        0.2,
+        0.4,
+        0.4
+      ]
+    },
+    {
+      "gold_recall_sum": 5369.0,
+      "supported": 3917,
+      "weights": [
+        0.2,
+        0.3,
+        0.5
+      ]
+    },
+    {
+      "gold_recall_sum": 5017.5,
+      "supported": 3609,
+      "weights": [
+        0.2,
+        0.2,
+        0.6
+      ]
+    },
+    {
+      "gold_recall_sum": 4442.0,
+      "supported": 3168,
+      "weights": [
+        0.2,
+        0.1,
+        0.7
+      ]
+    },
+    {
+      "gold_recall_sum": 3647.5,
+      "supported": 2509,
+      "weights": [
+        0.2,
+        0.0,
+        0.8
+      ]
+    },
+    {
+      "gold_recall_sum": 5238.5,
+      "supported": 3530,
+      "weights": [
+        0.1,
+        0.9,
+        0.0
+      ]
+    },
+    {
+      "gold_recall_sum": 5323.5,
+      "supported": 3686,
+      "weights": [
+        0.1,
+        0.8,
+        0.1
+      ]
+    },
+    {
+      "gold_recall_sum": 5366.0,
+      "supported": 3774,
+      "weights": [
+        0.1,
+        0.7,
+        0.2
+      ]
+    },
+    {
+      "gold_recall_sum": 5325.0,
+      "supported": 3723,
+      "weights": [
+        0.1,
+        0.6,
+        0.3
+      ]
+    },
+    {
+      "gold_recall_sum": 5237.5,
+      "supported": 3611,
+      "weights": [
+        0.1,
+        0.5,
+        0.4
+      ]
+    },
+    {
+      "gold_recall_sum": 5019.0,
+      "supported": 3405,
+      "weights": [
+        0.1,
+        0.4,
+        0.5
+      ]
+    },
+    {
+      "gold_recall_sum": 4722.0,
+      "supported": 3165,
+      "weights": [
+        0.1,
+        0.3,
+        0.6
+      ]
+    },
+    {
+      "gold_recall_sum": 4242.0,
+      "supported": 2882,
+      "weights": [
+        0.1,
+        0.2,
+        0.7
+      ]
+    },
+    {
+      "gold_recall_sum": 3661.5,
+      "supported": 2545,
+      "weights": [
+        0.1,
+        0.1,
+        0.8
+      ]
+    },
+    {
+      "gold_recall_sum": 2967.5,
+      "supported": 1981,
+      "weights": [
+        0.1,
+        0.0,
+        0.9
+      ]
+    },
+    {
+      "gold_recall_sum": 5045.0,
+      "supported": 3226,
+      "weights": [
+        0.0,
+        1.0,
+        0.0
+      ]
+    },
+    {
+      "gold_recall_sum": 5109.0,
+      "supported": 3350,
+      "weights": [
+        0.0,
+        0.9,
+        0.1
+      ]
+    },
+    {
+      "gold_recall_sum": 5134.5,
+      "supported": 3405,
+      "weights": [
+        0.0,
+        0.8,
+        0.2
+      ]
+    },
+    {
+      "gold_recall_sum": 5068.0,
+      "supported": 3327,
+      "weights": [
+        0.0,
+        0.7,
+        0.3
+      ]
+    },
+    {
+      "gold_recall_sum": 4950.5,
+      "supported": 3173,
+      "weights": [
+        0.0,
+        0.6,
+        0.4
+      ]
+    },
+    {
+      "gold_recall_sum": 4716.0,
+      "supported": 2917,
+      "weights": [
+        0.0,
+        0.5,
+        0.5
+      ]
+    },
+    {
+      "gold_recall_sum": 4356.0,
+      "supported": 2610,
+      "weights": [
+        0.0,
+        0.4,
+        0.6
+      ]
+    },
+    {
+      "gold_recall_sum": 3827.5,
+      "supported": 2235,
+      "weights": [
+        0.0,
+        0.3,
+        0.7
+      ]
+    },
+    {
+      "gold_recall_sum": 3214.0,
+      "supported": 1864,
+      "weights": [
+        0.0,
+        0.2,
+        0.8
+      ]
+    },
+    {
+      "gold_recall_sum": 2650.0,
+      "supported": 1518,
+      "weights": [
+        0.0,
+        0.1,
+        0.9
+      ]
+    },
+    {
+      "gold_recall_sum": 624.0,
+      "supported": 28,
+      "weights": [
+        0.0,
+        0.0,
+        1.0
+      ]
+    }
+  ],
+  "dev_lists_digest": "d2e5c2d65b9f032bbd892786f63acdac012cb261cb5ea10971d55756797eb7e9",
+  "grid": "convex triples (dense, bm25, entity-hop) on tenths, 66 points",
+  "objective": "full_support@2048 over the 7,405 dev questions",
+  "terminal_state": null,
+  "tie_rule": "gold_recall@2048 sum, then larger dense weight, then larger bm25 weight",
+  "weights": {
+    "bm25": 0.3,
+    "dense": 0.5,
+    "entity-hop": 0.2
+  }
+}
