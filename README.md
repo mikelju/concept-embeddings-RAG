@@ -12,37 +12,34 @@ The full hypothesis, the surveyed prior art and the experimental design are in
 [`docs/refs/descripcion-proyecto.md`](docs/refs/descripcion-proyecto.md) and
 [`docs/refs/bibliografia.md`](docs/refs/bibliografia.md) (both in Spanish; they are source material).
 
+> That was the starting hypothesis, and it did not hold. The work then narrowed to the question
+> the later phases answer: what is the minimum structural signal Dense retrieval needs for
+> multi-hop evidence? See [`docs/research_summary.md`](docs/research_summary.md).
+
 **The deliverable of this project is measured evidence, not an application**: comparable
 systems (BM25, dense, conceptual, iterative) evaluated on a multi-hop benchmark with annotated
 ground truth, and an explicit verdict on the hypothesis.
 
 ## Status
 
-**First research line — closed with a bounded negative result.** Phases 1-4 tested one
-operationalization of the idea: a concept space induced by sparse dictionary learning over *pooled
-dense paragraph embeddings*, used for conceptual retrieval, dense+concept fusion and diffusion-based
-iterative expansion on HotpotQA. It adds no measurable retrieval value over dense, and a cheap
-dense+BM25 control beats it. That does **not** refute the broader hypothesis: concepts extracted from
-the text itself were never tested.
+**The planned research line (Phases 1-9) is complete.** The summary, with what was established,
+what was not and where it leaves the work, is
+[`docs/research_summary.md`](docs/research_summary.md).
 
-Full Support at 2,048 context tokens, 1,400 test questions, read from the versioned result files:
+In short, the concept-space idea failed (Phases 2-5), but a minimal entity signal worked. The
+Entity Hop is a query-blind, one-hop step from the first Dense paragraph to paragraphs sharing a
+named entity with it, using entities from a cheap local extractor (GLiNER). Full Support at 2,048
+context tokens:
 
-| System | Full Support |
-|---|---:|
-| Concepts alone | 0.355 |
-| BM25 | 0.759 |
-| Dense | 0.825 |
-| Dense + concepts (System B) | 0.825 |
-| Diffusion expansion (System C) | 0.821 |
-| **Dense + BM25 control** | **0.864** |
+| System | Pool, 1,400 test q. (19,366 paragraphs) | FullWiki, 5,405 unseen q. (5.23M paragraphs) |
+|---|---:|---:|
+| Dense (BGE-small) | 0.8250 | 0.5562 |
+| Dense + BM25 | 0.8643 | **0.6130** |
+| Dense + Entity Hop (GLiNER) | **0.8793** | 0.6009 |
 
-The expansion failed mechanically: at every restart it tested, the walk returned the seed's own 100
-paragraphs reordered and never promoted a new one — at 4.3x the cost of dense per query.
-
-The closure, with what it rules out, what stays open and what became of the planned evaluation, is
-[`docs/plans/phase_4/4.1_research_line_closure.md`](docs/plans/phase_4/4.1_research_line_closure.md).
-**Next:** Phase 5, a small pilot with concepts and entities extracted from the text — not yet
-specified. Roadmap: [`docs/plans/0_master_plan.md`](docs/plans/0_master_plan.md).
+The Entity Hop's gain over Dense survives full scale (+4.48 points, p = 8.0e-28). Over the full
+search space, though, Dense + BM25 is 1.2 points ahead. The whole FullWiki entity extraction cost
+4.57 USD of rented GPU time.
 
 ## The phases
 
@@ -63,6 +60,22 @@ points. [`3.results.md`](docs/plans/phase_3/3.results.md)
 **Phase 4 — expanding by diffusion (System C).** A re-ranker of dense's top-100 that ties dense and
 loses to the control at every budget, for arithmetic reasons the report measures.
 [`4.results.md`](docs/plans/phase_4/4.results.md)
+
+**Phase 5 — reading entities and concepts from the text.** Entities navigate to the missing
+paragraph; text-derived concepts do not. [`5.results.md`](docs/plans/phase_5/5.results.md)
+
+**Phase 6 — Dense + Entity Hop.** The Entity Hop can replace BM25 in the Dense hybrid. Held out, it
+reaches 0.8900 against 0.8643. [`6.results.md`](docs/plans/phase_6/6.results.md)
+
+**Phase 7 — cheap extraction.** GLiNER keeps 83.5% of the gain the LLM extraction bought, for
+about a thousandth of the cost. [`7.results.md`](docs/plans/phase_7/7.results.md)
+
+**Phase 8 / 8.1 — a stronger Dense.** The candidate was weaker than BGE-small at every corpus size
+up to 500k, so the phase stopped at its dev gate. [`8.results.md`](docs/plans/phase_8/8.results.md),
+[`8.1_results.md`](docs/plans/phase_8/8.1_results.md)
+
+**Phase 9 — HotpotQA FullWiki.** Over 5.23M paragraphs the gain over Dense survives
+(`SCALE_SUPPORTED`), and Dense + BM25 is slightly ahead. [`9.results.md`](docs/plans/phase_9/9.results.md)
 
 Security findings of every audited phase are catalogued in
 [`docs/security/README.md`](docs/security/README.md).

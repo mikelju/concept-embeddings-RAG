@@ -34,6 +34,7 @@ phase is the author's decision. If this line and the master plan disagree, the m
 | Need | Source |
 |---|---|
 | Status of every phase, the plan ahead | `docs/plans/0_master_plan.md` ("Phase status") |
+| What the whole line established, in one page | `docs/research_summary.md` |
 | Deferred directions and their rationale | `docs/plans/research_roadmap.md` |
 | What a phase measured | `docs/plans/phase_X/X.results.md` |
 | Active spec and plan | `docs/plans/phase_X/`: `X.spec.md`, plan `X.0_*.md`, deviations `X.Y_*.md` (a deviation may carry its own plan, results and recipe) |
