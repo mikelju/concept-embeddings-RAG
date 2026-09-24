@@ -4681,6 +4681,35 @@ def _p10_fit_is_committed(path: Path) -> bool:
     return status.stdout.strip() == ""
 
 
+def _p10_pass_provenance(
+    components: Mapping[str, Any], fit: Mapping[str, Any], target_dir: Path
+) -> dict[str, Any]:
+    """The Phase 9 chain with the fields the pass changes: test-10, its vectors, P10 weights.
+
+    `_phase_9_inputs` describes the dev questions, their vector cache and the Phase 9 weights.
+    The first pass (2026-09-24) recorded those unchanged; its runs keep them as written.
+    """
+    base = components["provenance"]
+    test_record = json.loads((target_dir / phase10.QUESTIONS_FILENAME).read_text(encoding="utf-8"))[
+        "sets"
+    ][config.PHASE_10_TEST]
+    return {
+        **base,
+        "question_digest": test_record["question_digest"],
+        "mapping_digest": test_record["mapping_digest"],
+        "embedding": {
+            **base["embedding"],
+            "question_cache_key": _p10_json(P10_EMBED_NAME, target_dir)["sets"][
+                config.PHASE_10_TEST
+            ]["key"],
+        },
+        "weights": {
+            config.PHASE_10_SYSTEMS[1]: components["weights"]["hybrid-bm25"],
+            config.PHASE_10_SYSTEMS[2]: dict(fit["weights"]),
+        },
+    }
+
+
 def cmd_p10_eval(
     *,
     authorized: bool,
@@ -4719,6 +4748,7 @@ def cmd_p10_eval(
     commit = _git_commit()
     host = local_extraction.hardware_block(device="cpu")
     fit_digest = digest_of(json.dumps(fit, sort_keys=True))
+    provenance = _p10_pass_provenance(components, fit, target_dir)
     _p10_write_once(
         P10_MARKER_NAME,
         {
@@ -4744,7 +4774,7 @@ def cmd_p10_eval(
             "metrics": phase9.cohort_metrics(records)[config.PHASE_9_STANDARD],
             "latency": phase9.latency_summary(records),
             "provenance": {
-                **components["provenance"],
+                **provenance,
                 "hop_implementation": phase9.COLUMNWISE_HOP,
                 "question_set": config.PHASE_10_TEST,
                 "fit_digest": fit_digest,

@@ -50,6 +50,34 @@ def test_the_pass_refuses_a_second_start(tmp_path, monkeypatch):
         cli.cmd_p10_eval(authorized=True, target_dir=tmp_path)
 
 
+def test_the_pass_provenance_describes_test_10_not_the_dev_chain(tmp_path):
+    write(
+        tmp_path,
+        phase10.QUESTIONS_FILENAME,
+        {"sets": {config.PHASE_10_TEST: {"question_digest": "q10", "mapping_digest": "m10"}}},
+    )
+    write(tmp_path, cli.P10_EMBED_NAME, {"sets": {config.PHASE_10_TEST: {"key": "k10"}}})
+    components = {
+        "provenance": {
+            "question_digest": "q9",
+            "mapping_digest": "m9",
+            "embedding": {"model": "bge", "question_cache_key": "k9"},
+            "weights": {"hybrid-bm25": {}, "hybrid-entity-hop": {}},
+            "bm25_index_digest": "b",
+        },
+        "weights": {"hybrid-bm25": {"dense": 0.5, "bm25": 0.5}},
+    }
+    fit = {"weights": {"dense": 0.5, "bm25": 0.3, "entity-hop": 0.2}}
+    provenance = cli._p10_pass_provenance(components, fit, tmp_path)
+    assert (provenance["question_digest"], provenance["mapping_digest"]) == ("q10", "m10")
+    assert provenance["embedding"] == {"model": "bge", "question_cache_key": "k10"}
+    assert provenance["weights"] == {
+        config.PHASE_10_SYSTEMS[1]: {"dense": 0.5, "bm25": 0.5},
+        config.PHASE_10_SYSTEMS[2]: {"dense": 0.5, "bm25": 0.3, "entity-hop": 0.2},
+    }
+    assert provenance["bm25_index_digest"] == "b"
+
+
 def test_the_reserved_set_is_never_loaded(tmp_path):
     with pytest.raises(phase10.Phase10Error, match="reserved"):
         phase10.load_set(tmp_path, config.PHASE_10_RESERVED, corpus_unit_set_hash="h")
