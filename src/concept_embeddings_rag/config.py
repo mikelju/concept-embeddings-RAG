@@ -865,6 +865,58 @@ PHASE_9_SPEND_CEILING_USD: Final[float] = 25.0
 PHASE_9_PROBE_QUESTIONS: Final[int] = 100
 PHASE_9_PROBE_SEED: Final[int] = DEFAULT_SEED
 
+# --- Phase 10: Dense + BM25 + Entity Hop at FullWiki scale -----------------------------
+# Fixed by `10.spec.md` (approved and frozen 2026-09-24). Dev is the 7,405 validation
+# questions (Phase 9's cohorts, reused); the held-out questions come from HotpotQA train,
+# level "hard", because no other source of fresh HotpotQA questions with gold exists.
+
+PHASE_10_DIR: Final[Path] = DATA_DIR / "phase10"
+# Own question cache: `question_cache_key` does not include the corpus or the set.
+PHASE_10_QUESTION_CACHE_DIR: Final[Path] = PHASE_10_DIR / "cache" / "questions"
+
+# D2: the source and the draw. One `random.Random(seed).sample` over the sorted hard
+# qids, sliced in this order, so the three sets are disjoint by construction.
+PHASE_10_TRAIN_SPLIT: Final[str] = "train"
+PHASE_10_TRAIN_MAX_ROWS: Final[int] = 100_000
+PHASE_10_LEVEL: Final[str] = "hard"
+PHASE_10_SEED: Final[int] = 10
+PHASE_10_PROBE: Final[str] = "probe"
+PHASE_10_TEST: Final[str] = "test-10"
+PHASE_10_RESERVED: Final[str] = "test-11"
+PHASE_10_SET_SIZES: Final[dict[str, int]] = {
+    PHASE_10_PROBE: 1000,
+    PHASE_10_TEST: 5000,
+    PHASE_10_RESERVED: 5000,
+}
+# More than this share of a set's questions with an unresolved gold title is DATA_STOP.
+PHASE_10_UNRESOLVED_SHARE: Final[float] = 0.01
+
+# D3: the contamination probe margin, in percentage points of Full Support @2,048.
+PHASE_10_PROBE_MARGIN_PP: Final[float] = 5.0
+
+# D4: the Phase 9 dev counts (7,405 questions, Full Support @2,048) the laptop reproduces.
+PHASE_10_DEV_REFERENCE_SUPPORTED: Final[dict[str, int]] = {
+    "dense": 4125,
+    "hybrid-bm25": 4536,
+    "hybrid-entity-hop": 4441,
+}
+
+# D5: the three-component grid, in tenths, and the frozen control it must beat on dev.
+PHASE_10_GRID_TENTHS: Final[int] = 10
+PHASE_10_SYSTEMS: Final[tuple[str, ...]] = ("dense", "hybrid-bm25", "hybrid-bm25-entity-hop")
+PHASE_10_SYSTEM_LABELS: Final[dict[str, str]] = {
+    "dense": "P10-A",
+    "hybrid-bm25": "P10-B",
+    "hybrid-bm25-entity-hop": "P10-C",
+}
+PHASE_10_TERMINAL_STATES: Final[tuple[str, ...]] = (
+    "THREE_WAY_SUPPORTED",
+    "THREE_WAY_NOT_SUPPORTED",
+    "THREE_WAY_REGRESSION",
+    "DATA_STOP",
+    "DEV_STOP",
+)
+
 
 def ensure_directories() -> None:
     """Create the data directories if they do not exist yet."""

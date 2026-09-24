@@ -71,7 +71,7 @@ def retry_call(
     raise RateLimitError("exhausted retries")
 
 
-def _http_page_fetcher(offset: int, length: int) -> dict:
+def _http_page_fetcher(offset: int, length: int, split: str = SPLIT) -> dict:
     import httpx
 
     response = httpx.get(
@@ -79,7 +79,7 @@ def _http_page_fetcher(offset: int, length: int) -> dict:
         params={
             "dataset": DATASET,
             "config": CONFIG,
-            "split": SPLIT,
+            "split": split,
             "offset": offset,
             "length": length,
         },
@@ -97,9 +97,14 @@ def fetch_split(
     pause: float = 0.0,
     sleep_fn: Callable[[float], None] = time.sleep,
     max_rows: int = MAX_ROWS,
+    split: str = SPLIT,
 ) -> list[dict]:
-    """Page through the split and return every question, normalized."""
-    page_fetcher = page_fetcher or _http_page_fetcher
+    """Page through `split` and return every question, normalized.
+
+    Phase 10 reads `train` through the same path; the default stays the validation split
+    every earlier phase assembled.
+    """
+    page_fetcher = page_fetcher or partial(_http_page_fetcher, split=split)
 
     rows: list[dict] = []
     offset = 0

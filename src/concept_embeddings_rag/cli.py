@@ -28,6 +28,7 @@
     fullwiki-probe  time the three systems on 100 historical dev questions, rankings only
     fullwiki-eval   the single authorized evaluation pass over the 7,405 questions (Phase 9)
     fullwiki-outcome  the exact McNemar test and the mechanical terminal label (Phase 9)
+    p10-questions   draw and freeze the Phase 10 held-out sets from HotpotQA train, level hard
 
 Each stage is idempotent and refuses to run if its input is missing, saying which
 stage to run first rather than failing somewhere deep inside numpy.
@@ -125,7 +126,7 @@ from concept_embeddings_rag.embeddings.cache import (
     unit_set_hash,
 )
 from concept_embeddings_rag.evaluation import fullwiki as phase9
-from concept_embeddings_rag.evaluation import scale_sensitivity, strong_dense
+from concept_embeddings_rag.evaluation import phase10, scale_sensitivity, strong_dense
 from concept_embeddings_rag.evaluation.budget import TokenCounter
 from concept_embeddings_rag.evaluation.cheap_extraction import (
     DEV_FILENAME,
@@ -4235,6 +4236,92 @@ def _cache_key_for(backend: EmbeddingBackend, units: Sequence[IndexingUnit]) -> 
     )
 
 
+P10_TRAIN_NAME = "hotpot_train_hard_source.json"
+P10_TRAIN_MANIFEST = "train-source.json"
+
+
+def _p10_train(target_dir: Path) -> list[dict[str, Any]]:
+    """HotpotQA train, fetched once and frozen: every row, without its distractor contexts.
+
+    The contexts are not used by any Phase 10 step (the corpus is FullWiki), so only the
+    fields the draw and the gold mapping read are kept. The first run records the file's
+    SHA-256 and bytes; every later run verifies them.
+    """
+    target_dir.mkdir(parents=True, exist_ok=True)
+    raw_path = target_dir / P10_TRAIN_NAME
+    manifest_path = target_dir / P10_TRAIN_MANIFEST
+    if not raw_path.exists():
+        print(f"[INFO] assembling {hf_source.DATASET} ({hf_source.CONFIG}/train)")
+        fetched = hf_source.fetch_split(
+            pause=0.5, split=config.PHASE_10_TRAIN_SPLIT, max_rows=config.PHASE_10_TRAIN_MAX_ROWS
+        )
+        keep = ("_id", "question", "answer", "type", "level", "supporting_facts")
+        slim = [{key: row[key] for key in keep} for row in fetched]
+        raw_path.write_text(json.dumps(slim, sort_keys=True), encoding="utf-8")
+        manifest = {
+            "dataset": hf_source.DATASET,
+            "config": hf_source.CONFIG,
+            "split": config.PHASE_10_TRAIN_SPLIT,
+            "endpoint": hf_source.ROWS_ENDPOINT,
+            "rows": len(slim),
+            "fields_kept": list(keep),
+            "bytes": raw_path.stat().st_size,
+            "sha256": sha256_of_file(raw_path),
+            "fetched_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        }
+        write_text_atomic(manifest_path, json.dumps(manifest, indent=2, sort_keys=True))
+        print(f"[OK] train frozen: {len(slim)} rows, sha256 {str(manifest['sha256'])[:16]}...")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if sha256_of_file(raw_path) != manifest["sha256"]:
+        _die(f"{raw_path} does not match the SHA-256 {manifest_path.name} records")
+    rows: list[dict[str, Any]] = json.loads(raw_path.read_text(encoding="utf-8"))
+    return rows
+
+
+def cmd_p10_questions(
+    data_dir: Path = config.DATA_DIR,
+    source_dir: Path = config.PHASE_9_DIR,
+    target_dir: Path = config.PHASE_10_DIR,
+) -> Path:
+    """S1: the three held-out sets, drawn at once and gold-mapped, before any retrieval (D2).
+
+    A DATA_STOP is written with its evidence and the stage exits non-zero: the stop is a
+    result, not an error to retry past.
+    """
+    data_dir, source_dir, target_dir = Path(data_dir), Path(source_dir), Path(target_dir)
+    if (target_dir / phase10.QUESTIONS_FILENAME).exists():
+        _die(f"{target_dir / phase10.QUESTIONS_FILENAME} already freezes the sets")
+    validation = json.loads((data_dir / RAW_NAME).read_text(encoding="utf-8"))
+    train = _p10_train(target_dir)
+    try:
+        phase10.check_validation_level(validation)
+        hard = phase10.hard_qids(train)
+        sets = phase10.draw_sets(hard, validation_qids=[str(raw["_id"]) for raw in validation])
+    except phase10.DataStop as error:
+        _die(f"DATA_STOP: {error}")
+    sizes = dict(config.PHASE_10_SET_SIZES)
+    print(f"[INFO] {len(train)} train rows, {len(hard)} hard; drawing {sizes}")
+    units, corpus = _phase_9_corpus(source_dir)
+    _questions, body = phase10.build_sets(train, sets, units, corpus=corpus)
+    body["source"] = {
+        **json.loads((target_dir / P10_TRAIN_MANIFEST).read_text(encoding="utf-8")),
+        "hard_questions": len(hard),
+        "seed": config.PHASE_10_SEED,
+        "draw": "random.Random(seed).sample(sorted hard qids, sum of sizes), sliced in set order",
+        "validation_level_checked": config.PHASE_10_LEVEL,
+    }
+    path = phase10.write_questions(target_dir, body)
+    for name, record in body["sets"].items():
+        print(
+            f"[INFO] {name}: {record['n_questions']} questions, "
+            f"{record['questions_with_unresolved_gold']} with unresolved gold"
+        )
+    if body["terminal_state"] is not None:
+        _die(f"{body['terminal_state']} recorded in {path}")
+    print(f"[OK] Phase 10 sets frozen -> {path}")
+    return path
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="cer",
@@ -4489,6 +4576,10 @@ def build_parser() -> argparse.ArgumentParser:
         "fullwiki-outcome",
         help="Phase 9: the exact McNemar test and the mechanical terminal label",
     )
+    subparsers.add_parser(
+        "p10-questions",
+        help="Phase 10: draw and freeze the held-out sets from HotpotQA train (hard)",
+    )
     build.add_argument(
         "--smoke",
         type=int,
@@ -4591,6 +4682,8 @@ def main(argv: list[str] | None = None) -> int:
         cmd_fullwiki_eval(authorized=args.authorized)
     elif args.command == "fullwiki-outcome":
         cmd_fullwiki_outcome()
+    elif args.command == "p10-questions":
+        cmd_p10_questions()
     return 0
 
 
