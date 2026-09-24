@@ -698,6 +698,15 @@ def load_phase9_token_counts(directory: Path | str, *, unit_set_hash: str) -> di
     counts = load_token_counts(directory)
     if len(counts) != manifest["n_units"]:
         raise FullWikiPhaseError("the token counts do not cover the corpus they name")
+    # SEC-034: the counts decide every budget metric, so they are verified like every other
+    # input rather than trusted by length. `load_token_counts` keeps the stored order, which
+    # is the order the digest was taken in.
+    if corpus_hash(list(counts)) != unit_set_hash:
+        raise FullWikiPhaseError("the token counts are keyed by units outside the corpus")
+    if digest_of(np.array(list(counts.values()), dtype=np.int32)) != manifest["counts_digest"]:
+        raise FullWikiPhaseError(
+            f"{TOKENS_FILENAME} does not match the digest {TOKENS_MANIFEST} records"
+        )
     return counts
 
 
