@@ -71,7 +71,7 @@ def retry_call(
     raise RateLimitError("exhausted retries")
 
 
-def _http_page_fetcher(offset: int, length: int) -> dict:
+def _http_page_fetcher(offset: int, length: int, split: str = SPLIT) -> dict:
     import httpx
 
     response = httpx.get(
@@ -79,7 +79,7 @@ def _http_page_fetcher(offset: int, length: int) -> dict:
         params={
             "dataset": DATASET,
             "config": CONFIG,
-            "split": SPLIT,
+            "split": split,
             "offset": offset,
             "length": length,
         },
@@ -91,15 +91,42 @@ def _http_page_fetcher(offset: int, length: int) -> dict:
     return response.json()
 
 
+REVISION_ENDPOINT = "https://huggingface.co/api/datasets/{dataset}/revision/{ref}"
+# The rows endpoint serves the Parquet conversion; `main` is the dataset it was converted from.
+REVISION_REFS = ("main", "refs/convert/parquet")
+
+RevisionFetcher = Callable[[str], dict]
+
+
+def _http_revision_fetcher(ref: str) -> dict:
+    import httpx
+
+    url = REVISION_ENDPOINT.format(dataset=DATASET, ref=ref.replace("/", "%2F"))
+    response = httpx.get(url, timeout=60.0)
+    response.raise_for_status()
+    return response.json()
+
+
+def dataset_revisions(fetcher: RevisionFetcher | None = None) -> dict[str, str]:
+    """The commit each served ref points at now: the pin a rows-API download cannot carry."""
+    fetcher = fetcher or _http_revision_fetcher
+    return {ref: str(fetcher(ref)["sha"]) for ref in REVISION_REFS}
+
+
 def fetch_split(
     page_fetcher: PageFetcher | None = None,
     page_size: int = 100,
     pause: float = 0.0,
     sleep_fn: Callable[[float], None] = time.sleep,
     max_rows: int = MAX_ROWS,
+    split: str = SPLIT,
 ) -> list[dict]:
-    """Page through the split and return every question, normalized."""
-    page_fetcher = page_fetcher or _http_page_fetcher
+    """Page through `split` and return every question, normalized.
+
+    Phase 10 reads `train` through the same path; the default stays the validation split
+    every earlier phase assembled.
+    """
+    page_fetcher = page_fetcher or partial(_http_page_fetcher, split=split)
 
     rows: list[dict] = []
     offset = 0

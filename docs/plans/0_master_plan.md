@@ -76,6 +76,7 @@ From Phase 7 onward:
 | 8 | Strong Dense + Entity Hop | Available | **STOP at dev gate — premise failed** |
 | 8.1 | **Deviation** — Dense scale sensitivity | Available | **Complete — STABLE_RANKING (rule A)** |
 | 9 | HotpotQA FullWiki at literature-comparable scale | [Approved](phase_9/9.spec.md) | **Complete — SCALE_SUPPORTED** |
+| 10 | Dense + BM25 + Entity Hop at FullWiki scale (step 1 of 2) | [Approved](phase_10/10.spec.md) | **Complete — THREE_WAY_SUPPORTED** |
 
 **The first research line is closed** (2026-09-15): concepts induced from pooled embeddings, tested through Phases 2-4, gave a negative and bounded result. The original Phase 5 — a comparative evaluation of that method — was not run; the plan was renumbered so Phase 5 tests the representation the proposal actually described. See [`phase_4/4.1_research_line_closure.md`](phase_4/4.1_research_line_closure.md).
 
@@ -92,6 +93,8 @@ From Phase 7 onward:
 Phase 9 now carries **BGE-small as the task-validated primary Dense candidate**. Its specification, approved 2026-09-23, excludes Qwen from FullWiki measurement and makes Full Support @2,048 tokens on the 5,405 retrieval-unseen questions the primary endpoint ([`phase_9/9.spec.md`](phase_9/9.spec.md)). The broader Phase 8 question — Entity Hop beside a substantially stronger Dense retriever — remains open because deviation 8.1 did not produce or test such a retriever.
 
 **Phase 9 is measured and closed** (2026-09-24) with **`SCALE_SUPPORTED`**. Over the complete HotpotQA processed Wikipedia (5,233,329 paragraphs), on the 5,405 retrieval-unseen questions, Dense + Entity Hop reaches **3,248 / 5,405** Full Support @2,048 against Dense's **3,006** (+4.48 pp; exact McNemar 374 wins / 132 losses, p = 8.0e-28). Dense + BM25 reaches 3,313, 1.2 pp above the Entity Hop (descriptive, p = 0.024): at this scale BM25 is the slightly stronger complement at the primary budget. The whole FullWiki GLiNER extraction took 6.18 h for an attributable 4.57 USD; the phase billed 12.71 USD. See [`phase_9/9.results.md`](phase_9/9.results.md).
+
+**Phase 10 is measured and closed** (2026-09-24) with **`THREE_WAY_SUPPORTED`**. On 5,000 held-out HotpotQA train questions (level `hard`, seen by BGE-small in fine-tuning) over the same 5.23M-paragraph corpus, Dense + BM25 + Entity Hop (0.5 / 0.3 / 0.2, fitted on the 7,405 validation questions) reaches **3,325 / 5,000** Full Support @2,048 against Dense + BM25's **3,129** (+3.92 pp; exact McNemar 306 wins / 110 losses, p = 1.9e-22), at 1.33× the mean query latency on the laptop. The entity signal is not redundant with BM25. Dense on the train questions reads 2.6-2.9 points above its validation figure, within the 5-point contamination margin. Step 2 (a better use of the entities, on the reserved `test-11`) is the author's decision. See [`phase_10/10.results.md`](phase_10/10.results.md).
 
 The remaining scheduled work deliberately does **not** try to improve the Entity Hop with canonicalization, relations, multiple seeds or additional hops. Phase 9 asks whether the simple mechanism already discovered survives **corpus scale** with BGE-small as the validated primary Dense candidate. The separate question of Entity Hop beside a substantially stronger Dense retriever remains open.
 

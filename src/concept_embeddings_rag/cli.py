@@ -28,6 +28,13 @@
     fullwiki-probe  time the three systems on 100 historical dev questions, rankings only
     fullwiki-eval   the single authorized evaluation pass over the 7,405 questions (Phase 9)
     fullwiki-outcome  the exact McNemar test and the mechanical terminal label (Phase 9)
+    p10-questions   draw and freeze the Phase 10 held-out sets from HotpotQA train, level hard
+    p10-embed       BGE question vectors for the probe and test-10 sets, on CPU (Phase 10)
+    p10-repro       dev component lists; the laptop must reproduce the Phase 9 dev counts
+    p10-probe       Dense on the contamination probe against its dev figure (Phase 10)
+    p10-fit         the 66-point three-way weight grid on dev, the tie rule and the dev gate
+    p10-eval        the single authorized held-out pass on test-10 (Phase 10)
+    p10-outcome     the exact McNemar test and the mechanical terminal label (Phase 10)
 
 Each stage is idempotent and refuses to run if its input is missing, saying which
 stage to run first rather than failing somewhere deep inside numpy.
@@ -40,7 +47,7 @@ import shutil
 import statistics
 import sys
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -50,7 +57,7 @@ import numpy as np
 from scipy import sparse
 
 from concept_embeddings_rag import __version__, config
-from concept_embeddings_rag.artifacts import write_text_atomic
+from concept_embeddings_rag.artifacts import digest_of, write_text_atomic
 from concept_embeddings_rag.concepts.coding import (
     ConceptMatrix,
     calibrate_coding_alpha,
@@ -125,7 +132,7 @@ from concept_embeddings_rag.embeddings.cache import (
     unit_set_hash,
 )
 from concept_embeddings_rag.evaluation import fullwiki as phase9
-from concept_embeddings_rag.evaluation import scale_sensitivity, strong_dense
+from concept_embeddings_rag.evaluation import phase10, scale_sensitivity, strong_dense
 from concept_embeddings_rag.evaluation.budget import TokenCounter
 from concept_embeddings_rag.evaluation.cheap_extraction import (
     DEV_FILENAME,
@@ -136,6 +143,7 @@ from concept_embeddings_rag.evaluation.cheap_extraction import (
     measure_held_out,
     select_extractor,
 )
+from concept_embeddings_rag.evaluation.entity_diagnostics import RecordingHybrid, RecordingRetriever
 from concept_embeddings_rag.evaluation.expansion_selection import (
     ExpansionSelection,
     ExpansionSelectionError,
@@ -234,7 +242,13 @@ from concept_embeddings_rag.retrieval.entity_hop import (
     ColumnwiseEntityHopStage,
     EntityHopStage,
 )
-from concept_embeddings_rag.retrieval.fusion import FusedRetriever
+from concept_embeddings_rag.retrieval.fusion import (
+    TRIPLE_COMPONENTS,
+    WEIGHTED,
+    FusedRetriever,
+    TripleFusedRetriever,
+    fuse_lists,
+)
 
 RAW_NAME = "hotpot_raw.json"
 MANIFEST_NAME = "manifest.json"
@@ -4235,6 +4249,581 @@ def _cache_key_for(backend: EmbeddingBackend, units: Sequence[IndexingUnit]) -> 
     )
 
 
+# The HotpotQA split the Phase 10 sets are drawn from (D2). It is named here, not in
+# config.py, because the dev-selection guard forbids every other split name there.
+P10_TRAIN_SPLIT = "train"
+P10_TRAIN_NAME = "hotpot_train_hard_source.json"
+P10_TRAIN_MANIFEST = "train-source.json"
+
+
+def _p10_train(target_dir: Path) -> list[dict[str, Any]]:
+    """HotpotQA train, fetched once and frozen: every row, without its distractor contexts.
+
+    The contexts are not used by any Phase 10 step (the corpus is FullWiki), so only the
+    fields the draw and the gold mapping read are kept. The first run records the file's
+    SHA-256 and bytes; every later run verifies them.
+    """
+    target_dir.mkdir(parents=True, exist_ok=True)
+    raw_path = target_dir / P10_TRAIN_NAME
+    manifest_path = target_dir / P10_TRAIN_MANIFEST
+    if not raw_path.exists():
+        print(f"[INFO] assembling {hf_source.DATASET} ({hf_source.CONFIG}/train)")
+        revisions = hf_source.dataset_revisions()
+        fetched = hf_source.fetch_split(
+            pause=0.5, split=P10_TRAIN_SPLIT, max_rows=config.PHASE_10_TRAIN_MAX_ROWS
+        )
+        # A ref that moved while the rows were paged would leave the pin ambiguous.
+        if hf_source.dataset_revisions() != revisions:
+            _die(f"{hf_source.DATASET} changed revision during the download; fetch again")
+        keep = ("_id", "question", "answer", "type", "level", "supporting_facts")
+        slim = [{key: row[key] for key in keep} for row in fetched]
+        raw_path.write_text(json.dumps(slim, sort_keys=True), encoding="utf-8")
+        manifest = {
+            "dataset": hf_source.DATASET,
+            "config": hf_source.CONFIG,
+            "split": P10_TRAIN_SPLIT,
+            "endpoint": hf_source.ROWS_ENDPOINT,
+            "revisions": revisions,
+            "rows": len(slim),
+            "fields_kept": list(keep),
+            "bytes": raw_path.stat().st_size,
+            "sha256": sha256_of_file(raw_path),
+            "fetched_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        }
+        write_text_atomic(manifest_path, json.dumps(manifest, indent=2, sort_keys=True))
+        print(f"[OK] train frozen: {len(slim)} rows, sha256 {str(manifest['sha256'])[:16]}...")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if sha256_of_file(raw_path) != manifest["sha256"]:
+        _die(f"{raw_path} does not match the SHA-256 {manifest_path.name} records")
+    rows: list[dict[str, Any]] = json.loads(raw_path.read_text(encoding="utf-8"))
+    return rows
+
+
+def cmd_p10_questions(
+    data_dir: Path = config.DATA_DIR,
+    source_dir: Path = config.PHASE_9_DIR,
+    target_dir: Path = config.PHASE_10_DIR,
+) -> Path:
+    """S1: the three held-out sets, drawn at once and gold-mapped, before any retrieval (D2).
+
+    A DATA_STOP is written with its evidence and the stage exits non-zero: the stop is a
+    result, not an error to retry past.
+    """
+    data_dir, source_dir, target_dir = Path(data_dir), Path(source_dir), Path(target_dir)
+    if (target_dir / phase10.QUESTIONS_FILENAME).exists():
+        _die(f"{target_dir / phase10.QUESTIONS_FILENAME} already freezes the sets")
+    validation = json.loads((data_dir / RAW_NAME).read_text(encoding="utf-8"))
+    train = _p10_train(target_dir)
+    try:
+        phase10.check_validation_level(validation)
+        hard = phase10.hard_qids(train)
+        sets = phase10.draw_sets(hard, validation_qids=[str(raw["_id"]) for raw in validation])
+    except phase10.DataStop as error:
+        _die(f"DATA_STOP: {error}")
+    sizes = dict(config.PHASE_10_SET_SIZES)
+    print(f"[INFO] {len(train)} train rows, {len(hard)} hard; drawing {sizes}")
+    units, corpus = _phase_9_corpus(source_dir)
+    _questions, body = phase10.build_sets(train, sets, units, corpus=corpus)
+    body["source"] = {
+        **json.loads((target_dir / P10_TRAIN_MANIFEST).read_text(encoding="utf-8")),
+        "hard_questions": len(hard),
+        "seed": config.PHASE_10_SEED,
+        "draw": "random.Random(seed).sample(sorted hard qids, sum of sizes), sliced in set order",
+        "validation_level_checked": config.PHASE_10_LEVEL,
+    }
+    path = phase10.write_questions(target_dir, body)
+    for name, record in body["sets"].items():
+        print(
+            f"[INFO] {name}: {record['n_questions']} questions, "
+            f"{record['questions_with_unresolved_gold']} with unresolved gold"
+        )
+    if body["terminal_state"] is not None:
+        _die(f"{body['terminal_state']} recorded in {path}")
+    print(f"[OK] Phase 10 sets frozen -> {path}")
+    return path
+
+
+P10_EMBED_NAME = "embed.json"
+P10_REPRODUCTION_NAME = "reproduction.json"
+P10_PROBE_NAME = "probe.json"
+P10_FIT_NAME = "fit.json"
+P10_MARKER_NAME = "pass.json"
+P10_OUTCOME_NAME = "outcome.json"
+P10_EMBED_SETS: tuple[str, ...] = (config.PHASE_10_PROBE, config.PHASE_10_TEST)
+
+
+def _p10_json(name: str, target_dir: Path = config.PHASE_10_DIR) -> dict[str, Any]:
+    path = Path(target_dir) / name
+    if not path.exists():
+        _die(f"{path} does not exist: run the Phase 10 stage that writes it first")
+    body: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+    return body
+
+
+def _p10_write_once(name: str, body: Mapping[str, Any], target_dir: Path) -> Path:
+    path = Path(target_dir) / name
+    if path.exists():
+        _die(f"{path} already exists; a Phase 10 artifact is written once")
+    write_text_atomic(path, json.dumps(dict(body), indent=2, sort_keys=True))
+    return path
+
+
+def _p10_corpus_hash(source_dir: Path) -> str:
+    corpus = json.loads((source_dir / fullwiki.CORPUS_MANIFEST).read_text(encoding="utf-8"))
+    return str(corpus["unit_set_hash"])
+
+
+def _p10_query_backend(
+    questions: Sequence[Question], set_name: str, target_dir: Path
+) -> CachedQueryBackend:
+    """The set's cached BGE question vectors, under the key `p10-embed` recorded."""
+    record = _p10_json(P10_EMBED_NAME, target_dir)["sets"][set_name]
+    loaded = EmbeddingCache(Path(target_dir) / "cache" / "questions").load(
+        str(record["key"]), expected_unit_ids=[q.qid for q in questions]
+    )
+    if loaded is None:
+        _die(f"the {set_name} question vectors are missing: run 'p10-embed'")
+    return CachedQueryBackend(
+        texts=[q.question for q in questions],
+        vectors=loaded[0],
+        name=str(record["model"]),
+        revision=str(record["revision"]),
+    )
+
+
+def cmd_p10_embed(
+    source_dir: Path = config.PHASE_9_DIR, target_dir: Path = config.PHASE_10_DIR
+) -> Path:
+    """S2: BGE question vectors for `probe` and `test-10`, in Phase 10's own cache.
+
+    `test-11` is not encoded here: the next phase encodes the set it is allowed to use.
+    """
+    source_dir, target_dir = Path(source_dir), Path(target_dir)
+    corpus_hash = _p10_corpus_hash(source_dir)
+    backend = SentenceTransformerBackend()
+    if (backend.name, backend.revision) != (config.EMBEDDING_MODEL, config.EMBEDDING_REVISION):
+        _die(f"Phase 10 encodes with the pinned BGE-small only, not {backend.name}")
+    cache = EmbeddingCache(target_dir / "cache" / "questions")
+    sets: dict[str, Any] = {}
+    for name in P10_EMBED_SETS:
+        questions = phase10.load_set(target_dir, name, corpus_unit_set_hash=corpus_hash)
+        started = time.perf_counter()
+        vectors, _ = embed_questions(questions, backend, cache)
+        sets[name] = {
+            "key": question_cache_key(
+                backend.name,
+                backend.revision,
+                question_set_hash([q.qid for q in questions]),
+                name,
+                normalized=bool(getattr(backend, "normalize", True)),
+                query_prompt=query_prompt_of(backend),
+            ),
+            "n_questions": len(questions),
+            "dim": int(vectors.shape[1]),
+            "model": backend.name,
+            "revision": backend.revision,
+            "resolved_revision": resolved_revision(backend),
+            "seconds": time.perf_counter() - started,
+        }
+        print(f"[INFO] {name}: {len(questions)} questions encoded")
+    body = {"sets": sets, "device": _embedding_device()}
+    path = _p10_write_once(P10_EMBED_NAME, body, target_dir)
+    print(f"[OK] Phase 10 question vectors -> {path}")
+    return path
+
+
+def _p10_replay_records(
+    name: str,
+    rankings: Sequence[tuple[str, list[Any]]],
+    questions: Sequence[Question],
+    token_counts: Mapping[str, int],
+) -> list[dict[str, Any]]:
+    replay = phase10.ReplayRetriever(name, rankings)
+    return phase9.measure_system(name, RecordingRetriever(replay), questions, token_counts)
+
+
+def cmd_p10_repro(
+    source_dir: Path = config.PHASE_9_DIR, target_dir: Path = config.PHASE_10_DIR
+) -> Path:
+    """S4 (D4): the three component lists per dev question, and the Phase 9 dev counts.
+
+    Every Phase 9 artifact is loaded and verified by `_phase_9_inputs`. Dense, BM25 and the
+    column-wise Entity Hop run once per dev question; P9-B and P9-C are rebuilt from those
+    lists with the same `fuse` call their `FusedRetriever` makes (tested equal). A miss on
+    any of the three counts stops the phase with the differing questions named.
+    """
+    source_dir, target_dir = Path(source_dir), Path(target_dir)
+    if (target_dir / P10_REPRODUCTION_NAME).exists():
+        _die(f"{target_dir / P10_REPRODUCTION_NAME} already records the reproduction")
+    components = _phase_9_inputs(source_dir)
+    dense, bm25 = components["dense"], components["bm25"]
+    stage = ColumnwiseEntityHopStage(components["index"], components["node_weights"])
+    questions: list[Question] = components["questions"]
+    depth = config.PHASE_9_RANKING_DEPTH
+    rows: list[dict[str, Any]] = []
+    started = time.perf_counter()
+    for position, question in enumerate(questions, start=1):
+        first = dense.retrieve(question.question, depth)
+        rows.append(
+            {
+                "qid": question.qid,
+                "question": question.question,
+                "dense": first,
+                "bm25": bm25.retrieve(question.question, depth),
+                config.ENTITY_HOP_NAME: stage.propose(list(first), depth),
+            }
+        )
+        if position % 500 == 0:
+            elapsed = time.perf_counter() - started
+            print(
+                f"[INFO] dev lists {position}/{len(questions)} in {elapsed / 60:.1f} min",
+                flush=True,
+            )
+    provenance = {
+        **components["provenance"],
+        "hop_implementation": phase9.COLUMNWISE_HOP,
+        "code_commit": _git_commit(),
+        "host": local_extraction.hardware_block(device="cpu"),
+        "seconds": time.perf_counter() - started,
+    }
+    phase10.write_dev_lists(target_dir, rows, provenance=provenance)
+    weights = components["weights"]
+    wb, we = weights["hybrid-bm25"], weights["hybrid-entity-hop"]
+    rankings = {
+        "dense": [(r["question"], list(r["dense"])) for r in rows],
+        "hybrid-bm25": [
+            (
+                r["question"],
+                fuse_lists((r["dense"], r["bm25"]), (wb["dense"], wb["bm25"]), top_k=depth),
+            )
+            for r in rows
+        ],
+        "hybrid-entity-hop": [
+            (
+                r["question"],
+                fuse_lists(
+                    (r["dense"], r[config.ENTITY_HOP_NAME]),
+                    (we["dense"], we[config.ENTITY_HOP_NAME]),
+                    top_k=depth,
+                ),
+            )
+            for r in rows
+        ],
+    }
+    token_counts = components["token_counts"]
+    counts: dict[str, int] = {}
+    differing: dict[str, list[str]] = {}
+    for name, ranking in rankings.items():
+        records = _p10_replay_records(name, ranking, questions, token_counts)
+        counts[name] = phase10.supported(records)
+        recorded = {
+            r["qid"]: r["budgets"]["2048"]["full_support"]
+            for r in phase9.load_outcomes(source_dir, name)
+        }
+        differing[name] = sorted(
+            r["qid"] for r in records if r["budgets"]["2048"]["full_support"] != recorded[r["qid"]]
+        )
+    body = {
+        **phase10.reproduction_verdict(counts),
+        "differing_qids": differing,
+        "dev_lists_digest": _p10_json(phase10.DEV_LISTS_MANIFEST, target_dir)["digest"],
+        "code_commit": _git_commit(),
+    }
+    path = _p10_write_once(P10_REPRODUCTION_NAME, body, target_dir)
+    for name, check in body["checks"].items():
+        print(f"[INFO] {name}: {check['observed']} (recorded {check['recorded']})")
+    if not body["passed"]:
+        _die(f"the laptop does not reproduce the Phase 9 dev counts; see {path}")
+    print(f"[OK] Phase 9 dev counts reproduced on this host -> {path}")
+    return path
+
+
+def _p10_dense_only(source_dir: Path) -> tuple[Any, list[str], dict[str, int]]:
+    """Corpus ids, verified vectors and token counts: what Dense alone needs (the probe)."""
+    units, corpus = _phase_9_corpus(source_dir)
+    unit_ids = [unit.unit_id for unit in units]
+    del units
+    embedding = json.loads((source_dir / phase9.EMBEDDING_FILENAME).read_text(encoding="utf-8"))
+    loaded = EmbeddingCache(source_dir / "cache").load(
+        str(embedding["corpus_cache_key"]), expected_unit_ids=unit_ids
+    )
+    if loaded is None:
+        _die("the FullWiki vectors are missing")
+    vectors = loaded[0]
+    if phase9.vectors_digest(vectors) != embedding["vectors_digest"]:
+        _die("the FullWiki vectors do not match the digest embedding.json records")
+    token_counts = phase9.load_phase9_token_counts(
+        source_dir, unit_set_hash=str(corpus["unit_set_hash"]), unit_ids=unit_ids
+    )
+    return vectors, unit_ids, token_counts
+
+
+def cmd_p10_probe(
+    source_dir: Path = config.PHASE_9_DIR, target_dir: Path = config.PHASE_10_DIR
+) -> Path:
+    """S4 (D3): Dense alone on `probe`, against its reproduced dev figure, before `test-10`."""
+    source_dir, target_dir = Path(source_dir), Path(target_dir)
+    reproduction = _p10_json(P10_REPRODUCTION_NAME, target_dir)
+    if not reproduction["passed"]:
+        _die("the reproduction did not pass; the probe does not run")
+    if (target_dir / P10_PROBE_NAME).exists():
+        _die(f"{target_dir / P10_PROBE_NAME} already records the probe")
+    corpus_hash = _p10_corpus_hash(source_dir)
+    questions = phase10.load_set(
+        target_dir, config.PHASE_10_PROBE, corpus_unit_set_hash=corpus_hash
+    )
+    vectors, unit_ids, token_counts = _p10_dense_only(source_dir)
+    dense = DenseRetriever(
+        vectors, unit_ids, _p10_query_backend(questions, config.PHASE_10_PROBE, target_dir)
+    )
+    records = phase9.measure_system("dense", RecordingRetriever(dense), questions, token_counts)
+    verdict = phase10.probe_verdict(
+        phase10.supported(records),
+        len(questions),
+        int(reproduction["checks"]["dense"]["observed"]),
+        config.PHASE_9_COHORT_SIZES[config.PHASE_9_STANDARD],
+    )
+    body = {**verdict, "latency": phase9.latency_summary(records), "code_commit": _git_commit()}
+    path = _p10_write_once(P10_PROBE_NAME, body, target_dir)
+    print(
+        f"[INFO] Dense Full Support @2048: probe {verdict['probe_fs_pct']:.2f} %, dev "
+        f"{verdict['dev_fs_pct']:.2f} %, difference {verdict['difference_pp']:+.2f} pp"
+    )
+    if verdict["terminal_state"] is not None:
+        _die(f"{verdict['terminal_state']}: train questions too contaminated; see {path}")
+    print(f"[OK] probe within the margin -> {path}")
+    return path
+
+
+def cmd_p10_fit(
+    source_dir: Path = config.PHASE_9_DIR, target_dir: Path = config.PHASE_10_DIR
+) -> Path:
+    """S5 (D5): the 66-point three-way grid on the cached dev lists, the tie rule, the gate."""
+    source_dir, target_dir = Path(source_dir), Path(target_dir)
+    reproduction = _p10_json(P10_REPRODUCTION_NAME, target_dir)
+    probe = _p10_json(P10_PROBE_NAME, target_dir)
+    if not reproduction["passed"] or probe["terminal_state"] is not None:
+        _die("the reproduction or the probe stopped the phase; nothing is fitted")
+    if (target_dir / P10_FIT_NAME).exists():
+        _die(f"{target_dir / P10_FIT_NAME} already records the fit")
+    units, corpus = _phase_9_corpus(source_dir)
+    unit_ids = [unit.unit_id for unit in units]
+    del units
+    token_counts = phase9.load_phase9_token_counts(
+        source_dir, unit_set_hash=str(corpus["unit_set_hash"]), unit_ids=unit_ids
+    )
+    questions, _body = phase9.load_questions(
+        source_dir, corpus_unit_set_hash=str(corpus["unit_set_hash"])
+    )
+    rows = phase10.load_dev_lists(target_dir)
+    if [r["qid"] for r in rows] != [q.qid for q in questions]:
+        _die("the dev lists are not in the dev question order")
+    name = config.PHASE_10_SYSTEMS[2]
+    depth = config.PHASE_9_RANKING_DEPTH
+    curve: list[dict[str, Any]] = []
+    for weights in phase10.weight_grid():
+        rankings = [
+            (
+                r["question"],
+                fuse_lists(
+                    (r["dense"], r["bm25"], r[config.ENTITY_HOP_NAME]), weights, top_k=depth
+                ),
+            )
+            for r in rows
+        ]
+        records = _p10_replay_records(name, rankings, questions, token_counts)
+        curve.append(
+            {
+                "weights": weights,
+                "supported": phase10.supported(records),
+                "gold_recall_sum": phase10.gold_recall_sum(records),
+            }
+        )
+        print(f"[INFO] {weights}: {curve[-1]['supported']}", flush=True)
+    chosen = phase10.choose_point(curve)
+    control = int(reproduction["checks"]["hybrid-bm25"]["observed"])
+    body = {
+        "grid": "convex triples (dense, bm25, entity-hop) on tenths, 66 points",
+        "objective": "full_support@2048 over the 7,405 dev questions",
+        "tie_rule": "gold_recall@2048 sum, then larger dense weight, then larger bm25 weight",
+        "curve": curve,
+        "chosen": chosen,
+        "weights": dict(zip(TRIPLE_COMPONENTS, chosen["weights"], strict=True)),
+        "control_supported": control,
+        "terminal_state": phase10.dev_gate(chosen, control),
+        "dev_lists_digest": reproduction["dev_lists_digest"],
+        "code_commit": _git_commit(),
+    }
+    path = _p10_write_once(P10_FIT_NAME, body, target_dir)
+    print(
+        f"[INFO] chosen {chosen['weights']}: {chosen['supported']} of 7,405 against the "
+        f"control's {control}"
+    )
+    if body["terminal_state"] is not None:
+        _die(f"{body['terminal_state']} recorded in {path}")
+    print(f"[OK] fit written -> {path}; commit it before the held-out pass")
+    return path
+
+
+def _p10_fit_is_committed(path: Path) -> bool:
+    """The held-out pass runs only on a fit that git tracks, unmodified."""
+    import subprocess  # nosec B404: a fixed argv, no shell, no input
+
+    relative = str(path.resolve().relative_to(config.PROJECT_ROOT)).replace("\\", "/")
+    try:
+        subprocess.run(  # noqa: S603
+            ["git", "ls-files", "--error-unmatch", relative],  # noqa: S607
+            capture_output=True,
+            check=True,
+            cwd=config.PROJECT_ROOT,
+        )
+        status = subprocess.run(  # noqa: S603
+            ["git", "status", "--porcelain", "--", relative],  # noqa: S607
+            capture_output=True,
+            text=True,
+            check=True,
+            cwd=config.PROJECT_ROOT,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return False
+    return status.stdout.strip() == ""
+
+
+def _p10_pass_provenance(
+    components: Mapping[str, Any], fit: Mapping[str, Any], target_dir: Path
+) -> dict[str, Any]:
+    """The Phase 9 chain with the fields the pass changes: test-10, its vectors, P10 weights.
+
+    `_phase_9_inputs` describes the dev questions, their vector cache and the Phase 9 weights.
+    The first pass (2026-09-24) recorded those unchanged; its runs keep them as written.
+    """
+    base = components["provenance"]
+    test_record = json.loads((target_dir / phase10.QUESTIONS_FILENAME).read_text(encoding="utf-8"))[
+        "sets"
+    ][config.PHASE_10_TEST]
+    return {
+        **base,
+        "question_digest": test_record["question_digest"],
+        "mapping_digest": test_record["mapping_digest"],
+        "embedding": {
+            **base["embedding"],
+            "question_cache_key": _p10_json(P10_EMBED_NAME, target_dir)["sets"][
+                config.PHASE_10_TEST
+            ]["key"],
+        },
+        "weights": {
+            config.PHASE_10_SYSTEMS[1]: components["weights"]["hybrid-bm25"],
+            config.PHASE_10_SYSTEMS[2]: dict(fit["weights"]),
+        },
+    }
+
+
+def cmd_p10_eval(
+    *,
+    authorized: bool,
+    source_dir: Path = config.PHASE_9_DIR,
+    target_dir: Path = config.PHASE_10_DIR,
+) -> list[Path]:
+    """S6: P10-A, P10-B and P10-C on `test-10`, once, after the author's authorization."""
+    source_dir, target_dir = Path(source_dir), Path(target_dir)
+    if not authorized:
+        _die("the held-out pass opens test-10: it needs --authorized-pass from the author")
+    fit = _p10_json(P10_FIT_NAME, target_dir)
+    if fit["terminal_state"] is not None:
+        _die(f"the fit recorded {fit['terminal_state']}; the held-out pass does not run")
+    if not _p10_fit_is_committed(target_dir / P10_FIT_NAME):
+        _die("fit.json is not committed unmodified; commit the fit before the held-out pass")
+    if (target_dir / P10_MARKER_NAME).exists():
+        _die(f"{target_dir / P10_MARKER_NAME} exists: the held-out pass has already started once")
+    components = _phase_9_inputs(source_dir)
+    corpus_hash = str(components["provenance"]["corpus_unit_set_hash"])
+    questions = phase10.load_set(target_dir, config.PHASE_10_TEST, corpus_unit_set_hash=corpus_hash)
+    base = components["dense"]
+    dense = DenseRetriever(
+        base.vectors, base.unit_ids, _p10_query_backend(questions, config.PHASE_10_TEST, target_dir)
+    )
+    bm25 = components["bm25"]
+    stage = ColumnwiseEntityHopStage(components["index"], components["node_weights"])
+    systems: dict[str, Any] = {
+        "dense": RecordingRetriever(dense),
+        "hybrid-bm25": RecordingHybrid(
+            dense, bm25, scheme=WEIGHTED, weights=components["weights"]["hybrid-bm25"]
+        ),
+        "hybrid-bm25-entity-hop": RecordingRetriever(
+            TripleFusedRetriever(dense, bm25, stage, weights=fit["weights"])
+        ),
+    }
+    commit = _git_commit()
+    host = local_extraction.hardware_block(device="cpu")
+    fit_digest = digest_of(json.dumps(fit, sort_keys=True))
+    provenance = _p10_pass_provenance(components, fit, target_dir)
+    _p10_write_once(
+        P10_MARKER_NAME,
+        {
+            "started_at": datetime.now(UTC).isoformat(timespec="seconds"),
+            "code_commit": commit,
+            "fit_digest": fit_digest,
+            "set": config.PHASE_10_TEST,
+        },
+        target_dir,
+    )
+    written: list[Path] = []
+    for name, system in systems.items():
+        print(f"[INFO] pass: {name} over {len(questions)} questions", flush=True)
+        records = phase9.measure_system(name, system, questions, components["token_counts"])
+        inner = system.inner if isinstance(system, RecordingRetriever) else system
+        body = {
+            "phase": 10,
+            "system": name,
+            "label": config.PHASE_10_SYSTEM_LABELS[name],
+            "set": config.PHASE_10_TEST,
+            "ranking_depth": config.PHASE_9_RANKING_DEPTH,
+            "fusion": inner.describe() if hasattr(inner, "describe") else None,
+            "metrics": phase9.cohort_metrics(records)[config.PHASE_9_STANDARD],
+            "latency": phase9.latency_summary(records),
+            "provenance": {
+                **provenance,
+                "hop_implementation": phase9.COLUMNWISE_HOP,
+                "question_set": config.PHASE_10_TEST,
+                "fit_digest": fit_digest,
+                "code_commit": commit,
+                "host": host,
+            },
+        }
+        written.append(phase9.write_run(target_dir, name, records, body=body))
+        print(f"[OK] {name} run written -> {written[-1]}", flush=True)
+    return written
+
+
+def cmd_p10_outcome(target_dir: Path = config.PHASE_10_DIR) -> Path:
+    """S7 (D6): exact McNemar of P10-C against P10-B and the mechanical label."""
+    target_dir = Path(target_dir)
+    control, candidate = config.PHASE_10_SYSTEMS[1], config.PHASE_10_SYSTEMS[2]
+    outcome = phase10.three_way_outcome(
+        phase9.load_outcomes(target_dir, control), phase9.load_outcomes(target_dir, candidate)
+    )
+    latency = {
+        name: _p10_json(f"run-{name}.json", target_dir)["latency"]
+        for name in config.PHASE_10_SYSTEMS
+    }
+    body = {
+        **outcome,
+        # DATA_STOP and DEV_STOP end the phase before a pass exists, so none can reach here.
+        "stop_reasons": [],
+        "latency": latency,
+        "latency_ratio_candidate_over_control": (
+            latency[candidate]["mean_ms"] / latency[control]["mean_ms"]
+        ),
+        "code_commit": _git_commit(),
+    }
+    path = _p10_write_once(P10_OUTCOME_NAME, body, target_dir)
+    print(
+        f"[OK] {outcome['terminal_state']}: wins {outcome['wins']}, losses {outcome['losses']}, "
+        f"p = {outcome['exact_two_sided_p']:.4g} -> {path}"
+    )
+    return path
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="cer",
@@ -4489,6 +5078,22 @@ def build_parser() -> argparse.ArgumentParser:
         "fullwiki-outcome",
         help="Phase 9: the exact McNemar test and the mechanical terminal label",
     )
+    subparsers.add_parser(
+        "p10-questions",
+        help="Phase 10: draw and freeze the held-out sets from HotpotQA train (hard)",
+    )
+    for command, text in (
+        ("p10-embed", "Phase 10: BGE question vectors for probe and test-10 (CPU)"),
+        ("p10-repro", "Phase 10: dev component lists and the exact Phase 9 dev counts"),
+        ("p10-probe", "Phase 10: Dense on the contamination probe against its dev figure"),
+        ("p10-fit", "Phase 10: the 66-point three-way grid on dev, the tie rule and the gate"),
+        ("p10-outcome", "Phase 10: exact McNemar of P10-C against P10-B and the label"),
+    ):
+        subparsers.add_parser(command, help=text)
+    p10_eval = subparsers.add_parser(
+        "p10-eval", help="Phase 10: the single authorized held-out pass on test-10"
+    )
+    p10_eval.add_argument("--authorized-pass", action="store_true", dest="authorized")
     build.add_argument(
         "--smoke",
         type=int,
@@ -4591,6 +5196,20 @@ def main(argv: list[str] | None = None) -> int:
         cmd_fullwiki_eval(authorized=args.authorized)
     elif args.command == "fullwiki-outcome":
         cmd_fullwiki_outcome()
+    elif args.command == "p10-questions":
+        cmd_p10_questions()
+    elif args.command == "p10-embed":
+        cmd_p10_embed()
+    elif args.command == "p10-repro":
+        cmd_p10_repro()
+    elif args.command == "p10-probe":
+        cmd_p10_probe()
+    elif args.command == "p10-fit":
+        cmd_p10_fit()
+    elif args.command == "p10-eval":
+        cmd_p10_eval(authorized=args.authorized)
+    elif args.command == "p10-outcome":
+        cmd_p10_outcome()
     return 0
 
 

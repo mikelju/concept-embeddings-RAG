@@ -9,6 +9,7 @@ import pytest
 
 from concept_embeddings_rag.corpus.hf_source import (
     RateLimitError,
+    dataset_revisions,
     fetch_split,
     normalize_row,
     retry_call,
@@ -132,3 +133,15 @@ def test_paging_stops_at_the_row_ceiling_instead_of_looping_forever():
 
     with pytest.raises(RuntimeError, match="ceiling"):
         fetch_split(page_fetcher=endless_pages, page_size=100, max_rows=500)
+
+
+def test_the_revision_pin_names_both_served_refs():
+    shas = {"main": "a" * 40, "refs/convert/parquet": "b" * 40}
+    asked = []
+
+    def fetcher(ref):
+        asked.append(ref)
+        return {"sha": shas[ref], "lastModified": "ignored"}
+
+    assert dataset_revisions(fetcher) == shas
+    assert asked == ["main", "refs/convert/parquet"]
