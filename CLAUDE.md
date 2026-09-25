@@ -26,9 +26,11 @@ What is established (figures and full records in each phase's `X.results.md`):
   is slightly ahead of it (Phase 9);
 - added as a third component, the Entity Hop lifts Dense + BM25 at FullWiki scale (+3.92 pp on
   5,000 train questions, Phase 10). The 7,405 validation questions are now dev.
+- a DF cap on P1's entities or a question-seeded hop does not beat that on dev (Phase 11,
+  `DEV_STOP`). The bottleneck is choosing which of P1's entities to follow.
 
-**Current state (2026-09-24):** Phase 10 (Dense + BM25 + Entity Hop at FullWiki scale) is measured:
-`THREE_WAY_SUPPORTED` (`phase_10/10.results.md`). `test-11` is reserved for step 2. The next
+**Current state (2026-09-25):** Phase 11 (a better use of the entities) closed with `DEV_STOP`
+(`phase_11/11.results.md`): P10-C stays the best system and `test-11` stays unopened. The next
 phase is the author's decision. If this line and the master plan disagree, the master plan wins; fix this line.
 
 ## Where things live

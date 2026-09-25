@@ -487,6 +487,22 @@ This is scientifically interesting because it isolates whether the current gain 
 
 Do not implement until the simple query-blind variant has been tested at scale.
 
+**Phase 11 evidence (2026-09-25, dev diagnostic, exploratory).** The precondition is met: the
+query-blind hop was tested at FullWiki scale in Phases 9 and 10. Phase 11 then ended in `DEV_STOP`:
+neither a DF cap on P1's entities nor seeding the hop from the question's entities beat P10-C on dev
+([`phase_11/11.results.md`](phase_11/11.results.md)). Its diagnostic points here:
+
+- the hop lists 1,665 of the 4,310 gold paragraphs Dense misses, at median position 11;
+- 1,290 of them tie with other candidates, because a candidate's score depends only on which of
+  P1's entities it shares;
+- the question-seeded hop duplicates BM25.
+
+The measured bottleneck is choosing **which of P1's entities** to follow. The cheapest test of
+query awareness is therefore at the **seed**, not at the candidate: rank P1's entities by their
+relevance to the question (for example the similarity between the question and the sentence of P1
+where each appears) and hop from the best ones. This isolates the selection hypothesis before
+relations (8.2) are built.
+
 ---
 
 ## 7.3 QA end to end
@@ -555,6 +571,9 @@ Note also that Phase 7 changed *which raw forms exist* without touching canonica
 ---
 
 ## 8.2 Relations and triples
+
+> Phase 11 (2026-09-25) located the entity line's bottleneck in choosing the bridge entity among
+> P1's, which is what a typed relation would supply. Test the cheaper seed selection of 7.2 first.
 
 A **triple** is usually represented as:
 
