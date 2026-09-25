@@ -495,9 +495,10 @@ neither a DF cap on P1's entities nor seeding the hop from the question's entiti
 - the hop lists 1,665 of the 4,310 gold paragraphs Dense misses, at median position 11;
 - 1,290 of them tie with other candidates, because a candidate's score depends only on which of
   P1's entities it shares;
-- the question-seeded hop duplicates BM25.
+- the question-seeded hop largely overlaps BM25.
 
-The measured bottleneck is choosing **which of P1's entities** to follow. The cheapest test of
+The interpretation (a hypothesis, not a measurement) is that the bottleneck is choosing **which of
+P1's entities** to follow. The cheapest test of
 query awareness is therefore at the **seed**, not at the candidate: rank P1's entities by their
 relevance to the question (for example the similarity between the question and the sentence of P1
 where each appears) and hop from the best ones. This isolates the selection hypothesis before
@@ -572,8 +573,8 @@ Note also that Phase 7 changed *which raw forms exist* without touching canonica
 
 ## 8.2 Relations and triples
 
-> Phase 11 (2026-09-25) located the entity line's bottleneck in choosing the bridge entity among
-> P1's, which is what a typed relation would supply. Test the cheaper seed selection of 7.2 first.
+> Phase 11 (2026-09-25) suggests, from a post-hoc dev diagnostic, that the entity line's bottleneck
+> is choosing the bridge entity among P1's, which a typed relation could supply. Test the cheaper seed selection of 7.2 first.
 
 A **triple** is usually represented as:
 

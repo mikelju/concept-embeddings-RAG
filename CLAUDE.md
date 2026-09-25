@@ -27,7 +27,8 @@ What is established (figures and full records in each phase's `X.results.md`):
 - added as a third component, the Entity Hop lifts Dense + BM25 at FullWiki scale (+3.92 pp on
   5,000 train questions, Phase 10). The 7,405 validation questions are now dev.
 - a DF cap on P1's entities or a question-seeded hop does not beat that on dev (Phase 11,
-  `DEV_STOP`). The bottleneck is choosing which of P1's entities to follow.
+  `DEV_STOP`). Hypothesis from a post-hoc diagnostic: the bottleneck is choosing which of P1's
+  entities to follow.
 
 **Current state (2026-09-25):** Phase 11 (a better use of the entities) closed with `DEV_STOP`
 (`phase_11/11.results.md`): P10-C stays the best system and `test-11` stays unopened. The next
