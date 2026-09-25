@@ -24,7 +24,7 @@ once per grid point with the same `D(q)`, so expansions are memoized by `(read, 
 memo returns copies, so no caller can alter what the next one receives.
 """
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 
 import numpy as np
@@ -160,3 +160,100 @@ class ColumnwiseEntityHopStage(EntityHopStage):
         return second_hop.node_hop_columnwise(
             self._index, self._weights, self._columns, p1=p1, read=rows, depth=top_k
         )
+
+
+# --- Phase 11: a DF cap on P1's seeds, and the question's own entities as seeds ----------
+
+QUESTION_HOP_NAME: str = "question-hop"
+
+
+def capped_seeds(
+    nodes: np.ndarray, mask: np.ndarray, df: np.ndarray, *, cap: int | None
+) -> np.ndarray:
+    """The arm's nodes among `nodes` whose DF is at most `cap`, ascending; all when uncapped."""
+    nodes = np.unique(np.asarray(nodes, dtype=np.int64))
+    kept = nodes[mask[nodes]]
+    return kept if cap is None else kept[df[kept] <= cap]
+
+
+class CappedEntityHopStage(EntityHopStage):
+    """The Phase 9 hop from P1, seeded only by P1's entity nodes with DF <= `cap` (Phase 11, D1).
+
+    `cap=None` is the Phase 9 hop itself. The column-wise copy and the DF are passed in, so
+    several caps over one FullWiki index share them instead of each copying the incidence.
+    """
+
+    def __init__(
+        self,
+        index: NodeIndex,
+        weights: np.ndarray,
+        *,
+        cap: int | None,
+        columns: second_hop.ArmColumns,
+        df: np.ndarray,
+    ) -> None:
+        super().__init__(index, weights)
+        self.cap = cap
+        self._columns = columns
+        self._df = df
+
+    def _hop(self, p1: int, rows: list[int], top_k: int) -> tuple[list[RankedCandidate], int]:
+        incidence = self._index.incidence
+        p1_nodes = incidence.indices[incidence.indptr[p1] : incidence.indptr[p1 + 1]]
+        seeds = capped_seeds(p1_nodes, self._columns.mask, self._df, cap=self.cap)
+        return second_hop.seeded_hop_columnwise(
+            self._index, self._weights, self._columns, seeds=seeds, read=rows, depth=top_k
+        )
+
+
+class QuestionEntityHop:
+    """The same hop seeded by the entity nodes GLiNER read in the question (Phase 11, D1).
+
+    The nodes come from the frozen question-entity artifact, keyed by question text; a text
+    with no record is refused rather than treated as a question without entities. Dense's
+    `read(q)` is excluded exactly as for the P1 hop. No match gives an empty list.
+    """
+
+    name: str = QUESTION_HOP_NAME
+
+    def __init__(
+        self,
+        index: NodeIndex,
+        weights: np.ndarray,
+        *,
+        columns: second_hop.ArmColumns,
+        nodes_by_question: Mapping[str, Sequence[int]],
+    ) -> None:
+        self._index = index
+        self._weights = weights
+        self._columns = columns
+        self._nodes = {
+            text: np.asarray(nodes, dtype=np.int64) for text, nodes in nodes_by_question.items()
+        }
+        self._rows = {unit_id: row for row, unit_id in enumerate(index.unit_ids)}
+
+    def hop(
+        self, query: str, first: Sequence[Hit], top_k: int
+    ) -> tuple[list[RankedCandidate], int]:
+        """The ranked candidates and the positive count before the cut."""
+        if top_k <= 0:
+            raise EntityHopError(f"top_k must be positive, not {top_k}")
+        if query not in self._nodes:
+            raise EntityHopError(f"no recorded question entities for {query!r}")
+        check_dense_order(first)
+        seeds = self._nodes[query]
+        if seeds.size == 0:
+            return [], 0
+        read = []
+        for unit_id, _score in first[:READ_DEPTH]:
+            row = self._rows.get(unit_id)
+            if row is None:
+                raise EntityHopError(f"unit {unit_id!r} is not in the node index this hop reads")
+            read.append(row)
+        return second_hop.seeded_hop_columnwise(
+            self._index, self._weights, self._columns, seeds=seeds, read=read, depth=top_k
+        )
+
+    def propose(self, query: str, first: Sequence[Hit], top_k: int) -> list[Hit]:
+        candidates, _positives = self.hop(query, first, top_k)
+        return [(candidate.unit_id, candidate.score) for candidate in candidates]
