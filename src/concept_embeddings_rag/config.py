@@ -925,6 +925,11 @@ PHASE_11_DEV: Final[str] = "dev"
 PHASE_11_TEST: Final[str] = PHASE_10_RESERVED
 PHASE_11_QUESTION_SETS: Final[tuple[str, ...]] = (PHASE_11_DEV, PHASE_11_TEST)
 
+# R5 and deviation 11.1: the Phase 9 GLiNER on the laptop. Same model, revision, labels,
+# parameters, weights and library versions; only the torch build differs (+cpu, not +cu126),
+# which the configuration digest covers. 998 of 1,000 corpus records re-extracted identically.
+PHASE_11_GLINER_CONFIGURATION_DIGEST: Final[str] = "390d0d8ae603fd1d"
+
 # D1/D2: the P1 hop's DF caps (None: no cap, the Phase 9 hop) and the four-component grid.
 PHASE_11_DF_CAPS: Final[tuple[int | None, ...]] = (1_000, 3_000, 10_000, 30_000, None)
 PHASE_11_GRID_TENTHS: Final[int] = 10

@@ -35,12 +35,19 @@
     p10-fit         the 66-point three-way weight grid on dev, the tie rule and the dev gate
     p10-eval        the single authorized held-out pass on test-10 (Phase 10)
     p10-outcome     the exact McNemar test and the mechanical terminal label (Phase 10)
+    p11-entities    GLiNER question entities for dev or test-11, one question at a time
+    p11-embed       BGE question vectors for test-11, on CPU (Phase 11)
+    p11-lists       dev entity lists; the new code must reproduce P10-C's dev count
+    p11-fit         the 1,430-point DF-cap x weight grid on dev, the tie rule and the gate
+    p11-eval        the single authorized held-out pass on test-11 (Phase 11)
+    p11-outcome     exact McNemar against P10-C (the label) and P10-B (Phase 11)
 
 Each stage is idempotent and refuses to run if its input is missing, saying which
 stage to run first rather than failing somewhere deep inside numpy.
 """
 
 import argparse
+import gzip
 import json
 import math
 import shutil
@@ -132,7 +139,7 @@ from concept_embeddings_rag.embeddings.cache import (
     unit_set_hash,
 )
 from concept_embeddings_rag.evaluation import fullwiki as phase9
-from concept_embeddings_rag.evaluation import phase10, scale_sensitivity, strong_dense
+from concept_embeddings_rag.evaluation import phase10, phase11, scale_sensitivity, strong_dense
 from concept_embeddings_rag.evaluation.budget import TokenCounter
 from concept_embeddings_rag.evaluation.cheap_extraction import (
     DEV_FILENAME,
@@ -239,13 +246,17 @@ from concept_embeddings_rag.retrieval.conceptual import (
 from concept_embeddings_rag.retrieval.dense import DenseRetriever
 from concept_embeddings_rag.retrieval.diffusion import EXPANSION_NAMES, DiffusionRetriever
 from concept_embeddings_rag.retrieval.entity_hop import (
+    QUESTION_HOP_NAME,
+    CappedEntityHopStage,
     ColumnwiseEntityHopStage,
     EntityHopStage,
+    QuestionEntityHop,
 )
 from concept_embeddings_rag.retrieval.fusion import (
     TRIPLE_COMPONENTS,
     WEIGHTED,
     FusedRetriever,
+    QuadFusedRetriever,
     TripleFusedRetriever,
     fuse_lists,
 )
@@ -4824,6 +4835,579 @@ def cmd_p10_outcome(target_dir: Path = config.PHASE_10_DIR) -> Path:
     return path
 
 
+# --- Phase 11: a better use of the entities at FullWiki scale ------------------------------
+
+P11_EMBED_NAME = "embed.json"
+P11_DEV_LISTS = "dev-lists.jsonl.gz"
+P11_DEV_LISTS_MANIFEST = "dev-lists.json"
+P11_REPRODUCTION_NAME = "reproduction.json"
+P11_FIT_NAME = "fit.json"
+P11_MARKER_NAME = "pass.json"
+P11_OUTCOME_NAME = "outcome.json"
+P11_QUESTION_LIST = QUESTION_HOP_NAME
+
+
+def _p11_cap_key(cap: int | None) -> str:
+    """The dev-list key of the P1 hop at one DF cap: `entity-hop@1000`, `entity-hop@all`."""
+    return f"{config.ENTITY_HOP_NAME}@{'all' if cap is None else cap}"
+
+
+def _p11_json(name: str, target_dir: Path = config.PHASE_11_DIR) -> dict[str, Any]:
+    path = Path(target_dir) / name
+    if not path.exists():
+        _die(f"{path} does not exist: run the Phase 11 stage that writes it first")
+    body: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+    return body
+
+
+def _p11_write_once(name: str, body: Mapping[str, Any], target_dir: Path) -> Path:
+    path = Path(target_dir) / name
+    if path.exists():
+        _die(f"{path} already exists; a Phase 11 artifact is written once")
+    Path(target_dir).mkdir(parents=True, exist_ok=True)
+    write_text_atomic(path, json.dumps(dict(body), indent=2, sort_keys=True))
+    return path
+
+
+def _p11_entity_index(source_dir: Path) -> tuple[Any, dict[str, Any]]:
+    """The Phase 9 GLiNER entity index, read-only, checked against its recorded digest."""
+    corpus_hash = _p10_corpus_hash(source_dir)
+    gliner_dir = source_dir / phase9.GLINER_DIRNAME
+    record = json.loads((gliner_dir / phase9.ENTITY_INDEX_FILENAME).read_text("utf-8"))
+    if record.get("unit_set_hash", record.get("corpus_unit_set_hash")) != corpus_hash:
+        _die("the entity index manifest names another corpus")
+    extraction = local_extraction.load_manifest(gliner_dir)
+    index = load_node_index(gliner_dir, extraction_digest=str(extraction["digest"]))
+    if index.digest != record["index_digest"]:
+        _die("the entity index does not match the digest entity-index.json records")
+    return index, {"entity_index_digest": index.digest, "corpus_unit_set_hash": corpus_hash}
+
+
+def _p11_questions(
+    set_name: str, source_dir: Path, phase10_dir: Path, corpus_hash: str
+) -> list[Question]:
+    if set_name == config.PHASE_11_DEV:
+        questions, _body = phase9.load_questions(source_dir, corpus_unit_set_hash=corpus_hash)
+        return questions
+    if set_name == config.PHASE_11_TEST:
+        return phase11.load_test_11(phase10_dir, corpus_unit_set_hash=corpus_hash)
+    _die(f"Phase 11 reads only {config.PHASE_11_QUESTION_SETS}, not {set_name!r}")
+
+
+def cmd_p11_entities(
+    set_name: str,
+    source_dir: Path = config.PHASE_9_DIR,
+    phase10_dir: Path = config.PHASE_10_DIR,
+    target_dir: Path = config.PHASE_11_DIR,
+) -> Path:
+    """S1 (HU-1): GLiNER reads each question once, alone, and its spans are matched to nodes.
+
+    Only the question text is read. Each question is extracted by itself (batch 1) and timed,
+    for dev and `test-11` alike, so the fit reads spans produced exactly as the pass's are and
+    the time is a per-query figure (D7).
+    """
+    source_dir, phase10_dir, target_dir = Path(source_dir), Path(phase10_dir), Path(target_dir)
+    if (target_dir / phase11.entities_filename(set_name)).exists():
+        _die(f"the {set_name} question entities are already frozen")
+    corpus_hash = _p10_corpus_hash(source_dir)
+    questions = _p11_questions(set_name, source_dir, phase10_dir, corpus_hash)
+    index, index_record = _p11_entity_index(source_dir)
+    forms = phase11.entity_forms(index)
+    del index
+    model_dir = source_dir / "models" / config.GLINER_EXTRACTOR
+    extractor, load_seconds = local_extraction.gliner_extractor(model_dir)
+    digest = extractor.configuration_digest
+    if digest != config.PHASE_11_GLINER_CONFIGURATION_DIGEST:
+        _die(
+            f"the GLiNER configuration digest here is {digest}, not the Phase 11 pin "
+            f"{config.PHASE_11_GLINER_CONFIGURATION_DIGEST} ({extractor.library_versions})"
+        )
+    rows: list[dict[str, Any]] = []
+    started = time.perf_counter()
+    for position, question in enumerate(questions, start=1):
+        began = time.perf_counter()
+        spans = extractor.spans([question.question])[0]
+        seconds = time.perf_counter() - began
+        rows.append({"qid": question.qid, **phase11.match_spans(spans, forms), "seconds": seconds})
+        if position % 500 == 0:
+            elapsed = time.perf_counter() - started
+            print(
+                f"[INFO] {set_name} {position}/{len(questions)} in {elapsed / 60:.1f} min",
+                flush=True,
+            )
+    block = {
+        "configuration": extractor.configuration,
+        "configuration_digest": digest,
+        "weights_sha256": weights_sha256(model_dir, config.PHASE_9_GLINER_WEIGHTS_FILE),
+        "batch": 1,
+        "normalization": "nodes.normalization.normalize, as the Phase 9 index",
+        "matched_against": index_record,
+        "host": local_extraction.hardware_block(device=extractor.hardware_device),
+        "load_seconds": load_seconds,
+        "seconds": time.perf_counter() - started,
+        "code_commit": _git_commit(),
+    }
+    path = phase11.write_question_entities(target_dir, set_name, rows, extractor=block)
+    matched = sum(1 for row in rows if row["node_ids"])
+    print(f"[OK] {set_name}: {matched}/{len(rows)} questions seed at least one node -> {path}")
+    return path
+
+
+def cmd_p11_embed(
+    source_dir: Path = config.PHASE_9_DIR,
+    phase10_dir: Path = config.PHASE_10_DIR,
+    target_dir: Path = config.PHASE_11_DIR,
+) -> Path:
+    """S2: BGE question vectors for `test-11`, in Phase 11's own cache (dev keeps Phase 9's)."""
+    source_dir, phase10_dir, target_dir = Path(source_dir), Path(phase10_dir), Path(target_dir)
+    if (target_dir / P11_EMBED_NAME).exists():
+        _die(f"{target_dir / P11_EMBED_NAME} already records the test-11 vectors")
+    corpus_hash = _p10_corpus_hash(source_dir)
+    questions = phase11.load_test_11(phase10_dir, corpus_unit_set_hash=corpus_hash)
+    backend = SentenceTransformerBackend()
+    if (backend.name, backend.revision) != (config.EMBEDDING_MODEL, config.EMBEDDING_REVISION):
+        _die(f"Phase 11 encodes with the pinned BGE-small only, not {backend.name}")
+    cache = EmbeddingCache(target_dir / "cache" / "questions")
+    started = time.perf_counter()
+    vectors, _ = embed_questions(questions, backend, cache)
+    name = config.PHASE_11_TEST
+    record = {
+        "key": question_cache_key(
+            backend.name,
+            backend.revision,
+            question_set_hash([q.qid for q in questions]),
+            name,
+            normalized=bool(getattr(backend, "normalize", True)),
+            query_prompt=query_prompt_of(backend),
+        ),
+        "n_questions": len(questions),
+        "dim": int(vectors.shape[1]),
+        "model": backend.name,
+        "revision": backend.revision,
+        "resolved_revision": resolved_revision(backend),
+        "seconds": time.perf_counter() - started,
+    }
+    body = {"sets": {name: record}, "device": _embedding_device()}
+    path = _p11_write_once(P11_EMBED_NAME, body, target_dir)
+    print(f"[OK] {name}: {len(questions)} questions encoded -> {path}")
+    return path
+
+
+def _p11_dev_inputs(source_dir: Path) -> tuple[list[Question], dict[str, int]]:
+    """The dev questions and the Phase 9 token counts: what replaying dev rankings needs."""
+    units, corpus = _phase_9_corpus(source_dir)
+    unit_ids = [unit.unit_id for unit in units]
+    del units
+    token_counts = phase9.load_phase9_token_counts(
+        source_dir, unit_set_hash=str(corpus["unit_set_hash"]), unit_ids=unit_ids
+    )
+    questions, _body = phase9.load_questions(
+        source_dir, corpus_unit_set_hash=str(corpus["unit_set_hash"])
+    )
+    return questions, token_counts
+
+
+def _p11_load_dev_lists(target_dir: Path) -> list[dict[str, Any]]:
+    body = _p11_json(P11_DEV_LISTS_MANIFEST, target_dir)
+    text = gzip.decompress((target_dir / P11_DEV_LISTS).read_bytes()).decode("utf-8")
+    if digest_of(text) != body["digest"]:
+        _die(f"{P11_DEV_LISTS} does not match its recorded digest")
+    rows = [json.loads(line) for line in text.splitlines()]
+    for row in rows:
+        for name in body["lists"]:
+            row[name] = [(str(u), float(s)) for u, s in row[name]]
+    return rows
+
+
+def _p11_quad(row: Mapping[str, Any], cap: int | None) -> tuple[list[Any], ...]:
+    """The four component lists of one dev question, in the fusion's fixed order."""
+    return (row["dense"], row["bm25"], row[_p11_cap_key(cap)], row[P11_QUESTION_LIST])
+
+
+def cmd_p11_lists(
+    source_dir: Path = config.PHASE_9_DIR,
+    phase10_dir: Path = config.PHASE_10_DIR,
+    target_dir: Path = config.PHASE_11_DIR,
+) -> Path:
+    """S4 (D3): the entity lists per dev question, then P10-C reproduced by the new code.
+
+    Dense and BM25 are not re-run: their Phase 10 dev lists are reused, digest-checked. The P1
+    hop runs at every DF cap and the question hop once, from the stored Dense list, at depth
+    100. D3 then requires the uncapped list to equal Phase 10's for every question, and P11 at
+    P10-C's point to give 4,801 with no question's outcome moved; a miss stops the phase.
+    """
+    source_dir, phase10_dir, target_dir = Path(source_dir), Path(phase10_dir), Path(target_dir)
+    if (target_dir / P11_REPRODUCTION_NAME).exists():
+        _die(f"{target_dir / P11_REPRODUCTION_NAME} already records the reproduction")
+    fit10 = _p10_json(P10_FIT_NAME, phase10_dir)
+    rows10 = phase10.load_dev_lists(phase10_dir)
+    if _p10_json(phase10.DEV_LISTS_MANIFEST, phase10_dir)["digest"] != fit10["dev_lists_digest"]:
+        _die("the Phase 10 dev lists are not the ones its fit read")
+    questions, token_counts = _p11_dev_inputs(source_dir)
+    if [r["qid"] for r in rows10] != [q.qid for q in questions]:
+        _die("the Phase 10 dev lists are not in the dev question order")
+    entities = phase11.load_question_entities(target_dir, config.PHASE_11_DEV)
+    seeds = phase11.nodes_by_question(entities, questions)
+    index, index_record = _p11_entity_index(source_dir)
+    weights = node_weights(index)
+    columns = ColumnwiseEntityHopStage.columns_for(index)
+    df = concept_support(index.incidence)
+    stages = {
+        cap: CappedEntityHopStage(index, weights, cap=cap, columns=columns, df=df)
+        for cap in config.PHASE_11_DF_CAPS
+    }
+    question_hop = QuestionEntityHop(index, weights, columns=columns, nodes_by_question=seeds)
+    depth = config.PHASE_9_RANKING_DEPTH
+    rows: list[dict[str, Any]] = []
+    lists_differing: list[str] = []
+    started = time.perf_counter()
+    for position, row10 in enumerate(rows10, start=1):
+        first = row10["dense"]
+        row: dict[str, Any] = {
+            "qid": row10["qid"],
+            "question": row10["question"],
+            "dense": first,
+            "bm25": row10["bm25"],
+            "positives": {},
+        }
+        for cap, stage in stages.items():
+            expansion = stage.expand(first, depth)
+            row[_p11_cap_key(cap)] = [(c.unit_id, c.score) for c in expansion.candidates]
+            row["positives"][_p11_cap_key(cap)] = expansion.positives
+            stage._memo.clear()  # one pass over distinct questions: nothing to reuse
+        candidates, positives = question_hop.hop(row10["question"], first, depth)
+        row[P11_QUESTION_LIST] = [(c.unit_id, c.score) for c in candidates]
+        row["positives"][P11_QUESTION_LIST] = positives
+        if row[_p11_cap_key(None)] != row10[config.ENTITY_HOP_NAME]:
+            lists_differing.append(row10["qid"])
+        rows.append(row)
+        if position % 500 == 0:
+            elapsed = time.perf_counter() - started
+            print(
+                f"[INFO] dev lists {position}/{len(rows10)} in {elapsed / 60:.1f} min", flush=True
+            )
+    names = [
+        "dense",
+        "bm25",
+        *(_p11_cap_key(cap) for cap in config.PHASE_11_DF_CAPS),
+        P11_QUESTION_LIST,
+    ]
+    text = "".join(json.dumps(row, sort_keys=True) + "\n" for row in rows)
+    target_dir.mkdir(parents=True, exist_ok=True)
+    temporary = target_dir / (P11_DEV_LISTS + ".tmp")
+    with temporary.open("wb") as raw, gzip.GzipFile(fileobj=raw, mode="wb", mtime=0) as packed:
+        packed.write(text.encode("utf-8"))
+    temporary.replace(target_dir / P11_DEV_LISTS)
+    manifest = {
+        "rows": len(rows),
+        "digest": digest_of(text),
+        "lists": names,
+        "depth": depth,
+        "df_caps": list(config.PHASE_11_DF_CAPS),
+        "phase10_dev_lists_digest": fit10["dev_lists_digest"],
+        "question_entities_digest": entities["rows_digest"],
+        **index_record,
+        "code_commit": _git_commit(),
+        "host": local_extraction.hardware_block(device="cpu"),
+        "seconds": time.perf_counter() - started,
+    }
+    _p11_write_once(P11_DEV_LISTS_MANIFEST, manifest, target_dir)
+
+    p10c = tuple(float(w) for w in fit10["chosen"]["weights"])
+    point = tuple(config.PHASE_11_P10C_WEIGHTS[name] for name in phase11.QUAD_NAMES)
+    control = [
+        (
+            r["question"],
+            fuse_lists((r["dense"], r["bm25"], r[config.ENTITY_HOP_NAME]), p10c, top_k=depth),
+        )
+        for r in rows10
+    ]
+    candidate = [(r["question"], fuse_lists(_p11_quad(r, None), point, top_k=depth)) for r in rows]
+    name = config.PHASE_11_SYSTEMS[3]
+    control_records = _p10_replay_records(name, control, questions, token_counts)
+    candidate_records = _p10_replay_records(name, candidate, questions, token_counts)
+    budget = str(config.PHASE_9_PRIMARY_BUDGET)
+    differing = [
+        c["qid"]
+        for c, d in zip(control_records, candidate_records, strict=True)
+        if c["budgets"][budget]["full_support"] != d["budgets"][budget]["full_support"]
+    ]
+    verdict = phase11.reproduction_verdict(
+        phase10.supported(candidate_records), differing, lists_differing
+    )
+    body = {
+        **verdict,
+        "p10c_rebuilt_supported": phase10.supported(control_records),
+        "dev_lists_digest": manifest["digest"],
+        "code_commit": _git_commit(),
+    }
+    path = _p11_write_once(P11_REPRODUCTION_NAME, body, target_dir)
+    print(
+        f"[INFO] P11 at P10-C's point: {body['observed']} (recorded {body['recorded']}), "
+        f"{len(differing)} outcomes and {len(lists_differing)} lists differ"
+    )
+    if not body["passed"]:
+        _die(f"the four-component code does not reproduce P10-C on dev; see {path}")
+    print(f"[OK] P10-C reproduced on dev -> {path}")
+    return path
+
+
+def cmd_p11_fit(
+    source_dir: Path = config.PHASE_9_DIR, target_dir: Path = config.PHASE_11_DIR
+) -> Path:
+    """S5 (D2, D4): the 1,430-point grid on the cached dev lists, the tie rule, the dev gate."""
+    source_dir, target_dir = Path(source_dir), Path(target_dir)
+    reproduction = _p11_json(P11_REPRODUCTION_NAME, target_dir)
+    if not reproduction["passed"]:
+        _die("the reproduction did not pass; nothing is fitted")
+    if (target_dir / P11_FIT_NAME).exists():
+        _die(f"{target_dir / P11_FIT_NAME} already records the fit")
+    questions, token_counts = _p11_dev_inputs(source_dir)
+    rows = _p11_load_dev_lists(target_dir)
+    if [r["qid"] for r in rows] != [q.qid for q in questions]:
+        _die("the Phase 11 dev lists are not in the dev question order")
+    name = config.PHASE_11_SYSTEMS[3]
+    depth = config.PHASE_9_RANKING_DEPTH
+    curve: list[dict[str, Any]] = []
+    started = time.perf_counter()
+    points = phase11.grid_points()
+    for cap, weights in points:
+        rankings = [
+            (r["question"], fuse_lists(_p11_quad(r, cap), weights, top_k=depth)) for r in rows
+        ]
+        records = _p10_replay_records(name, rankings, questions, token_counts)
+        curve.append(
+            {
+                "p1_df_cap": cap,
+                "weights": list(weights),
+                "supported": phase10.supported(records),
+                "gold_recall_sum": phase10.gold_recall_sum(records),
+            }
+        )
+        if len(curve) % 50 == 0:
+            elapsed = time.perf_counter() - started
+            print(f"[INFO] {len(curve)}/{len(points)} points in {elapsed / 60:.1f} min", flush=True)
+    chosen = phase11.choose_point(curve)
+    body = {
+        "grid": "DF caps x convex quadruples (dense, bm25, entity-hop, question-hop) on tenths",
+        "df_caps": list(config.PHASE_11_DF_CAPS),
+        "n_points": len(curve),
+        "objective": "full_support@2048 over the 7,405 dev questions",
+        "tie_rule": (
+            "gold_recall@2048 sum; then w_question = 0; then the larger cap (none largest); "
+            "then the larger w_dense, w_bm25, w_p1"
+        ),
+        "curve": curve,
+        "chosen": chosen,
+        "weights": dict(zip(phase11.QUAD_NAMES, chosen["weights"], strict=True)),
+        "p1_df_cap": chosen["p1_df_cap"],
+        "p10c_dev_supported": config.PHASE_11_P10C_DEV_SUPPORTED,
+        "dev_bar": config.PHASE_11_P10C_DEV_SUPPORTED + config.PHASE_11_DEV_MARGIN,
+        "terminal_state": phase11.dev_gate(chosen),
+        "dev_lists_digest": reproduction["dev_lists_digest"],
+        "seconds": time.perf_counter() - started,
+        "code_commit": _git_commit(),
+    }
+    path = _p11_write_once(P11_FIT_NAME, body, target_dir)
+    print(
+        f"[INFO] chosen cap {chosen['p1_df_cap']}, weights {chosen['weights']}: "
+        f"{chosen['supported']} of 7,405 against the bar of {body['dev_bar']}"
+    )
+    if body["terminal_state"] is not None:
+        _die(f"{body['terminal_state']} recorded in {path}; test-11 stays unopened")
+    print(f"[OK] fit written -> {path}; commit it before the held-out pass")
+    return path
+
+
+def _p11_pass_provenance(
+    components: Mapping[str, Any],
+    weights: Mapping[str, Mapping[str, float]],
+    phase10_dir: Path,
+    target_dir: Path,
+) -> dict[str, Any]:
+    """The Phase 9 chain with the fields the pass changes: test-11, its vectors, the weights."""
+    base = components["provenance"]
+    record = json.loads((phase10_dir / phase10.QUESTIONS_FILENAME).read_text(encoding="utf-8"))[
+        "sets"
+    ][config.PHASE_11_TEST]
+    return {
+        **base,
+        "question_digest": record["question_digest"],
+        "mapping_digest": record["mapping_digest"],
+        "embedding": {
+            **base["embedding"],
+            "question_cache_key": _p11_json(P11_EMBED_NAME, target_dir)["sets"][
+                config.PHASE_11_TEST
+            ]["key"],
+        },
+        "weights": {name: dict(w) for name, w in weights.items()},
+    }
+
+
+def cmd_p11_eval(
+    *,
+    authorized: bool,
+    source_dir: Path = config.PHASE_9_DIR,
+    phase10_dir: Path = config.PHASE_10_DIR,
+    target_dir: Path = config.PHASE_11_DIR,
+) -> list[Path]:
+    """S6: P10-A, P10-B, P10-C and P11 on `test-11`, once, after the author's authorization."""
+    source_dir, phase10_dir, target_dir = Path(source_dir), Path(phase10_dir), Path(target_dir)
+    if not authorized:
+        _die("the held-out pass opens test-11: it needs --authorized-pass from the author")
+    fit = _p11_json(P11_FIT_NAME, target_dir)
+    if fit["terminal_state"] is not None:
+        _die(f"the fit recorded {fit['terminal_state']}; the held-out pass does not run")
+    if not _p10_fit_is_committed(target_dir / P11_FIT_NAME):
+        _die("fit.json is not committed unmodified; commit the fit before the held-out pass")
+    if (target_dir / P11_MARKER_NAME).exists():
+        _die(f"{target_dir / P11_MARKER_NAME} exists: the held-out pass has already started once")
+    fit10 = _p10_json(P10_FIT_NAME, phase10_dir)
+    components = _phase_9_inputs(source_dir)
+    corpus_hash = str(components["provenance"]["corpus_unit_set_hash"])
+    questions = phase11.load_test_11(phase10_dir, corpus_unit_set_hash=corpus_hash)
+    entities = phase11.load_question_entities(target_dir, config.PHASE_11_TEST)
+    seeds = phase11.nodes_by_question(entities, questions)
+    record = _p11_json(P11_EMBED_NAME, target_dir)["sets"][config.PHASE_11_TEST]
+    loaded = EmbeddingCache(target_dir / "cache" / "questions").load(
+        str(record["key"]), expected_unit_ids=[q.qid for q in questions]
+    )
+    if loaded is None:
+        _die("the test-11 question vectors are missing: run 'p11-embed'")
+    base = components["dense"]
+    dense = DenseRetriever(
+        base.vectors,
+        base.unit_ids,
+        CachedQueryBackend(
+            texts=[q.question for q in questions],
+            vectors=loaded[0],
+            name=str(record["model"]),
+            revision=str(record["revision"]),
+        ),
+    )
+    bm25, index, hop_weights = components["bm25"], components["index"], components["node_weights"]
+    columns = ColumnwiseEntityHopStage.columns_for(index)
+    capped = CappedEntityHopStage(
+        index,
+        hop_weights,
+        cap=fit["p1_df_cap"],
+        columns=columns,
+        df=concept_support(index.incidence),
+    )
+    question_hop = QuestionEntityHop(index, hop_weights, columns=columns, nodes_by_question=seeds)
+    weights = {
+        config.PHASE_11_SYSTEMS[1]: components["weights"]["hybrid-bm25"],
+        config.PHASE_11_SYSTEMS[2]: fit10["weights"],
+        config.PHASE_11_SYSTEMS[3]: fit["weights"],
+    }
+    systems: dict[str, Any] = {
+        "dense": RecordingRetriever(dense),
+        "hybrid-bm25": RecordingHybrid(
+            dense, bm25, scheme=WEIGHTED, weights=weights[config.PHASE_11_SYSTEMS[1]]
+        ),
+        config.PHASE_11_SYSTEMS[2]: RecordingRetriever(
+            TripleFusedRetriever(
+                dense,
+                bm25,
+                ColumnwiseEntityHopStage(index, hop_weights),
+                weights=weights[config.PHASE_11_SYSTEMS[2]],
+            )
+        ),
+        config.PHASE_11_SYSTEMS[3]: RecordingRetriever(
+            QuadFusedRetriever(
+                dense, bm25, capped, question_hop, weights=weights[config.PHASE_11_SYSTEMS[3]]
+            )
+        ),
+    }
+    commit = _git_commit()
+    host = local_extraction.hardware_block(device="cpu")
+    fit_digest = digest_of(json.dumps(fit, sort_keys=True))
+    provenance = _p11_pass_provenance(components, weights, phase10_dir, target_dir)
+    _p11_write_once(
+        P11_MARKER_NAME,
+        {
+            "started_at": datetime.now(UTC).isoformat(timespec="seconds"),
+            "code_commit": commit,
+            "fit_digest": fit_digest,
+            "set": config.PHASE_11_TEST,
+        },
+        target_dir,
+    )
+    written: list[Path] = []
+    for name, system in systems.items():
+        print(f"[INFO] pass: {name} over {len(questions)} questions", flush=True)
+        records = phase9.measure_system(name, system, questions, components["token_counts"])
+        inner = system.inner if isinstance(system, RecordingRetriever) else system
+        body = {
+            "phase": 11,
+            "system": name,
+            "label": config.PHASE_11_SYSTEM_LABELS[name],
+            "set": config.PHASE_11_TEST,
+            "ranking_depth": config.PHASE_9_RANKING_DEPTH,
+            "fusion": inner.describe() if hasattr(inner, "describe") else None,
+            "metrics": phase9.cohort_metrics(records)[config.PHASE_9_STANDARD],
+            "latency": phase9.latency_summary(records),
+            "provenance": {
+                **provenance,
+                "hop_implementation": phase9.COLUMNWISE_HOP,
+                "question_set": config.PHASE_11_TEST,
+                "fit_digest": fit_digest,
+                "question_entities_digest": entities["rows_digest"],
+                "code_commit": commit,
+                "host": host,
+            },
+        }
+        written.append(phase9.write_run(target_dir, name, records, body=body))
+        print(f"[OK] {name} run written -> {written[-1]}", flush=True)
+    return written
+
+
+def cmd_p11_outcome(target_dir: Path = config.PHASE_11_DIR) -> Path:
+    """S7 (D5, D6, D7): P11 against P10-C (the label), against P10-B, and P10-C against P10-B."""
+    target_dir = Path(target_dir)
+    _dense, p10b, p10c, p11 = config.PHASE_11_SYSTEMS
+    runs = {name: phase9.load_outcomes(target_dir, name) for name in (p10b, p10c, p11)}
+    primary = phase11.paired(runs[p10c], runs[p11])
+    secondary = phase11.paired(runs[p10b], runs[p11])
+    descriptive = phase11.paired(runs[p10b], runs[p10c])
+    latency = {
+        name: _p11_json(f"run-{name}.json", target_dir)["latency"]
+        for name in config.PHASE_11_SYSTEMS
+    }
+    fit = _p11_json(P11_FIT_NAME, target_dir)
+    extraction = None
+    if phase11.uses_question(fit["chosen"]):
+        rows = phase11.load_question_entities(target_dir, config.PHASE_11_TEST)["questions"]
+        extraction = phase9.latency_summary([{"latency_ms": 1000.0 * r["seconds"]} for r in rows])
+        extraction["boundary"] = "GLiNER on one test-11 question (batch 1, laptop CPU)"
+    body = {
+        "set": config.PHASE_11_TEST,
+        "metric": "full_support@2048_tokens",
+        "test": "exact two-sided McNemar (binomial on discordant questions, p = 1/2)",
+        "alpha": config.PHASE_9_ALPHA,
+        "primary_p11_vs_p10c": primary,
+        "secondary_p11_vs_p10b": secondary,
+        "descriptive_p10c_vs_p10b": descriptive,
+        "terminal_state": phase11.label(primary),
+        # DEV_STOP ends the phase before a pass exists, so it cannot reach here.
+        "stop_reasons": [],
+        "latency": latency,
+        "gliner_question_latency": extraction,
+        "latency_ratio_p11_over_p10c": latency[p11]["mean_ms"] / latency[p10c]["mean_ms"],
+        "latency_ratio_p11_over_p10b": latency[p11]["mean_ms"] / latency[p10b]["mean_ms"],
+        "selected": {"p1_df_cap": fit["p1_df_cap"], "weights": fit["weights"]},
+        "code_commit": _git_commit(),
+    }
+    path = _p11_write_once(P11_OUTCOME_NAME, body, target_dir)
+    print(
+        f"[OK] {body['terminal_state']}: against P10-C wins {primary['wins']}, losses "
+        f"{primary['losses']}, p = {primary['exact_two_sided_p']:.4g}; against P10-B wins "
+        f"{secondary['wins']}, losses {secondary['losses']}, "
+        f"p = {secondary['exact_two_sided_p']:.4g} -> {path}"
+    )
+    return path
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="cer",
@@ -5094,6 +5678,21 @@ def build_parser() -> argparse.ArgumentParser:
         "p10-eval", help="Phase 10: the single authorized held-out pass on test-10"
     )
     p10_eval.add_argument("--authorized-pass", action="store_true", dest="authorized")
+    p11_entities = subparsers.add_parser(
+        "p11-entities", help="Phase 11: GLiNER question entities for one set, batch 1 (CPU)"
+    )
+    p11_entities.add_argument("--set", required=True, choices=config.PHASE_11_QUESTION_SETS)
+    for command, text in (
+        ("p11-embed", "Phase 11: BGE question vectors for test-11 (CPU)"),
+        ("p11-lists", "Phase 11: dev entity lists and the exact P10-C reproduction (D3)"),
+        ("p11-fit", "Phase 11: the 1,430-point grid on dev, the tie rule and the gate"),
+        ("p11-outcome", "Phase 11: exact McNemar against P10-C and P10-B, and the label"),
+    ):
+        subparsers.add_parser(command, help=text)
+    p11_eval = subparsers.add_parser(
+        "p11-eval", help="Phase 11: the single authorized held-out pass on test-11"
+    )
+    p11_eval.add_argument("--authorized-pass", action="store_true", dest="authorized")
     build.add_argument(
         "--smoke",
         type=int,
@@ -5210,6 +5809,18 @@ def main(argv: list[str] | None = None) -> int:
         cmd_p10_eval(authorized=args.authorized)
     elif args.command == "p10-outcome":
         cmd_p10_outcome()
+    elif args.command == "p11-entities":
+        cmd_p11_entities(args.set)
+    elif args.command == "p11-embed":
+        cmd_p11_embed()
+    elif args.command == "p11-lists":
+        cmd_p11_lists()
+    elif args.command == "p11-fit":
+        cmd_p11_fit()
+    elif args.command == "p11-eval":
+        cmd_p11_eval(authorized=args.authorized)
+    elif args.command == "p11-outcome":
+        cmd_p11_outcome()
     return 0
 
 
