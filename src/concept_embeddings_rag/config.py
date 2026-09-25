@@ -916,6 +916,55 @@ PHASE_10_TERMINAL_STATES: Final[tuple[str, ...]] = (
     "DEV_STOP",
 )
 
+# --- Phase 11: a better use of the entities at FullWiki scale -----------------------------
+# Fixed by `11.spec.md` (approved 2026-09-24, amended and re-approved 2026-09-25). Dev is the
+# 7,405 validation questions; the held-out set is Phase 10's reserved `test-11`.
+
+PHASE_11_DIR: Final[Path] = DATA_DIR / "phase11"
+PHASE_11_DEV: Final[str] = "dev"
+PHASE_11_TEST: Final[str] = PHASE_10_RESERVED
+PHASE_11_QUESTION_SETS: Final[tuple[str, ...]] = (PHASE_11_DEV, PHASE_11_TEST)
+
+# R5 and deviation 11.1: the Phase 9 GLiNER on the laptop. Same model, revision, labels,
+# parameters, weights and library versions; only the torch build differs (+cpu, not +cu126),
+# which the configuration digest covers. 998 of 1,000 corpus records re-extracted identically.
+PHASE_11_GLINER_CONFIGURATION_DIGEST: Final[str] = "390d0d8ae603fd1d"
+
+# D1/D2: the P1 hop's DF caps (None: no cap, the Phase 9 hop) and the four-component grid.
+PHASE_11_DF_CAPS: Final[tuple[int | None, ...]] = (1_000, 3_000, 10_000, 30_000, None)
+PHASE_11_GRID_TENTHS: Final[int] = 10
+
+# D3: P10-C, frozen, and its dev count the four-component code must reproduce exactly.
+PHASE_11_P10C_WEIGHTS: Final[dict[str, float]] = {
+    "dense": 0.5,
+    "bm25": 0.3,
+    ENTITY_HOP_NAME: 0.2,
+    "question-hop": 0.0,
+}
+PHASE_11_P10C_DEV_SUPPORTED: Final[int] = 4801
+
+# D4: the selected configuration must beat P10-C on dev by this many questions (0.5 pp).
+PHASE_11_DEV_MARGIN: Final[int] = 37
+
+PHASE_11_SYSTEMS: Final[tuple[str, ...]] = (
+    "dense",
+    "hybrid-bm25",
+    "hybrid-bm25-entity-hop",
+    "hybrid-bm25-entity-hop-question-hop",
+)
+PHASE_11_SYSTEM_LABELS: Final[dict[str, str]] = {
+    "dense": "P10-A",
+    "hybrid-bm25": "P10-B",
+    "hybrid-bm25-entity-hop": "P10-C",
+    "hybrid-bm25-entity-hop-question-hop": "P11",
+}
+PHASE_11_TERMINAL_STATES: Final[tuple[str, ...]] = (
+    "ENTITY_USE_SUPPORTED",
+    "ENTITY_USE_NOT_SUPPORTED",
+    "ENTITY_USE_REGRESSION",
+    "DEV_STOP",
+)
+
 
 def ensure_directories() -> None:
     """Create the data directories if they do not exist yet."""

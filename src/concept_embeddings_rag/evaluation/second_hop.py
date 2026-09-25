@@ -317,3 +317,42 @@ def node_hop_columnwise(
         key=lambda row: (-float(scores[row]), index.unit_ids[row]),
     )
     return _candidates(index, weights, scores, ordered[:depth], shared), int(positive_rows.size)
+
+
+def seeded_hop_columnwise(
+    index: NodeIndex,
+    weights: np.ndarray,
+    columns: ArmColumns,
+    *,
+    seeds: np.ndarray,
+    read: Collection[int],
+    depth: int,
+) -> tuple[list[RankedCandidate], int]:
+    """Phase 11: `node_hop_columnwise` from a given seed set instead of all of `p1`'s nodes.
+
+    The seeds are restricted to the arm and taken in ascending node id, so seeding with `p1`'s
+    own nodes gives `node_hop_columnwise` bit for bit (held equal by
+    `tests/retrieval/test_entity_use.py`). Scoring, exclusion, positivity, ties and the cut
+    are the Phase 9 hop's, unchanged. The Phase 9 function is left untouched on purpose: it is
+    behind published results.
+    """
+    incidence = index.incidence
+    seeds = np.asarray(seeds, dtype=np.int64)
+    shared = np.unique(seeds[columns.mask[seeds]])
+    scores = np.zeros(incidence.shape[0])
+    for node in shared:
+        rows = columns.indices[columns.indptr[node] : columns.indptr[node + 1]]
+        scores[rows] += weights[node]
+    excluded = np.zeros(incidence.shape[0], dtype=bool)
+    excluded[list(read)] = True
+    positive_rows = np.nonzero((scores > 0.0) & ~excluded)[0]
+    kept = positive_rows
+    if positive_rows.size > depth:
+        values = scores[positive_rows]
+        threshold = -np.partition(-values, depth - 1)[depth - 1]
+        kept = positive_rows[values >= threshold]
+    ordered = sorted(
+        (int(row) for row in kept),
+        key=lambda row: (-float(scores[row]), index.unit_ids[row]),
+    )
+    return _candidates(index, weights, scores, ordered[:depth], shared), int(positive_rows.size)
