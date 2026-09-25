@@ -206,6 +206,11 @@ def load_set(directory: Path | str, name: str, *, corpus_unit_set_hash: str) -> 
     """One frozen set's questions, their digests recomputed. `test-11` is never loaded here."""
     if name == config.PHASE_10_RESERVED:
         raise Phase10Error(f"{name} is reserved for the next phase; Phase 10 never loads it")
+    return _read_set(directory, name, corpus_unit_set_hash=corpus_unit_set_hash)
+
+
+def _read_set(directory: Path | str, name: str, *, corpus_unit_set_hash: str) -> list[Question]:
+    """Any frozen set, digests recomputed. Phase 11 reads `test-11` through this, nothing else."""
     body = json.loads((Path(directory) / QUESTIONS_FILENAME).read_text(encoding="utf-8"))
     if body["terminal_state"] is not None:
         raise DataStop(f"the Phase 10 sets recorded {body['terminal_state']}")
