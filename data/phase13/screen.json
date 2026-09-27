@@ -1,0 +1,70 @@
+{
+  "code_commit": "4cca1cca4ced813d7f9773d92d282d92ba63a3f3",
+  "descriptive": {
+    "items_without_scored_entity": 1,
+    "sentence_rule": {
+      "hits": 532,
+      "rate_pp": 20.06789890607318
+    },
+    "w_first_2": {
+      "hits": 1668,
+      "rate_pp": 62.91965296114674
+    },
+    "w_first_3": {
+      "hits": 2002,
+      "rate_pp": 75.51867219917013
+    }
+  },
+  "difference_pp": 21.76537155790268,
+  "hits": {
+    "T1": 504,
+    "T2": 247,
+    "W": 1081
+  },
+  "host": {
+    "cpu_count": 12,
+    "device": "cpu",
+    "gpu": null,
+    "machine": "ARM64",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "processor": "ARMv8 (64-bit) Family 8 Model 1 Revision 201, Qualcomm Technologies Inc",
+    "python": "3.12.10",
+    "ram_bytes": 33896992768,
+    "release": "11",
+    "system": "Windows",
+    "torch_threads": 12,
+    "torch_version": "2.13.0+cpu"
+  },
+  "inputs": {
+    "dev_question_digest": "aaa0bc26a482d91e34f001dc41d530ffa72116e4da27472769d6207ddf53b706",
+    "entity_index_digest": "0cf28b3f58950af3d9825e9d0e76a86e51c722689a5d03f6bde931697f3ebaaa",
+    "phase10_dev_lists_digest": "d2e5c2d65b9f032bbd892786f63acdac012cb261cb5ea10971d55756797eb7e9",
+    "phase12_sentence_cache_digest": "91a971d191f6b52be03f6a11accb351bac90fd218a21b6bbf61df054f7378511",
+    "phase12_sentence_cache_key": "1eca3478b2e79469",
+    "question_vectors_digest": "9b435c237c6227dbed76a93666c55825f03ddadfe139a75d06b3f1696069e440",
+    "question_vectors_key": "4894aceb0406c63a",
+    "window_cache_key": "1d7dcd1041be2c2b",
+    "window_cache_rows_digest": "c6110075a22e1b6c1dd250e2979b38746342d2430f21c4a8b7700bef7884b42d",
+    "window_cache_vectors_digest": "9214d580ba79722b920eca7d971f74782852df0d652415b9896681858770931d"
+  },
+  "margin_pp": 5.0,
+  "passed": true,
+  "population": 2651,
+  "population_definition": "dev gold paragraphs outside the Phase 10 dev Dense top 10, in the Phase 9 entity index, sharing >= 1 entity node with P1; one item per gold paragraph",
+  "rates_pp": {
+    "T1": 19.01169370049038,
+    "T2": 9.317238777819691,
+    "W": 40.77706525839306
+  },
+  "reference_pp": 19.01169370049038,
+  "reference_rule": "T1",
+  "rules": {
+    "T1": "earliest mention: sentence position, match offset, node id",
+    "T2": "highest rarity weight, then node id",
+    "W": "first of the D1 ranking (window score desc, rarity desc, node id asc)",
+    "sentence_rule": "descriptive: first-mentioned scored entity of the P1 sentence most similar to the question (Phase 12 sentence cache; ties by position)"
+  },
+  "seconds": 71.07760150008835,
+  "terminal_state": null,
+  "window_rule": "window-5w-sentence-clipped-masked-normalized-v1"
+}
