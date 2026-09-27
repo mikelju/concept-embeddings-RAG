@@ -4245,8 +4245,19 @@ def cmd_fullwiki_outcome(target_dir: Path = config.PHASE_9_DIR) -> Path:
     return path
 
 
+# The paths whose state decides what code ran: a change anywhere else (docs, data, local
+# settings) does not change a result.
+_CODE_PATHS: tuple[str, ...] = ("src", "pyproject.toml", "uv.lock")
+
+
 def _git_commit() -> str:
-    """The commit the code ran at, or `unknown` outside a checkout; recorded, never trusted."""
+    """The commit the code ran at, or `unknown` outside a checkout; recorded, never trusted.
+
+    `<sha>-dirty` when the code paths hold uncommitted changes, untracked files included: the
+    code that ran is then not the recorded commit. Phases 11 and 12 recorded a bare HEAD that
+    predated their running code; this is the prospective fix, and their artifacts stay as they
+    are.
+    """
     import subprocess  # nosec B404: a fixed argv, no shell, no input
 
     try:
@@ -4259,7 +4270,19 @@ def _git_commit() -> str:
         )
     except (OSError, subprocess.CalledProcessError):
         return "unknown"
-    return completed.stdout.strip()
+    commit = completed.stdout.strip()
+    try:
+        # No optional locks: a stage must not take the index lock from a concurrent git command.
+        status = subprocess.run(  # noqa: S603
+            ["git", "--no-optional-locks", "status", "--porcelain", "--", *_CODE_PATHS],  # noqa: S607
+            capture_output=True,
+            text=True,
+            check=True,
+            cwd=config.PROJECT_ROOT,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return f"{commit}-status-unknown"
+    return f"{commit}-dirty" if status.stdout.strip() else commit
 
 
 def _cache_key_for(backend: EmbeddingBackend, units: Sequence[IndexingUnit]) -> str:
