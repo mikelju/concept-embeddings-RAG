@@ -15,7 +15,7 @@ the screen tally. The runtime stage lives in `retrieval/entity_hop.py`.
 import hashlib
 import json
 import re
-from collections.abc import Collection, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, NamedTuple
@@ -260,6 +260,129 @@ def screen_verdict(n: int, hits_w: int, hits_t1: int, hits_t2: int) -> dict[str,
     }
 
 
+# --- S3 (D3): the screen population, the choices per question and the tally -----------------
+
+
+def screen_population(
+    *,
+    dense_top10: Collection[str],
+    gold: Sequence[str],
+    p1_nodes: Collection[int],
+    nodes_of: Callable[[str], Collection[int] | None],
+) -> list[tuple[str, frozenset[int]]]:
+    """One question's screen items: `(gold unit, bridge set)` (D3).
+
+    A gold paragraph is an item when it is outside the Dense top 10, in the entity index
+    (`nodes_of` returns its entity nodes, or `None` for a unit the index does not hold), and
+    shares at least one entity node with P1. Its bridge set is that intersection. Each gold
+    paragraph is its own item, so a question can contribute two. The definition is the
+    Phase 12 closing diagnostic's.
+    """
+    top = set(dense_top10)
+    p1 = {int(node) for node in p1_nodes}
+    items: list[tuple[str, frozenset[int]]] = []
+    for unit_id in gold:
+        if unit_id in top:
+            continue
+        nodes = nodes_of(unit_id)
+        if nodes is None:
+            continue
+        bridge = frozenset(p1 & {int(node) for node in nodes})
+        if bridge:
+            items.append((unit_id, bridge))
+    return items
+
+
+@dataclass(frozen=True)
+class QuestionChoices:
+    """What each rule puts first for one question, all among P1's scored entities.
+
+    `ranking` is W's full D1 ranking; `sentence_rule` is the descriptive per-entity restatement
+    of Phase 12's rule.
+    """
+
+    ranking: list[int]
+    t1: int | None
+    t2: int | None
+    sentence_rule: int | None
+
+    @property
+    def w(self) -> int | None:
+        return self.ranking[0] if self.ranking else None
+
+
+def sentence_rule(
+    entities: Mapping[int, EntityMentions], scored: Collection[int], rel: Sequence[float]
+) -> int | None:
+    """Descriptive: the first-mentioned scored entity of the P1 sentence most similar to q.
+
+    Only sentences holding a mention of a scored entity compete, ranked by similarity
+    descending, then position ascending (Phase 12's sentence order); within the first, the
+    scored entity with the earliest match offset wins, then the lowest node id.
+    """
+    holding: dict[int, list[tuple[int, int]]] = {}
+    for node in scored:
+        for position, offset in entities[node].spans:
+            holding.setdefault(position, []).append((offset, node))
+    if not holding:
+        return None
+    top = min(holding, key=lambda position: (-rel[position], position))
+    return min(holding[top])[1]
+
+
+def question_choices(
+    entities: Mapping[int, EntityMentions],
+    scores: Mapping[int, float],
+    weights: Mapping[int, float] | np.ndarray,
+    rel: Sequence[float],
+) -> QuestionChoices:
+    """W, T1, T2 and the descriptive sentence rule for one question (D3)."""
+    scored = list(scores)
+    first = {node: entities[node].first_mention for node in scored}
+    return QuestionChoices(
+        ranking=rank_entities(scores, weights),
+        t1=first_mention(scored, first),
+        t2=rarest(scored, weights),
+        sentence_rule=sentence_rule(entities, scored, rel),
+    )
+
+
+def screen_tally(
+    items: Sequence[tuple[frozenset[int], QuestionChoices]],
+    expected_population: int = config.PHASE_13_SCREEN_POPULATION,
+) -> dict[str, Any]:
+    """D3's hit counts, rates and verdict, plus the descriptive figures.
+
+    Refuses, before counting any hit, a population other than the expected one.
+    """
+    n = len(items)
+    if n != expected_population:
+        raise Phase13Error(
+            f"the screen population is {n}, not the {expected_population} the spec fixes"
+        )
+    hits_w = sum(hit(choices.w, bridge) for bridge, choices in items)
+    hits_t1 = sum(hit(choices.t1, bridge) for bridge, choices in items)
+    hits_t2 = sum(hit(choices.t2, bridge) for bridge, choices in items)
+    body = screen_verdict(n, hits_w, hits_t1, hits_t2)
+
+    def described(count: int) -> dict[str, Any]:
+        return {"hits": count, "rate_pp": 100.0 * count / n if n else 0.0}
+
+    body["descriptive"] = {
+        "sentence_rule": described(
+            sum(hit(choices.sentence_rule, bridge) for bridge, choices in items)
+        ),
+        "w_first_2": described(
+            sum(bool(bridge & set(choices.ranking[:2])) for bridge, choices in items)
+        ),
+        "w_first_3": described(
+            sum(bool(bridge & set(choices.ranking[:3])) for bridge, choices in items)
+        ),
+        "items_without_scored_entity": sum(not choices.ranking for _bridge, choices in items),
+    }
+    return body
+
+
 # --- S2: the window cache, one NPZ plus manifest per set, written once -----------------------
 
 
@@ -442,3 +565,28 @@ def window_coverage(
         "empty_windows": empty,
         "mentions_per_located_entity": _distribution([float(v) for v in per_entity]),
     }
+
+
+def window_rows(
+    p1_ids: Sequence[str], unit_entities: Mapping[str, Mapping[int, EntityMentions]]
+) -> tuple[list[str], list[int], list[int], list[int], list[str]]:
+    """The cache's row order: unit id ascending as given, node id ascending, window order.
+
+    Returns the unit id, node id, sentence position, first word and text columns. This is the
+    order `cer p13-windows` writes; the screen rebuilds it and compares it row for row.
+    """
+    unit_ids: list[str] = []
+    node_ids: list[int] = []
+    positions: list[int] = []
+    first_words: list[int] = []
+    texts: list[str] = []
+    for unit_id in p1_ids:
+        entities = unit_entities[unit_id]
+        for node_id in sorted(entities):
+            for item in entities[node_id].windows:
+                unit_ids.append(unit_id)
+                node_ids.append(node_id)
+                positions.append(item.position)
+                first_words.append(item.first_word)
+                texts.append(item.text)
+    return unit_ids, node_ids, positions, first_words, texts

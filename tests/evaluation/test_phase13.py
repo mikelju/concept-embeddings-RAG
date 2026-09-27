@@ -308,3 +308,98 @@ def test_window_coverage_on_a_small_fixture():
     assert coverage["windows"] == 2
     assert coverage["empty_windows"] == 2
     assert coverage["mentions_per_located_entity"]["mean"] == pytest.approx(4 / 3)
+
+
+# --- S3: the screen population, the choices per question, the tally --------------------------
+
+NODES_OF = {
+    "p1": {1, 2, 3},
+    "g_top": {1},  # inside the Dense top 10: out
+    "g_share": {2, 9},  # shares node 2 with P1: in, bridge {2}
+    "g_none": {8, 9},  # shares nothing: out
+    "g_two": {1, 3, 7},  # bridge {1, 3}
+}
+
+
+def test_the_population_keeps_gold_outside_the_top10_in_the_index_sharing_an_entity():
+    items = p13.screen_population(
+        dense_top10=["p1", "g_top", "x"],
+        gold=["g_top", "g_share", "g_none", "g_missing", "g_two"],
+        p1_nodes=[1, 2, 3],
+        nodes_of=NODES_OF.get,
+    )
+    assert items == [("g_share", frozenset({2})), ("g_two", frozenset({1, 3}))]
+
+
+def a_question_entities():
+    sentences = [
+        "Titanic is a 1997 American epic romance film.",
+        "Titanic was directed by James Cameron.",
+        "Titanic stars Leonardo DiCaprio.",
+    ]
+    return p13.entity_windows([1, 2, 3], TITANIC_FORMS, sentences)
+
+
+def test_question_choices_apply_each_rule_to_the_same_scored_set():
+    entities = a_question_entities()  # 2 (titanic) is mentioned first, in sentence 0
+    scores = {1: 0.9, 2: 0.4, 3: 0.7}
+    weights = {1: 1.0, 2: 1.0, 3: 4.0}
+    rel = [0.1, 0.2, 0.8]  # sentence 2 is the most similar: its first mention is titanic
+    choices = p13.question_choices(entities, scores, weights, rel)
+    assert choices.ranking == [1, 3, 2]
+    assert choices.w == 1
+    assert choices.t1 == 2
+    assert choices.t2 == 3
+    assert choices.sentence_rule == 2
+
+
+def test_the_sentence_rule_skips_sentences_without_a_scored_entity():
+    entities = a_question_entities()
+    scores = {1: 0.9, 3: 0.7}  # titanic unscored: sentence 0 holds no scored entity
+    rel = [0.9, 0.2, 0.8]
+    choices = p13.question_choices(entities, scores, {1: 1.0, 3: 1.0}, rel)
+    assert choices.sentence_rule == 3
+    assert choices.t1 == 1  # the earliest scored mention: james cameron in sentence 1
+
+
+def test_no_scored_entity_misses_every_rule():
+    choices = p13.question_choices(a_question_entities(), {}, {}, [0.1, 0.2, 0.3])
+    assert choices.ranking == [] and choices.w is None and choices.t1 is None
+    assert choices.t2 is None and choices.sentence_rule is None
+
+
+def test_the_tally_counts_hits_per_rule():
+    hit_all = p13.QuestionChoices(ranking=[1, 2, 3], t1=1, t2=1, sentence_rule=1)
+    w_only = p13.QuestionChoices(ranking=[2, 5, 1], t1=5, t2=6, sentence_rule=5)
+    nothing = p13.QuestionChoices(ranking=[], t1=None, t2=None, sentence_rule=None)
+    items = [
+        (frozenset({1}), hit_all),
+        (frozenset({2}), w_only),
+        (frozenset({1}), w_only),  # W's first misses; its first 3 hold 1
+        (frozenset({1}), nothing),
+    ]
+    body = p13.screen_tally(items, expected_population=4)
+    assert body["hits"] == {"W": 2, "T1": 1, "T2": 1}
+    assert body["descriptive"]["sentence_rule"]["hits"] == 1
+    assert body["descriptive"]["w_first_2"]["hits"] == 2
+    assert body["descriptive"]["w_first_3"]["hits"] == 3
+    assert body["descriptive"]["items_without_scored_entity"] == 1
+    assert body["population"] == 4
+
+
+def test_the_tally_refuses_a_population_other_than_the_expected_one():
+    item = (frozenset({1}), p13.QuestionChoices(ranking=[1], t1=1, t2=1, sentence_rule=1))
+    with pytest.raises(p13.Phase13Error, match="population"):
+        p13.screen_tally([item, item], expected_population=3)
+    assert config.PHASE_13_SCREEN_POPULATION == 2651
+
+
+def test_window_rows_follow_unit_then_node_then_window_order():
+    sentences = ["From Paris to Lyon.", "Lyon is near Paris."]
+    entities = p13.entity_windows([2, 1], {1: "paris", 2: "lyon"}, sentences)
+    rows = p13.window_rows(["u1", "u2"], {"u1": entities, "u2": {}})
+    assert rows[0] == ["u1"] * 4
+    assert rows[1] == [1, 1, 2, 2]
+    assert rows[2] == [0, 1, 0, 1]
+    assert rows[3] == [1, 3, 3, 0]
+    assert rows[4] == ["from to lyon", "lyon is near", "from paris to", "is near paris"]

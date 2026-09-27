@@ -45,6 +45,7 @@
     p12-lists       the seeded-hop dev lists at all 6 (s, exclude) and the D4 reproduction
     p12-fit         the 396-point grid on dev, the tie rule and the dev gate
     p13-windows     encode every window around every dev P1 entity mention once (Phase 13)
+    p13-screen      the D3 screen: W against T1 and T2 over the 2,651 bridge items (Phase 13)
 
 Each stage is idempotent and refuses to run if its input is missing, saying which
 stage to run first rather than failing somewhere deep inside numpy.
@@ -5945,6 +5946,193 @@ def cmd_p13_windows(
     return manifest_path
 
 
+P13_SCREEN_NAME = "screen.json"
+
+
+def _p13_dev_questions(source_dir: Path) -> tuple[list[Question], dict[str, Any]]:
+    """The Phase 9 dev questions (gold), without loading the corpus: its hash is enough."""
+    try:
+        return phase9.load_questions(source_dir, corpus_unit_set_hash=_p10_corpus_hash(source_dir))
+    except phase9.FullWikiPhaseError as error:
+        _die(str(error))
+
+
+def _p13_question_cache_key(source_dir: Path) -> str:
+    embedding = json.loads((source_dir / phase9.EMBEDDING_FILENAME).read_text("utf-8"))
+    return str(embedding["question_cache_key"])
+
+
+def _p13_window_cache(
+    target_dir: Path, set_name: str, p1_ids: Sequence[str], dev_lists_digest: str
+) -> phase13.WindowCache:
+    """The S2 window cache, digest-verified, for exactly these P1 units and dev lists."""
+    try:
+        cache = phase13.read_window_cache(target_dir / "cache" / P13_WINDOW_CACHE_DIRNAME, set_name)
+    except phase13.Phase13Error as error:
+        _die(str(error))
+    manifest = cache.manifest
+    pinned = (config.EMBEDDING_MODEL, config.EMBEDDING_REVISION)
+    if (manifest["model"], manifest["revision"]) != pinned:
+        _die("the window cache was not encoded with the pinned BGE-small")
+    expected = phase13.window_cache_key(
+        str(manifest["model"]), str(manifest["revision"]), set_name, p1_ids
+    )
+    if manifest["key"] != expected or manifest["window_rule"] != config.PHASE_13_WINDOW_RULE:
+        _die("the window cache does not cover these P1 units under the frozen window rule")
+    if manifest["phase10_dev_lists_digest"] != dev_lists_digest:
+        _die("the window cache was built from other Phase 10 dev lists")
+    return cache
+
+
+def _p13_sentence_rel(
+    phase12_dir: Path,
+) -> tuple[Callable[[str, np.ndarray], list[float]], dict[str, Any]]:
+    """Per P1, its sentences' similarity to a question, from the read-only Phase 12 cache."""
+    try:
+        unit_ids, positions, vectors, manifest = phase12.read_sentence_cache(
+            phase12_dir / "cache" / P12_SENTENCE_CACHE_DIRNAME, config.PHASE_12_DEV
+        )
+    except phase12.Phase12Error as error:
+        _die(str(error))
+    rows: dict[str, list[tuple[int, int]]] = {}
+    for row, (unit_id, position) in enumerate(zip(unit_ids, positions, strict=True)):
+        rows.setdefault(unit_id, []).append((position, row))
+    ordered = {u: [row for _p, row in sorted(entries)] for u, entries in rows.items()}
+
+    def rel(unit_id: str, question_vector: np.ndarray) -> list[float]:
+        if unit_id not in ordered:
+            _die(f"unit {unit_id} is not in the Phase 12 sentence cache")
+        sims: list[float] = (vectors[ordered[unit_id]] @ question_vector).tolist()
+        return sims
+
+    return rel, manifest
+
+
+def cmd_p13_screen(
+    source_dir: Path = config.PHASE_9_DIR,
+    phase10_dir: Path = config.PHASE_10_DIR,
+    phase12_dir: Path = config.PHASE_12_DIR,
+    target_dir: Path = config.PHASE_13_DIR,
+) -> Path:
+    """S3 (D3): does the window score put a bridge entity first clearly more than T1 or T2?
+
+    Recomputes the population - dev gold outside the Phase 10 Dense top 10, in the entity
+    index, sharing an entity node with P1 - and stops before any hit is counted if it is not
+    2,651. The windows are rebuilt from the corpus and must equal the S2 cache row for row;
+    entity scores come from the cached window vectors and the Phase 9 dev question vectors.
+    `screen.json` is written once; it must be committed before the next stage.
+    """
+    source_dir, phase10_dir = Path(source_dir), Path(phase10_dir)
+    phase12_dir, target_dir = Path(phase12_dir), Path(target_dir)
+    if (target_dir / P13_SCREEN_NAME).exists():
+        _die(f"{target_dir / P13_SCREEN_NAME} already records the screen")
+    started = time.perf_counter()
+    set_name = config.PHASE_13_DEV
+    rows10, dev_lists_digest = _p13_phase10_dev_lists(phase10_dir)
+    questions, questions_body = _p13_dev_questions(source_dir)
+    if [row["qid"] for row in rows10] != [q.qid for q in questions]:
+        _die("the Phase 10 dev lists are not in the dev question order")
+    p1_ids = sorted({row["dense"][0][0] for row in rows10})
+    cache = _p13_window_cache(target_dir, set_name, p1_ids, dev_lists_digest)
+
+    index, index_record = _p11_entity_index(source_dir)
+    if cache.manifest["entity_index_digest"] != index_record["entity_index_digest"]:
+        _die("the window cache was built from another entity index")
+    weights = node_weights(index)
+    mask = _p13_arm_mask(index)
+    row_of = {unit_id: row for row, unit_id in enumerate(index.unit_ids)}
+
+    def nodes_of(unit_id: str) -> list[int] | None:
+        return _p13_entity_nodes(index, mask, row_of, unit_id) if unit_id in row_of else None
+
+    p1_nodes = {unit_id: _p13_entity_nodes(index, mask, row_of, unit_id) for unit_id in p1_ids}
+    wanted = {node for nodes in p1_nodes.values() for node in nodes}
+    forms = {node.node_id: node.form for node in index.nodes if node.node_id in wanted}
+
+    sentences = _p13_p1_sentences(source_dir, p1_ids)
+    unit_entities = {
+        unit_id: phase13.entity_windows(p1_nodes[unit_id], forms, sentences[unit_id])
+        for unit_id in p1_ids
+    }
+    del sentences
+    rebuilt = phase13.window_rows(p1_ids, unit_entities)
+    if rebuilt[:4] != (cache.unit_ids, cache.node_ids, cache.positions, cache.first_words):
+        _die("the windows rebuilt from the corpus do not match the S2 cache row for row")
+
+    query_backend = _p12_dev_question_vector(source_dir, questions)
+    question_vectors = query_backend.encode([q.question for q in questions])
+    rel_of, sentence_manifest = _p13_sentence_rel(phase12_dir)
+
+    items: list[tuple[frozenset[int], phase13.QuestionChoices]] = []
+    for row10, question, question_vector in zip(rows10, questions, question_vectors, strict=True):
+        p1 = row10["dense"][0][0]
+        population = phase13.screen_population(
+            dense_top10=[unit_id for unit_id, _score in row10["dense"][:10]],
+            gold=question.gold_unit_ids,
+            p1_nodes=p1_nodes[p1],
+            nodes_of=nodes_of,
+        )
+        if not population:
+            continue
+        if cache.holds(p1):
+            window_nodes, window_vectors = cache.rows_of(p1)
+            scores = phase13.entity_scores(window_nodes, window_vectors, question_vector)
+        else:
+            scores = {}
+        choices = phase13.question_choices(
+            unit_entities[p1], scores, weights, rel_of(p1, question_vector)
+        )
+        items.extend((bridge, choices) for _gold, bridge in population)
+
+    try:
+        tally = phase13.screen_tally(items)
+    except phase13.Phase13Error as error:
+        _die(f"{error}; the phase stops before any hit rate is computed")
+    body = {
+        **tally,
+        "population_definition": (
+            "dev gold paragraphs outside the Phase 10 dev Dense top 10, in the Phase 9 entity "
+            "index, sharing >= 1 entity node with P1; one item per gold paragraph"
+        ),
+        "rules": {
+            "W": "first of the D1 ranking (window score desc, rarity desc, node id asc)",
+            "T1": "earliest mention: sentence position, match offset, node id",
+            "T2": "highest rarity weight, then node id",
+            "sentence_rule": (
+                "descriptive: first-mentioned scored entity of the P1 sentence most similar to "
+                "the question (Phase 12 sentence cache; ties by position)"
+            ),
+        },
+        "window_rule": config.PHASE_13_WINDOW_RULE,
+        "inputs": {
+            "phase10_dev_lists_digest": dev_lists_digest,
+            "dev_question_digest": questions_body["question_digest"],
+            "entity_index_digest": index_record["entity_index_digest"],
+            "window_cache_key": cache.manifest["key"],
+            "window_cache_vectors_digest": cache.manifest["vectors_digest"],
+            "window_cache_rows_digest": cache.manifest["rows_digest"],
+            "question_vectors_key": _p13_question_cache_key(source_dir),
+            "question_vectors_digest": phase13.vectors_digest(question_vectors),
+            "phase12_sentence_cache_key": sentence_manifest["key"],
+            "phase12_sentence_cache_digest": sentence_manifest["vectors_digest"],
+        },
+        "seconds": time.perf_counter() - started,
+        "host": local_extraction.hardware_block(device="cpu"),
+        "code_commit": _git_commit(),
+    }
+    path = _p13_write_once(P13_SCREEN_NAME, body, target_dir)
+    rates = body["rates_pp"]
+    print(
+        f"[INFO] population {body['population']}: W {rates['W']:.2f}%, T1 {rates['T1']:.2f}%, "
+        f"T2 {rates['T2']:.2f}%; reference {body['reference_pp']:.2f}% + "
+        f"{body['margin_pp']} pp"
+    )
+    if body["terminal_state"] is not None:
+        _die(f"{body['terminal_state']} recorded in {path}; commit it, the phase ends here")
+    print(f"[OK] the screen passes -> {path}; commit it before the next stage")
+    return path
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="cer",
@@ -6246,6 +6434,10 @@ def build_parser() -> argparse.ArgumentParser:
         "p13-windows",
         help="Phase 13: encode every window around every dev P1 entity mention once (CPU)",
     )
+    subparsers.add_parser(
+        "p13-screen",
+        help="Phase 13: the D3 screen, W against T1 and T2, written once (dev only)",
+    )
     build.add_argument(
         "--smoke",
         type=int,
@@ -6382,6 +6574,8 @@ def main(argv: list[str] | None = None) -> int:
         cmd_p12_fit()
     elif args.command == "p13-windows":
         cmd_p13_windows()
+    elif args.command == "p13-screen":
+        cmd_p13_screen()
     return 0
 
 
