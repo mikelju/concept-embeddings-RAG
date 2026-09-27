@@ -1,0 +1,4388 @@
+{
+  "chosen": {
+    "exclude": false,
+    "gold_recall_sum": 6007.0,
+    "s": null,
+    "supported": 4801,
+    "weights": [
+      0.5,
+      0.3,
+      0.2
+    ]
+  },
+  "code_commit": "58d5a8420b66a864fbbd2cc11df712ba14cf7e73",
+  "curve": [
+    {
+      "exclude": false,
+      "gold_recall_sum": 5591.0,
+      "s": 1,
+      "supported": 4125,
+      "weights": [
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5654.0,
+      "s": 1,
+      "supported": 4224,
+      "weights": [
+        0.9,
+        0.1,
+        0.0
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5626.0,
+      "s": 1,
+      "supported": 4193,
+      "weights": [
+        0.9,
+        0.0,
+        0.1
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5749.0,
+      "s": 1,
+      "supported": 4375,
+      "weights": [
+        0.8,
+        0.2,
+        0.0
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5711.0,
+      "s": 1,
+      "supported": 4324,
+      "weights": [
+        0.8,
+        0.1,
+        0.1
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5676.0,
+      "s": 1,
+      "supported": 4283,
+      "weights": [
+        0.8,
+        0.0,
+        0.2
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5839.0,
+      "s": 1,
+      "supported": 4496,
+      "weights": [
+        0.7,
+        0.3,
+        0.0
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5816.5,
+      "s": 1,
+      "supported": 4492,
+      "weights": [
+        0.7,
+        0.2,
+        0.1
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5763.0,
+      "s": 1,
+      "supported": 4411,
+      "weights": [
+        0.7,
+        0.1,
+        0.2
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5655.0,
+      "s": 1,
+      "supported": 4250,
+      "weights": [
+        0.7,
+        0.0,
+        0.3
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5879.0,
+      "s": 1,
+      "supported": 4541,
+      "weights": [
+        0.6,
+        0.4,
+        0.0
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5903.0,
+      "s": 1,
+      "supported": 4607,
+      "weights": [
+        0.6,
+        0.3,
+        0.1
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5859.5,
+      "s": 1,
+      "supported": 4554,
+      "weights": [
+        0.6,
+        0.2,
+        0.2
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5741.0,
+      "s": 1,
+      "supported": 4382,
+      "weights": [
+        0.6,
+        0.1,
+        0.3
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5571.0,
+      "s": 1,
+      "supported": 4131,
+      "weights": [
+        0.6,
+        0.0,
+        0.4
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5876.5,
+      "s": 1,
+      "supported": 4536,
+      "weights": [
+        0.5,
+        0.5,
+        0.0
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5940.0,
+      "s": 1,
+      "supported": 4659,
+      "weights": [
+        0.5,
+        0.4,
+        0.1
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5933.0,
+      "s": 1,
+      "supported": 4656,
+      "weights": [
+        0.5,
+        0.3,
+        0.2
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5836.0,
+      "s": 1,
+      "supported": 4523,
+      "weights": [
+        0.5,
+        0.2,
+        0.3
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5663.0,
+      "s": 1,
+      "supported": 4259,
+      "weights": [
+        0.5,
+        0.1,
+        0.4
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5338.5,
+      "s": 1,
+      "supported": 3910,
+      "weights": [
+        0.5,
+        0.0,
+        0.5
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5835.0,
+      "s": 1,
+      "supported": 4448,
+      "weights": [
+        0.4,
+        0.6,
+        0.0
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5911.0,
+      "s": 1,
+      "supported": 4597,
+      "weights": [
+        0.4,
+        0.5,
+        0.1
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5918.5,
+      "s": 1,
+      "supported": 4622,
+      "weights": [
+        0.4,
+        0.4,
+        0.2
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5868.5,
+      "s": 1,
+      "supported": 4543,
+      "weights": [
+        0.4,
+        0.3,
+        0.3
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5750.0,
+      "s": 1,
+      "supported": 4372,
+      "weights": [
+        0.4,
+        0.2,
+        0.4
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5415.0,
+      "s": 1,
+      "supported": 4075,
+      "weights": [
+        0.4,
+        0.1,
+        0.5
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5081.5,
+      "s": 1,
+      "supported": 3696,
+      "weights": [
+        0.4,
+        0.0,
+        0.6
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5737.5,
+      "s": 1,
+      "supported": 4284,
+      "weights": [
+        0.3,
+        0.7,
+        0.0
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5823.5,
+      "s": 1,
+      "supported": 4440,
+      "weights": [
+        0.3,
+        0.6,
+        0.1
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5851.5,
+      "s": 1,
+      "supported": 4488,
+      "weights": [
+        0.3,
+        0.5,
+        0.2
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5813.0,
+      "s": 1,
+      "supported": 4437,
+      "weights": [
+        0.3,
+        0.4,
+        0.3
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5724.5,
+      "s": 1,
+      "supported": 4326,
+      "weights": [
+        0.3,
+        0.3,
+        0.4
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5479.5,
+      "s": 1,
+      "supported": 4136,
+      "weights": [
+        0.3,
+        0.2,
+        0.5
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5189.5,
+      "s": 1,
+      "supported": 3854,
+      "weights": [
+        0.3,
+        0.1,
+        0.6
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 4789.5,
+      "s": 1,
+      "supported": 3466,
+      "weights": [
+        0.3,
+        0.0,
+        0.7
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5527.5,
+      "s": 1,
+      "supported": 3968,
+      "weights": [
+        0.2,
+        0.8,
+        0.0
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5630.5,
+      "s": 1,
+      "supported": 4147,
+      "weights": [
+        0.2,
+        0.7,
+        0.1
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5649.5,
+      "s": 1,
+      "supported": 4184,
+      "weights": [
+        0.2,
+        0.6,
+        0.2
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5643.0,
+      "s": 1,
+      "supported": 4176,
+      "weights": [
+        0.2,
+        0.5,
+        0.3
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5585.5,
+      "s": 1,
+      "supported": 4104,
+      "weights": [
+        0.2,
+        0.4,
+        0.4
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5378.0,
+      "s": 1,
+      "supported": 3977,
+      "weights": [
+        0.2,
+        0.3,
+        0.5
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5205.5,
+      "s": 1,
+      "supported": 3870,
+      "weights": [
+        0.2,
+        0.2,
+        0.6
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 4927.5,
+      "s": 1,
+      "supported": 3670,
+      "weights": [
+        0.2,
+        0.1,
+        0.7
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 4477.5,
+      "s": 1,
+      "supported": 3226,
+      "weights": [
+        0.2,
+        0.0,
+        0.8
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5238.5,
+      "s": 1,
+      "supported": 3530,
+      "weights": [
+        0.1,
+        0.9,
+        0.0
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5293.0,
+      "s": 1,
+      "supported": 3628,
+      "weights": [
+        0.1,
+        0.8,
+        0.1
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5323.5,
+      "s": 1,
+      "supported": 3676,
+      "weights": [
+        0.1,
+        0.7,
+        0.2
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5298.5,
+      "s": 1,
+      "supported": 3643,
+      "weights": [
+        0.1,
+        0.6,
+        0.3
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5260.5,
+      "s": 1,
+      "supported": 3599,
+      "weights": [
+        0.1,
+        0.5,
+        0.4
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5081.5,
+      "s": 1,
+      "supported": 3517,
+      "weights": [
+        0.1,
+        0.4,
+        0.5
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 4950.5,
+      "s": 1,
+      "supported": 3487,
+      "weights": [
+        0.1,
+        0.3,
+        0.6
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 4802.0,
+      "s": 1,
+      "supported": 3465,
+      "weights": [
+        0.1,
+        0.2,
+        0.7
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 4612.5,
+      "s": 1,
+      "supported": 3402,
+      "weights": [
+        0.1,
+        0.1,
+        0.8
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 4208.0,
+      "s": 1,
+      "supported": 3025,
+      "weights": [
+        0.1,
+        0.0,
+        0.9
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5045.0,
+      "s": 1,
+      "supported": 3226,
+      "weights": [
+        0.0,
+        1.0,
+        0.0
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5075.0,
+      "s": 1,
+      "supported": 3286,
+      "weights": [
+        0.0,
+        0.9,
+        0.1
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5080.0,
+      "s": 1,
+      "supported": 3296,
+      "weights": [
+        0.0,
+        0.8,
+        0.2
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5032.0,
+      "s": 1,
+      "supported": 3233,
+      "weights": [
+        0.0,
+        0.7,
+        0.3
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 4947.0,
+      "s": 1,
+      "supported": 3123,
+      "weights": [
+        0.0,
+        0.6,
+        0.4
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 4724.0,
+      "s": 1,
+      "supported": 2931,
+      "weights": [
+        0.0,
+        0.5,
+        0.5
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 4494.0,
+      "s": 1,
+      "supported": 2791,
+      "weights": [
+        0.0,
+        0.4,
+        0.6
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 4260.0,
+      "s": 1,
+      "supported": 2631,
+      "weights": [
+        0.0,
+        0.3,
+        0.7
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 4006.5,
+      "s": 1,
+      "supported": 2481,
+      "weights": [
+        0.0,
+        0.2,
+        0.8
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 3783.5,
+      "s": 1,
+      "supported": 2352,
+      "weights": [
+        0.0,
+        0.1,
+        0.9
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 553.5,
+      "s": 1,
+      "supported": 44,
+      "weights": [
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5591.0,
+      "s": 1,
+      "supported": 4125,
+      "weights": [
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5654.0,
+      "s": 1,
+      "supported": 4224,
+      "weights": [
+        0.9,
+        0.1,
+        0.0
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5618.0,
+      "s": 1,
+      "supported": 4179,
+      "weights": [
+        0.9,
+        0.0,
+        0.1
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5749.0,
+      "s": 1,
+      "supported": 4375,
+      "weights": [
+        0.8,
+        0.2,
+        0.0
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5701.0,
+      "s": 1,
+      "supported": 4310,
+      "weights": [
+        0.8,
+        0.1,
+        0.1
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5665.0,
+      "s": 1,
+      "supported": 4277,
+      "weights": [
+        0.8,
+        0.0,
+        0.2
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5839.0,
+      "s": 1,
+      "supported": 4496,
+      "weights": [
+        0.7,
+        0.3,
+        0.0
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5810.5,
+      "s": 1,
+      "supported": 4483,
+      "weights": [
+        0.7,
+        0.2,
+        0.1
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5748.5,
+      "s": 1,
+      "supported": 4399,
+      "weights": [
+        0.7,
+        0.1,
+        0.2
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5643.5,
+      "s": 1,
+      "supported": 4243,
+      "weights": [
+        0.7,
+        0.0,
+        0.3
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5879.0,
+      "s": 1,
+      "supported": 4541,
+      "weights": [
+        0.6,
+        0.4,
+        0.0
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5897.5,
+      "s": 1,
+      "supported": 4599,
+      "weights": [
+        0.6,
+        0.3,
+        0.1
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5858.5,
+      "s": 1,
+      "supported": 4560,
+      "weights": [
+        0.6,
+        0.2,
+        0.2
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5731.5,
+      "s": 1,
+      "supported": 4378,
+      "weights": [
+        0.6,
+        0.1,
+        0.3
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5575.0,
+      "s": 1,
+      "supported": 4145,
+      "weights": [
+        0.6,
+        0.0,
+        0.4
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5876.5,
+      "s": 1,
+      "supported": 4536,
+      "weights": [
+        0.5,
+        0.5,
+        0.0
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5931.5,
+      "s": 1,
+      "supported": 4645,
+      "weights": [
+        0.5,
+        0.4,
+        0.1
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5931.0,
+      "s": 1,
+      "supported": 4657,
+      "weights": [
+        0.5,
+        0.3,
+        0.2
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5840.0,
+      "s": 1,
+      "supported": 4537,
+      "weights": [
+        0.5,
+        0.2,
+        0.3
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5679.5,
+      "s": 1,
+      "supported": 4298,
+      "weights": [
+        0.5,
+        0.1,
+        0.4
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5368.5,
+      "s": 1,
+      "supported": 3952,
+      "weights": [
+        0.5,
+        0.0,
+        0.5
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5835.0,
+      "s": 1,
+      "supported": 4448,
+      "weights": [
+        0.4,
+        0.6,
+        0.0
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5915.0,
+      "s": 1,
+      "supported": 4605,
+      "weights": [
+        0.4,
+        0.5,
+        0.1
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5927.5,
+      "s": 1,
+      "supported": 4642,
+      "weights": [
+        0.4,
+        0.4,
+        0.2
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5887.5,
+      "s": 1,
+      "supported": 4585,
+      "weights": [
+        0.4,
+        0.3,
+        0.3
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5786.5,
+      "s": 1,
+      "supported": 4446,
+      "weights": [
+        0.4,
+        0.2,
+        0.4
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5447.0,
+      "s": 1,
+      "supported": 4121,
+      "weights": [
+        0.4,
+        0.1,
+        0.5
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5148.0,
+      "s": 1,
+      "supported": 3811,
+      "weights": [
+        0.4,
+        0.0,
+        0.6
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5737.5,
+      "s": 1,
+      "supported": 4284,
+      "weights": [
+        0.3,
+        0.7,
+        0.0
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5824.0,
+      "s": 1,
+      "supported": 4442,
+      "weights": [
+        0.3,
+        0.6,
+        0.1
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5864.0,
+      "s": 1,
+      "supported": 4510,
+      "weights": [
+        0.3,
+        0.5,
+        0.2
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5841.5,
+      "s": 1,
+      "supported": 4494,
+      "weights": [
+        0.3,
+        0.4,
+        0.3
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5765.0,
+      "s": 1,
+      "supported": 4409,
+      "weights": [
+        0.3,
+        0.3,
+        0.4
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5539.5,
+      "s": 1,
+      "supported": 4230,
+      "weights": [
+        0.3,
+        0.2,
+        0.5
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5287.5,
+      "s": 1,
+      "supported": 4013,
+      "weights": [
+        0.3,
+        0.1,
+        0.6
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 4945.5,
+      "s": 1,
+      "supported": 3654,
+      "weights": [
+        0.3,
+        0.0,
+        0.7
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5527.5,
+      "s": 1,
+      "supported": 3968,
+      "weights": [
+        0.2,
+        0.8,
+        0.0
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5630.0,
+      "s": 1,
+      "supported": 4149,
+      "weights": [
+        0.2,
+        0.7,
+        0.1
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5668.0,
+      "s": 1,
+      "supported": 4221,
+      "weights": [
+        0.2,
+        0.6,
+        0.2
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5673.5,
+      "s": 1,
+      "supported": 4233,
+      "weights": [
+        0.2,
+        0.5,
+        0.3
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5626.0,
+      "s": 1,
+      "supported": 4179,
+      "weights": [
+        0.2,
+        0.4,
+        0.4
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5466.5,
+      "s": 1,
+      "supported": 4105,
+      "weights": [
+        0.2,
+        0.3,
+        0.5
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5323.0,
+      "s": 1,
+      "supported": 4043,
+      "weights": [
+        0.2,
+        0.2,
+        0.6
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5117.5,
+      "s": 1,
+      "supported": 3905,
+      "weights": [
+        0.2,
+        0.1,
+        0.7
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 4734.0,
+      "s": 1,
+      "supported": 3499,
+      "weights": [
+        0.2,
+        0.0,
+        0.8
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5238.5,
+      "s": 1,
+      "supported": 3530,
+      "weights": [
+        0.1,
+        0.9,
+        0.0
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5298.5,
+      "s": 1,
+      "supported": 3643,
+      "weights": [
+        0.1,
+        0.8,
+        0.1
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5331.0,
+      "s": 1,
+      "supported": 3696,
+      "weights": [
+        0.1,
+        0.7,
+        0.2
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5313.0,
+      "s": 1,
+      "supported": 3675,
+      "weights": [
+        0.1,
+        0.6,
+        0.3
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5282.0,
+      "s": 1,
+      "supported": 3650,
+      "weights": [
+        0.1,
+        0.5,
+        0.4
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5149.5,
+      "s": 1,
+      "supported": 3613,
+      "weights": [
+        0.1,
+        0.4,
+        0.5
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5086.0,
+      "s": 1,
+      "supported": 3667,
+      "weights": [
+        0.1,
+        0.3,
+        0.6
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5006.5,
+      "s": 1,
+      "supported": 3702,
+      "weights": [
+        0.1,
+        0.2,
+        0.7
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 4914.0,
+      "s": 1,
+      "supported": 3738,
+      "weights": [
+        0.1,
+        0.1,
+        0.8
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 4542.0,
+      "s": 1,
+      "supported": 3355,
+      "weights": [
+        0.1,
+        0.0,
+        0.9
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5045.0,
+      "s": 1,
+      "supported": 3226,
+      "weights": [
+        0.0,
+        1.0,
+        0.0
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5079.0,
+      "s": 1,
+      "supported": 3295,
+      "weights": [
+        0.0,
+        0.9,
+        0.1
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5085.5,
+      "s": 1,
+      "supported": 3312,
+      "weights": [
+        0.0,
+        0.8,
+        0.2
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5030.5,
+      "s": 1,
+      "supported": 3236,
+      "weights": [
+        0.0,
+        0.7,
+        0.3
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 4954.0,
+      "s": 1,
+      "supported": 3138,
+      "weights": [
+        0.0,
+        0.6,
+        0.4
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 4767.5,
+      "s": 1,
+      "supported": 2996,
+      "weights": [
+        0.0,
+        0.5,
+        0.5
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 4574.0,
+      "s": 1,
+      "supported": 2891,
+      "weights": [
+        0.0,
+        0.4,
+        0.6
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 4406.5,
+      "s": 1,
+      "supported": 2786,
+      "weights": [
+        0.0,
+        0.3,
+        0.7
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 4228.5,
+      "s": 1,
+      "supported": 2680,
+      "weights": [
+        0.0,
+        0.2,
+        0.8
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 4069.0,
+      "s": 1,
+      "supported": 2596,
+      "weights": [
+        0.0,
+        0.1,
+        0.9
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 552.0,
+      "s": 1,
+      "supported": 48,
+      "weights": [
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5591.0,
+      "s": 2,
+      "supported": 4125,
+      "weights": [
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5654.0,
+      "s": 2,
+      "supported": 4224,
+      "weights": [
+        0.9,
+        0.1,
+        0.0
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5646.5,
+      "s": 2,
+      "supported": 4230,
+      "weights": [
+        0.9,
+        0.0,
+        0.1
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5749.0,
+      "s": 2,
+      "supported": 4375,
+      "weights": [
+        0.8,
+        0.2,
+        0.0
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5741.5,
+      "s": 2,
+      "supported": 4382,
+      "weights": [
+        0.8,
+        0.1,
+        0.1
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5736.0,
+      "s": 2,
+      "supported": 4398,
+      "weights": [
+        0.8,
+        0.0,
+        0.2
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5839.0,
+      "s": 2,
+      "supported": 4496,
+      "weights": [
+        0.7,
+        0.3,
+        0.0
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5846.0,
+      "s": 2,
+      "supported": 4549,
+      "weights": [
+        0.7,
+        0.2,
+        0.1
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5831.0,
+      "s": 2,
+      "supported": 4549,
+      "weights": [
+        0.7,
+        0.1,
+        0.2
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5740.0,
+      "s": 2,
+      "supported": 4410,
+      "weights": [
+        0.7,
+        0.0,
+        0.3
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5879.0,
+      "s": 2,
+      "supported": 4541,
+      "weights": [
+        0.6,
+        0.4,
+        0.0
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5935.5,
+      "s": 2,
+      "supported": 4668,
+      "weights": [
+        0.6,
+        0.3,
+        0.1
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5930.5,
+      "s": 2,
+      "supported": 4695,
+      "weights": [
+        0.6,
+        0.2,
+        0.2
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5832.0,
+      "s": 2,
+      "supported": 4560,
+      "weights": [
+        0.6,
+        0.1,
+        0.3
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5651.5,
+      "s": 2,
+      "supported": 4291,
+      "weights": [
+        0.6,
+        0.0,
+        0.4
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5876.5,
+      "s": 2,
+      "supported": 4536,
+      "weights": [
+        0.5,
+        0.5,
+        0.0
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5974.0,
+      "s": 2,
+      "supported": 4728,
+      "weights": [
+        0.5,
+        0.4,
+        0.1
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 6004.0,
+      "s": 2,
+      "supported": 4798,
+      "weights": [
+        0.5,
+        0.3,
+        0.2
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5914.5,
+      "s": 2,
+      "supported": 4679,
+      "weights": [
+        0.5,
+        0.2,
+        0.3
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5724.5,
+      "s": 2,
+      "supported": 4390,
+      "weights": [
+        0.5,
+        0.1,
+        0.4
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5378.5,
+      "s": 2,
+      "supported": 3975,
+      "weights": [
+        0.5,
+        0.0,
+        0.5
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5835.0,
+      "s": 2,
+      "supported": 4448,
+      "weights": [
+        0.4,
+        0.6,
+        0.0
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5954.0,
+      "s": 2,
+      "supported": 4682,
+      "weights": [
+        0.4,
+        0.5,
+        0.1
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5990.5,
+      "s": 2,
+      "supported": 4763,
+      "weights": [
+        0.4,
+        0.4,
+        0.2
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5948.0,
+      "s": 2,
+      "supported": 4707,
+      "weights": [
+        0.4,
+        0.3,
+        0.3
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5800.5,
+      "s": 2,
+      "supported": 4486,
+      "weights": [
+        0.4,
+        0.2,
+        0.4
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5434.0,
+      "s": 2,
+      "supported": 4102,
+      "weights": [
+        0.4,
+        0.1,
+        0.5
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5000.5,
+      "s": 2,
+      "supported": 3629,
+      "weights": [
+        0.4,
+        0.0,
+        0.6
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5737.5,
+      "s": 2,
+      "supported": 4284,
+      "weights": [
+        0.3,
+        0.7,
+        0.0
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5860.5,
+      "s": 2,
+      "supported": 4513,
+      "weights": [
+        0.3,
+        0.6,
+        0.1
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5907.0,
+      "s": 2,
+      "supported": 4600,
+      "weights": [
+        0.3,
+        0.5,
+        0.2
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5873.5,
+      "s": 2,
+      "supported": 4557,
+      "weights": [
+        0.3,
+        0.4,
+        0.3
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5767.5,
+      "s": 2,
+      "supported": 4426,
+      "weights": [
+        0.3,
+        0.3,
+        0.4
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5463.0,
+      "s": 2,
+      "supported": 4116,
+      "weights": [
+        0.3,
+        0.2,
+        0.5
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5064.0,
+      "s": 2,
+      "supported": 3730,
+      "weights": [
+        0.3,
+        0.1,
+        0.6
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 4511.5,
+      "s": 2,
+      "supported": 3228,
+      "weights": [
+        0.3,
+        0.0,
+        0.7
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5527.5,
+      "s": 2,
+      "supported": 3968,
+      "weights": [
+        0.2,
+        0.8,
+        0.0
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5661.5,
+      "s": 2,
+      "supported": 4214,
+      "weights": [
+        0.2,
+        0.7,
+        0.1
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5696.5,
+      "s": 2,
+      "supported": 4278,
+      "weights": [
+        0.2,
+        0.6,
+        0.2
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5668.5,
+      "s": 2,
+      "supported": 4250,
+      "weights": [
+        0.2,
+        0.5,
+        0.3
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5591.5,
+      "s": 2,
+      "supported": 4141,
+      "weights": [
+        0.2,
+        0.4,
+        0.4
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5340.5,
+      "s": 2,
+      "supported": 3924,
+      "weights": [
+        0.2,
+        0.3,
+        0.5
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5029.0,
+      "s": 2,
+      "supported": 3666,
+      "weights": [
+        0.2,
+        0.2,
+        0.6
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 4580.0,
+      "s": 2,
+      "supported": 3334,
+      "weights": [
+        0.2,
+        0.1,
+        0.7
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 3927.0,
+      "s": 2,
+      "supported": 2767,
+      "weights": [
+        0.2,
+        0.0,
+        0.8
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5238.5,
+      "s": 2,
+      "supported": 3530,
+      "weights": [
+        0.1,
+        0.9,
+        0.0
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5327.0,
+      "s": 2,
+      "supported": 3694,
+      "weights": [
+        0.1,
+        0.8,
+        0.1
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5365.5,
+      "s": 2,
+      "supported": 3771,
+      "weights": [
+        0.1,
+        0.7,
+        0.2
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5325.0,
+      "s": 2,
+      "supported": 3726,
+      "weights": [
+        0.1,
+        0.6,
+        0.3
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5235.5,
+      "s": 2,
+      "supported": 3609,
+      "weights": [
+        0.1,
+        0.5,
+        0.4
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5010.5,
+      "s": 2,
+      "supported": 3420,
+      "weights": [
+        0.1,
+        0.4,
+        0.5
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 4754.0,
+      "s": 2,
+      "supported": 3250,
+      "weights": [
+        0.1,
+        0.3,
+        0.6
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 4397.0,
+      "s": 2,
+      "supported": 3046,
+      "weights": [
+        0.1,
+        0.2,
+        0.7
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 3980.5,
+      "s": 2,
+      "supported": 2831,
+      "weights": [
+        0.1,
+        0.1,
+        0.8
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 3406.5,
+      "s": 2,
+      "supported": 2341,
+      "weights": [
+        0.1,
+        0.0,
+        0.9
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5045.0,
+      "s": 2,
+      "supported": 3226,
+      "weights": [
+        0.0,
+        1.0,
+        0.0
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5107.5,
+      "s": 2,
+      "supported": 3348,
+      "weights": [
+        0.0,
+        0.9,
+        0.1
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5134.0,
+      "s": 2,
+      "supported": 3406,
+      "weights": [
+        0.0,
+        0.8,
+        0.2
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5074.5,
+      "s": 2,
+      "supported": 3344,
+      "weights": [
+        0.0,
+        0.7,
+        0.3
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 4948.5,
+      "s": 2,
+      "supported": 3166,
+      "weights": [
+        0.0,
+        0.6,
+        0.4
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 4699.5,
+      "s": 2,
+      "supported": 2923,
+      "weights": [
+        0.0,
+        0.5,
+        0.5
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 4362.0,
+      "s": 2,
+      "supported": 2672,
+      "weights": [
+        0.0,
+        0.4,
+        0.6
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 3935.5,
+      "s": 2,
+      "supported": 2350,
+      "weights": [
+        0.0,
+        0.3,
+        0.7
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 3454.0,
+      "s": 2,
+      "supported": 2056,
+      "weights": [
+        0.0,
+        0.2,
+        0.8
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 3034.0,
+      "s": 2,
+      "supported": 1796,
+      "weights": [
+        0.0,
+        0.1,
+        0.9
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 613.0,
+      "s": 2,
+      "supported": 37,
+      "weights": [
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5591.0,
+      "s": 2,
+      "supported": 4125,
+      "weights": [
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5654.0,
+      "s": 2,
+      "supported": 4224,
+      "weights": [
+        0.9,
+        0.1,
+        0.0
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5633.5,
+      "s": 2,
+      "supported": 4209,
+      "weights": [
+        0.9,
+        0.0,
+        0.1
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5749.0,
+      "s": 2,
+      "supported": 4375,
+      "weights": [
+        0.8,
+        0.2,
+        0.0
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5727.0,
+      "s": 2,
+      "supported": 4362,
+      "weights": [
+        0.8,
+        0.1,
+        0.1
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5719.0,
+      "s": 2,
+      "supported": 4381,
+      "weights": [
+        0.8,
+        0.0,
+        0.2
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5839.0,
+      "s": 2,
+      "supported": 4496,
+      "weights": [
+        0.7,
+        0.3,
+        0.0
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5836.0,
+      "s": 2,
+      "supported": 4532,
+      "weights": [
+        0.7,
+        0.2,
+        0.1
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5809.0,
+      "s": 2,
+      "supported": 4519,
+      "weights": [
+        0.7,
+        0.1,
+        0.2
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5713.0,
+      "s": 2,
+      "supported": 4380,
+      "weights": [
+        0.7,
+        0.0,
+        0.3
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5879.0,
+      "s": 2,
+      "supported": 4541,
+      "weights": [
+        0.6,
+        0.4,
+        0.0
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5923.5,
+      "s": 2,
+      "supported": 4648,
+      "weights": [
+        0.6,
+        0.3,
+        0.1
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5924.0,
+      "s": 2,
+      "supported": 4691,
+      "weights": [
+        0.6,
+        0.2,
+        0.2
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5798.5,
+      "s": 2,
+      "supported": 4514,
+      "weights": [
+        0.6,
+        0.1,
+        0.3
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5624.5,
+      "s": 2,
+      "supported": 4256,
+      "weights": [
+        0.6,
+        0.0,
+        0.4
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5876.5,
+      "s": 2,
+      "supported": 4536,
+      "weights": [
+        0.5,
+        0.5,
+        0.0
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5960.5,
+      "s": 2,
+      "supported": 4702,
+      "weights": [
+        0.5,
+        0.4,
+        0.1
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5998.0,
+      "s": 2,
+      "supported": 4791,
+      "weights": [
+        0.5,
+        0.3,
+        0.2
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5897.0,
+      "s": 2,
+      "supported": 4656,
+      "weights": [
+        0.5,
+        0.2,
+        0.3
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5717.0,
+      "s": 2,
+      "supported": 4393,
+      "weights": [
+        0.5,
+        0.1,
+        0.4
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5383.0,
+      "s": 2,
+      "supported": 4001,
+      "weights": [
+        0.5,
+        0.0,
+        0.5
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5835.0,
+      "s": 2,
+      "supported": 4448,
+      "weights": [
+        0.4,
+        0.6,
+        0.0
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5949.5,
+      "s": 2,
+      "supported": 4674,
+      "weights": [
+        0.4,
+        0.5,
+        0.1
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5995.5,
+      "s": 2,
+      "supported": 4776,
+      "weights": [
+        0.4,
+        0.4,
+        0.2
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5937.5,
+      "s": 2,
+      "supported": 4692,
+      "weights": [
+        0.4,
+        0.3,
+        0.3
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5810.0,
+      "s": 2,
+      "supported": 4515,
+      "weights": [
+        0.4,
+        0.2,
+        0.4
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5431.0,
+      "s": 2,
+      "supported": 4120,
+      "weights": [
+        0.4,
+        0.1,
+        0.5
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5033.5,
+      "s": 2,
+      "supported": 3721,
+      "weights": [
+        0.4,
+        0.0,
+        0.6
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5737.5,
+      "s": 2,
+      "supported": 4284,
+      "weights": [
+        0.3,
+        0.7,
+        0.0
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5861.5,
+      "s": 2,
+      "supported": 4517,
+      "weights": [
+        0.3,
+        0.6,
+        0.1
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5915.5,
+      "s": 2,
+      "supported": 4616,
+      "weights": [
+        0.3,
+        0.5,
+        0.2
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5887.0,
+      "s": 2,
+      "supported": 4589,
+      "weights": [
+        0.3,
+        0.4,
+        0.3
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5785.0,
+      "s": 2,
+      "supported": 4458,
+      "weights": [
+        0.3,
+        0.3,
+        0.4
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5485.0,
+      "s": 2,
+      "supported": 4181,
+      "weights": [
+        0.3,
+        0.2,
+        0.5
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5115.0,
+      "s": 2,
+      "supported": 3859,
+      "weights": [
+        0.3,
+        0.1,
+        0.6
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 4620.5,
+      "s": 2,
+      "supported": 3385,
+      "weights": [
+        0.3,
+        0.0,
+        0.7
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5527.5,
+      "s": 2,
+      "supported": 3968,
+      "weights": [
+        0.2,
+        0.8,
+        0.0
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5659.5,
+      "s": 2,
+      "supported": 4212,
+      "weights": [
+        0.2,
+        0.7,
+        0.1
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5714.5,
+      "s": 2,
+      "supported": 4307,
+      "weights": [
+        0.2,
+        0.6,
+        0.2
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5694.5,
+      "s": 2,
+      "supported": 4289,
+      "weights": [
+        0.2,
+        0.5,
+        0.3
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5625.0,
+      "s": 2,
+      "supported": 4195,
+      "weights": [
+        0.2,
+        0.4,
+        0.4
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5391.5,
+      "s": 2,
+      "supported": 4026,
+      "weights": [
+        0.2,
+        0.3,
+        0.5
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5107.0,
+      "s": 2,
+      "supported": 3837,
+      "weights": [
+        0.2,
+        0.2,
+        0.6
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 4712.5,
+      "s": 2,
+      "supported": 3545,
+      "weights": [
+        0.2,
+        0.1,
+        0.7
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 4174.5,
+      "s": 2,
+      "supported": 3045,
+      "weights": [
+        0.2,
+        0.0,
+        0.8
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5238.5,
+      "s": 2,
+      "supported": 3530,
+      "weights": [
+        0.1,
+        0.9,
+        0.0
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5325.5,
+      "s": 2,
+      "supported": 3697,
+      "weights": [
+        0.1,
+        0.8,
+        0.1
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5371.5,
+      "s": 2,
+      "supported": 3786,
+      "weights": [
+        0.1,
+        0.7,
+        0.2
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5333.5,
+      "s": 2,
+      "supported": 3747,
+      "weights": [
+        0.1,
+        0.6,
+        0.3
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5256.0,
+      "s": 2,
+      "supported": 3651,
+      "weights": [
+        0.1,
+        0.5,
+        0.4
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5045.0,
+      "s": 2,
+      "supported": 3507,
+      "weights": [
+        0.1,
+        0.4,
+        0.5
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 4836.0,
+      "s": 2,
+      "supported": 3403,
+      "weights": [
+        0.1,
+        0.3,
+        0.6
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 4566.0,
+      "s": 2,
+      "supported": 3292,
+      "weights": [
+        0.1,
+        0.2,
+        0.7
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 4261.5,
+      "s": 2,
+      "supported": 3149,
+      "weights": [
+        0.1,
+        0.1,
+        0.8
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 3721.5,
+      "s": 2,
+      "supported": 2686,
+      "weights": [
+        0.1,
+        0.0,
+        0.9
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5045.0,
+      "s": 2,
+      "supported": 3226,
+      "weights": [
+        0.0,
+        1.0,
+        0.0
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5108.5,
+      "s": 2,
+      "supported": 3351,
+      "weights": [
+        0.0,
+        0.9,
+        0.1
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5128.0,
+      "s": 2,
+      "supported": 3400,
+      "weights": [
+        0.0,
+        0.8,
+        0.2
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5071.5,
+      "s": 2,
+      "supported": 3338,
+      "weights": [
+        0.0,
+        0.7,
+        0.3
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 4959.5,
+      "s": 2,
+      "supported": 3191,
+      "weights": [
+        0.0,
+        0.6,
+        0.4
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 4707.5,
+      "s": 2,
+      "supported": 2958,
+      "weights": [
+        0.0,
+        0.5,
+        0.5
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 4404.5,
+      "s": 2,
+      "supported": 2770,
+      "weights": [
+        0.0,
+        0.4,
+        0.6
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 4062.0,
+      "s": 2,
+      "supported": 2533,
+      "weights": [
+        0.0,
+        0.3,
+        0.7
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 3675.5,
+      "s": 2,
+      "supported": 2271,
+      "weights": [
+        0.0,
+        0.2,
+        0.8
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 3314.0,
+      "s": 2,
+      "supported": 2055,
+      "weights": [
+        0.0,
+        0.1,
+        0.9
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 602.5,
+      "s": 2,
+      "supported": 42,
+      "weights": [
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5591.0,
+      "s": null,
+      "supported": 4125,
+      "weights": [
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5654.0,
+      "s": null,
+      "supported": 4224,
+      "weights": [
+        0.9,
+        0.1,
+        0.0
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5648.5,
+      "s": null,
+      "supported": 4232,
+      "weights": [
+        0.9,
+        0.0,
+        0.1
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5749.0,
+      "s": null,
+      "supported": 4375,
+      "weights": [
+        0.8,
+        0.2,
+        0.0
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5742.0,
+      "s": null,
+      "supported": 4384,
+      "weights": [
+        0.8,
+        0.1,
+        0.1
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5746.0,
+      "s": null,
+      "supported": 4417,
+      "weights": [
+        0.8,
+        0.0,
+        0.2
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5839.0,
+      "s": null,
+      "supported": 4496,
+      "weights": [
+        0.7,
+        0.3,
+        0.0
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5847.5,
+      "s": null,
+      "supported": 4551,
+      "weights": [
+        0.7,
+        0.2,
+        0.1
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5838.5,
+      "s": null,
+      "supported": 4561,
+      "weights": [
+        0.7,
+        0.1,
+        0.2
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5759.0,
+      "s": null,
+      "supported": 4441,
+      "weights": [
+        0.7,
+        0.0,
+        0.3
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5879.0,
+      "s": null,
+      "supported": 4541,
+      "weights": [
+        0.6,
+        0.4,
+        0.0
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5933.5,
+      "s": null,
+      "supported": 4665,
+      "weights": [
+        0.6,
+        0.3,
+        0.1
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5943.0,
+      "s": null,
+      "supported": 4714,
+      "weights": [
+        0.6,
+        0.2,
+        0.2
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5847.0,
+      "s": null,
+      "supported": 4586,
+      "weights": [
+        0.6,
+        0.1,
+        0.3
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5676.5,
+      "s": null,
+      "supported": 4329,
+      "weights": [
+        0.6,
+        0.0,
+        0.4
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5876.5,
+      "s": null,
+      "supported": 4536,
+      "weights": [
+        0.5,
+        0.5,
+        0.0
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5970.5,
+      "s": null,
+      "supported": 4723,
+      "weights": [
+        0.5,
+        0.4,
+        0.1
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 6007.0,
+      "s": null,
+      "supported": 4801,
+      "weights": [
+        0.5,
+        0.3,
+        0.2
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5936.0,
+      "s": null,
+      "supported": 4709,
+      "weights": [
+        0.5,
+        0.2,
+        0.3
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5759.0,
+      "s": null,
+      "supported": 4441,
+      "weights": [
+        0.5,
+        0.1,
+        0.4
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5439.5,
+      "s": null,
+      "supported": 4051,
+      "weights": [
+        0.5,
+        0.0,
+        0.5
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5835.0,
+      "s": null,
+      "supported": 4448,
+      "weights": [
+        0.4,
+        0.6,
+        0.0
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5956.5,
+      "s": null,
+      "supported": 4687,
+      "weights": [
+        0.4,
+        0.5,
+        0.1
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5994.0,
+      "s": null,
+      "supported": 4765,
+      "weights": [
+        0.4,
+        0.4,
+        0.2
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5967.0,
+      "s": null,
+      "supported": 4735,
+      "weights": [
+        0.4,
+        0.3,
+        0.3
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5830.0,
+      "s": null,
+      "supported": 4532,
+      "weights": [
+        0.4,
+        0.2,
+        0.4
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5494.0,
+      "s": null,
+      "supported": 4151,
+      "weights": [
+        0.4,
+        0.1,
+        0.5
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5021.5,
+      "s": null,
+      "supported": 3612,
+      "weights": [
+        0.4,
+        0.0,
+        0.6
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5737.5,
+      "s": null,
+      "supported": 4284,
+      "weights": [
+        0.3,
+        0.7,
+        0.0
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5863.0,
+      "s": null,
+      "supported": 4517,
+      "weights": [
+        0.3,
+        0.6,
+        0.1
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5916.5,
+      "s": null,
+      "supported": 4619,
+      "weights": [
+        0.3,
+        0.5,
+        0.2
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5888.5,
+      "s": null,
+      "supported": 4580,
+      "weights": [
+        0.3,
+        0.4,
+        0.3
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5789.0,
+      "s": null,
+      "supported": 4440,
+      "weights": [
+        0.3,
+        0.3,
+        0.4
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5511.5,
+      "s": null,
+      "supported": 4137,
+      "weights": [
+        0.3,
+        0.2,
+        0.5
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5076.5,
+      "s": null,
+      "supported": 3708,
+      "weights": [
+        0.3,
+        0.1,
+        0.6
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 4412.0,
+      "s": null,
+      "supported": 3100,
+      "weights": [
+        0.3,
+        0.0,
+        0.7
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5527.5,
+      "s": null,
+      "supported": 3968,
+      "weights": [
+        0.2,
+        0.8,
+        0.0
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5661.5,
+      "s": null,
+      "supported": 4212,
+      "weights": [
+        0.2,
+        0.7,
+        0.1
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5692.5,
+      "s": null,
+      "supported": 4263,
+      "weights": [
+        0.2,
+        0.6,
+        0.2
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5671.0,
+      "s": null,
+      "supported": 4237,
+      "weights": [
+        0.2,
+        0.5,
+        0.3
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5597.5,
+      "s": null,
+      "supported": 4131,
+      "weights": [
+        0.2,
+        0.4,
+        0.4
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5369.0,
+      "s": null,
+      "supported": 3917,
+      "weights": [
+        0.2,
+        0.3,
+        0.5
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5017.5,
+      "s": null,
+      "supported": 3609,
+      "weights": [
+        0.2,
+        0.2,
+        0.6
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 4442.0,
+      "s": null,
+      "supported": 3168,
+      "weights": [
+        0.2,
+        0.1,
+        0.7
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 3647.5,
+      "s": null,
+      "supported": 2509,
+      "weights": [
+        0.2,
+        0.0,
+        0.8
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5238.5,
+      "s": null,
+      "supported": 3530,
+      "weights": [
+        0.1,
+        0.9,
+        0.0
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5323.5,
+      "s": null,
+      "supported": 3686,
+      "weights": [
+        0.1,
+        0.8,
+        0.1
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5366.0,
+      "s": null,
+      "supported": 3774,
+      "weights": [
+        0.1,
+        0.7,
+        0.2
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5325.0,
+      "s": null,
+      "supported": 3723,
+      "weights": [
+        0.1,
+        0.6,
+        0.3
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5237.5,
+      "s": null,
+      "supported": 3611,
+      "weights": [
+        0.1,
+        0.5,
+        0.4
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5019.0,
+      "s": null,
+      "supported": 3405,
+      "weights": [
+        0.1,
+        0.4,
+        0.5
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 4722.0,
+      "s": null,
+      "supported": 3165,
+      "weights": [
+        0.1,
+        0.3,
+        0.6
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 4242.0,
+      "s": null,
+      "supported": 2882,
+      "weights": [
+        0.1,
+        0.2,
+        0.7
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 3661.5,
+      "s": null,
+      "supported": 2545,
+      "weights": [
+        0.1,
+        0.1,
+        0.8
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 2967.5,
+      "s": null,
+      "supported": 1981,
+      "weights": [
+        0.1,
+        0.0,
+        0.9
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5045.0,
+      "s": null,
+      "supported": 3226,
+      "weights": [
+        0.0,
+        1.0,
+        0.0
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5109.0,
+      "s": null,
+      "supported": 3350,
+      "weights": [
+        0.0,
+        0.9,
+        0.1
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5134.5,
+      "s": null,
+      "supported": 3405,
+      "weights": [
+        0.0,
+        0.8,
+        0.2
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 5068.0,
+      "s": null,
+      "supported": 3327,
+      "weights": [
+        0.0,
+        0.7,
+        0.3
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 4950.5,
+      "s": null,
+      "supported": 3173,
+      "weights": [
+        0.0,
+        0.6,
+        0.4
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 4716.0,
+      "s": null,
+      "supported": 2917,
+      "weights": [
+        0.0,
+        0.5,
+        0.5
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 4356.0,
+      "s": null,
+      "supported": 2610,
+      "weights": [
+        0.0,
+        0.4,
+        0.6
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 3827.5,
+      "s": null,
+      "supported": 2235,
+      "weights": [
+        0.0,
+        0.3,
+        0.7
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 3214.0,
+      "s": null,
+      "supported": 1864,
+      "weights": [
+        0.0,
+        0.2,
+        0.8
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 2650.0,
+      "s": null,
+      "supported": 1518,
+      "weights": [
+        0.0,
+        0.1,
+        0.9
+      ]
+    },
+    {
+      "exclude": false,
+      "gold_recall_sum": 624.0,
+      "s": null,
+      "supported": 28,
+      "weights": [
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5591.0,
+      "s": null,
+      "supported": 4125,
+      "weights": [
+        1.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5654.0,
+      "s": null,
+      "supported": 4224,
+      "weights": [
+        0.9,
+        0.1,
+        0.0
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5635.5,
+      "s": null,
+      "supported": 4214,
+      "weights": [
+        0.9,
+        0.0,
+        0.1
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5749.0,
+      "s": null,
+      "supported": 4375,
+      "weights": [
+        0.8,
+        0.2,
+        0.0
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5723.5,
+      "s": null,
+      "supported": 4355,
+      "weights": [
+        0.8,
+        0.1,
+        0.1
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5718.5,
+      "s": null,
+      "supported": 4380,
+      "weights": [
+        0.8,
+        0.0,
+        0.2
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5839.0,
+      "s": null,
+      "supported": 4496,
+      "weights": [
+        0.7,
+        0.3,
+        0.0
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5836.0,
+      "s": null,
+      "supported": 4532,
+      "weights": [
+        0.7,
+        0.2,
+        0.1
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5812.5,
+      "s": null,
+      "supported": 4529,
+      "weights": [
+        0.7,
+        0.1,
+        0.2
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5718.5,
+      "s": null,
+      "supported": 4385,
+      "weights": [
+        0.7,
+        0.0,
+        0.3
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5879.0,
+      "s": null,
+      "supported": 4541,
+      "weights": [
+        0.6,
+        0.4,
+        0.0
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5927.0,
+      "s": null,
+      "supported": 4655,
+      "weights": [
+        0.6,
+        0.3,
+        0.1
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5925.5,
+      "s": null,
+      "supported": 4693,
+      "weights": [
+        0.6,
+        0.2,
+        0.2
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5811.0,
+      "s": null,
+      "supported": 4538,
+      "weights": [
+        0.6,
+        0.1,
+        0.3
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5632.0,
+      "s": null,
+      "supported": 4264,
+      "weights": [
+        0.6,
+        0.0,
+        0.4
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5876.5,
+      "s": null,
+      "supported": 4536,
+      "weights": [
+        0.5,
+        0.5,
+        0.0
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5961.5,
+      "s": null,
+      "supported": 4704,
+      "weights": [
+        0.5,
+        0.4,
+        0.1
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5997.5,
+      "s": null,
+      "supported": 4790,
+      "weights": [
+        0.5,
+        0.3,
+        0.2
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5914.0,
+      "s": null,
+      "supported": 4683,
+      "weights": [
+        0.5,
+        0.2,
+        0.3
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5734.5,
+      "s": null,
+      "supported": 4416,
+      "weights": [
+        0.5,
+        0.1,
+        0.4
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5422.0,
+      "s": null,
+      "supported": 4033,
+      "weights": [
+        0.5,
+        0.0,
+        0.5
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5835.0,
+      "s": null,
+      "supported": 4448,
+      "weights": [
+        0.4,
+        0.6,
+        0.0
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5950.0,
+      "s": null,
+      "supported": 4675,
+      "weights": [
+        0.4,
+        0.5,
+        0.1
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5996.5,
+      "s": null,
+      "supported": 4777,
+      "weights": [
+        0.4,
+        0.4,
+        0.2
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5952.0,
+      "s": null,
+      "supported": 4712,
+      "weights": [
+        0.4,
+        0.3,
+        0.3
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5830.0,
+      "s": null,
+      "supported": 4544,
+      "weights": [
+        0.4,
+        0.2,
+        0.4
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5481.5,
+      "s": null,
+      "supported": 4148,
+      "weights": [
+        0.4,
+        0.1,
+        0.5
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5041.0,
+      "s": null,
+      "supported": 3684,
+      "weights": [
+        0.4,
+        0.0,
+        0.6
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5737.5,
+      "s": null,
+      "supported": 4284,
+      "weights": [
+        0.3,
+        0.7,
+        0.0
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5859.5,
+      "s": null,
+      "supported": 4513,
+      "weights": [
+        0.3,
+        0.6,
+        0.1
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5918.0,
+      "s": null,
+      "supported": 4625,
+      "weights": [
+        0.3,
+        0.5,
+        0.2
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5894.5,
+      "s": null,
+      "supported": 4599,
+      "weights": [
+        0.3,
+        0.4,
+        0.3
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5798.5,
+      "s": null,
+      "supported": 4467,
+      "weights": [
+        0.3,
+        0.3,
+        0.4
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5530.0,
+      "s": null,
+      "supported": 4197,
+      "weights": [
+        0.3,
+        0.2,
+        0.5
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5118.0,
+      "s": null,
+      "supported": 3817,
+      "weights": [
+        0.3,
+        0.1,
+        0.6
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 4522.0,
+      "s": null,
+      "supported": 3268,
+      "weights": [
+        0.3,
+        0.0,
+        0.7
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5527.5,
+      "s": null,
+      "supported": 3968,
+      "weights": [
+        0.2,
+        0.8,
+        0.0
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5655.5,
+      "s": null,
+      "supported": 4204,
+      "weights": [
+        0.2,
+        0.7,
+        0.1
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5711.5,
+      "s": null,
+      "supported": 4300,
+      "weights": [
+        0.2,
+        0.6,
+        0.2
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5687.0,
+      "s": null,
+      "supported": 4264,
+      "weights": [
+        0.2,
+        0.5,
+        0.3
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5624.0,
+      "s": null,
+      "supported": 4175,
+      "weights": [
+        0.2,
+        0.4,
+        0.4
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5408.0,
+      "s": null,
+      "supported": 4006,
+      "weights": [
+        0.2,
+        0.3,
+        0.5
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5081.5,
+      "s": null,
+      "supported": 3754,
+      "weights": [
+        0.2,
+        0.2,
+        0.6
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 4581.5,
+      "s": null,
+      "supported": 3396,
+      "weights": [
+        0.2,
+        0.1,
+        0.7
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 3922.5,
+      "s": null,
+      "supported": 2818,
+      "weights": [
+        0.2,
+        0.0,
+        0.8
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5238.5,
+      "s": null,
+      "supported": 3530,
+      "weights": [
+        0.1,
+        0.9,
+        0.0
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5324.0,
+      "s": null,
+      "supported": 3692,
+      "weights": [
+        0.1,
+        0.8,
+        0.1
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5372.5,
+      "s": null,
+      "supported": 3789,
+      "weights": [
+        0.1,
+        0.7,
+        0.2
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5332.0,
+      "s": null,
+      "supported": 3745,
+      "weights": [
+        0.1,
+        0.6,
+        0.3
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5251.0,
+      "s": null,
+      "supported": 3635,
+      "weights": [
+        0.1,
+        0.5,
+        0.4
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5038.0,
+      "s": null,
+      "supported": 3455,
+      "weights": [
+        0.1,
+        0.4,
+        0.5
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 4782.5,
+      "s": null,
+      "supported": 3289,
+      "weights": [
+        0.1,
+        0.3,
+        0.6
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 4408.0,
+      "s": null,
+      "supported": 3120,
+      "weights": [
+        0.1,
+        0.2,
+        0.7
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 3989.5,
+      "s": null,
+      "supported": 2916,
+      "weights": [
+        0.1,
+        0.1,
+        0.8
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 3344.5,
+      "s": null,
+      "supported": 2374,
+      "weights": [
+        0.1,
+        0.0,
+        0.9
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5045.0,
+      "s": null,
+      "supported": 3226,
+      "weights": [
+        0.0,
+        1.0,
+        0.0
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5106.0,
+      "s": null,
+      "supported": 3346,
+      "weights": [
+        0.0,
+        0.9,
+        0.1
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5132.0,
+      "s": null,
+      "supported": 3411,
+      "weights": [
+        0.0,
+        0.8,
+        0.2
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 5063.0,
+      "s": null,
+      "supported": 3325,
+      "weights": [
+        0.0,
+        0.7,
+        0.3
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 4958.0,
+      "s": null,
+      "supported": 3186,
+      "weights": [
+        0.0,
+        0.6,
+        0.4
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 4715.0,
+      "s": null,
+      "supported": 2932,
+      "weights": [
+        0.0,
+        0.5,
+        0.5
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 4389.5,
+      "s": null,
+      "supported": 2701,
+      "weights": [
+        0.0,
+        0.4,
+        0.6
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 3951.5,
+      "s": null,
+      "supported": 2408,
+      "weights": [
+        0.0,
+        0.3,
+        0.7
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 3455.5,
+      "s": null,
+      "supported": 2097,
+      "weights": [
+        0.0,
+        0.2,
+        0.8
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 2980.5,
+      "s": null,
+      "supported": 1817,
+      "weights": [
+        0.0,
+        0.1,
+        0.9
+      ]
+    },
+    {
+      "exclude": true,
+      "gold_recall_sum": 609.5,
+      "s": null,
+      "supported": 39,
+      "weights": [
+        0.0,
+        0.0,
+        1.0
+      ]
+    }
+  ],
+  "dev_bar": 4835,
+  "dev_lists_digest": "ad156b7845f4cf2fbfd4edaa86517a0dea2cac605cbf19f887ba31a493a78c12",
+  "exclude": false,
+  "grid": "seed configurations (s, exclude) x convex triples (dense, bm25, seeded-hop)",
+  "n_points": 396,
+  "objective": "full_support@2048 over the 7,405 dev questions",
+  "p10c_dev_supported": 4801,
+  "s": null,
+  "seconds": 1461.7478799999226,
+  "terminal_state": "DEV_STOP",
+  "tie_rule": "gold_recall@2048 sum; then x = no; then the larger s (all largest); then the larger w_dense, w_bm25",
+  "weights": {
+    "bm25": 0.3,
+    "dense": 0.5,
+    "seeded-hop": 0.2
+  }
+}

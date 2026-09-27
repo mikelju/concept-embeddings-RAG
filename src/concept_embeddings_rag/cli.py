@@ -43,6 +43,7 @@
     p11-outcome     exact McNemar against P10-C (the label) and P10-B (Phase 11)
     p12-sentences   encode every dev P1's sentences once, alone, with the pinned BGE-small
     p12-lists       the seeded-hop dev lists at all 6 (s, exclude) and the D4 reproduction
+    p12-fit         the 396-point grid on dev, the tie rule and the dev gate
 
 Each stage is idempotent and refuses to run if its input is missing, saying which
 stage to run first rather than failing somewhere deep inside numpy.
@@ -5707,6 +5708,84 @@ def cmd_p12_lists(
     return path
 
 
+P12_FIT_NAME = "fit.json"
+
+
+def cmd_p12_fit(
+    source_dir: Path = config.PHASE_9_DIR, target_dir: Path = config.PHASE_12_DIR
+) -> Path:
+    """S5 (D3, D5): the 396-point grid on the cached dev lists, the tie rule, the dev gate."""
+    source_dir, target_dir = Path(source_dir), Path(target_dir)
+    reproduction = _p12_json(P12_REPRODUCTION_NAME, target_dir)
+    if not reproduction["passed"]:
+        _die("the reproduction did not pass; nothing is fitted")
+    if (target_dir / P12_FIT_NAME).exists():
+        _die(f"{target_dir / P12_FIT_NAME} already records the fit")
+    questions, token_counts = _p11_dev_inputs(source_dir)
+    rows = _p12_load_dev_lists(target_dir)
+    if [r["qid"] for r in rows] != [q.qid for q in questions]:
+        _die("the Phase 12 dev lists are not in the dev question order")
+
+    name = config.PHASE_12_SYSTEMS[3]
+    depth = config.PHASE_9_RANKING_DEPTH
+    curve: list[dict[str, Any]] = []
+    started = time.perf_counter()
+    points = phase12.grid_points()
+    for (s, exclude), weights in points:
+        list_key = phase12.seed_key(s, exclude)
+        rankings = [
+            (
+                r["question"],
+                fuse_lists((r["dense"], r["bm25"], r[list_key]), weights, top_k=depth),
+            )
+            for r in rows
+        ]
+        records = _p10_replay_records(name, rankings, questions, token_counts)
+        curve.append(
+            {
+                "s": s,
+                "exclude": exclude,
+                "weights": list(weights),
+                "supported": phase10.supported(records),
+                "gold_recall_sum": phase10.gold_recall_sum(records),
+            }
+        )
+        if len(curve) % 50 == 0:
+            elapsed = time.perf_counter() - started
+            print(f"[INFO] {len(curve)}/{len(points)} points in {elapsed / 60:.1f} min", flush=True)
+
+    chosen = phase12.choose_point(curve)
+    body = {
+        "grid": "seed configurations (s, exclude) x convex triples (dense, bm25, seeded-hop)",
+        "n_points": len(curve),
+        "objective": "full_support@2048 over the 7,405 dev questions",
+        "tie_rule": (
+            "gold_recall@2048 sum; then x = no; then the larger s (all largest); "
+            "then the larger w_dense, w_bm25"
+        ),
+        "curve": curve,
+        "chosen": chosen,
+        "weights": dict(zip(config.PHASE_12_COMPONENT_NAMES, chosen["weights"], strict=True)),
+        "s": chosen["s"],
+        "exclude": chosen["exclude"],
+        "p10c_dev_supported": config.PHASE_12_P10C_DEV_SUPPORTED,
+        "dev_bar": config.PHASE_12_DEV_BAR,
+        "terminal_state": phase12.dev_gate(chosen),
+        "dev_lists_digest": reproduction["dev_lists_digest"],
+        "seconds": time.perf_counter() - started,
+        "code_commit": _git_commit(),
+    }
+    path = _p12_write_once(P12_FIT_NAME, body, target_dir)
+    print(
+        f"[INFO] chosen s={chosen['s']} exclude={chosen['exclude']} weights={chosen['weights']}: "
+        f"{chosen['supported']} of 7,405 against the bar of {body['dev_bar']}"
+    )
+    if body["terminal_state"] is not None:
+        _die(f"{body['terminal_state']} recorded in {path}; test-11 stays unopened")
+    print(f"[OK] fit written -> {path}; commit it before the held-out pass")
+    return path
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="cer",
@@ -6000,6 +6079,10 @@ def build_parser() -> argparse.ArgumentParser:
         "p12-lists",
         help="Phase 12: the seeded-hop dev lists at all 6 (s, exclude) and the D4 reproduction",
     )
+    subparsers.add_parser(
+        "p12-fit",
+        help="Phase 12: the 396-point grid on dev, the tie rule and the dev gate",
+    )
     build.add_argument(
         "--smoke",
         type=int,
@@ -6132,6 +6215,8 @@ def main(argv: list[str] | None = None) -> int:
         cmd_p12_sentences()
     elif args.command == "p12-lists":
         cmd_p12_lists()
+    elif args.command == "p12-fit":
+        cmd_p12_fit()
     return 0
 
 

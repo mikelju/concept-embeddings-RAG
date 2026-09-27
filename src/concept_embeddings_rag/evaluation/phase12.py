@@ -65,9 +65,7 @@ def locate(
     return located
 
 
-def named_in_question(
-    p1_nodes: Sequence[int], forms: Mapping[int, str], question: str
-) -> set[int]:
+def named_in_question(p1_nodes: Sequence[int], forms: Mapping[int, str], question: str) -> set[int]:
     """The P1 entity nodes excluded when `x = yes` (D2): named in the question's own text."""
     return {int(node_id) for node_id in p1_nodes if occurs(forms.get(int(node_id), ""), question)}
 
@@ -217,9 +215,7 @@ def reproduction_verdict(
     """D4: exactly P10-C's dev count, no question moved, no seeded list moved."""
     recorded = config.PHASE_12_P10C_DEV_SUPPORTED
     s, exclude = config.PHASE_12_P10C_POINT
-    weights = dict(
-        zip(config.PHASE_12_COMPONENT_NAMES, config.PHASE_12_P10C_WEIGHTS, strict=True)
-    )
+    weights = dict(zip(config.PHASE_12_COMPONENT_NAMES, config.PHASE_12_P10C_WEIGHTS, strict=True))
     return {
         "metric": "full_support@2048_tokens over the 7,405 dev questions",
         "point": {"s": s, "exclude": exclude, "weights": weights},
@@ -263,3 +259,55 @@ def coverage_summary(
         "located_share": total_located / total_entities if total_entities else 0.0,
         "by_config": by_config,
     }
+
+
+# --- S5 (D3, D5): the grid, the tie rule and the dev gate -----------------------------------
+
+
+def weight_grid(tenths: int = config.PHASE_12_GRID_TENTHS) -> list[tuple[float, float, float]]:
+    """Every convex triple (dense, bm25, seeded-hop) on a grid of `1 / tenths`: 66 for tenths.
+
+    Numerically `phase10.weight_grid` again - not imported from there, because `phase10`
+    reaches `evaluation.fullwiki`, which imports `retrieval.entity_hop`, and `entity_hop`
+    imports this module; importing `phase10` here would cycle.
+    """
+    return [
+        (d / tenths, b / tenths, (tenths - d - b) / tenths)
+        for d in range(tenths, -1, -1)
+        for b in range(tenths - d, -1, -1)
+    ]
+
+
+def grid_points(
+    configs: Sequence[tuple[int | None, bool]] | None = None,
+) -> list[tuple[tuple[int | None, bool], tuple[float, float, float]]]:
+    """The 6 seed configurations x the 66 weight triples: 396 points (D3)."""
+    configs_seq = list(configs) if configs is not None else seed_grid()
+    return [(cfg, weights) for cfg in configs_seq for weights in weight_grid()]
+
+
+def _s_rank(s: int | None) -> float:
+    return float("inf") if s is None else float(s)
+
+
+def selection_key(point: Mapping[str, Any]) -> tuple[Any, ...]:
+    """D3, in order: Full Support; gold recall; `x = no`; larger `s`; larger `w_dense`, `w_bm25`."""
+    w_dense, w_bm25, _w_hop = point["weights"]
+    return (
+        point["supported"],
+        point["gold_recall_sum"],
+        point["exclude"] is False,
+        _s_rank(point["s"]),
+        w_dense,
+        w_bm25,
+    )
+
+
+def choose_point(curve: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    best: Mapping[str, Any] = max(curve, key=selection_key)
+    return dict(best)
+
+
+def dev_gate(chosen: Mapping[str, Any]) -> str | None:
+    """D5: `DEV_STOP` below the bar (P10-C's 4,801 plus the margin, 4,835)."""
+    return None if chosen["supported"] >= config.PHASE_12_DEV_BAR else DEV_STOP

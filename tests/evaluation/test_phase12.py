@@ -10,6 +10,7 @@ import json
 import numpy as np
 import pytest
 
+from concept_embeddings_rag import config
 from concept_embeddings_rag.evaluation import phase12 as p12
 
 
@@ -203,3 +204,53 @@ def test_coverage_summary_handles_no_entities_at_all():
     summary = p12.coverage_summary([(0, 0)], {(None, False): [0]})
     assert summary["located_share"] == 0.0
     assert summary["by_config"]["seeded-hop@s=all-x=no"]["empty_seed_share"] == 1.0
+
+
+# --- S5: the grid, the tie rule and the dev gate ----------------------------------------------
+
+
+def test_weight_grid_has_66_triples_summing_to_one():
+    grid = p12.weight_grid()
+    assert len(grid) == 66 and len(set(grid)) == 66
+    assert all(abs(sum(w) - 1.0) < 1e-9 and min(w) >= 0.0 for w in grid)
+    assert (0.5, 0.3, 0.2) in grid
+
+
+def test_grid_points_has_396_points_and_contains_p10c():
+    points = p12.grid_points()
+    assert len(points) == 396
+    assert (config.PHASE_12_P10C_POINT, config.PHASE_12_P10C_WEIGHTS) in points
+
+
+def a_point(supported, recall=0.0, s=None, exclude=False, weights=(0.5, 0.3, 0.2)):
+    return {
+        "supported": supported,
+        "gold_recall_sum": recall,
+        "s": s,
+        "exclude": exclude,
+        "weights": weights,
+    }
+
+
+def test_the_tie_rule_applies_in_the_spec_order():
+    assert p12.choose_point([a_point(10), a_point(11)])["supported"] == 11
+    assert p12.choose_point([a_point(10, 1.0), a_point(10, 2.0)])["gold_recall_sum"] == 2.0
+    # x = no wins a tie on the first two keys.
+    no = a_point(10, 1.0, s=1, exclude=False)
+    yes = a_point(10, 1.0, s=None, exclude=True)
+    assert p12.choose_point([no, yes]) == no
+    # Then the larger s, all (None) largest.
+    s1, s2, s_all = a_point(10, 1.0, s=1), a_point(10, 1.0, s=2), a_point(10, 1.0, s=None)
+    assert p12.choose_point([s1, s_all]) == s_all
+    assert p12.choose_point([s1, s2]) == s2
+    # Then the larger w_dense, then w_bm25.
+    a = a_point(10, 1.0, s=None, weights=(0.6, 0.2, 0.2))
+    b = a_point(10, 1.0, s=None, weights=(0.5, 0.4, 0.1))
+    assert p12.choose_point([b, a]) == a
+    c = a_point(10, 1.0, s=None, weights=(0.5, 0.2, 0.3))
+    assert p12.choose_point([c, b]) == b
+
+
+def test_the_dev_gate_falls_at_4835():
+    assert p12.dev_gate(a_point(4835)) is None
+    assert p12.dev_gate(a_point(4834)) == p12.DEV_STOP

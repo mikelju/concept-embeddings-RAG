@@ -348,9 +348,7 @@ class SentenceSeededHopStage:
         sentences = self._sentences.sentences_of(p1_unit)
         located = phase12.locate(p1_entity_ids, self._forms, sentences)
         excluded = (
-            phase12.named_in_question(p1_entity_ids, self._forms, query)
-            if self.exclude
-            else set()
+            phase12.named_in_question(p1_entity_ids, self._forms, query) if self.exclude else set()
         )
         if self.s is None:
             seeds = phase12.choose_seeds(p1_entity_ids, located, [], s=None, exclude=excluded)
@@ -358,9 +356,7 @@ class SentenceSeededHopStage:
             vectors = self._sentences.vectors_of(p1_unit)
             question_vector = self._question_vector(query)
             rel = (vectors @ question_vector).tolist() if vectors.size else []
-            seeds = phase12.choose_seeds(
-                p1_entity_ids, located, rel, s=self.s, exclude=excluded
-            )
+            seeds = phase12.choose_seeds(p1_entity_ids, located, rel, s=self.s, exclude=excluded)
 
         if not seeds:
             return SeededExpansion(
