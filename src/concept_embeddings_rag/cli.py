@@ -4268,16 +4268,20 @@ def _git_commit() -> str:
             check=True,
             cwd=config.PROJECT_ROOT,
         )
+    except (OSError, subprocess.CalledProcessError):
+        return "unknown"
+    commit = completed.stdout.strip()
+    try:
+        # No optional locks: a stage must not take the index lock from a concurrent git command.
         status = subprocess.run(  # noqa: S603
-            ["git", "status", "--porcelain", "--", *_CODE_PATHS],  # noqa: S607
+            ["git", "--no-optional-locks", "status", "--porcelain", "--", *_CODE_PATHS],  # noqa: S607
             capture_output=True,
             text=True,
             check=True,
             cwd=config.PROJECT_ROOT,
         )
     except (OSError, subprocess.CalledProcessError):
-        return "unknown"
-    commit = completed.stdout.strip()
+        return f"{commit}-status-unknown"
     return f"{commit}-dirty" if status.stdout.strip() else commit
 
 
