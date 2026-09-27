@@ -44,6 +44,7 @@
     p12-sentences   encode every dev P1's sentences once, alone, with the pinned BGE-small
     p12-lists       the seeded-hop dev lists at all 6 (s, exclude) and the D4 reproduction
     p12-fit         the 396-point grid on dev, the tie rule and the dev gate
+    p13-windows     encode every window around every dev P1 entity mention once (Phase 13)
 
 Each stage is idempotent and refuses to run if its input is missing, saying which
 stage to run first rather than failing somewhere deep inside numpy.
@@ -146,6 +147,7 @@ from concept_embeddings_rag.evaluation import (
     phase10,
     phase11,
     phase12,
+    phase13,
     scale_sensitivity,
     strong_dense,
 )
@@ -5786,6 +5788,163 @@ def cmd_p12_fit(
     return path
 
 
+# --- Phase 13: choosing P1's bridge entity by the words around its mention --------------
+
+P13_WINDOW_CACHE_DIRNAME = "windows"
+
+
+def _p13_json(name: str, target_dir: Path = config.PHASE_13_DIR) -> dict[str, Any]:
+    path = Path(target_dir) / name
+    if not path.exists():
+        _die(f"{path} does not exist: run the Phase 13 stage that writes it first")
+    body: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+    return body
+
+
+def _p13_write_once(name: str, body: Mapping[str, Any], target_dir: Path) -> Path:
+    path = Path(target_dir) / name
+    if path.exists():
+        _die(f"{path} already exists; a Phase 13 artifact is written once")
+    Path(target_dir).mkdir(parents=True, exist_ok=True)
+    write_text_atomic(path, json.dumps(dict(body), indent=2, sort_keys=True))
+    return path
+
+
+def _p13_phase10_dev_lists(phase10_dir: Path) -> tuple[list[dict[str, Any]], str]:
+    """The Phase 10 dev lists, checked against the digest its committed fit read."""
+    fit10 = _p10_json(P10_FIT_NAME, phase10_dir)
+    rows10 = phase10.load_dev_lists(phase10_dir)
+    if _p10_json(phase10.DEV_LISTS_MANIFEST, phase10_dir)["digest"] != fit10["dev_lists_digest"]:
+        _die("the Phase 10 dev lists are not the ones its fit read")
+    return rows10, str(fit10["dev_lists_digest"])
+
+
+def _p13_arm_mask(index: Any) -> np.ndarray:
+    mask = np.zeros(index.incidence.shape[1], dtype=bool)
+    mask[index.columns_of(config.ENTITY_HOP_TYPES)] = True
+    return mask
+
+
+def _p13_entity_nodes(
+    index: Any, mask: np.ndarray, row_of: Mapping[str, int], unit_id: str
+) -> list[int]:
+    """A unit's entity nodes (`config.ENTITY_HOP_TYPES`), ascending."""
+    incidence = index.incidence
+    row = row_of[unit_id]
+    nodes = incidence.indices[incidence.indptr[row] : incidence.indptr[row + 1]]
+    return sorted(int(node) for node in nodes[mask[nodes]])
+
+
+def _p13_p1_sentences(source_dir: Path, p1_ids: Sequence[str]) -> dict[str, list[str]]:
+    """The sentence list of every P1, read from the Phase 9 corpus."""
+    wanted = set(p1_ids)
+    units, _corpus = _phase_9_corpus(source_dir)
+    sentences = {unit.unit_id: list(unit.sentences) for unit in units if unit.unit_id in wanted}
+    del units
+    missing = [unit_id for unit_id in p1_ids if unit_id not in sentences]
+    if missing:
+        _die(f"{len(missing)} P1 units are not in the Phase 9 corpus")
+    return sentences
+
+
+def cmd_p13_windows(
+    source_dir: Path = config.PHASE_9_DIR,
+    phase10_dir: Path = config.PHASE_10_DIR,
+    target_dir: Path = config.PHASE_13_DIR,
+) -> Path:
+    """S2 (D1, C1, C2): every window of every distinct dev P1, encoded once.
+
+    P1 is the first unit of each Phase 10 dev Dense list, not recomputed. Windows are built
+    by `phase13.entity_windows` over P1's entity nodes and its normalized sentences, and
+    encoded as passages with the pinned BGE-small. The cache is written once per set.
+    """
+    source_dir, phase10_dir, target_dir = Path(source_dir), Path(phase10_dir), Path(target_dir)
+    set_name = config.PHASE_13_DEV
+    cache_dir = target_dir / "cache" / P13_WINDOW_CACHE_DIRNAME
+    manifest_path = cache_dir / phase13.window_manifest_filename(set_name)
+    if manifest_path.exists():
+        _die(f"{manifest_path} already records the {set_name} window cache")
+    started_total = time.perf_counter()
+    rows10, dev_lists_digest = _p13_phase10_dev_lists(phase10_dir)
+    question_p1 = [row["dense"][0][0] for row in rows10]
+    p1_ids = sorted(set(question_p1))
+
+    index, index_record = _p11_entity_index(source_dir)
+    mask = _p13_arm_mask(index)
+    row_of = {unit_id: row for row, unit_id in enumerate(index.unit_ids)}
+    missing = [unit_id for unit_id in p1_ids if unit_id not in row_of]
+    if missing:
+        _die(f"{len(missing)} P1 units are not in the entity index")
+    p1_nodes = {unit_id: _p13_entity_nodes(index, mask, row_of, unit_id) for unit_id in p1_ids}
+    wanted_nodes = {node for nodes in p1_nodes.values() for node in nodes}
+    forms = {node.node_id: node.form for node in index.nodes if node.node_id in wanted_nodes}
+    del index, row_of
+    print(f"[INFO] {len(p1_ids)} distinct P1 units, {len(wanted_nodes)} entity nodes", flush=True)
+
+    sentences = _p13_p1_sentences(source_dir, p1_ids)
+    print(f"[INFO] P1 sentences read in {(time.perf_counter() - started_total) / 60:.1f} min")
+
+    backend = SentenceTransformerBackend()
+    if (backend.name, backend.revision) != (config.EMBEDDING_MODEL, config.EMBEDDING_REVISION):
+        _die(f"Phase 13 encodes windows with the pinned BGE-small only, not {backend.name}")
+
+    unit_entities: dict[str, dict[int, phase13.EntityMentions]] = {}
+    unit_ids: list[str] = []
+    node_ids: list[int] = []
+    positions: list[int] = []
+    first_words: list[int] = []
+    texts: list[str] = []
+    for unit_id in p1_ids:
+        entities = phase13.entity_windows(p1_nodes[unit_id], forms, sentences[unit_id])
+        unit_entities[unit_id] = entities
+        for node_id in sorted(entities):
+            for window in entities[node_id].windows:
+                unit_ids.append(unit_id)
+                node_ids.append(node_id)
+                positions.append(window.position)
+                first_words.append(window.first_word)
+                texts.append(window.text)
+    print(f"[INFO] {len(texts)} windows to encode", flush=True)
+
+    started = time.perf_counter()
+    vectors = backend.encode(texts)
+    seconds = time.perf_counter() - started
+
+    key = phase13.window_cache_key(backend.name, backend.revision, set_name, p1_ids)
+    path = phase13.write_window_cache(
+        cache_dir, set_name, key, unit_ids, node_ids, positions, first_words, vectors
+    )
+    coverage = phase13.window_coverage(
+        question_p1, {u: len(nodes) for u, nodes in p1_nodes.items()}, unit_entities
+    )
+    manifest = {
+        "set": set_name,
+        "key": key,
+        "window_rule": config.PHASE_13_WINDOW_RULE,
+        "window_words": config.PHASE_13_WINDOW_WORDS,
+        "model": backend.name,
+        "revision": backend.revision,
+        "resolved_revision": resolved_revision(backend),
+        "units": len(p1_ids),
+        "windows": len(texts),
+        "vectors_digest": phase13.vectors_digest(vectors),
+        "rows_digest": phase13.rows_digest(unit_ids, node_ids, positions, first_words),
+        "phase10_dev_lists_digest": dev_lists_digest,
+        "entity_index_digest": index_record["entity_index_digest"],
+        "coverage": coverage,
+        "seconds": seconds,
+        "seconds_total": time.perf_counter() - started_total,
+        "host": local_extraction.hardware_block(device="cpu"),
+        "code_commit": _git_commit(),
+    }
+    manifest_path = phase13.write_window_manifest(cache_dir, set_name, manifest)
+    print(
+        f"[OK] {set_name}: {len(texts)} windows from {len(p1_ids)} units encoded in "
+        f"{seconds:.1f}s -> {path}"
+    )
+    return manifest_path
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="cer",
@@ -6083,6 +6242,10 @@ def build_parser() -> argparse.ArgumentParser:
         "p12-fit",
         help="Phase 12: the 396-point grid on dev, the tie rule and the dev gate",
     )
+    subparsers.add_parser(
+        "p13-windows",
+        help="Phase 13: encode every window around every dev P1 entity mention once (CPU)",
+    )
     build.add_argument(
         "--smoke",
         type=int,
@@ -6217,6 +6380,8 @@ def main(argv: list[str] | None = None) -> int:
         cmd_p12_lists()
     elif args.command == "p12-fit":
         cmd_p12_fit()
+    elif args.command == "p13-windows":
+        cmd_p13_windows()
     return 0
 
 

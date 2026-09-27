@@ -12,14 +12,19 @@ This module holds those rules as pure functions over plain data, plus the S2 win
 the screen tally. The runtime stage lives in `retrieval/entity_hop.py`.
 """
 
+import hashlib
+import json
 import re
 from collections.abc import Collection, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, NamedTuple
 
 import numpy as np
 
 from concept_embeddings_rag import config
+from concept_embeddings_rag.artifacts import digest_of, savez_compressed_atomic, write_text_atomic
+from concept_embeddings_rag.embeddings.cache import unit_set_hash
 from concept_embeddings_rag.nodes.normalization import normalize
 
 SCREEN_STOP = "SCREEN_STOP"
@@ -252,4 +257,188 @@ def screen_verdict(n: int, hits_w: int, hits_t1: int, hits_t2: int) -> dict[str,
         "difference_pp": pp(hits_w) - pp(reference_hits),
         "passed": bool(passed),
         "terminal_state": None if passed else SCREEN_STOP,
+    }
+
+
+# --- S2: the window cache, one NPZ plus manifest per set, written once -----------------------
+
+
+def window_cache_key(model: str, revision: str, set_name: str, unit_ids: Sequence[str]) -> str:
+    """A hash of the model, revision, window rule, set name and the sorted P1 unit ids."""
+    payload = (
+        f"window|{model}|{revision}|{config.PHASE_13_WINDOW_RULE}|{set_name}|"
+        f"{unit_set_hash(unit_ids)}"
+    )
+    return hashlib.sha1(payload.encode("utf-8"), usedforsecurity=False).hexdigest()[:16]
+
+
+def window_cache_filename(set_name: str, key: str) -> str:
+    return f"windows-{set_name}-{key}.npz"
+
+
+def window_manifest_filename(set_name: str) -> str:
+    return f"windows-{set_name}.json"
+
+
+def vectors_digest(vectors: np.ndarray) -> str:
+    return digest_of(vectors.astype(np.float32))
+
+
+def rows_digest(
+    unit_ids: Sequence[str],
+    node_ids: Sequence[int],
+    positions: Sequence[int],
+    first_words: Sequence[int],
+) -> str:
+    """The digest of the cache's row metadata, as the NPZ stores it."""
+    return digest_of(
+        np.array(list(unit_ids), dtype=np.str_),
+        np.array(list(node_ids), dtype=np.int64),
+        np.array(list(positions), dtype=np.int64),
+        np.array(list(first_words), dtype=np.int64),
+    )
+
+
+def write_window_cache(
+    directory: Path | str,
+    set_name: str,
+    key: str,
+    unit_ids: Sequence[str],
+    node_ids: Sequence[int],
+    positions: Sequence[int],
+    first_words: Sequence[int],
+    vectors: np.ndarray,
+) -> Path:
+    """The P1 window vectors of one set, one row per window, written once."""
+    directory = Path(directory)
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / window_cache_filename(set_name, key)
+    if path.exists():
+        raise Phase13Error(f"{path} already holds the {set_name} window cache")
+    lengths = {len(unit_ids), len(node_ids), len(positions), len(first_words), vectors.shape[0]}
+    if len(lengths) != 1:
+        raise Phase13Error("every window column must have one row per window")
+    savez_compressed_atomic(
+        path,
+        unit_ids=np.array(list(unit_ids), dtype=np.str_),
+        node_ids=np.array(list(node_ids), dtype=np.int64),
+        positions=np.array(list(positions), dtype=np.int64),
+        first_words=np.array(list(first_words), dtype=np.int64),
+        vectors=vectors.astype(np.float32),
+    )
+    return path
+
+
+def write_window_manifest(directory: Path | str, set_name: str, body: Mapping[str, Any]) -> Path:
+    directory = Path(directory)
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / window_manifest_filename(set_name)
+    if path.exists():
+        raise Phase13Error(f"{path} already records the {set_name} window cache")
+    write_text_atomic(path, json.dumps(dict(body), indent=2, sort_keys=True))
+    return path
+
+
+@dataclass(frozen=True, eq=False)
+class WindowCache:
+    """The window cache of one set, digest-verified, with its rows grouped by P1 unit."""
+
+    unit_ids: list[str]
+    node_ids: list[int]
+    positions: list[int]
+    first_words: list[int]
+    vectors: np.ndarray
+    manifest: dict[str, Any]
+    _rows: dict[str, list[int]] = field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        rows: dict[str, list[int]] = {}
+        for row, unit_id in enumerate(self.unit_ids):
+            rows.setdefault(unit_id, []).append(row)
+        object.__setattr__(self, "_rows", rows)
+
+    def holds(self, unit_id: str) -> bool:
+        return unit_id in self._rows
+
+    def rows_of(self, unit_id: str) -> tuple[list[int], np.ndarray]:
+        """The node id and vector of every window of `unit_id`, in cache row order."""
+        if unit_id not in self._rows:
+            raise Phase13Error(f"unit {unit_id!r} is not in the window cache")
+        selected = self._rows[unit_id]
+        return [self.node_ids[row] for row in selected], self.vectors[selected]
+
+
+def read_window_cache(directory: Path | str, set_name: str) -> WindowCache:
+    """The cache and its manifest for `set_name`, both digests verified."""
+    directory = Path(directory)
+    manifest_path = directory / window_manifest_filename(set_name)
+    if not manifest_path.exists():
+        raise Phase13Error(f"{manifest_path} does not exist: run 'p13-windows' first")
+    manifest: dict[str, Any] = json.loads(manifest_path.read_text(encoding="utf-8"))
+    path = directory / window_cache_filename(set_name, str(manifest["key"]))
+    if not path.exists():
+        raise Phase13Error(f"{path} does not exist: run 'p13-windows' first")
+    with np.load(path, allow_pickle=False) as payload:
+        unit_ids = [str(u) for u in payload["unit_ids"]]
+        node_ids = [int(n) for n in payload["node_ids"]]
+        positions = [int(p) for p in payload["positions"]]
+        first_words = [int(w) for w in payload["first_words"]]
+        vectors = payload["vectors"]
+    if vectors_digest(vectors) != manifest["vectors_digest"]:
+        raise Phase13Error(f"the {set_name} window vectors do not match its recorded digest")
+    if rows_digest(unit_ids, node_ids, positions, first_words) != manifest["rows_digest"]:
+        raise Phase13Error(f"the {set_name} window rows do not match its recorded digest")
+    return WindowCache(unit_ids, node_ids, positions, first_words, vectors, manifest)
+
+
+def _distribution(values: Sequence[float]) -> dict[str, float]:
+    if not values:
+        return {"mean": 0.0, "median": 0.0, "p90": 0.0, "max": 0.0}
+    array = np.asarray(values, dtype=np.float64)
+    return {
+        "mean": float(array.mean()),
+        "median": float(np.median(array)),
+        "p90": float(np.percentile(array, 90)),
+        "max": float(array.max()),
+    }
+
+
+def window_coverage(
+    question_p1: Sequence[str],
+    p1_entity_nodes: Mapping[str, int],
+    unit_entities: Mapping[str, Mapping[int, EntityMentions]],
+) -> dict[str, Any]:
+    """C2: how much of P1 the window score reaches, per question and per distinct P1.
+
+    `question_p1` is each dev question's P1 unit, in question order; `p1_entity_nodes` the
+    number of entity nodes of each P1; `unit_entities` the output of `entity_windows` per P1.
+    Shares of entity nodes are summed over questions; mention and window counts are over the
+    distinct P1 units.
+    """
+    total = located = scored = without = 0
+    for unit_id in question_p1:
+        entities = unit_entities[unit_id]
+        n_scored = sum(1 for e in entities.values() if e.scored)
+        total += p1_entity_nodes[unit_id]
+        located += len(entities)
+        scored += n_scored
+        without += n_scored == 0
+    per_entity = [len(e.spans) for ents in unit_entities.values() for e in ents.values()]
+    windows = sum(len(e.windows) for ents in unit_entities.values() for e in ents.values())
+    empty = sum(e.empty for ents in unit_entities.values() for e in ents.values())
+    n_questions = len(question_p1)
+    return {
+        "questions": n_questions,
+        "p1_entity_nodes_total": total,
+        "p1_entity_nodes_located": located,
+        "p1_entity_nodes_scored": scored,
+        "located_share": located / total if total else 0.0,
+        "scored_share": scored / total if total else 0.0,
+        "questions_without_scored_entity": without,
+        "questions_without_scored_entity_share": without / n_questions if n_questions else 0.0,
+        "units": len(unit_entities),
+        "mentions": sum(per_entity),
+        "windows": windows,
+        "empty_windows": empty,
+        "mentions_per_located_entity": _distribution([float(v) for v in per_entity]),
     }

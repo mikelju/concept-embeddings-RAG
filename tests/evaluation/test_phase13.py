@@ -6,6 +6,8 @@ Everything is fixture-based and fast; the real corpus, index and caches are read
 CLI stages.
 """
 
+import json
+
 import numpy as np
 import pytest
 
@@ -209,3 +211,100 @@ def test_the_screen_passes_at_exactly_five_points_and_not_just_below():
 def test_the_margin_is_the_frozen_constant():
     assert config.PHASE_13_SCREEN_MARGIN_PP == 5.0
     assert p13.screen_verdict(100, 10, 5, 5)["margin_pp"] == 5.0
+
+
+# --- S2: the window cache and the coverage ---------------------------------------------------
+
+
+def a_window_cache(tmp_path, set_name="dev"):
+    unit_ids = ["u1", "u1", "u2"]
+    node_ids = [3, 4, 3]
+    positions = [0, 1, 0]
+    first_words = [2, 0, 5]
+    vectors = np.array([[1.0, 0.0], [0.0, 1.0], [0.6, 0.8]], dtype=np.float32)
+    key = p13.window_cache_key("model", "rev", set_name, ["u1", "u2"])
+    p13.write_window_cache(
+        tmp_path, set_name, key, unit_ids, node_ids, positions, first_words, vectors
+    )
+    manifest = {
+        "key": key,
+        "vectors_digest": p13.vectors_digest(vectors),
+        "rows_digest": p13.rows_digest(unit_ids, node_ids, positions, first_words),
+    }
+    p13.write_window_manifest(tmp_path, set_name, manifest)
+    return key, vectors
+
+
+def test_the_window_cache_key_changes_with_the_set_and_the_window_rule(monkeypatch):
+    key_dev = p13.window_cache_key("m", "r", "dev", ["u1", "u2"])
+    assert key_dev == p13.window_cache_key("m", "r", "dev", ["u2", "u1"])
+    assert p13.window_cache_key("m", "r", "test-11", ["u1", "u2"]) != key_dev
+    assert p13.window_cache_key("m2", "r", "dev", ["u1", "u2"]) != key_dev
+    monkeypatch.setattr(p13.config, "PHASE_13_WINDOW_RULE", "window-5w-other-v2")
+    assert p13.window_cache_key("m", "r", "dev", ["u1", "u2"]) != key_dev
+
+
+def test_the_window_cache_is_written_once(tmp_path):
+    key, vectors = a_window_cache(tmp_path)
+    cache = p13.read_window_cache(tmp_path, "dev")
+    assert cache.unit_ids == ["u1", "u1", "u2"]
+    assert cache.node_ids == [3, 4, 3]
+    assert cache.positions == [0, 1, 0]
+    assert cache.first_words == [2, 0, 5]
+    assert np.array_equal(cache.vectors, vectors)
+    assert cache.manifest["key"] == key
+    with pytest.raises(p13.Phase13Error, match="already holds"):
+        p13.write_window_cache(tmp_path, "dev", key, ["u1"], [3], [0], [0], vectors[:1])
+    with pytest.raises(p13.Phase13Error, match="already records"):
+        p13.write_window_manifest(tmp_path, "dev", {"key": key})
+
+
+def test_a_manifest_whose_digest_does_not_match_is_refused(tmp_path):
+    a_window_cache(tmp_path)
+    path = tmp_path / p13.window_manifest_filename("dev")
+    body = json.loads(path.read_text())
+    path.write_text(json.dumps({**body, "vectors_digest": "not-the-digest"}))
+    with pytest.raises(p13.Phase13Error, match="not match its recorded digest"):
+        p13.read_window_cache(tmp_path, "dev")
+    path.write_text(json.dumps({**body, "rows_digest": "not-the-digest"}))
+    with pytest.raises(p13.Phase13Error, match="not match its recorded digest"):
+        p13.read_window_cache(tmp_path, "dev")
+
+
+def test_missing_window_cache_files_are_refused(tmp_path):
+    with pytest.raises(p13.Phase13Error, match="does not exist"):
+        p13.read_window_cache(tmp_path, "dev")
+
+
+def test_the_cached_windows_serve_one_unit_in_row_order(tmp_path):
+    a_window_cache(tmp_path)
+    cache = p13.read_window_cache(tmp_path, "dev")
+    node_ids, vectors = cache.rows_of("u1")
+    assert node_ids == [3, 4]
+    assert np.array_equal(vectors, cache.vectors[:2])
+    with pytest.raises(p13.Phase13Error, match="not in the window cache"):
+        cache.rows_of("u9")
+
+
+def test_window_coverage_on_a_small_fixture():
+    sentences = ["Paris.", "From Paris to Lyon.", "Titanic."]
+    unit_entities = {
+        "u1": p13.entity_windows([1, 2, 3], {1: "paris", 2: "lyon", 3: "titanic"}, sentences),
+        "u2": {},
+    }
+    # q1 and q2 share P1 u1 (3 entity nodes, all located, 2 scored); q3's P1 u2 has 2 nodes
+    # located nowhere.
+    p1_nodes = {"u1": 3, "u2": 2}
+    coverage = p13.window_coverage(["u1", "u1", "u2"], p1_nodes, unit_entities)
+    assert coverage["p1_entity_nodes_total"] == 8
+    assert coverage["p1_entity_nodes_located"] == 6
+    assert coverage["p1_entity_nodes_scored"] == 4
+    assert coverage["scored_share"] == pytest.approx(0.5)
+    assert coverage["questions_without_scored_entity"] == 1
+    assert coverage["questions_without_scored_entity_share"] == pytest.approx(1 / 3)
+    # Distinct units: paris 2 mentions (1 empty), lyon 1, titanic 1 (empty).
+    assert coverage["units"] == 2
+    assert coverage["mentions"] == 4
+    assert coverage["windows"] == 2
+    assert coverage["empty_windows"] == 2
+    assert coverage["mentions_per_located_entity"]["mean"] == pytest.approx(4 / 3)
