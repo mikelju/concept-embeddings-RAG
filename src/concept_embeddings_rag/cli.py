@@ -41,6 +41,8 @@
     p11-fit         the 1,430-point DF-cap x weight grid on dev, the tie rule and the gate
     p11-eval        the single authorized held-out pass on test-11 (Phase 11)
     p11-outcome     exact McNemar against P10-C (the label) and P10-B (Phase 11)
+    p12-sentences   encode every dev P1's sentences once, alone, with the pinned BGE-small
+    p12-lists       the seeded-hop dev lists at all 6 (s, exclude) and the D4 reproduction
 
 Each stage is idempotent and refuses to run if its input is missing, saying which
 stage to run first rather than failing somewhere deep inside numpy.
@@ -139,7 +141,13 @@ from concept_embeddings_rag.embeddings.cache import (
     unit_set_hash,
 )
 from concept_embeddings_rag.evaluation import fullwiki as phase9
-from concept_embeddings_rag.evaluation import phase10, phase11, scale_sensitivity, strong_dense
+from concept_embeddings_rag.evaluation import (
+    phase10,
+    phase11,
+    phase12,
+    scale_sensitivity,
+    strong_dense,
+)
 from concept_embeddings_rag.evaluation.budget import TokenCounter
 from concept_embeddings_rag.evaluation.cheap_extraction import (
     DEV_FILENAME,
@@ -247,10 +255,12 @@ from concept_embeddings_rag.retrieval.dense import DenseRetriever
 from concept_embeddings_rag.retrieval.diffusion import EXPANSION_NAMES, DiffusionRetriever
 from concept_embeddings_rag.retrieval.entity_hop import (
     QUESTION_HOP_NAME,
+    CachedSentences,
     CappedEntityHopStage,
     ColumnwiseEntityHopStage,
     EntityHopStage,
     QuestionEntityHop,
+    SentenceSeededHopStage,
 )
 from concept_embeddings_rag.retrieval.fusion import (
     TRIPLE_COMPONENTS,
@@ -5408,6 +5418,295 @@ def cmd_p11_outcome(target_dir: Path = config.PHASE_11_DIR) -> Path:
     return path
 
 
+# --- Phase 12: choosing with the question which of P1's entities the hop starts from ------
+
+P12_SENTENCE_CACHE_DIRNAME = "sentences"
+
+
+def _p12_json(name: str, target_dir: Path = config.PHASE_12_DIR) -> dict[str, Any]:
+    path = Path(target_dir) / name
+    if not path.exists():
+        _die(f"{path} does not exist: run the Phase 12 stage that writes it first")
+    body: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+    return body
+
+
+def _p12_write_once(name: str, body: Mapping[str, Any], target_dir: Path) -> Path:
+    path = Path(target_dir) / name
+    if path.exists():
+        _die(f"{path} already exists; a Phase 12 artifact is written once")
+    Path(target_dir).mkdir(parents=True, exist_ok=True)
+    write_text_atomic(path, json.dumps(dict(body), indent=2, sort_keys=True))
+    return path
+
+
+def cmd_p12_sentences(
+    source_dir: Path = config.PHASE_9_DIR,
+    phase10_dir: Path = config.PHASE_10_DIR,
+    target_dir: Path = config.PHASE_12_DIR,
+) -> Path:
+    """S2: every distinct dev P1's sentences, encoded once, alone, with the pinned BGE-small.
+
+    P1 is the first unit of each Phase 10 dev Dense list, not recomputed. The cache is
+    written once per set; a second run against an existing manifest is refused.
+    """
+    source_dir, phase10_dir, target_dir = Path(source_dir), Path(phase10_dir), Path(target_dir)
+    set_name = config.PHASE_12_DEV
+    cache_dir = target_dir / "cache" / P12_SENTENCE_CACHE_DIRNAME
+    manifest_path = cache_dir / phase12.sentence_manifest_filename(set_name)
+    if manifest_path.exists():
+        _die(f"{manifest_path} already records the {set_name} sentence cache")
+    fit10 = _p10_json(P10_FIT_NAME, phase10_dir)
+    rows10 = phase10.load_dev_lists(phase10_dir)
+    if _p10_json(phase10.DEV_LISTS_MANIFEST, phase10_dir)["digest"] != fit10["dev_lists_digest"]:
+        _die("the Phase 10 dev lists are not the ones its fit read")
+    p1_ids = sorted({row["dense"][0][0] for row in rows10})
+
+    units, _corpus = _phase_9_corpus(source_dir)
+    by_id = {unit.unit_id: unit for unit in units if unit.unit_id in set(p1_ids)}
+    del units
+    missing = [unit_id for unit_id in p1_ids if unit_id not in by_id]
+    if missing:
+        _die(f"{len(missing)} P1 units are not in the Phase 9 corpus")
+
+    backend = SentenceTransformerBackend()
+    if (backend.name, backend.revision) != (config.EMBEDDING_MODEL, config.EMBEDDING_REVISION):
+        _die(f"Phase 12 encodes sentences with the pinned BGE-small only, not {backend.name}")
+
+    unit_ids: list[str] = []
+    positions: list[int] = []
+    texts: list[str] = []
+    for unit_id in p1_ids:
+        for position, sentence in enumerate(by_id[unit_id].sentences):
+            unit_ids.append(unit_id)
+            positions.append(position)
+            texts.append(sentence)
+
+    started = time.perf_counter()
+    vectors = backend.encode(texts)
+    seconds = time.perf_counter() - started
+
+    key = phase12.sentence_cache_key(backend.name, backend.revision, set_name, p1_ids)
+    path = phase12.write_sentence_cache(cache_dir, set_name, key, unit_ids, positions, vectors)
+    manifest = {
+        "set": set_name,
+        "key": key,
+        "text_rule": config.PHASE_12_TEXT_RULE,
+        "model": backend.name,
+        "revision": backend.revision,
+        "resolved_revision": resolved_revision(backend),
+        "units": len(p1_ids),
+        "sentences": len(texts),
+        "vectors_digest": phase12.vectors_digest(vectors),
+        "phase10_dev_lists_digest": fit10["dev_lists_digest"],
+        "seconds": seconds,
+        "host": local_extraction.hardware_block(device="cpu"),
+        "code_commit": _git_commit(),
+    }
+    manifest_path = phase12.write_sentence_manifest(cache_dir, set_name, manifest)
+    print(
+        f"[OK] {set_name}: {len(texts)} sentences from {len(p1_ids)} units in "
+        f"{seconds:.1f}s -> {path}"
+    )
+    return manifest_path
+
+
+P12_DEV_LISTS = "dev-lists.jsonl.gz"
+P12_DEV_LISTS_MANIFEST = "dev-lists.json"
+P12_REPRODUCTION_NAME = "reproduction.json"
+
+
+def _p12_dev_question_vector(source_dir: Path, questions: Sequence[Question]) -> CachedQueryBackend:
+    """The dev question vectors already cached for Dense (Phase 9, key `question_cache_key`)."""
+    embedding = json.loads((source_dir / phase9.EMBEDDING_FILENAME).read_text("utf-8"))
+    key = str(embedding["question_cache_key"])
+    loaded = EmbeddingCache(source_dir / "cache" / "questions").load(
+        key, expected_unit_ids=[q.qid for q in questions]
+    )
+    if loaded is None:
+        _die("the dev question vectors are missing: run 'fullwiki-build --stage embed'")
+    return CachedQueryBackend(
+        texts=[q.question for q in questions],
+        vectors=loaded[0],
+        name=str(embedding["model"]),
+        revision=str(embedding["revision"]),
+    )
+
+
+def _p12_load_dev_lists(target_dir: Path) -> list[dict[str, Any]]:
+    body = _p12_json(P12_DEV_LISTS_MANIFEST, target_dir)
+    text = gzip.decompress((target_dir / P12_DEV_LISTS).read_bytes()).decode("utf-8")
+    if digest_of(text) != body["digest"]:
+        _die(f"{P12_DEV_LISTS} does not match its recorded digest")
+    rows = [json.loads(line) for line in text.splitlines()]
+    for row in rows:
+        for name in body["lists"]:
+            row[name] = [(str(u), float(s)) for u, s in row[name]]
+    return rows
+
+
+def cmd_p12_lists(
+    source_dir: Path = config.PHASE_9_DIR,
+    phase10_dir: Path = config.PHASE_10_DIR,
+    target_dir: Path = config.PHASE_12_DIR,
+) -> Path:
+    """S4 (D4): the seeded-hop dev lists at all 6 `(s, exclude)`, then the P10-C reproduction.
+
+    Dense and BM25 are not re-run: their Phase 10 dev lists are reused, digest-checked. Each
+    of the 6 seeded-hop lists is computed from the stored Dense list, the Phase 9 entity index
+    and the S2 sentence cache. D4 then requires the `(all, no)` list to equal Phase 10's for
+    every question, and P12 fused at P10-C's own weights to give 4,801 with no question's
+    outcome moved; a miss stops the phase.
+    """
+    source_dir, phase10_dir, target_dir = Path(source_dir), Path(phase10_dir), Path(target_dir)
+    if (target_dir / P12_REPRODUCTION_NAME).exists():
+        _die(f"{target_dir / P12_REPRODUCTION_NAME} already records the reproduction")
+    fit10 = _p10_json(P10_FIT_NAME, phase10_dir)
+    rows10 = phase10.load_dev_lists(phase10_dir)
+    if _p10_json(phase10.DEV_LISTS_MANIFEST, phase10_dir)["digest"] != fit10["dev_lists_digest"]:
+        _die("the Phase 10 dev lists are not the ones its fit read")
+    questions, token_counts = _p11_dev_inputs(source_dir)
+    if [r["qid"] for r in rows10] != [q.qid for q in questions]:
+        _die("the Phase 10 dev lists are not in the dev question order")
+
+    index, index_record = _p11_entity_index(source_dir)
+    weights = node_weights(index)
+    columns = ColumnwiseEntityHopStage.columns_for(index)
+    forms_by_id = {node.node_id: node.form for node in index.nodes}
+
+    cache_dir = target_dir / "cache" / P12_SENTENCE_CACHE_DIRNAME
+    sentence_unit_ids, sentence_positions, sentence_vectors, sentence_manifest = (
+        phase12.read_sentence_cache(cache_dir, config.PHASE_12_DEV)
+    )
+    p1_ids = sorted({row["dense"][0][0] for row in rows10})
+    units, _corpus = _phase_9_corpus(source_dir)
+    texts_by_unit = {unit.unit_id: unit.sentences for unit in units if unit.unit_id in set(p1_ids)}
+    del units
+    sentences_source = CachedSentences(
+        texts_by_unit, sentence_unit_ids, sentence_positions, sentence_vectors
+    )
+    query_backend = _p12_dev_question_vector(source_dir, questions)
+
+    def question_vector(text: str) -> np.ndarray:
+        return query_backend.encode([text])[0]
+
+    configs = phase12.seed_grid()
+    stages = {
+        (s, exclude): SentenceSeededHopStage(
+            index,
+            weights,
+            columns=columns,
+            s=s,
+            exclude=exclude,
+            forms=forms_by_id,
+            sentences=sentences_source,
+            question_vector=question_vector,
+        )
+        for s, exclude in configs
+    }
+
+    depth = config.PHASE_9_RANKING_DEPTH
+    rows: list[dict[str, Any]] = []
+    lists_differing: list[str] = []
+    entity_totals: list[tuple[int, int]] = []
+    seed_counts_by_config: dict[tuple[int | None, bool], list[int]] = {cfg: [] for cfg in configs}
+    started = time.perf_counter()
+    for position, row10 in enumerate(rows10, start=1):
+        first = row10["dense"]
+        row: dict[str, Any] = {
+            "qid": row10["qid"],
+            "question": row10["question"],
+            "dense": first,
+            "bm25": row10["bm25"],
+            "seeds": {},
+            "positives": {},
+        }
+        totals_recorded = False
+        for cfg in configs:
+            expansion = stages[cfg].hop(row10["question"], first, depth)
+            list_key = phase12.seed_key(*cfg)
+            row[list_key] = [(c.unit_id, c.score) for c in expansion.candidates]
+            row["positives"][list_key] = expansion.positives
+            row["seeds"][list_key] = list(expansion.seeds)
+            seed_counts_by_config[cfg].append(len(expansion.seeds))
+            if not totals_recorded:
+                entity_totals.append((expansion.p1_entity_nodes, expansion.located_entity_nodes))
+                totals_recorded = True
+        all_no_key = phase12.seed_key(*config.PHASE_12_P10C_POINT)
+        if row[all_no_key] != row10[config.ENTITY_HOP_NAME]:
+            lists_differing.append(row10["qid"])
+        rows.append(row)
+        if position % 500 == 0:
+            elapsed = time.perf_counter() - started
+            print(
+                f"[INFO] dev lists {position}/{len(rows10)} in {elapsed / 60:.1f} min", flush=True
+            )
+
+    names = ["dense", "bm25", *(phase12.seed_key(s, x) for s, x in configs)]
+    text = "".join(json.dumps(row, sort_keys=True) + "\n" for row in rows)
+    target_dir.mkdir(parents=True, exist_ok=True)
+    temporary = target_dir / (P12_DEV_LISTS + ".tmp")
+    with temporary.open("wb") as raw, gzip.GzipFile(fileobj=raw, mode="wb", mtime=0) as packed:
+        packed.write(text.encode("utf-8"))
+    temporary.replace(target_dir / P12_DEV_LISTS)
+
+    coverage = phase12.coverage_summary(entity_totals, seed_counts_by_config)
+    manifest = {
+        "rows": len(rows),
+        "digest": digest_of(text),
+        "lists": names,
+        "depth": depth,
+        "phase10_dev_lists_digest": fit10["dev_lists_digest"],
+        "sentence_cache_digest": sentence_manifest["vectors_digest"],
+        "entity_index_digest": index_record["entity_index_digest"],
+        "coverage": coverage,
+        "code_commit": _git_commit(),
+        "host": local_extraction.hardware_block(device="cpu"),
+        "seconds": time.perf_counter() - started,
+    }
+    _p12_write_once(P12_DEV_LISTS_MANIFEST, manifest, target_dir)
+
+    p10c_weights = config.PHASE_12_P10C_WEIGHTS
+    control = [
+        (
+            r["question"],
+            fuse_lists(
+                (r["dense"], r["bm25"], r[config.ENTITY_HOP_NAME]), p10c_weights, top_k=depth
+            ),
+        )
+        for r in rows10
+    ]
+    candidate = [
+        (
+            r["question"],
+            fuse_lists((r["dense"], r["bm25"], r[all_no_key]), p10c_weights, top_k=depth),
+        )
+        for r in rows
+    ]
+    name = config.PHASE_12_SYSTEMS[2]
+    control_records = _p10_replay_records(name, control, questions, token_counts)
+    candidate_records = _p10_replay_records(name, candidate, questions, token_counts)
+    budget = str(config.PHASE_9_PRIMARY_BUDGET)
+    differing = [
+        c["qid"]
+        for c, d in zip(control_records, candidate_records, strict=True)
+        if c["budgets"][budget]["full_support"] != d["budgets"][budget]["full_support"]
+    ]
+    verdict = phase12.reproduction_verdict(
+        phase10.supported(candidate_records), differing, lists_differing
+    )
+    body = {**verdict, "dev_lists_digest": manifest["digest"], "code_commit": _git_commit()}
+    path = _p12_write_once(P12_REPRODUCTION_NAME, body, target_dir)
+    print(
+        f"[INFO] P12 at (all, no): {body['observed']} (recorded {body['recorded']}), "
+        f"{len(differing)} outcomes and {len(lists_differing)} lists differ"
+    )
+    if not body["passed"]:
+        _die(f"the new code does not reproduce P10-C on dev; see {path}")
+    print(f"[OK] P10-C reproduced on dev -> {path}")
+    return path
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="cer",
@@ -5693,6 +5992,14 @@ def build_parser() -> argparse.ArgumentParser:
         "p11-eval", help="Phase 11: the single authorized held-out pass on test-11"
     )
     p11_eval.add_argument("--authorized-pass", action="store_true", dest="authorized")
+    subparsers.add_parser(
+        "p12-sentences",
+        help="Phase 12: encode every dev P1's sentences once, alone (CPU)",
+    )
+    subparsers.add_parser(
+        "p12-lists",
+        help="Phase 12: the seeded-hop dev lists at all 6 (s, exclude) and the D4 reproduction",
+    )
     build.add_argument(
         "--smoke",
         type=int,
@@ -5821,6 +6128,10 @@ def main(argv: list[str] | None = None) -> int:
         cmd_p11_eval(authorized=args.authorized)
     elif args.command == "p11-outcome":
         cmd_p11_outcome()
+    elif args.command == "p12-sentences":
+        cmd_p12_sentences()
+    elif args.command == "p12-lists":
+        cmd_p12_lists()
     return 0
 
 

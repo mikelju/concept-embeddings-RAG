@@ -5,6 +5,11 @@ entities become seeds. Everything here is fixture-based and fast; the real GLiNE
 corpus are read only by the CLI stages.
 """
 
+import json
+
+import numpy as np
+import pytest
+
 from concept_embeddings_rag.evaluation import phase12 as p12
 
 
@@ -111,3 +116,90 @@ def test_seed_grid_has_the_six_declared_configurations():
     grid = p12.seed_grid()
     assert len(grid) == 6 and len(set(grid)) == 6
     assert (None, False) in grid and (None, True) in grid
+
+
+# --- S2: the sentence cache ------------------------------------------------------------------
+
+
+def a_cache(tmp_path, set_name="dev", unit_ids=("u1", "u1", "u2"), positions=(0, 1, 0)):
+    vectors = np.array([[1.0, 0.0], [0.0, 1.0], [0.7, 0.7]], dtype=np.float32)
+    key = p12.sentence_cache_key("model", "rev", set_name, sorted(set(unit_ids)))
+    p12.write_sentence_cache(tmp_path, set_name, key, unit_ids, positions, vectors)
+    manifest = {"key": key, "vectors_digest": p12.vectors_digest(vectors)}
+    p12.write_sentence_manifest(tmp_path, set_name, manifest)
+    return key, vectors
+
+
+def test_the_cache_key_changes_with_the_set_and_the_text_rule(monkeypatch):
+    key_dev = p12.sentence_cache_key("m", "r", "dev", ["u1", "u2"])
+    key_test = p12.sentence_cache_key("m", "r", "test-11", ["u1", "u2"])
+    assert key_dev != key_test
+    monkeypatch.setattr(p12.config, "PHASE_12_TEXT_RULE", "sentence-alone-v2")
+    assert p12.sentence_cache_key("m", "r", "dev", ["u1", "u2"]) != key_dev
+
+
+def test_the_sentence_cache_is_written_once(tmp_path):
+    key, vectors = a_cache(tmp_path)
+    loaded = p12.load_sentence_cache(tmp_path, "dev", key)
+    assert loaded[0] == ["u1", "u1", "u2"]
+    assert loaded[1] == [0, 1, 0]
+    assert np.array_equal(loaded[2], vectors)
+    with pytest.raises(p12.Phase12Error, match="already holds"):
+        p12.write_sentence_cache(tmp_path, "dev", key, ["u1"], [0], vectors[:1])
+    with pytest.raises(p12.Phase12Error, match="already records"):
+        p12.write_sentence_manifest(tmp_path, "dev", {"key": key})
+
+
+def test_reading_the_cache_checks_the_manifest_digest(tmp_path):
+    key, vectors = a_cache(tmp_path)
+    unit_ids, positions, loaded_vectors, manifest = p12.read_sentence_cache(tmp_path, "dev")
+    assert manifest["key"] == key
+    assert np.array_equal(loaded_vectors, vectors)
+    bad_manifest = {**manifest, "vectors_digest": "not-the-real-digest"}
+    (tmp_path / p12.sentence_manifest_filename("dev")).write_text(json.dumps(bad_manifest))
+    with pytest.raises(p12.Phase12Error, match="does not match its recorded digest"):
+        p12.read_sentence_cache(tmp_path, "dev")
+
+
+def test_missing_cache_files_are_refused(tmp_path):
+    with pytest.raises(p12.Phase12Error, match="does not exist"):
+        p12.load_sentence_manifest(tmp_path, "dev")
+    with pytest.raises(p12.Phase12Error, match="does not exist"):
+        p12.load_sentence_cache(tmp_path, "dev", "deadbeef")
+
+
+# --- S4: the D4 reproduction verdict and the coverage summary --------------------------------
+
+
+def test_the_reproduction_passes_only_on_the_exact_count_with_nothing_moved():
+    assert p12.reproduction_verdict(4801, [], [])["passed"]
+    assert not p12.reproduction_verdict(4800, [], [])["passed"]
+    assert not p12.reproduction_verdict(4801, ["q1"], [])["passed"]
+    assert not p12.reproduction_verdict(4801, [], ["q2"])["passed"]
+    point = p12.reproduction_verdict(4801, [], [])["point"]
+    assert point == {
+        "s": None,
+        "exclude": False,
+        "weights": {"dense": 0.5, "bm25": 0.3, "seeded-hop": 0.2},
+    }
+
+
+def test_coverage_summary_on_a_small_fixture():
+    entity_totals = [(3, 2), (2, 2), (0, 0)]  # 5 of 5 located overall
+    seed_counts = {
+        (None, False): [3, 2, 0],
+        (1, False): [1, 1, 0],
+    }
+    summary = p12.coverage_summary(entity_totals, seed_counts)
+    assert summary["p1_entity_nodes_total"] == 5
+    assert summary["p1_entity_nodes_located"] == 4
+    assert summary["located_share"] == pytest.approx(0.8)
+    assert summary["by_config"]["seeded-hop@s=all-x=no"]["empty_seed_share"] == pytest.approx(1 / 3)
+    assert summary["by_config"]["seeded-hop@s=all-x=no"]["seeds_median"] == 2.0
+    assert summary["by_config"]["seeded-hop@s=1-x=no"]["empty_seed_share"] == pytest.approx(1 / 3)
+
+
+def test_coverage_summary_handles_no_entities_at_all():
+    summary = p12.coverage_summary([(0, 0)], {(None, False): [0]})
+    assert summary["located_share"] == 0.0
+    assert summary["by_config"]["seeded-hop@s=all-x=no"]["empty_seed_share"] == 1.0
