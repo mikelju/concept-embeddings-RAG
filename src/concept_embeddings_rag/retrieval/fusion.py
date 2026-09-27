@@ -462,6 +462,88 @@ class TripleFusedRetriever:
         return fuse_lists(self.gather(query, top_k), ordered, top_k=top_k)
 
 
+# --- Phase 12: the third slot chosen with the question, not just with dense's list --------
+
+SEEDED_HOP_NAME = "seeded-hop"
+QUERY_TRIPLE_COMPONENTS: tuple[str, ...] = (DENSE, BM25_NAME, SEEDED_HOP_NAME)
+
+
+@runtime_checkable
+class QuerySecondStage(Protocol):
+    """A second-stage component asked with the query as well as dense's list (Phase 12)."""
+
+    name: str
+
+    def propose(self, query: str, first: Sequence[Hit], top_k: int) -> list[Hit]:
+        """Return up to `top_k` (unit_id, score) pairs, best first."""
+        ...
+
+
+class QueryTripleFusedRetriever:
+    """Dense + BM25 + the seeded hop (Phase 12, P12), fused by the weighted scheme.
+
+    Like `TripleFusedRetriever`, except the third slot is asked with the query as well as
+    dense's list: Phase 12 chooses its seeds from the question (D1/D2), so the stage cannot be
+    conditioned on dense's list alone. Fusion is the same `fuse_lists` a cached dev grid
+    re-fuses over already-gathered lists, so the fit and the pass measure the same system.
+    """
+
+    scheme = WEIGHTED
+    normalization = MIN_MAX
+    fitted_on = FITTED_ON
+
+    def __init__(
+        self,
+        dense: Retriever,
+        bm25: Retriever,
+        stage: QuerySecondStage,
+        *,
+        weights: Mapping[str, float],
+    ) -> None:
+        roles = ((dense, DENSE), (bm25, BM25_NAME))
+        for component, name in roles:
+            if getattr(component, "name", None) != name or not _is_retriever(component):
+                raise ValueError(f"the {name!r} slot must hold a retriever named {name!r}")
+        if getattr(stage, "name", None) != SEEDED_HOP_NAME or not callable(
+            getattr(stage, "propose", None)
+        ):
+            raise ValueError(f"the third slot must hold the {SEEDED_HOP_NAME!r} stage")
+        self._dense, self._bm25, self._stage = dense, bm25, stage
+        self.components = list(QUERY_TRIPLE_COMPONENTS)
+        self.name = f"hybrid-{BM25_NAME}-{SEEDED_HOP_NAME}"
+        checked = _checked_weights(WEIGHTED, self.components, weights)
+        if checked is None:  # unreachable for the weighted scheme; keeps the type narrow
+            raise ValueError("the weighted scheme cannot run without weights")
+        self.weights = checked
+
+    def describe(self) -> dict:
+        return {
+            "name": self.name,
+            "components": list(self.components),
+            "scheme": self.scheme,
+            "normalization": self.normalization,
+            "weights": dict(self.weights),
+            "s": getattr(self._stage, "s", None),
+            "exclude": getattr(self._stage, "exclude", None),
+            "fitted_on": self.fitted_on,
+        }
+
+    def gather(self, query: str, top_k: int) -> tuple[list[Hit], list[Hit], list[Hit]]:
+        """The three component lists this hybrid fuses, in fixed order."""
+        first = self._dense.retrieve(query, top_k)
+        return (
+            first,
+            self._bm25.retrieve(query, top_k),
+            self._stage.propose(query, list(first), top_k),
+        )
+
+    def retrieve(self, query: str, top_k: int) -> list[Hit]:
+        if top_k <= 0:
+            raise ValueError(f"top_k must be positive, not {top_k}")
+        ordered = tuple(self.weights[name] for name in self.components)
+        return fuse_lists(self.gather(query, top_k), ordered, top_k=top_k)
+
+
 QUESTION_HOP_NAME = "question-hop"
 QUAD_COMPONENTS: tuple[str, ...] = (*TRIPLE_COMPONENTS, QUESTION_HOP_NAME)
 
