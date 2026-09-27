@@ -36,7 +36,7 @@ What is established (figures and full records in each phase's `X.results.md`):
 **Current state (2026-09-27):** Phase 12 closed with `DEV_STOP`; P10-C stays the best system and
 `test-11` stays unopened. Phase 13 (choosing P1's bridge entity by a word window around its
 mention, with a dev screen first) has an approved spec; its plan `phase_13/13.0_bridge_window.md`
-awaits approval. If this line and the master plan disagree, the master plan wins; fix this line.
+is approved and in implementation. If this line and the master plan disagree, the master plan wins; fix this line.
 
 ## Where things live
 

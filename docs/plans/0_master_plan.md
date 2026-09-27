@@ -79,7 +79,7 @@ From Phase 7 onward:
 | 10 | Dense + BM25 + Entity Hop at FullWiki scale (step 1 of 2) | [Approved](phase_10/10.spec.md) | **Complete — THREE_WAY_SUPPORTED** |
 | 11 | A better use of the entities at FullWiki scale (step 2 of 2) | [Approved](phase_11/11.spec.md) | **Complete — DEV_STOP** |
 | 12 | Choosing with the question which of P1's entities to hop from | [Approved](phase_12/12.spec.md) | **Complete — DEV_STOP** |
-| 13 | Choosing P1's bridge entity by the words around its mention | [Approved](phase_13/13.spec.md) | **Planned** — plan awaiting approval |
+| 13 | Choosing P1's bridge entity by the words around its mention | [Approved](phase_13/13.spec.md) | **In progress** |
 
 **The first research line is closed** (2026-09-15): concepts induced from pooled embeddings, tested through Phases 2-4, gave a negative and bounded result. The original Phase 5 — a comparative evaluation of that method — was not run; the plan was renumbered so Phase 5 tests the representation the proposal actually described. See [`phase_4/4.1_research_line_closure.md`](phase_4/4.1_research_line_closure.md).
 
@@ -119,7 +119,7 @@ carries. See [`phase_12/12.results.md`](phase_12/12.results.md), the spec
 [`phase_12/12.0_seed_selection.md`](phase_12/12.0_seed_selection.md).
 
 **Phase 13 is specified** (spec approved 2026-09-27; plan
-[`phase_13/13.0_bridge_window.md`](phase_13/13.0_bridge_window.md) awaiting approval). It scores
+[`phase_13/13.0_bridge_window.md`](phase_13/13.0_bridge_window.md) approved 2026-09-27). It scores
 each of P1's entities by the BGE similarity between the question and the 5 words on each side of
 its mention (sentence-clipped, the mention itself masked), and hops only from the `m` best-scored
 entities (`m` ∈ {1, 2, 3, all}), ordering the candidates by their full entity overlap with P1. A
