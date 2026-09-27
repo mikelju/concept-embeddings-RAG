@@ -78,7 +78,7 @@ From Phase 7 onward:
 | 9 | HotpotQA FullWiki at literature-comparable scale | [Approved](phase_9/9.spec.md) | **Complete — SCALE_SUPPORTED** |
 | 10 | Dense + BM25 + Entity Hop at FullWiki scale (step 1 of 2) | [Approved](phase_10/10.spec.md) | **Complete — THREE_WAY_SUPPORTED** |
 | 11 | A better use of the entities at FullWiki scale (step 2 of 2) | [Approved](phase_11/11.spec.md) | **Complete — DEV_STOP** |
-| 12 | Choosing with the question which of P1's entities to hop from | [Approved](phase_12/12.spec.md) | **In progress** — [plan](phase_12/12.0_seed_selection.md) approved 2026-09-27 |
+| 12 | Choosing with the question which of P1's entities to hop from | [Approved](phase_12/12.spec.md) | **Complete — DEV_STOP** |
 
 **The first research line is closed** (2026-09-15): concepts induced from pooled embeddings, tested through Phases 2-4, gave a negative and bounded result. The original Phase 5 — a comparative evaluation of that method — was not run; the plan was renumbered so Phase 5 tests the representation the proposal actually described. See [`phase_4/4.1_research_line_closure.md`](phase_4/4.1_research_line_closure.md).
 
@@ -100,7 +100,22 @@ Phase 9 now carries **BGE-small as the task-validated primary Dense candidate**.
 
 **Phase 11 is measured and closed** (2026-09-25) with **`DEV_STOP`**; `test-11` was never retrieved on. It asked whether a better use of the same entities (P1's entities below a DF cap, entities GLiNER reads in the question, or both, in a four-component fusion fitted over 1,430 dev configurations) beats P10-C. The new code first reproduced P10-C's dev count exactly (4,801 / 7,405, 0 questions changed). The best configuration, a DF cap of 10,000 with P10-C's weights and no question weight, reached 4,808 against the bar of 4,838. A post-hoc dev diagnostic finds that the hop buries much of the gold it reaches in score ties and that the question-seeded hop largely overlaps BM25; it suggests, as a hypothesis, that the bottleneck is choosing which of P1's entities to follow. See [`phase_11/11.results.md`](phase_11/11.results.md), the spec [`phase_11/11.spec.md`](phase_11/11.spec.md) (amended before any measurement) and deviation [`phase_11/11.1_laptop_gliner_pin.md`](phase_11/11.1_laptop_gliner_pin.md).
 
-**Phase 12 is specified** (spec approved 2026-09-27) and tests that hypothesis at the seed. It ranks P1's sentences by their BGE similarity to the question and hops only from the entities of the best `s` sentences (`s` ∈ {1, 2, all}). It can also drop the entities the question already names. Scoring, `read(q)` exclusion, depth and tie-break stay those of Phase 9. Dense + BM25 + this seeded hop is fitted on dev over 396 configurations that contain P10-C exactly. P10-C's dev count must be reproduced first. The bar is 4,835 / 7,405, and `test-11` is opened only above it and on the author's authorization. Everything runs on the laptop. See [`phase_12/12.spec.md`](phase_12/12.spec.md) and the plan [`phase_12/12.0_seed_selection.md`](phase_12/12.0_seed_selection.md).
+**Phase 12 is measured and closed** (2026-09-27) with **`DEV_STOP`**; `test-11` was never
+retrieved on. It tested Phase 11's hypothesis at the seed: rank P1's sentences by their BGE
+similarity to the question and hop only from the entities of the best `s` sentences
+(`s` ∈ {1, 2, all}), optionally dropping the entities the question already names. The new code
+first reproduced P10-C's dev count exactly (4,801 / 7,405, 0 questions changed). Across the full
+396-point grid, the best configuration is P10-C's own point exactly (`s = all`, no exclusion,
+0.5 / 0.3 / 0.2), at 4,801 against the bar of 4,835: nothing in the grid changes the dev count at
+all. A post-hoc dev diagnostic finds that question-to-sentence similarity picks the right P1
+sentence most of the time (66.1 % of bridge-sharing gold) but that Full Support still does not
+move, because the chosen sentence usually names several entities that tie under the unchanged
+rarity score, and because a wrong choice drops the bridge outright about a third of the time; an
+oracle seeded only by the true bridge entity nearly doubles what the hop places in its first 5.
+The bottleneck is the entity's *role* relative to the question, which a sentence-similarity score
+does not carry. See [`phase_12/12.results.md`](phase_12/12.results.md), the spec
+[`phase_12/12.spec.md`](phase_12/12.spec.md) and the plan
+[`phase_12/12.0_seed_selection.md`](phase_12/12.0_seed_selection.md).
 
 The remaining scheduled work deliberately does **not** try to improve the Entity Hop with canonicalization, relations, multiple seeds or additional hops. Phase 9 asks whether the simple mechanism already discovered survives **corpus scale** with BGE-small as the validated primary Dense candidate. The separate question of Entity Hop beside a substantially stronger Dense retriever remains open.
 
