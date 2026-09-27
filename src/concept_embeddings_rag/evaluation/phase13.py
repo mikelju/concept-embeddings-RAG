@@ -25,6 +25,7 @@ import numpy as np
 from concept_embeddings_rag import config
 from concept_embeddings_rag.artifacts import digest_of, savez_compressed_atomic, write_text_atomic
 from concept_embeddings_rag.embeddings.cache import unit_set_hash
+from concept_embeddings_rag.evaluation import phase12
 from concept_embeddings_rag.nodes.normalization import normalize
 
 SCREEN_STOP = "SCREEN_STOP"
@@ -623,3 +624,34 @@ def list_summary(values: Sequence[int]) -> dict[str, float]:
         "max": float(array.max()),
         "zero_share": float((array == 0).mean()),
     }
+
+
+# --- S6 (D5, D6): the grid, the tie rule and the dev gate ------------------------------------
+
+
+def grid_points(
+    seed_counts: Sequence[int | None] = config.PHASE_13_SEEDS,
+) -> list[tuple[int | None, tuple[float, float, float]]]:
+    """The 4 values of `m` x the 66 convex weight triples: 264 points (D5)."""
+    triples = phase12.weight_grid(config.PHASE_13_GRID_TENTHS)
+    return [(m, weights) for m in seed_counts for weights in triples]
+
+
+def _m_rank(m: int | None) -> float:
+    return float("inf") if m is None else float(m)
+
+
+def selection_key(point: Mapping[str, Any]) -> tuple[Any, ...]:
+    """D5, in order: Full Support; gold recall; larger `m` (all largest); larger w_dense, w_bm25."""
+    w_dense, w_bm25, _w_hop = point["weights"]
+    return (point["supported"], point["gold_recall_sum"], _m_rank(point["m"]), w_dense, w_bm25)
+
+
+def choose_point(curve: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    best: Mapping[str, Any] = max(curve, key=selection_key)
+    return dict(best)
+
+
+def dev_gate(chosen: Mapping[str, Any]) -> str | None:
+    """D6: `DEV_STOP` below the bar (P10-C's 4,801 plus 33, 4,834)."""
+    return None if chosen["supported"] >= config.PHASE_13_DEV_BAR else DEV_STOP

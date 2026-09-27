@@ -86,3 +86,24 @@ def test_lists_refuse_an_uncommitted_screen(tmp_path, monkeypatch):
     monkeypatch.setattr(cli, "_p10_fit_is_committed", lambda path: False)
     with pytest.raises(SystemExit, match="not committed"):
         cli.cmd_p13_lists(target_dir=tmp_path)
+
+
+def test_fit_refuses_without_a_reproduction(tmp_path):
+    with pytest.raises(SystemExit, match="reproduction.json does not exist"):
+        cli.cmd_p13_fit(target_dir=tmp_path)
+
+
+def test_fit_refuses_after_a_failed_reproduction(tmp_path):
+    write(tmp_path, cli.P13_REPRODUCTION_NAME, {"passed": False})
+    with pytest.raises(SystemExit, match="did not pass"):
+        cli.cmd_p13_fit(target_dir=tmp_path)
+
+
+def test_a_refit_refuses_to_overwrite(tmp_path, monkeypatch):
+    write(tmp_path, cli.P13_REPRODUCTION_NAME, {"passed": True, "dev_lists_digest": "d"})
+    write(tmp_path, cli.P13_FIT_NAME, {"terminal_state": None})
+    monkeypatch.setattr(
+        cli, "_p11_dev_inputs", lambda *a, **k: pytest.fail("no input read after the refusal")
+    )
+    with pytest.raises(SystemExit, match="already records"):
+        cli.cmd_p13_fit(target_dir=tmp_path)

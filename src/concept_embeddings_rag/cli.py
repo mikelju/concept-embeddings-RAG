@@ -47,6 +47,7 @@
     p13-windows     encode every window around every dev P1 entity mention once (Phase 13)
     p13-screen      the D3 screen: W against T1 and T2 over the 2,651 bridge items (Phase 13)
     p13-lists       the window-seeded hop dev lists at every m and the D4 reproduction
+    p13-fit         the 264-point grid on dev, the tie rule and the dev gate (Phase 13)
 
 Each stage is idempotent and refuses to run if its input is missing, saying which
 stage to run first rather than failing somewhere deep inside numpy.
@@ -6342,6 +6343,98 @@ def cmd_p13_lists(
     return path
 
 
+P13_FIT_NAME = "fit.json"
+
+
+def cmd_p13_fit(
+    source_dir: Path = config.PHASE_9_DIR, target_dir: Path = config.PHASE_13_DIR
+) -> Path:
+    """S6 (D5, D6): the 264-point grid on the cached dev lists, the tie rule, the dev gate."""
+    source_dir, target_dir = Path(source_dir), Path(target_dir)
+    reproduction = _p13_json(P13_REPRODUCTION_NAME, target_dir)
+    if not reproduction["passed"]:
+        _die("the reproduction did not pass; nothing is fitted")
+    if (target_dir / P13_FIT_NAME).exists():
+        _die(f"{target_dir / P13_FIT_NAME} already records the fit")
+    questions, token_counts = _p11_dev_inputs(source_dir)
+    rows = _p13_load_dev_lists(target_dir)
+    lists_digest = _p13_json(P13_DEV_LISTS_MANIFEST, target_dir)["digest"]
+    if lists_digest != reproduction["dev_lists_digest"]:
+        _die("the Phase 13 dev lists are not the ones the reproduction checked")
+    if [r["qid"] for r in rows] != [q.qid for q in questions]:
+        _die("the Phase 13 dev lists are not in the dev question order")
+
+    name = config.PHASE_13_SYSTEMS[3]
+    depth = config.PHASE_9_RANKING_DEPTH
+    curve: list[dict[str, Any]] = []
+    started = time.perf_counter()
+    points = phase13.grid_points()
+    for m, weights in points:
+        list_key = phase13.seed_key(m)
+        rankings = [
+            (
+                r["question"],
+                fuse_lists((r["dense"], r["bm25"], r[list_key]), weights, top_k=depth),
+            )
+            for r in rows
+        ]
+        records = _p10_replay_records(name, rankings, questions, token_counts)
+        curve.append(
+            {
+                "m": m,
+                "weights": list(weights),
+                "supported": phase10.supported(records),
+                "gold_recall_sum": phase10.gold_recall_sum(records),
+            }
+        )
+        if len(curve) % 50 == 0:
+            elapsed = time.perf_counter() - started
+            print(f"[INFO] {len(curve)}/{len(points)} points in {elapsed / 60:.1f} min", flush=True)
+
+    chosen = phase13.choose_point(curve)
+    p10c = next(
+        p
+        for p in curve
+        if p["m"] == config.PHASE_13_P10C_M and tuple(p["weights"]) == config.PHASE_13_P10C_WEIGHTS
+    )
+    best_per_m = {
+        phase13.seed_key(m): phase13.choose_point([p for p in curve if p["m"] == m])
+        for m in config.PHASE_13_SEEDS
+    }
+    body = {
+        "grid": "m in (1, 2, 3, all) x convex triples (dense, bm25, window-hop) in tenths",
+        "n_points": len(curve),
+        "objective": "full_support@2048 over the 7,405 dev questions",
+        "tie_rule": (
+            "gold_recall@2048 sum; then the larger m (all largest); "
+            "then the larger w_dense; then the larger w_bm25"
+        ),
+        "curve": curve,
+        "best_per_m": best_per_m,
+        "chosen": chosen,
+        "weights": dict(zip(config.PHASE_13_COMPONENT_NAMES, chosen["weights"], strict=True)),
+        "m": chosen["m"],
+        "p10c_point_in_grid": p10c,
+        "p10c_dev_supported": config.PHASE_13_P10C_DEV_SUPPORTED,
+        "dev_margin": config.PHASE_13_DEV_MARGIN,
+        "dev_bar": config.PHASE_13_DEV_BAR,
+        "terminal_state": phase13.dev_gate(chosen),
+        "dev_lists_digest": reproduction["dev_lists_digest"],
+        "seconds": time.perf_counter() - started,
+        "host": local_extraction.hardware_block(device="cpu"),
+        "code_commit": _git_commit(),
+    }
+    path = _p13_write_once(P13_FIT_NAME, body, target_dir)
+    print(
+        f"[INFO] chosen m={chosen['m']} weights={chosen['weights']}: "
+        f"{chosen['supported']} of 7,405 against the bar of {body['dev_bar']}"
+    )
+    if body["terminal_state"] is not None:
+        _die(f"{body['terminal_state']} recorded in {path}; test-11 stays unopened")
+    print(f"[OK] fit written -> {path}; commit it before the held-out pass")
+    return path
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="cer",
@@ -6651,6 +6744,10 @@ def build_parser() -> argparse.ArgumentParser:
         "p13-lists",
         help="Phase 13: the window-seeded hop dev lists at every m and the D4 reproduction",
     )
+    subparsers.add_parser(
+        "p13-fit",
+        help="Phase 13: the 264-point grid on dev, the tie rule and the dev gate",
+    )
     build.add_argument(
         "--smoke",
         type=int,
@@ -6791,6 +6888,8 @@ def main(argv: list[str] | None = None) -> int:
         cmd_p13_screen()
     elif args.command == "p13-lists":
         cmd_p13_lists()
+    elif args.command == "p13-fit":
+        cmd_p13_fit()
     return 0
 
 

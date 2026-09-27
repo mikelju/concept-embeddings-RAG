@@ -415,3 +415,40 @@ def test_the_reproduction_passes_only_on_the_exact_count_with_nothing_moved():
     assert not p13.reproduction_verdict(4801, [], ["q2"])["passed"]
     point = p13.reproduction_verdict(4801, [], [])["point"]
     assert point == {"m": None, "weights": {"dense": 0.5, "bm25": 0.3, "window-hop": 0.2}}
+
+
+# --- S6 (D5, D6): the grid, the tie rule and the dev gate ------------------------------------
+
+
+def test_the_grid_has_66_triples_per_m_and_264_points_containing_p10c():
+    points = p13.grid_points()
+    assert len(points) == 264 and len(set(points)) == 264
+    assert len({weights for _m, weights in points}) == 66
+    assert [m for m, _w in points[::66]] == [1, 2, 3, None]
+    assert (config.PHASE_13_P10C_M, config.PHASE_13_P10C_WEIGHTS) in points
+    assert all(abs(sum(w) - 1.0) < 1e-9 and min(w) >= 0.0 for _m, w in points)
+
+
+def a_fit_point(supported, recall=0.0, m=None, weights=(0.5, 0.3, 0.2)):
+    return {"supported": supported, "gold_recall_sum": recall, "m": m, "weights": weights}
+
+
+def test_the_fit_tie_rule_applies_in_the_spec_order():
+    assert p13.choose_point([a_fit_point(10), a_fit_point(11)])["supported"] == 11
+    assert p13.choose_point([a_fit_point(10, 1.0), a_fit_point(10, 2.0)])["gold_recall_sum"] == 2.0
+    m1, m3, m_all = a_fit_point(10, 1.0, m=1), a_fit_point(10, 1.0, m=3), a_fit_point(10, 1.0)
+    assert p13.choose_point([m1, m_all, m3]) == m_all
+    assert p13.choose_point([m1, m3]) == m3
+    a = a_fit_point(10, 1.0, m=2, weights=(0.6, 0.2, 0.2))
+    b = a_fit_point(10, 1.0, m=2, weights=(0.5, 0.4, 0.1))
+    assert p13.choose_point([b, a]) == a
+    c = a_fit_point(10, 1.0, m=2, weights=(0.5, 0.2, 0.3))
+    assert p13.choose_point([c, b]) == b
+    # Full Support dominates everything below it.
+    assert p13.choose_point([a_fit_point(11, 0.0, m=1), a_fit_point(10, 9.0)])["m"] == 1
+
+
+def test_the_dev_gate_falls_at_4834():
+    assert config.PHASE_13_DEV_BAR == 4834
+    assert p13.dev_gate(a_fit_point(4834)) is None
+    assert p13.dev_gate(a_fit_point(4833)) == p13.DEV_STOP
