@@ -32,7 +32,7 @@ What is established (figures and full records in each phase's `X.results.md`):
 
 **Current state (2026-09-27):** P10-C is the best system and `test-11` is unopened. Phase 12
 (question-chosen seeds for the hop) has an approved spec (`phase_12/12.spec.md`); its plan
-`12.0_seed_selection.md` awaits approval. If this line and the master plan disagree, the master plan wins; fix this line.
+`12.0_seed_selection.md` was approved the same day and is being implemented. If this line and the master plan disagree, the master plan wins; fix this line.
 
 ## Where things live
 
