@@ -508,13 +508,14 @@ relations (8.2) are built.
 sentences by BGE similarity to the question, hop only from the entities of the best `s` sentences
 (`s` ∈ {1, 2, all}), optionally dropping entities the question names. It ended in `DEV_STOP`
 ([`phase_12/12.results.md`](phase_12/12.results.md)): across 396 dev configurations, the best is
-P10-C's own point exactly, at 4,801 / 7,405 against the bar of 4,835. A post-hoc diagnostic finds
-the sentence choice is usually right (66.1 % of bridge-sharing gold) but does not help, because
-the chosen sentence still names several entities that tie under the unchanged rarity score, and
-because a wrong choice (about a third of the time) drops the bridge outright. An oracle seeded
-only by the true bridge entity nearly doubles the hop's first-5 gold (1,131 against 590), showing
-the ceiling is real but that a sentence-similarity score, without the entity's relation to the
-question, cannot reach it.
+P10-C's own point exactly, at 4,801 / 7,405 against the bar of 4,835 — no configuration exceeds
+it. A post-hoc diagnostic finds the sentence choice is usually right (66.1 % of bridge-sharing
+gold) but does not help: even when the chosen sentence holds the bridge, the gold's own rank does
+not improve, and a wrong choice (about a third of the time) drops the bridge outright. An oracle
+seeded only by the true bridge entity nearly doubles the hop's first-5 gold (1,131 against 590),
+showing a real ceiling. The reading, a hypothesis and not a measurement, is that a
+sentence-similarity score, without the entity's relation to the question, cannot reach that
+ceiling.
 
 ---
 
@@ -587,9 +588,10 @@ Note also that Phase 7 changed *which raw forms exist* without touching canonica
 
 > Phase 11 (2026-09-25) suggests, from a post-hoc dev diagnostic, that the entity line's bottleneck
 > is choosing the bridge entity among P1's, which a typed relation could supply. Test the cheaper seed selection of 7.2 first.
-> Phase 12 (2026-09-27) tested it: question-to-sentence similarity picks the right sentence most
-> of the time but does not lift Full Support, because it cannot single out the bridge among the
-> several entities that sentence names — see [`phase_12/12.results.md`](phase_12/12.results.md).
+> Phase 12 (2026-09-27) tested it: question-to-sentence similarity usually picks the sentence
+> holding the bridge entity, but Full Support does not move even when it does. The reading, a
+> hypothesis, is that the ranking cannot single out the bridge among the several entities that
+> sentence names — see [`phase_12/12.results.md`](phase_12/12.results.md).
 
 A **triple** is usually represented as:
 

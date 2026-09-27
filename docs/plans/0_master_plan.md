@@ -106,14 +106,14 @@ similarity to the question and hop only from the entities of the best `s` senten
 (`s` ∈ {1, 2, all}), optionally dropping the entities the question already names. The new code
 first reproduced P10-C's dev count exactly (4,801 / 7,405, 0 questions changed). Across the full
 396-point grid, the best configuration is P10-C's own point exactly (`s = all`, no exclusion,
-0.5 / 0.3 / 0.2), at 4,801 against the bar of 4,835: nothing in the grid changes the dev count at
-all. A post-hoc dev diagnostic finds that question-to-sentence similarity picks the right P1
-sentence most of the time (66.1 % of bridge-sharing gold) but that Full Support still does not
-move, because the chosen sentence usually names several entities that tie under the unchanged
-rarity score, and because a wrong choice drops the bridge outright about a third of the time; an
-oracle seeded only by the true bridge entity nearly doubles what the hop places in its first 5.
-The bottleneck is the entity's *role* relative to the question, which a sentence-similarity score
-does not carry. See [`phase_12/12.results.md`](phase_12/12.results.md), the spec
+0.5 / 0.3 / 0.2), at 4,801 against the bar of 4,835: no configuration exceeds it. A post-hoc dev
+diagnostic finds that question-to-sentence similarity usually picks the P1 sentence holding the
+bridge entity (66.1 % of bridge-sharing gold), yet even when it does, the gold's own rank in the
+hop list does not improve; a wrong choice drops the bridge outright about a third of the time, and
+an oracle seeded only by the true bridge entity nearly doubles what the hop places in its first 5.
+The reading, a hypothesis and not a measurement, is that the bottleneck is the entity's *role*
+relative to the question, which neither a sentence-similarity score nor the current rarity score
+carries. See [`phase_12/12.results.md`](phase_12/12.results.md), the spec
 [`phase_12/12.spec.md`](phase_12/12.spec.md) and the plan
 [`phase_12/12.0_seed_selection.md`](phase_12/12.0_seed_selection.md).
 

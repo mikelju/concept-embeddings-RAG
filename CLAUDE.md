@@ -30,8 +30,8 @@ What is established (figures and full records in each phase's `X.results.md`):
   `DEV_STOP`). Hypothesis from a post-hoc diagnostic: the bottleneck is choosing which of P1's
   entities to follow.
 - choosing which of P1's entities to hop from by question-to-sentence similarity does not beat
-  P10-C on dev either (Phase 12, `DEV_STOP`), while an oracle following only the bridge entity
-  nearly doubles the hop's first-5 gold.
+  P10-C on dev either (Phase 12, `DEV_STOP`). Post-hoc, gold-informed diagnostic: an oracle
+  following only each gold paragraph's bridge entity nearly doubles the hop's first-5 gold count.
 
 **Current state (2026-09-27):** Phase 12 (question-chosen seeds for the hop) closed with
 `DEV_STOP` (`phase_12/12.results.md`): P10-C stays the best system and `test-11` stays unopened.
