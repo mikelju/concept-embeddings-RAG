@@ -356,3 +356,51 @@ def seeded_hop_columnwise(
         key=lambda row: (-float(scores[row]), index.unit_ids[row]),
     )
     return _candidates(index, weights, scores, ordered[:depth], shared), int(positive_rows.size)
+
+
+def gated_hop_columnwise(
+    index: NodeIndex,
+    weights: np.ndarray,
+    columns: ArmColumns,
+    *,
+    p1: int,
+    seeds: np.ndarray,
+    read: Collection[int],
+    depth: int,
+) -> tuple[list[RankedCandidate], int]:
+    """Phase 13 (D2): `node_hop_columnwise`, kept only for rows holding at least one seed.
+
+    Scores are the Phase 9 hop's: the sum of rarity weights over **all** the arm nodes a row
+    shares with `p1`. The seeds only gate which rows may enter. Exclusion, positivity, ties
+    by unit id and the cut are unchanged. When the seeds are every arm node of `p1`, every
+    positive row holds one, so the gate removes nothing and this equals
+    `node_hop_columnwise` bit for bit (held equal by `tests/retrieval/test_window_hop.py`).
+    No seed gives an empty list. The Phase 9 and Phase 11 functions are left untouched.
+    """
+    incidence = index.incidence
+    seeds = np.asarray(seeds, dtype=np.int64)
+    gate_nodes = np.unique(seeds[columns.mask[seeds]]) if seeds.size else seeds
+    if gate_nodes.size == 0:
+        return [], 0
+    p1_nodes = incidence.indices[incidence.indptr[p1] : incidence.indptr[p1 + 1]]
+    shared = np.sort(p1_nodes[columns.mask[p1_nodes]])
+    scores = np.zeros(incidence.shape[0])
+    for node in shared:
+        rows = columns.indices[columns.indptr[node] : columns.indptr[node + 1]]
+        scores[rows] += weights[node]
+    gated = np.zeros(incidence.shape[0], dtype=bool)
+    for node in gate_nodes:
+        gated[columns.indices[columns.indptr[node] : columns.indptr[node + 1]]] = True
+    excluded = np.zeros(incidence.shape[0], dtype=bool)
+    excluded[list(read)] = True
+    positive_rows = np.nonzero((scores > 0.0) & gated & ~excluded)[0]
+    kept = positive_rows
+    if positive_rows.size > depth:
+        values = scores[positive_rows]
+        threshold = -np.partition(-values, depth - 1)[depth - 1]
+        kept = positive_rows[values >= threshold]
+    ordered = sorted(
+        (int(row) for row in kept),
+        key=lambda row: (-float(scores[row]), index.unit_ids[row]),
+    )
+    return _candidates(index, weights, scores, ordered[:depth], shared), int(positive_rows.size)
