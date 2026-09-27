@@ -24,13 +24,16 @@ once per grid point with the same `D(q)`, so expansions are memoized by `(read, 
 memo returns copies, so no caller can alter what the next one receives.
 """
 
-from collections.abc import Mapping, Sequence
+import time
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
+from typing import Protocol
 
 import numpy as np
 
 from concept_embeddings_rag import config
-from concept_embeddings_rag.evaluation import second_hop
+from concept_embeddings_rag.embeddings.backend import EmbeddingBackend
+from concept_embeddings_rag.evaluation import phase12, second_hop
 from concept_embeddings_rag.evaluation.second_hop import RankedCandidate
 from concept_embeddings_rag.nodes.index import NodeIndex
 from concept_embeddings_rag.retrieval.base import Hit
@@ -257,3 +260,198 @@ class QuestionEntityHop:
     def propose(self, query: str, first: Sequence[Hit], top_k: int) -> list[Hit]:
         candidates, _positives = self.hop(query, first, top_k)
         return [(candidate.unit_id, candidate.score) for candidate in candidates]
+
+
+# --- Phase 12: choosing, with the question, which of P1's entities seed the hop -----------
+
+SEEDED_HOP_NAME: str = "seeded-hop"
+
+
+class SentenceSource(Protocol):
+    """What a seeded hop needs about P1: its sentence texts, and their vectors."""
+
+    def sentences_of(self, unit_id: str) -> Sequence[str]: ...
+
+    def vectors_of(self, unit_id: str) -> np.ndarray: ...
+
+
+@dataclass(frozen=True)
+class SeededExpansion:
+    """One seeded hop's whole result: the seeds it chose and what they reached."""
+
+    seeds: tuple[int, ...]
+    candidates: tuple[RankedCandidate, ...]
+    positives: int
+    p1_entity_nodes: int
+    located_entity_nodes: int
+
+
+class SentenceSeededHopStage:
+    """The Phase 9 hop from P1, seeded by the P1 entities the question's own sentence
+    relevance selects (Phase 12, D1/D2).
+
+    `s` and `exclude` fix one of the 6 seed configurations. At `s = None, exclude = False`
+    every one of P1's entity nodes is a seed, unlocated ones included, which is exactly the
+    Phase 9 hop's own seed set - so this stage equals `ColumnwiseEntityHopStage` bit for bit
+    at that configuration (identity held by `tests/retrieval/test_seed_selection.py`, and
+    checked on the real index by the D4 reproduction).
+
+    Sentence vectors are read lazily through `sentences`, and only when `s` is not `None`:
+    the identity configuration never needs a question vector or a sentence encode at all.
+    """
+
+    name: str = SEEDED_HOP_NAME
+
+    def __init__(
+        self,
+        index: NodeIndex,
+        weights: np.ndarray,
+        *,
+        columns: second_hop.ArmColumns,
+        s: int | None,
+        exclude: bool,
+        forms: Mapping[int, str],
+        sentences: SentenceSource,
+        question_vector: Callable[[str], np.ndarray],
+    ) -> None:
+        self._index = index
+        self._weights = weights
+        self._columns = columns
+        self.s = s
+        self.exclude = exclude
+        self._forms = forms
+        self._sentences = sentences
+        self._question_vector = question_vector
+        self._rows = {unit_id: row for row, unit_id in enumerate(index.unit_ids)}
+
+    def hop(self, query: str, first: Sequence[Hit], top_k: int) -> SeededExpansion:
+        if top_k <= 0:
+            raise EntityHopError(f"top_k must be positive, not {top_k}")
+        if not first:
+            raise EntityHopError("the dense list is empty: a reader who read nothing has no p1")
+        check_dense_order(first)
+
+        read: list[int] = []
+        for unit_id, _score in first[:READ_DEPTH]:
+            row = self._rows.get(unit_id)
+            if row is None:
+                raise EntityHopError(f"unit {unit_id!r} is not in the node index this hop reads")
+            read.append(row)
+        p1_unit = first[0][0]
+        p1_row = read[0]
+
+        incidence = self._index.incidence
+        p1_nodes = incidence.indices[incidence.indptr[p1_row] : incidence.indptr[p1_row + 1]]
+        p1_entities = p1_nodes[self._columns.mask[p1_nodes]]
+        p1_entity_ids = [int(node) for node in p1_entities]
+
+        sentences = self._sentences.sentences_of(p1_unit)
+        located = phase12.locate(p1_entity_ids, self._forms, sentences)
+        excluded = (
+            phase12.named_in_question(p1_entity_ids, self._forms, query) if self.exclude else set()
+        )
+        if self.s is None:
+            seeds = phase12.choose_seeds(p1_entity_ids, located, [], s=None, exclude=excluded)
+        else:
+            vectors = self._sentences.vectors_of(p1_unit)
+            question_vector = self._question_vector(query)
+            rel = (vectors @ question_vector).tolist() if vectors.size else []
+            seeds = phase12.choose_seeds(p1_entity_ids, located, rel, s=self.s, exclude=excluded)
+
+        if not seeds:
+            return SeededExpansion(
+                seeds=(),
+                candidates=(),
+                positives=0,
+                p1_entity_nodes=len(p1_entity_ids),
+                located_entity_nodes=len(located),
+            )
+        candidates, positives = second_hop.seeded_hop_columnwise(
+            self._index,
+            self._weights,
+            self._columns,
+            seeds=np.array(seeds, dtype=np.int64),
+            read=read,
+            depth=top_k,
+        )
+        return SeededExpansion(
+            seeds=tuple(seeds),
+            candidates=tuple(candidates),
+            positives=positives,
+            p1_entity_nodes=len(p1_entity_ids),
+            located_entity_nodes=len(located),
+        )
+
+    def propose(self, query: str, first: Sequence[Hit], top_k: int) -> list[Hit]:
+        expansion = self.hop(query, first, top_k)
+        return [(candidate.unit_id, candidate.score) for candidate in expansion.candidates]
+
+
+class CachedSentences:
+    """Serves P1 sentences from the corpus and their vectors from the S2 cache (Phase 12).
+
+    A unit the cache does not hold is refused rather than silently skipped: the dev fit reads
+    fixed vectors, never encodes on the fly.
+    """
+
+    def __init__(
+        self,
+        texts_by_unit: Mapping[str, Sequence[str]],
+        unit_ids: Sequence[str],
+        positions: Sequence[int],
+        vectors: np.ndarray,
+    ) -> None:
+        self._texts = texts_by_unit
+        rows: dict[str, list[tuple[int, int]]] = {}
+        for row, (unit_id, position) in enumerate(zip(unit_ids, positions, strict=True)):
+            rows.setdefault(unit_id, []).append((position, row))
+        self._rows = {
+            unit_id: [row for _position, row in sorted(entries)]
+            for unit_id, entries in rows.items()
+        }
+        self._vectors = vectors
+
+    def sentences_of(self, unit_id: str) -> Sequence[str]:
+        if unit_id not in self._texts:
+            raise EntityHopError(f"unit {unit_id!r} is not in the corpus this stage reads")
+        return self._texts[unit_id]
+
+    def vectors_of(self, unit_id: str) -> np.ndarray:
+        rows = self._rows.get(unit_id)
+        if rows is None:
+            raise EntityHopError(f"unit {unit_id!r} is not in the sentence cache; rebuild it")
+        return self._vectors[rows]
+
+
+class OnlineSentences:
+    """Encodes a unit's sentences on first use and keeps them (Phase 12, the S6 pass only).
+
+    `calls` holds one entry per `vectors_of` call, in order: the seconds spent encoding, or
+    0.0 for a unit already seen, so the pass can time the encoding separately from `retrieve`
+    (D8) - a real system with a small cache would reuse the same P1 the same way.
+    """
+
+    def __init__(
+        self, texts_by_unit: Mapping[str, Sequence[str]], backend: EmbeddingBackend
+    ) -> None:
+        self._texts = texts_by_unit
+        self._backend = backend
+        self._vectors: dict[str, np.ndarray] = {}
+        self.calls: list[float] = []
+
+    def sentences_of(self, unit_id: str) -> Sequence[str]:
+        if unit_id not in self._texts:
+            raise EntityHopError(f"unit {unit_id!r} is not in the corpus this stage reads")
+        return self._texts[unit_id]
+
+    def vectors_of(self, unit_id: str) -> np.ndarray:
+        cached = self._vectors.get(unit_id)
+        if cached is not None:
+            self.calls.append(0.0)
+            return cached
+        sentences = self.sentences_of(unit_id)
+        started = time.perf_counter()
+        vectors = self._backend.encode(list(sentences))
+        self.calls.append(time.perf_counter() - started)
+        self._vectors[unit_id] = vectors
+        return vectors

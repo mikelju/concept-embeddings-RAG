@@ -965,6 +965,57 @@ PHASE_11_TERMINAL_STATES: Final[tuple[str, ...]] = (
     "DEV_STOP",
 )
 
+# --- Phase 12: choosing with the question which of P1's entities to hop from -------------
+# Fixed by `12.spec.md` (approved 2026-09-27) and `12.0_seed_selection.md` (approved the same
+# day). Dev is the 7,405 validation questions (Phase 9's cohorts, reused); the held-out set is
+# Phase 10's reserved `test-11`, opened only after the author's authorization (S6).
+
+PHASE_12_DIR: Final[Path] = DATA_DIR / "phase12"
+PHASE_12_DEV: Final[str] = PHASE_11_DEV
+PHASE_12_TEST: Final[str] = PHASE_11_TEST
+PHASE_12_QUESTION_SETS: Final[tuple[str, ...]] = (PHASE_12_DEV, PHASE_12_TEST)
+
+# D1: P1's sentences, encoded alone (no title), with the pinned Phase 9 Dense model (R5).
+PHASE_12_TEXT_RULE: Final[str] = "sentence-alone-v1"
+
+# D2: the seed grid. `s = None` means "all", the largest under the D3 tie rule's ordering.
+PHASE_12_SENTENCES: Final[tuple[int | None, ...]] = (1, 2, None)
+PHASE_12_EXCLUDE: Final[tuple[bool, ...]] = (False, True)
+
+# D3: the weight-grid step (tenths, 66 triples per seed configuration; 6 x 66 = 396 points)
+# and the component name order `fuse_lists` and a fitted retriever's weights dict both use.
+PHASE_12_GRID_TENTHS: Final[int] = 10
+PHASE_12_COMPONENT_NAMES: Final[tuple[str, ...]] = ("dense", "bm25", "seeded-hop")
+
+# D4: the point the new code must reproduce exactly - `s = all, exclude = False`, P10-C's own
+# weights - and the dev count it must give: P10-C's recorded 4,801 / 7,405.
+PHASE_12_P10C_POINT: Final[tuple[int | None, bool]] = (None, False)
+PHASE_12_P10C_WEIGHTS: Final[tuple[float, ...]] = (0.5, 0.3, 0.2)
+PHASE_12_P10C_DEV_SUPPORTED: Final[int] = 4801
+
+# D5: the selected configuration must beat P10-C's dev count by this many questions (0.5 pp).
+PHASE_12_DEV_MARGIN: Final[int] = 34
+PHASE_12_DEV_BAR: Final[int] = PHASE_12_P10C_DEV_SUPPORTED + PHASE_12_DEV_MARGIN
+
+PHASE_12_SYSTEMS: Final[tuple[str, ...]] = (
+    "dense",
+    "hybrid-bm25",
+    "hybrid-bm25-entity-hop",
+    "hybrid-bm25-seeded-hop",
+)
+PHASE_12_SYSTEM_LABELS: Final[dict[str, str]] = {
+    "dense": "P10-A",
+    "hybrid-bm25": "P10-B",
+    "hybrid-bm25-entity-hop": "P10-C",
+    "hybrid-bm25-seeded-hop": "P12",
+}
+PHASE_12_TERMINAL_STATES: Final[tuple[str, ...]] = (
+    "SEED_SELECTION_SUPPORTED",
+    "SEED_SELECTION_NOT_SUPPORTED",
+    "SEED_SELECTION_REGRESSION",
+    "DEV_STOP",
+)
+
 
 def ensure_directories() -> None:
     """Create the data directories if they do not exist yet."""

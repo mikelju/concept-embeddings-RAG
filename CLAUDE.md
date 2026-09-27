@@ -29,10 +29,14 @@ What is established (figures and full records in each phase's `X.results.md`):
 - a DF cap on P1's entities or a question-seeded hop does not beat that on dev (Phase 11,
   `DEV_STOP`). Hypothesis from a post-hoc diagnostic: the bottleneck is choosing which of P1's
   entities to follow.
+- choosing which of P1's entities to hop from by question-to-sentence similarity does not beat
+  P10-C on dev either (Phase 12, `DEV_STOP`). Post-hoc, gold-informed diagnostic: an oracle
+  following only each gold paragraph's bridge entity nearly doubles the hop's first-5 gold count.
 
-**Current state (2026-09-25):** Phase 11 (a better use of the entities) closed with `DEV_STOP`
-(`phase_11/11.results.md`): P10-C stays the best system and `test-11` stays unopened. The next
-phase is the author's decision. If this line and the master plan disagree, the master plan wins; fix this line.
+**Current state (2026-09-27):** Phase 12 (question-chosen seeds for the hop) closed with
+`DEV_STOP` (`phase_12/12.results.md`): P10-C stays the best system and `test-11` stays unopened.
+The next phase is the author's decision. If this line and the master plan disagree, the master
+plan wins; fix this line.
 
 ## Where things live
 
