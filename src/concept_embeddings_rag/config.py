@@ -1016,6 +1016,62 @@ PHASE_12_TERMINAL_STATES: Final[tuple[str, ...]] = (
     "DEV_STOP",
 )
 
+# --- Phase 13: choosing P1's bridge entity by the words around its mention ----------------
+# Fixed by `13.spec.md` (approved 2026-09-27) and `13.0_bridge_window.md` (approved the same
+# day). Dev is the 7,405 validation questions; the held-out set is Phase 10's reserved
+# `test-11`, opened only after the author's authorization (S7).
+
+PHASE_13_DIR: Final[Path] = DATA_DIR / "phase13"
+PHASE_13_DEV: Final[str] = PHASE_11_DEV
+PHASE_13_TEST: Final[str] = PHASE_11_TEST
+PHASE_13_QUESTION_SETS: Final[tuple[str, ...]] = (PHASE_13_DEV, PHASE_13_TEST)
+
+# D1: up to this many words each side of a mention, clipped at the sentence edges, the
+# mention's own words masked, cut from the normalized sentence. Fixed: no grid over it.
+PHASE_13_WINDOW_WORDS: Final[int] = 5
+PHASE_13_WINDOW_RULE: Final[str] = "window-5w-sentence-clipped-masked-normalized-v1"
+
+# D2/D5: the seed grid. `None` means "all", the largest under the D5 tie rule's ordering.
+PHASE_13_SEEDS: Final[tuple[int | None, ...]] = (1, 2, 3, None)
+
+# D3: the screen's population (the Phase 12 closing diagnostic's count, recomputed) and the
+# margin, in percentage points, that W must clear over the better trivial rule.
+PHASE_13_SCREEN_POPULATION: Final[int] = 2651
+PHASE_13_SCREEN_MARGIN_PP: Final[float] = 5.0
+
+# D5: the weight-grid step (66 triples per `m`; 4 x 66 = 264 points) and the component order.
+PHASE_13_GRID_TENTHS: Final[int] = 10
+PHASE_13_COMPONENT_NAMES: Final[tuple[str, ...]] = ("dense", "bm25", "window-hop")
+
+# D4: the point the new code must reproduce exactly, and P10-C's recorded dev count.
+PHASE_13_P10C_M: Final[int | None] = None
+PHASE_13_P10C_WEIGHTS: Final[tuple[float, ...]] = (0.5, 0.3, 0.2)
+PHASE_13_P10C_DEV_SUPPORTED: Final[int] = 4801
+
+# D6: 37 x sqrt(ln 264 / ln 1,430) = 32.4, rounded up to 33; the bar is 4,834.
+PHASE_13_DEV_MARGIN: Final[int] = 33
+PHASE_13_DEV_BAR: Final[int] = PHASE_13_P10C_DEV_SUPPORTED + PHASE_13_DEV_MARGIN
+
+PHASE_13_SYSTEMS: Final[tuple[str, ...]] = (
+    "dense",
+    "hybrid-bm25",
+    "hybrid-bm25-entity-hop",
+    "hybrid-bm25-window-hop",
+)
+PHASE_13_SYSTEM_LABELS: Final[dict[str, str]] = {
+    "dense": "P10-A",
+    "hybrid-bm25": "P10-B",
+    "hybrid-bm25-entity-hop": "P10-C",
+    "hybrid-bm25-window-hop": "P13",
+}
+PHASE_13_TERMINAL_STATES: Final[tuple[str, ...]] = (
+    "BRIDGE_CHOICE_SUPPORTED",
+    "BRIDGE_CHOICE_NOT_SUPPORTED",
+    "BRIDGE_CHOICE_REGRESSION",
+    "DEV_STOP",
+    "SCREEN_STOP",
+)
+
 
 def ensure_directories() -> None:
     """Create the data directories if they do not exist yet."""
