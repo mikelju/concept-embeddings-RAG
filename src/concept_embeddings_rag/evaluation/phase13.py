@@ -590,3 +590,36 @@ def window_rows(
                 first_words.append(item.first_word)
                 texts.append(item.text)
     return unit_ids, node_ids, positions, first_words, texts
+
+
+# --- S5 (D4): the reproduction of P10-C on dev -----------------------------------------------
+
+
+def reproduction_verdict(
+    observed: int, differing_qids: Sequence[str], lists_differing_qids: Sequence[str]
+) -> dict[str, Any]:
+    """D4: exactly P10-C's dev count, no question moved, no `m = all` hop list moved."""
+    recorded = config.PHASE_13_P10C_DEV_SUPPORTED
+    weights = dict(zip(config.PHASE_13_COMPONENT_NAMES, config.PHASE_13_P10C_WEIGHTS, strict=True))
+    return {
+        "metric": "full_support@2048_tokens over the 7,405 dev questions",
+        "point": {"m": config.PHASE_13_P10C_M, "weights": weights},
+        "observed": int(observed),
+        "recorded": recorded,
+        "differing_qids": sorted(differing_qids),
+        "hop_list_differing_qids": sorted(lists_differing_qids),
+        "passed": observed == recorded and not differing_qids and not lists_differing_qids,
+    }
+
+
+def list_summary(values: Sequence[int]) -> dict[str, float]:
+    """Median, p90, max and the zero share of a per-question count (seeds, candidates)."""
+    if not values:
+        return {"median": 0.0, "p90": 0.0, "max": 0.0, "zero_share": 0.0}
+    array = np.asarray(values, dtype=np.float64)
+    return {
+        "median": float(np.median(array)),
+        "p90": float(np.percentile(array, 90)),
+        "max": float(array.max()),
+        "zero_share": float((array == 0).mean()),
+    }

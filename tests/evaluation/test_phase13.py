@@ -403,3 +403,15 @@ def test_window_rows_follow_unit_then_node_then_window_order():
     assert rows[2] == [0, 1, 0, 1]
     assert rows[3] == [1, 3, 3, 0]
     assert rows[4] == ["from to lyon", "lyon is near", "from paris to", "is near paris"]
+
+
+# --- S5: the D4 reproduction verdict ---------------------------------------------------------
+
+
+def test_the_reproduction_passes_only_on_the_exact_count_with_nothing_moved():
+    assert p13.reproduction_verdict(4801, [], [])["passed"]
+    assert not p13.reproduction_verdict(4800, [], [])["passed"]
+    assert not p13.reproduction_verdict(4801, ["q1"], [])["passed"]
+    assert not p13.reproduction_verdict(4801, [], ["q2"])["passed"]
+    point = p13.reproduction_verdict(4801, [], [])["point"]
+    assert point == {"m": None, "weights": {"dense": 0.5, "bm25": 0.3, "window-hop": 0.2}}

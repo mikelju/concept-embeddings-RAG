@@ -58,3 +58,31 @@ def test_screen_refuses_without_a_window_cache(tmp_path, monkeypatch):
 
 def test_the_p13_screen_stage_is_registered():
     assert cli.build_parser().parse_args(["p13-screen"]).command == "p13-screen"
+
+
+def test_lists_refuse_a_second_run(tmp_path, monkeypatch):
+    write(tmp_path, cli.P13_REPRODUCTION_NAME, {"passed": True})
+    monkeypatch.setattr(
+        cli, "_p10_json", lambda *a, **k: pytest.fail("no input read after the refusal")
+    )
+    with pytest.raises(SystemExit, match="already records"):
+        cli.cmd_p13_lists(target_dir=tmp_path)
+
+
+def test_lists_refuse_without_a_screen(tmp_path):
+    with pytest.raises(SystemExit, match="screen.json does not exist"):
+        cli.cmd_p13_lists(target_dir=tmp_path)
+
+
+def test_lists_refuse_a_screen_stop(tmp_path, monkeypatch):
+    write(tmp_path, cli.P13_SCREEN_NAME, {"passed": False, "terminal_state": "SCREEN_STOP"})
+    monkeypatch.setattr(cli, "_p10_fit_is_committed", lambda path: True)
+    with pytest.raises(SystemExit, match="did not pass"):
+        cli.cmd_p13_lists(target_dir=tmp_path)
+
+
+def test_lists_refuse_an_uncommitted_screen(tmp_path, monkeypatch):
+    write(tmp_path, cli.P13_SCREEN_NAME, {"passed": True, "terminal_state": None})
+    monkeypatch.setattr(cli, "_p10_fit_is_committed", lambda path: False)
+    with pytest.raises(SystemExit, match="not committed"):
+        cli.cmd_p13_lists(target_dir=tmp_path)
