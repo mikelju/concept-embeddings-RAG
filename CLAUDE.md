@@ -32,9 +32,12 @@ What is established (figures and full records in each phase's `X.results.md`):
 - choosing which of P1's entities to hop from by question-to-sentence similarity does not beat
   P10-C on dev either (Phase 12, `DEV_STOP`). Post-hoc, gold-informed diagnostic: an oracle
   following only each gold paragraph's bridge entity nearly doubles the hop's first-5 gold count.
+- a word window around each mention picks P1's bridge entity about twice as often as the best
+  trivial rule (40.78 % vs 19.01 %), yet hopping only from the best-scored entities loses to P10-C
+  on dev (Phase 13, `DEV_STOP`). Hypothesis: the hard filter, not the signal, is what fails.
 
-**Current state (2026-09-27):** Phase 12 (question-chosen seeds for the hop) closed with
-`DEV_STOP` (`phase_12/12.results.md`): P10-C stays the best system and `test-11` stays unopened.
+**Current state (2026-09-28):** Phase 13 (bridge entity by a mention window) closed with
+`DEV_STOP` (`phase_13/13.results.md`): P10-C stays the best system and `test-11` stays unopened.
 The next phase is the author's decision. If this line and the master plan disagree, the master
 plan wins; fix this line.
 

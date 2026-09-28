@@ -79,6 +79,7 @@ From Phase 7 onward:
 | 10 | Dense + BM25 + Entity Hop at FullWiki scale (step 1 of 2) | [Approved](phase_10/10.spec.md) | **Complete — THREE_WAY_SUPPORTED** |
 | 11 | A better use of the entities at FullWiki scale (step 2 of 2) | [Approved](phase_11/11.spec.md) | **Complete — DEV_STOP** |
 | 12 | Choosing with the question which of P1's entities to hop from | [Approved](phase_12/12.spec.md) | **Complete — DEV_STOP** |
+| 13 | Choosing P1's bridge entity by the words around its mention | [Approved](phase_13/13.spec.md) | **Complete — DEV_STOP** |
 
 **The first research line is closed** (2026-09-15): concepts induced from pooled embeddings, tested through Phases 2-4, gave a negative and bounded result. The original Phase 5 — a comparative evaluation of that method — was not run; the plan was renumbered so Phase 5 tests the representation the proposal actually described. See [`phase_4/4.1_research_line_closure.md`](phase_4/4.1_research_line_closure.md).
 
@@ -116,6 +117,22 @@ relative to the question, which neither a sentence-similarity score nor the curr
 carries. See [`phase_12/12.results.md`](phase_12/12.results.md), the spec
 [`phase_12/12.spec.md`](phase_12/12.spec.md) and the plan
 [`phase_12/12.0_seed_selection.md`](phase_12/12.0_seed_selection.md).
+
+**Phase 13 is measured and closed** (2026-09-28) with **`DEV_STOP`**; `test-11` was never
+retrieved on. It scored each of P1's entities by the BGE similarity between the question and the
+5 words on each side of its mention (sentence-clipped, the mention masked), and hopped only from
+the `m` best-scored entities, ordering candidates by their full entity overlap with P1. The dev
+screen passed clearly: the window score puts a bridge entity first for 40.78 % of the 2,651
+bridge-sharing gold paragraphs, against 19.01 % for the best trivial rule. The new code reproduced
+P10-C exactly (4,801 / 7,405). But across the 264-point dev fit the best point is P10-C's own
+(`m = all`), at 4,801 against the bar of 4,834: every `m` below `all` loses questions (4,643 /
+4,740 / 4,765) and lowers the hop's first-5 bridge count (429 / 541 / 568 against 590). Under the
+spec's rule each restricted list is P10-C's hop ranking filtered to seed holders, so the filter
+can only promote a bridge by removing competitors and drops it whenever the ranking misses it.
+The reading, a hypothesis, is that the signal should be used as a weight, not a gate; that form
+was excluded and is untested. See [`phase_13/13.results.md`](phase_13/13.results.md), the spec
+[`phase_13/13.spec.md`](phase_13/13.spec.md) and the plan
+[`phase_13/13.0_bridge_window.md`](phase_13/13.0_bridge_window.md).
 
 The remaining scheduled work deliberately does **not** try to improve the Entity Hop with canonicalization, relations, multiple seeds or additional hops. Phase 9 asks whether the simple mechanism already discovered survives **corpus scale** with BGE-small as the validated primary Dense candidate. The separate question of Entity Hop beside a substantially stronger Dense retriever remains open.
 

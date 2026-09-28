@@ -44,6 +44,10 @@
     p12-sentences   encode every dev P1's sentences once, alone, with the pinned BGE-small
     p12-lists       the seeded-hop dev lists at all 6 (s, exclude) and the D4 reproduction
     p12-fit         the 396-point grid on dev, the tie rule and the dev gate
+    p13-windows     encode every window around every dev P1 entity mention once (Phase 13)
+    p13-screen      the D3 screen: W against T1 and T2 over the 2,651 bridge items (Phase 13)
+    p13-lists       the window-seeded hop dev lists at every m and the D4 reproduction
+    p13-fit         the 264-point grid on dev, the tie rule and the dev gate (Phase 13)
 
 Each stage is idempotent and refuses to run if its input is missing, saying which
 stage to run first rather than failing somewhere deep inside numpy.
@@ -146,6 +150,7 @@ from concept_embeddings_rag.evaluation import (
     phase10,
     phase11,
     phase12,
+    phase13,
     scale_sensitivity,
     strong_dense,
 )
@@ -257,11 +262,13 @@ from concept_embeddings_rag.retrieval.diffusion import EXPANSION_NAMES, Diffusio
 from concept_embeddings_rag.retrieval.entity_hop import (
     QUESTION_HOP_NAME,
     CachedSentences,
+    CachedWindows,
     CappedEntityHopStage,
     ColumnwiseEntityHopStage,
     EntityHopStage,
     QuestionEntityHop,
     SentenceSeededHopStage,
+    WindowSeededHopStage,
 )
 from concept_embeddings_rag.retrieval.fusion import (
     TRIPLE_COMPONENTS,
@@ -5809,6 +5816,649 @@ def cmd_p12_fit(
     return path
 
 
+# --- Phase 13: choosing P1's bridge entity by the words around its mention --------------
+
+P13_WINDOW_CACHE_DIRNAME = "windows"
+
+
+def _p13_json(name: str, target_dir: Path = config.PHASE_13_DIR) -> dict[str, Any]:
+    path = Path(target_dir) / name
+    if not path.exists():
+        _die(f"{path} does not exist: run the Phase 13 stage that writes it first")
+    body: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+    return body
+
+
+def _p13_write_once(name: str, body: Mapping[str, Any], target_dir: Path) -> Path:
+    path = Path(target_dir) / name
+    if path.exists():
+        _die(f"{path} already exists; a Phase 13 artifact is written once")
+    Path(target_dir).mkdir(parents=True, exist_ok=True)
+    write_text_atomic(path, json.dumps(dict(body), indent=2, sort_keys=True))
+    return path
+
+
+def _p13_phase10_dev_lists(phase10_dir: Path) -> tuple[list[dict[str, Any]], str]:
+    """The Phase 10 dev lists, checked against the digest its committed fit read."""
+    fit10 = _p10_json(P10_FIT_NAME, phase10_dir)
+    rows10 = phase10.load_dev_lists(phase10_dir)
+    if _p10_json(phase10.DEV_LISTS_MANIFEST, phase10_dir)["digest"] != fit10["dev_lists_digest"]:
+        _die("the Phase 10 dev lists are not the ones its fit read")
+    return rows10, str(fit10["dev_lists_digest"])
+
+
+def _p13_arm_mask(index: Any) -> np.ndarray:
+    mask = np.zeros(index.incidence.shape[1], dtype=bool)
+    mask[index.columns_of(config.ENTITY_HOP_TYPES)] = True
+    return mask
+
+
+def _p13_entity_nodes(
+    index: Any, mask: np.ndarray, row_of: Mapping[str, int], unit_id: str
+) -> list[int]:
+    """A unit's entity nodes (`config.ENTITY_HOP_TYPES`), ascending."""
+    incidence = index.incidence
+    row = row_of[unit_id]
+    nodes = incidence.indices[incidence.indptr[row] : incidence.indptr[row + 1]]
+    return sorted(int(node) for node in nodes[mask[nodes]])
+
+
+def _p13_p1_sentences(source_dir: Path, p1_ids: Sequence[str]) -> dict[str, list[str]]:
+    """The sentence list of every P1, read from the Phase 9 corpus."""
+    wanted = set(p1_ids)
+    units, _corpus = _phase_9_corpus(source_dir)
+    sentences = {unit.unit_id: list(unit.sentences) for unit in units if unit.unit_id in wanted}
+    del units
+    missing = [unit_id for unit_id in p1_ids if unit_id not in sentences]
+    if missing:
+        _die(f"{len(missing)} P1 units are not in the Phase 9 corpus")
+    return sentences
+
+
+def cmd_p13_windows(
+    source_dir: Path = config.PHASE_9_DIR,
+    phase10_dir: Path = config.PHASE_10_DIR,
+    target_dir: Path = config.PHASE_13_DIR,
+) -> Path:
+    """S2 (D1, C1, C2): every window of every distinct dev P1, encoded once.
+
+    P1 is the first unit of each Phase 10 dev Dense list, not recomputed. Windows are built
+    by `phase13.entity_windows` over P1's entity nodes and its normalized sentences, and
+    encoded as passages with the pinned BGE-small. The cache is written once per set.
+    """
+    source_dir, phase10_dir, target_dir = Path(source_dir), Path(phase10_dir), Path(target_dir)
+    set_name = config.PHASE_13_DEV
+    cache_dir = target_dir / "cache" / P13_WINDOW_CACHE_DIRNAME
+    manifest_path = cache_dir / phase13.window_manifest_filename(set_name)
+    if manifest_path.exists():
+        _die(f"{manifest_path} already records the {set_name} window cache")
+    started_total = time.perf_counter()
+    rows10, dev_lists_digest = _p13_phase10_dev_lists(phase10_dir)
+    question_p1 = [row["dense"][0][0] for row in rows10]
+    p1_ids = sorted(set(question_p1))
+
+    index, index_record = _p11_entity_index(source_dir)
+    mask = _p13_arm_mask(index)
+    row_of = {unit_id: row for row, unit_id in enumerate(index.unit_ids)}
+    missing = [unit_id for unit_id in p1_ids if unit_id not in row_of]
+    if missing:
+        _die(f"{len(missing)} P1 units are not in the entity index")
+    p1_nodes = {unit_id: _p13_entity_nodes(index, mask, row_of, unit_id) for unit_id in p1_ids}
+    wanted_nodes = {node for nodes in p1_nodes.values() for node in nodes}
+    forms = {node.node_id: node.form for node in index.nodes if node.node_id in wanted_nodes}
+    del index, row_of
+    print(f"[INFO] {len(p1_ids)} distinct P1 units, {len(wanted_nodes)} entity nodes", flush=True)
+
+    sentences = _p13_p1_sentences(source_dir, p1_ids)
+    print(f"[INFO] P1 sentences read in {(time.perf_counter() - started_total) / 60:.1f} min")
+
+    backend = SentenceTransformerBackend()
+    if (backend.name, backend.revision) != (config.EMBEDDING_MODEL, config.EMBEDDING_REVISION):
+        _die(f"Phase 13 encodes windows with the pinned BGE-small only, not {backend.name}")
+
+    unit_entities: dict[str, dict[int, phase13.EntityMentions]] = {}
+    unit_ids: list[str] = []
+    node_ids: list[int] = []
+    positions: list[int] = []
+    first_words: list[int] = []
+    texts: list[str] = []
+    for unit_id in p1_ids:
+        entities = phase13.entity_windows(p1_nodes[unit_id], forms, sentences[unit_id])
+        unit_entities[unit_id] = entities
+        for node_id in sorted(entities):
+            for window in entities[node_id].windows:
+                unit_ids.append(unit_id)
+                node_ids.append(node_id)
+                positions.append(window.position)
+                first_words.append(window.first_word)
+                texts.append(window.text)
+    print(f"[INFO] {len(texts)} windows to encode", flush=True)
+
+    started = time.perf_counter()
+    vectors = backend.encode(texts)
+    seconds = time.perf_counter() - started
+
+    key = phase13.window_cache_key(backend.name, backend.revision, set_name, p1_ids)
+    path = phase13.write_window_cache(
+        cache_dir, set_name, key, unit_ids, node_ids, positions, first_words, vectors
+    )
+    coverage = phase13.window_coverage(
+        question_p1, {u: len(nodes) for u, nodes in p1_nodes.items()}, unit_entities
+    )
+    manifest = {
+        "set": set_name,
+        "key": key,
+        "window_rule": config.PHASE_13_WINDOW_RULE,
+        "window_words": config.PHASE_13_WINDOW_WORDS,
+        "model": backend.name,
+        "revision": backend.revision,
+        "resolved_revision": resolved_revision(backend),
+        "units": len(p1_ids),
+        "windows": len(texts),
+        "vectors_digest": phase13.vectors_digest(vectors),
+        "rows_digest": phase13.rows_digest(unit_ids, node_ids, positions, first_words),
+        "phase10_dev_lists_digest": dev_lists_digest,
+        "entity_index_digest": index_record["entity_index_digest"],
+        "coverage": coverage,
+        "seconds": seconds,
+        "seconds_total": time.perf_counter() - started_total,
+        "host": local_extraction.hardware_block(device="cpu"),
+        "code_commit": _git_commit(),
+    }
+    manifest_path = phase13.write_window_manifest(cache_dir, set_name, manifest)
+    print(
+        f"[OK] {set_name}: {len(texts)} windows from {len(p1_ids)} units encoded in "
+        f"{seconds:.1f}s -> {path}"
+    )
+    return manifest_path
+
+
+P13_SCREEN_NAME = "screen.json"
+
+
+def _p13_dev_questions(source_dir: Path) -> tuple[list[Question], dict[str, Any]]:
+    """The Phase 9 dev questions (gold), without loading the corpus: its hash is enough."""
+    try:
+        return phase9.load_questions(source_dir, corpus_unit_set_hash=_p10_corpus_hash(source_dir))
+    except phase9.FullWikiPhaseError as error:
+        _die(str(error))
+
+
+def _p13_question_cache_key(source_dir: Path) -> str:
+    embedding = json.loads((source_dir / phase9.EMBEDDING_FILENAME).read_text("utf-8"))
+    return str(embedding["question_cache_key"])
+
+
+def _p13_window_cache(
+    target_dir: Path, set_name: str, p1_ids: Sequence[str], dev_lists_digest: str
+) -> phase13.WindowCache:
+    """The S2 window cache, digest-verified, for exactly these P1 units and dev lists."""
+    try:
+        cache = phase13.read_window_cache(target_dir / "cache" / P13_WINDOW_CACHE_DIRNAME, set_name)
+    except phase13.Phase13Error as error:
+        _die(str(error))
+    manifest = cache.manifest
+    pinned = (config.EMBEDDING_MODEL, config.EMBEDDING_REVISION)
+    if (manifest["model"], manifest["revision"]) != pinned:
+        _die("the window cache was not encoded with the pinned BGE-small")
+    expected = phase13.window_cache_key(
+        str(manifest["model"]), str(manifest["revision"]), set_name, p1_ids
+    )
+    if manifest["key"] != expected or manifest["window_rule"] != config.PHASE_13_WINDOW_RULE:
+        _die("the window cache does not cover these P1 units under the frozen window rule")
+    if manifest["phase10_dev_lists_digest"] != dev_lists_digest:
+        _die("the window cache was built from other Phase 10 dev lists")
+    return cache
+
+
+def _p13_sentence_rel(
+    phase12_dir: Path,
+) -> tuple[Callable[[str, np.ndarray], list[float]], dict[str, Any]]:
+    """Per P1, its sentences' similarity to a question, from the read-only Phase 12 cache."""
+    try:
+        unit_ids, positions, vectors, manifest = phase12.read_sentence_cache(
+            phase12_dir / "cache" / P12_SENTENCE_CACHE_DIRNAME, config.PHASE_12_DEV
+        )
+    except phase12.Phase12Error as error:
+        _die(str(error))
+    rows: dict[str, list[tuple[int, int]]] = {}
+    for row, (unit_id, position) in enumerate(zip(unit_ids, positions, strict=True)):
+        rows.setdefault(unit_id, []).append((position, row))
+    ordered = {u: [row for _p, row in sorted(entries)] for u, entries in rows.items()}
+
+    def rel(unit_id: str, question_vector: np.ndarray) -> list[float]:
+        if unit_id not in ordered:
+            _die(f"unit {unit_id} is not in the Phase 12 sentence cache")
+        sims: list[float] = (vectors[ordered[unit_id]] @ question_vector).tolist()
+        return sims
+
+    return rel, manifest
+
+
+def cmd_p13_screen(
+    source_dir: Path = config.PHASE_9_DIR,
+    phase10_dir: Path = config.PHASE_10_DIR,
+    phase12_dir: Path = config.PHASE_12_DIR,
+    target_dir: Path = config.PHASE_13_DIR,
+) -> Path:
+    """S3 (D3): does the window score put a bridge entity first clearly more than T1 or T2?
+
+    Recomputes the population - dev gold outside the Phase 10 Dense top 10, in the entity
+    index, sharing an entity node with P1 - and stops before any hit is counted if it is not
+    2,651. The windows are rebuilt from the corpus and must equal the S2 cache row for row;
+    entity scores come from the cached window vectors and the Phase 9 dev question vectors.
+    `screen.json` is written once; it must be committed before the next stage.
+    """
+    source_dir, phase10_dir = Path(source_dir), Path(phase10_dir)
+    phase12_dir, target_dir = Path(phase12_dir), Path(target_dir)
+    if (target_dir / P13_SCREEN_NAME).exists():
+        _die(f"{target_dir / P13_SCREEN_NAME} already records the screen")
+    started = time.perf_counter()
+    set_name = config.PHASE_13_DEV
+    rows10, dev_lists_digest = _p13_phase10_dev_lists(phase10_dir)
+    questions, questions_body = _p13_dev_questions(source_dir)
+    if [row["qid"] for row in rows10] != [q.qid for q in questions]:
+        _die("the Phase 10 dev lists are not in the dev question order")
+    p1_ids = sorted({row["dense"][0][0] for row in rows10})
+    cache = _p13_window_cache(target_dir, set_name, p1_ids, dev_lists_digest)
+
+    index, index_record = _p11_entity_index(source_dir)
+    if cache.manifest["entity_index_digest"] != index_record["entity_index_digest"]:
+        _die("the window cache was built from another entity index")
+    weights = node_weights(index)
+    mask = _p13_arm_mask(index)
+    row_of = {unit_id: row for row, unit_id in enumerate(index.unit_ids)}
+
+    def nodes_of(unit_id: str) -> list[int] | None:
+        return _p13_entity_nodes(index, mask, row_of, unit_id) if unit_id in row_of else None
+
+    p1_nodes = {unit_id: _p13_entity_nodes(index, mask, row_of, unit_id) for unit_id in p1_ids}
+    wanted = {node for nodes in p1_nodes.values() for node in nodes}
+    forms = {node.node_id: node.form for node in index.nodes if node.node_id in wanted}
+
+    sentences = _p13_p1_sentences(source_dir, p1_ids)
+    unit_entities = {
+        unit_id: phase13.entity_windows(p1_nodes[unit_id], forms, sentences[unit_id])
+        for unit_id in p1_ids
+    }
+    del sentences
+    rebuilt = phase13.window_rows(p1_ids, unit_entities)
+    if rebuilt[:4] != (cache.unit_ids, cache.node_ids, cache.positions, cache.first_words):
+        _die("the windows rebuilt from the corpus do not match the S2 cache row for row")
+
+    query_backend = _p12_dev_question_vector(source_dir, questions)
+    question_vectors = query_backend.encode([q.question for q in questions])
+    rel_of, sentence_manifest = _p13_sentence_rel(phase12_dir)
+
+    items: list[tuple[frozenset[int], phase13.QuestionChoices]] = []
+    for row10, question, question_vector in zip(rows10, questions, question_vectors, strict=True):
+        p1 = row10["dense"][0][0]
+        population = phase13.screen_population(
+            dense_top10=[unit_id for unit_id, _score in row10["dense"][:10]],
+            gold=question.gold_unit_ids,
+            p1_nodes=p1_nodes[p1],
+            nodes_of=nodes_of,
+        )
+        if not population:
+            continue
+        if cache.holds(p1):
+            window_nodes, window_vectors = cache.rows_of(p1)
+            scores = phase13.entity_scores(window_nodes, window_vectors, question_vector)
+        else:
+            scores = {}
+        choices = phase13.question_choices(
+            unit_entities[p1], scores, weights, rel_of(p1, question_vector)
+        )
+        items.extend((bridge, choices) for _gold, bridge in population)
+
+    try:
+        tally = phase13.screen_tally(items)
+    except phase13.Phase13Error as error:
+        _die(f"{error}; the phase stops before any hit rate is computed")
+    body = {
+        **tally,
+        "population_definition": (
+            "dev gold paragraphs outside the Phase 10 dev Dense top 10, in the Phase 9 entity "
+            "index, sharing >= 1 entity node with P1; one item per gold paragraph"
+        ),
+        "rules": {
+            "W": "first of the D1 ranking (window score desc, rarity desc, node id asc)",
+            "T1": "earliest mention: sentence position, match offset, node id",
+            "T2": "highest rarity weight, then node id",
+            "sentence_rule": (
+                "descriptive: first-mentioned scored entity of the P1 sentence most similar to "
+                "the question (Phase 12 sentence cache; ties by position)"
+            ),
+        },
+        "window_rule": config.PHASE_13_WINDOW_RULE,
+        "inputs": {
+            "phase10_dev_lists_digest": dev_lists_digest,
+            "dev_question_digest": questions_body["question_digest"],
+            "entity_index_digest": index_record["entity_index_digest"],
+            "window_cache_key": cache.manifest["key"],
+            "window_cache_vectors_digest": cache.manifest["vectors_digest"],
+            "window_cache_rows_digest": cache.manifest["rows_digest"],
+            "question_vectors_key": _p13_question_cache_key(source_dir),
+            "question_vectors_digest": phase13.vectors_digest(question_vectors),
+            "phase12_sentence_cache_key": sentence_manifest["key"],
+            "phase12_sentence_cache_digest": sentence_manifest["vectors_digest"],
+        },
+        "seconds": time.perf_counter() - started,
+        "host": local_extraction.hardware_block(device="cpu"),
+        "code_commit": _git_commit(),
+    }
+    path = _p13_write_once(P13_SCREEN_NAME, body, target_dir)
+    rates = body["rates_pp"]
+    print(
+        f"[INFO] population {body['population']}: W {rates['W']:.2f}%, T1 {rates['T1']:.2f}%, "
+        f"T2 {rates['T2']:.2f}%; reference {body['reference_pp']:.2f}% + "
+        f"{body['margin_pp']} pp"
+    )
+    if body["terminal_state"] is not None:
+        _die(f"{body['terminal_state']} recorded in {path}; commit it, the phase ends here")
+    print(f"[OK] the screen passes -> {path}; commit it before the next stage")
+    return path
+
+
+P13_DEV_LISTS = "dev-lists.jsonl.gz"
+P13_DEV_LISTS_MANIFEST = "dev-lists.json"
+P13_REPRODUCTION_NAME = "reproduction.json"
+
+
+def _p13_passing_screen(target_dir: Path) -> dict[str, Any]:
+    """The committed, unmodified `screen.json`, with a pass verdict: what S4-S6 require."""
+    path = target_dir / P13_SCREEN_NAME
+    screen = _p13_json(P13_SCREEN_NAME, target_dir)
+    if not _p10_fit_is_committed(path):
+        _die(f"{path} is not committed unmodified; commit it before the next stage")
+    if not screen.get("passed") or screen.get("terminal_state") is not None:
+        _die("the screen did not pass; the phase ended with SCREEN_STOP")
+    return screen
+
+
+def _p13_load_dev_lists(target_dir: Path) -> list[dict[str, Any]]:
+    body = _p13_json(P13_DEV_LISTS_MANIFEST, target_dir)
+    text = gzip.decompress((target_dir / P13_DEV_LISTS).read_bytes()).decode("utf-8")
+    if digest_of(text) != body["digest"]:
+        _die(f"{P13_DEV_LISTS} does not match its recorded digest")
+    rows = [json.loads(line) for line in text.splitlines()]
+    for row in rows:
+        for name in body["lists"]:
+            row[name] = [(str(u), float(s)) for u, s in row[name]]
+    return rows
+
+
+def cmd_p13_lists(
+    source_dir: Path = config.PHASE_9_DIR,
+    phase10_dir: Path = config.PHASE_10_DIR,
+    target_dir: Path = config.PHASE_13_DIR,
+) -> Path:
+    """S5 (D4): the window-seeded hop dev lists at every `m`, then the P10-C reproduction.
+
+    Requires the committed, passing `screen.json`. Dense and BM25 are not re-run: the Phase
+    10 dev lists are reused, digest-checked. D4 then requires the `m = all` list to equal
+    Phase 10's hop list for every question, and P13 at `m = all, 0.5 / 0.3 / 0.2` to give
+    4,801 with no question's outcome moved; a miss stops the phase.
+    """
+    source_dir, phase10_dir, target_dir = Path(source_dir), Path(phase10_dir), Path(target_dir)
+    for name in (P13_REPRODUCTION_NAME, P13_DEV_LISTS_MANIFEST):
+        if (target_dir / name).exists():
+            _die(f"{target_dir / name} already records this stage's output")
+    screen = _p13_passing_screen(target_dir)
+    started = time.perf_counter()
+    rows10, dev_lists_digest = _p13_phase10_dev_lists(phase10_dir)
+    questions, token_counts = _p11_dev_inputs(source_dir)
+    if [r["qid"] for r in rows10] != [q.qid for q in questions]:
+        _die("the Phase 10 dev lists are not in the dev question order")
+    p1_ids = sorted({row["dense"][0][0] for row in rows10})
+    cache = _p13_window_cache(target_dir, config.PHASE_13_DEV, p1_ids, dev_lists_digest)
+    if cache.manifest["vectors_digest"] != screen["inputs"]["window_cache_vectors_digest"]:
+        _die("the window cache is not the one the screen read")
+
+    index, index_record = _p11_entity_index(source_dir)
+    if index_record["entity_index_digest"] != screen["inputs"]["entity_index_digest"]:
+        _die("the entity index is not the one the screen read")
+    weights = node_weights(index)
+    columns = ColumnwiseEntityHopStage.columns_for(index)
+    mask = _p13_arm_mask(index)
+    row_of = {unit_id: row for row, unit_id in enumerate(index.unit_ids)}
+    windows = CachedWindows(cache, units=p1_ids)
+    query_backend = _p12_dev_question_vector(source_dir, questions)
+
+    def question_vector(text: str) -> np.ndarray:
+        return query_backend.encode([text])[0]
+
+    seeds_grid = config.PHASE_13_SEEDS
+    stages = {
+        m: WindowSeededHopStage(
+            index,
+            weights,
+            columns=columns,
+            m=m,
+            windows=windows,
+            question_vector=question_vector,
+        )
+        for m in seeds_grid
+    }
+    keys = {m: phase13.seed_key(m) for m in seeds_grid}
+    all_key = keys[None]
+
+    depth = config.PHASE_9_RANKING_DEPTH
+    rows: list[dict[str, Any]] = []
+    lists_differing: list[str] = []
+    seed_counts: dict[int | None, list[int]] = {m: [] for m in seeds_grid}
+    positives: dict[int | None, list[int]] = {m: [] for m in seeds_grid}
+    first5: dict[int | None, int] = dict.fromkeys(seeds_grid, 0)
+    in_list: dict[int | None, int] = dict.fromkeys(seeds_grid, 0)
+    n_items = 0
+    for position, (row10, question) in enumerate(zip(rows10, questions, strict=True), start=1):
+        first = row10["dense"]
+        row: dict[str, Any] = {
+            "qid": row10["qid"],
+            "question": row10["question"],
+            "dense": first,
+            "bm25": row10["bm25"],
+            "seeds": {},
+            "positives": {},
+        }
+        for m in seeds_grid:
+            expansion = stages[m].hop(row10["question"], first, depth)
+            row[keys[m]] = [(c.unit_id, c.score) for c in expansion.candidates]
+            row["positives"][keys[m]] = expansion.positives
+            row["seeds"][keys[m]] = list(expansion.seeds)
+            seed_counts[m].append(len(expansion.seeds))
+            positives[m].append(expansion.positives)
+        if row[all_key] != row10[config.ENTITY_HOP_NAME]:
+            lists_differing.append(row10["qid"])
+
+        p1 = first[0][0]
+        items = phase13.screen_population(
+            dense_top10=[unit_id for unit_id, _score in first[:10]],
+            gold=question.gold_unit_ids,
+            p1_nodes=_p13_entity_nodes(index, mask, row_of, p1),
+            nodes_of=lambda u: _p13_entity_nodes(index, mask, row_of, u) if u in row_of else None,
+        )
+        n_items += len(items)
+        for gold, _bridge in items:
+            for m in seeds_grid:
+                ids = [unit_id for unit_id, _score in row[keys[m]]]
+                if gold in ids:
+                    in_list[m] += 1
+                    first5[m] += ids.index(gold) < 5
+        rows.append(row)
+        if position % 500 == 0:
+            elapsed = time.perf_counter() - started
+            print(
+                f"[INFO] dev lists {position}/{len(rows10)} in {elapsed / 60:.1f} min", flush=True
+            )
+
+    names = ["dense", "bm25", *(keys[m] for m in seeds_grid)]
+    text = "".join(json.dumps(row, sort_keys=True) + "\n" for row in rows)
+    target_dir.mkdir(parents=True, exist_ok=True)
+    temporary = target_dir / (P13_DEV_LISTS + ".tmp")
+    with temporary.open("wb") as raw, gzip.GzipFile(fileobj=raw, mode="wb", mtime=0) as packed:
+        packed.write(text.encode("utf-8"))
+    temporary.replace(target_dir / P13_DEV_LISTS)
+
+    manifest = {
+        "rows": len(rows),
+        "digest": digest_of(text),
+        "lists": names,
+        "depth": depth,
+        "phase10_dev_lists_digest": dev_lists_digest,
+        "window_cache_vectors_digest": cache.manifest["vectors_digest"],
+        "window_cache_rows_digest": cache.manifest["rows_digest"],
+        "entity_index_digest": index_record["entity_index_digest"],
+        "screen_digest": digest_of((target_dir / P13_SCREEN_NAME).read_text(encoding="utf-8")),
+        "question_vectors_key": _p13_question_cache_key(source_dir),
+        "seeds_per_question": {keys[m]: phase13.list_summary(seed_counts[m]) for m in seeds_grid},
+        "candidates_per_question": {
+            keys[m]: phase13.list_summary(positives[m]) for m in seeds_grid
+        },
+        "bridge_items": {
+            "population": n_items,
+            "in_list": {keys[m]: in_list[m] for m in seeds_grid},
+            "first_5": {keys[m]: first5[m] for m in seeds_grid},
+        },
+        "code_commit": _git_commit(),
+        "host": local_extraction.hardware_block(device="cpu"),
+        "seconds": time.perf_counter() - started,
+    }
+    _p13_write_once(P13_DEV_LISTS_MANIFEST, manifest, target_dir)
+
+    p10c_weights = config.PHASE_13_P10C_WEIGHTS
+    control = [
+        (
+            r["question"],
+            fuse_lists(
+                (r["dense"], r["bm25"], r[config.ENTITY_HOP_NAME]), p10c_weights, top_k=depth
+            ),
+        )
+        for r in rows10
+    ]
+    candidate = [
+        (
+            r["question"],
+            fuse_lists((r["dense"], r["bm25"], r[all_key]), p10c_weights, top_k=depth),
+        )
+        for r in rows
+    ]
+    name = config.PHASE_13_SYSTEMS[2]
+    control_records = _p10_replay_records(name, control, questions, token_counts)
+    candidate_records = _p10_replay_records(name, candidate, questions, token_counts)
+    budget = str(config.PHASE_9_PRIMARY_BUDGET)
+    differing = [
+        c["qid"]
+        for c, d in zip(control_records, candidate_records, strict=True)
+        if c["budgets"][budget]["full_support"] != d["budgets"][budget]["full_support"]
+    ]
+    verdict = phase13.reproduction_verdict(
+        phase10.supported(candidate_records), differing, lists_differing
+    )
+    body = {**verdict, "dev_lists_digest": manifest["digest"], "code_commit": _git_commit()}
+    path = _p13_write_once(P13_REPRODUCTION_NAME, body, target_dir)
+    print(
+        f"[INFO] P13 at m=all: {body['observed']} (recorded {body['recorded']}), "
+        f"{len(differing)} outcomes and {len(lists_differing)} lists differ"
+    )
+    if not body["passed"]:
+        _die(f"the new code does not reproduce P10-C on dev; see {path}")
+    print(f"[OK] P10-C reproduced on dev -> {path}")
+    return path
+
+
+P13_FIT_NAME = "fit.json"
+
+
+def cmd_p13_fit(
+    source_dir: Path = config.PHASE_9_DIR, target_dir: Path = config.PHASE_13_DIR
+) -> Path:
+    """S6 (D5, D6): the 264-point grid on the cached dev lists, the tie rule, the dev gate."""
+    source_dir, target_dir = Path(source_dir), Path(target_dir)
+    reproduction = _p13_json(P13_REPRODUCTION_NAME, target_dir)
+    if not reproduction["passed"]:
+        _die("the reproduction did not pass; nothing is fitted")
+    if (target_dir / P13_FIT_NAME).exists():
+        _die(f"{target_dir / P13_FIT_NAME} already records the fit")
+    questions, token_counts = _p11_dev_inputs(source_dir)
+    rows = _p13_load_dev_lists(target_dir)
+    lists_digest = _p13_json(P13_DEV_LISTS_MANIFEST, target_dir)["digest"]
+    if lists_digest != reproduction["dev_lists_digest"]:
+        _die("the Phase 13 dev lists are not the ones the reproduction checked")
+    if [r["qid"] for r in rows] != [q.qid for q in questions]:
+        _die("the Phase 13 dev lists are not in the dev question order")
+
+    name = config.PHASE_13_SYSTEMS[3]
+    depth = config.PHASE_9_RANKING_DEPTH
+    curve: list[dict[str, Any]] = []
+    started = time.perf_counter()
+    points = phase13.grid_points()
+    for m, weights in points:
+        list_key = phase13.seed_key(m)
+        rankings = [
+            (
+                r["question"],
+                fuse_lists((r["dense"], r["bm25"], r[list_key]), weights, top_k=depth),
+            )
+            for r in rows
+        ]
+        records = _p10_replay_records(name, rankings, questions, token_counts)
+        curve.append(
+            {
+                "m": m,
+                "weights": list(weights),
+                "supported": phase10.supported(records),
+                "gold_recall_sum": phase10.gold_recall_sum(records),
+            }
+        )
+        if len(curve) % 50 == 0:
+            elapsed = time.perf_counter() - started
+            print(f"[INFO] {len(curve)}/{len(points)} points in {elapsed / 60:.1f} min", flush=True)
+
+    chosen = phase13.choose_point(curve)
+    p10c = next(
+        p
+        for p in curve
+        if p["m"] == config.PHASE_13_P10C_M and tuple(p["weights"]) == config.PHASE_13_P10C_WEIGHTS
+    )
+    best_per_m = {
+        phase13.seed_key(m): phase13.choose_point([p for p in curve if p["m"] == m])
+        for m in config.PHASE_13_SEEDS
+    }
+    body = {
+        "grid": "m in (1, 2, 3, all) x convex triples (dense, bm25, window-hop) in tenths",
+        "n_points": len(curve),
+        "objective": "full_support@2048 over the 7,405 dev questions",
+        "tie_rule": (
+            "gold_recall@2048 sum; then the larger m (all largest); "
+            "then the larger w_dense; then the larger w_bm25"
+        ),
+        "curve": curve,
+        "best_per_m": best_per_m,
+        "chosen": chosen,
+        "weights": dict(zip(config.PHASE_13_COMPONENT_NAMES, chosen["weights"], strict=True)),
+        "m": chosen["m"],
+        "p10c_point_in_grid": p10c,
+        "p10c_dev_supported": config.PHASE_13_P10C_DEV_SUPPORTED,
+        "dev_margin": config.PHASE_13_DEV_MARGIN,
+        "dev_bar": config.PHASE_13_DEV_BAR,
+        "terminal_state": phase13.dev_gate(chosen),
+        "dev_lists_digest": reproduction["dev_lists_digest"],
+        "seconds": time.perf_counter() - started,
+        "host": local_extraction.hardware_block(device="cpu"),
+        "code_commit": _git_commit(),
+    }
+    path = _p13_write_once(P13_FIT_NAME, body, target_dir)
+    print(
+        f"[INFO] chosen m={chosen['m']} weights={chosen['weights']}: "
+        f"{chosen['supported']} of 7,405 against the bar of {body['dev_bar']}"
+    )
+    if body["terminal_state"] is not None:
+        _die(f"{body['terminal_state']} recorded in {path}; test-11 stays unopened")
+    print(f"[OK] fit written -> {path}; commit it before the held-out pass")
+    return path
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="cer",
@@ -6106,6 +6756,22 @@ def build_parser() -> argparse.ArgumentParser:
         "p12-fit",
         help="Phase 12: the 396-point grid on dev, the tie rule and the dev gate",
     )
+    subparsers.add_parser(
+        "p13-windows",
+        help="Phase 13: encode every window around every dev P1 entity mention once (CPU)",
+    )
+    subparsers.add_parser(
+        "p13-screen",
+        help="Phase 13: the D3 screen, W against T1 and T2, written once (dev only)",
+    )
+    subparsers.add_parser(
+        "p13-lists",
+        help="Phase 13: the window-seeded hop dev lists at every m and the D4 reproduction",
+    )
+    subparsers.add_parser(
+        "p13-fit",
+        help="Phase 13: the 264-point grid on dev, the tie rule and the dev gate",
+    )
     build.add_argument(
         "--smoke",
         type=int,
@@ -6240,6 +6906,14 @@ def main(argv: list[str] | None = None) -> int:
         cmd_p12_lists()
     elif args.command == "p12-fit":
         cmd_p12_fit()
+    elif args.command == "p13-windows":
+        cmd_p13_windows()
+    elif args.command == "p13-screen":
+        cmd_p13_screen()
+    elif args.command == "p13-lists":
+        cmd_p13_lists()
+    elif args.command == "p13-fit":
+        cmd_p13_fit()
     return 0
 
 

@@ -25,7 +25,7 @@ memo returns copies, so no caller can alter what the next one receives.
 """
 
 import time
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import Protocol
 
@@ -33,7 +33,7 @@ import numpy as np
 
 from concept_embeddings_rag import config
 from concept_embeddings_rag.embeddings.backend import EmbeddingBackend
-from concept_embeddings_rag.evaluation import phase12, second_hop
+from concept_embeddings_rag.evaluation import phase12, phase13, second_hop
 from concept_embeddings_rag.evaluation.second_hop import RankedCandidate
 from concept_embeddings_rag.nodes.index import NodeIndex
 from concept_embeddings_rag.retrieval.base import Hit
@@ -455,3 +455,181 @@ class OnlineSentences:
         self.calls.append(time.perf_counter() - started)
         self._vectors[unit_id] = vectors
         return vectors
+
+
+# --- Phase 13: choosing P1's bridge entity by the words around its mention ---------------
+
+WINDOW_HOP_NAME: str = "window-hop"
+
+
+class WindowSource(Protocol):
+    """What the window-seeded hop needs about P1: each window's entity node and vector."""
+
+    def windows_of(
+        self, unit_id: str, p1_nodes: Sequence[int]
+    ) -> tuple[Sequence[int], np.ndarray]: ...
+
+
+@dataclass(frozen=True)
+class WindowExpansion:
+    """One window-seeded hop's whole result: the seeds it chose and what they reached."""
+
+    seeds: tuple[int, ...]
+    candidates: tuple[RankedCandidate, ...]
+    positives: int
+    p1_entity_nodes: int
+    scored_entity_nodes: int
+
+
+class WindowSeededHopStage:
+    """The Phase 9 hop from P1, entered only through the `m` best window-scored entities
+    (Phase 13, D1/D2).
+
+    Each of P1's entities scores the maximum cosine between the question and the windows
+    around its mentions; the `m` first of the ranking (score, rarity, node id) are the seeds.
+    A candidate must share a seed with P1; it scores over all of P1's entities
+    (`second_hop.gated_hop_columnwise`). At `m = None` every P1 entity node is a seed and the
+    stage equals `ColumnwiseEntityHopStage` bit for bit, without reading a window or a
+    question vector (held by `tests/retrieval/test_window_hop.py`, and on the real index by
+    the D4 reproduction).
+    """
+
+    name: str = WINDOW_HOP_NAME
+
+    def __init__(
+        self,
+        index: NodeIndex,
+        weights: np.ndarray,
+        *,
+        columns: second_hop.ArmColumns,
+        m: int | None,
+        windows: WindowSource,
+        question_vector: Callable[[str], np.ndarray],
+    ) -> None:
+        self._index = index
+        self._weights = weights
+        self._columns = columns
+        self.m = m
+        self._windows = windows
+        self._question_vector = question_vector
+        self._rows = {unit_id: row for row, unit_id in enumerate(index.unit_ids)}
+
+    def hop(self, query: str, first: Sequence[Hit], top_k: int) -> WindowExpansion:
+        if top_k <= 0:
+            raise EntityHopError(f"top_k must be positive, not {top_k}")
+        if not first:
+            raise EntityHopError("the dense list is empty: a reader who read nothing has no p1")
+        check_dense_order(first)
+
+        read: list[int] = []
+        for unit_id, _score in first[:READ_DEPTH]:
+            row = self._rows.get(unit_id)
+            if row is None:
+                raise EntityHopError(f"unit {unit_id!r} is not in the node index this hop reads")
+            read.append(row)
+        p1_unit = first[0][0]
+        p1_row = read[0]
+
+        incidence = self._index.incidence
+        p1_nodes = incidence.indices[incidence.indptr[p1_row] : incidence.indptr[p1_row + 1]]
+        p1_entity_ids = sorted(int(node) for node in p1_nodes[self._columns.mask[p1_nodes]])
+
+        if self.m is None:
+            seeds = phase13.seeds([], p1_entity_ids, None)
+            scored = 0
+        else:
+            node_ids, vectors = self._windows.windows_of(p1_unit, p1_entity_ids)
+            scores = (
+                phase13.entity_scores(node_ids, vectors, self._question_vector(query))
+                if len(node_ids)
+                else {}
+            )
+            ranking = phase13.rank_entities(scores, self._weights)
+            seeds = phase13.seeds(ranking, p1_entity_ids, self.m)
+            scored = len(scores)
+
+        if not seeds:
+            return WindowExpansion((), (), 0, len(p1_entity_ids), scored)
+        candidates, positives = second_hop.gated_hop_columnwise(
+            self._index,
+            self._weights,
+            self._columns,
+            p1=p1_row,
+            seeds=np.array(seeds, dtype=np.int64),
+            read=read,
+            depth=top_k,
+        )
+        return WindowExpansion(
+            seeds=tuple(seeds),
+            candidates=tuple(candidates),
+            positives=positives,
+            p1_entity_nodes=len(p1_entity_ids),
+            scored_entity_nodes=scored,
+        )
+
+    def propose(self, query: str, first: Sequence[Hit], top_k: int) -> list[Hit]:
+        expansion = self.hop(query, first, top_k)
+        return [(candidate.unit_id, candidate.score) for candidate in expansion.candidates]
+
+
+class CachedWindows:
+    """Serves P1 windows from the S2 cache (Phase 13, dev only).
+
+    `units` is every P1 the cache was keyed on: a P1 whose windows were all empty holds no
+    row and is served as unscored; a unit outside `units` is refused, never encoded on the fly.
+    """
+
+    def __init__(self, cache: phase13.WindowCache, *, units: Collection[str]) -> None:
+        self._cache = cache
+        self._units = set(units)
+        self._dim = int(cache.vectors.shape[1])
+
+    def windows_of(self, unit_id: str, p1_nodes: Sequence[int]) -> tuple[list[int], np.ndarray]:
+        if unit_id not in self._units:
+            raise EntityHopError(f"unit {unit_id!r} is not a P1 the window cache covers")
+        if not self._cache.holds(unit_id):
+            return [], np.zeros((0, self._dim), dtype=np.float32)
+        return self._cache.rows_of(unit_id)
+
+
+class OnlineWindows:
+    """Builds and encodes a unit's windows on first use and keeps them (Phase 13, the pass).
+
+    `calls` holds one entry per `windows_of` call, in order: the seconds spent building and
+    encoding, or 0.0 for a unit already seen, so the pass can time the window work apart from
+    `retrieve` (D9). `windows_rows` returns every window built, in the cache's row order.
+    """
+
+    def __init__(
+        self,
+        texts_by_unit: Mapping[str, Sequence[str]],
+        forms: Mapping[int, str],
+        backend: EmbeddingBackend,
+    ) -> None:
+        self._texts = texts_by_unit
+        self._forms = forms
+        self._backend = backend
+        self._built: dict[str, dict[int, phase13.EntityMentions]] = {}
+        self._served: dict[str, tuple[list[int], np.ndarray]] = {}
+        self.calls: list[float] = []
+
+    def windows_of(self, unit_id: str, p1_nodes: Sequence[int]) -> tuple[list[int], np.ndarray]:
+        served = self._served.get(unit_id)
+        if served is not None:
+            self.calls.append(0.0)
+            return served
+        if unit_id not in self._texts:
+            raise EntityHopError(f"unit {unit_id!r} is not in the corpus this stage reads")
+        started = time.perf_counter()
+        entities = phase13.entity_windows(p1_nodes, self._forms, self._texts[unit_id])
+        rows = phase13.window_rows([unit_id], {unit_id: entities})
+        node_ids, texts = rows[1], rows[4]
+        vectors = self._backend.encode(texts) if texts else np.zeros((0, 0), dtype=np.float32)
+        self.calls.append(time.perf_counter() - started)
+        self._built[unit_id] = entities
+        self._served[unit_id] = (node_ids, vectors)
+        return node_ids, vectors
+
+    def windows_rows(self) -> tuple[list[str], list[int], list[int], list[int], list[str]]:
+        """Every window built so far, in the cache's row order (unit, node, window)."""
+        return phase13.window_rows(sorted(self._built), self._built)
