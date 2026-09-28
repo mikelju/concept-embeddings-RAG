@@ -80,6 +80,7 @@ From Phase 7 onward:
 | 11 | A better use of the entities at FullWiki scale (step 2 of 2) | [Approved](phase_11/11.spec.md) | **Complete — DEV_STOP** |
 | 12 | Choosing with the question which of P1's entities to hop from | [Approved](phase_12/12.spec.md) | **Complete — DEV_STOP** |
 | 13 | Choosing P1's bridge entity by the words around its mention | [Approved](phase_13/13.spec.md) | **Complete — DEV_STOP** |
+| 14 | Ordering the hop's candidates by their similarity to the question | [Draft](phase_14/14.spec.md) | **Spec in draft** |
 
 **The first research line is closed** (2026-09-15): concepts induced from pooled embeddings, tested through Phases 2-4, gave a negative and bounded result. The original Phase 5 — a comparative evaluation of that method — was not run; the plan was renumbered so Phase 5 tests the representation the proposal actually described. See [`phase_4/4.1_research_line_closure.md`](phase_4/4.1_research_line_closure.md).
 
