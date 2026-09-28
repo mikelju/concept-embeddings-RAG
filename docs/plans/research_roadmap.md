@@ -528,6 +528,15 @@ a hypothesis: Phases 12 and 13 both used the question to *remove* part of the qu
 the removal, not the signal, may be what fails. Using the entity ranking as a *weight* on the hop score (seeds weighted
 softly) was excluded by both specs and is untested.
 
+**Phase 13 ceilings (2026-09-28, dev, gold-informed, exploratory).** Oracle hop lists fused into
+P10-C at its frozen weights ([`phase_13/13.results.md`](phase_13/13.results.md), "Ceilings"): a
+perfect seed choice +119 questions (219 won, 100 lost), a perfect soft weight on the bridge
+entities +639 (641 / 2), a perfect reorder of the hop's candidate set +1,257, and a perfect
+tie-break **+0**. The last is structural: under min-max fusion a tie-break that leaves scores
+unchanged cannot move any question. The candidate side has the most room, but only if the
+question signal enters the hop's score. 1,154 of the 2,651 items are already in Dense's ranks
+11-100.
+
 ---
 
 ## 7.3 QA end to end
