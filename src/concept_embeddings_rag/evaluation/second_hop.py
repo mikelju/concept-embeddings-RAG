@@ -15,13 +15,15 @@ caller decides what counts as found. Ties in the existing hops break exactly as 
 diagnostic broke them, because its figures must reproduce to the last digit.
 """
 
+import time
 from collections.abc import Collection, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Protocol
 
 import numpy as np
 from scipy import sparse
 
+from concept_embeddings_rag.evaluation import phase14
 from concept_embeddings_rag.nodes.index import NodeIndex
 from concept_embeddings_rag.retrieval.conceptual import concept_support, rarity_weights
 
@@ -404,3 +406,67 @@ def gated_hop_columnwise(
         key=lambda row: (-float(scores[row]), index.unit_ids[row]),
     )
     return _candidates(index, weights, scores, ordered[:depth], shared), int(positive_rows.size)
+
+
+@dataclass(frozen=True, eq=False)
+class RelevanceHop:
+    """One relevance-ordered hop: a list per `alpha > 0`, `|C(q)|` and the seconds of `sim`."""
+
+    lists: dict[float, list[RankedCandidate]]
+    positives: int
+    sim_seconds: float
+
+
+def relevance_hop_columnwise(
+    index: NodeIndex,
+    weights: np.ndarray,
+    columns: ArmColumns,
+    *,
+    p1: int,
+    read: Collection[int],
+    depth: int,
+    vectors: np.ndarray,
+    question_vector: np.ndarray,
+    alphas: Sequence[float],
+) -> RelevanceHop:
+    """Phase 14 (D1, D2): the Phase 9 candidate set, ordered by rarity mixed with similarity.
+
+    The rarity score `r(c)` is `node_hop_columnwise`'s, computed the same way: the weights of
+    P1's arm nodes, in ascending node id, added to the rows holding them. `C(q)` is every
+    positive row outside `read`, with no cap. `sim` is taken once over `C(q)` with
+    `phase14.candidate_similarity` (float32, from `vectors`, whose rows are the index's rows);
+    both terms are min-max normalized over `C(q)` and mixed in float64, then ranked by score,
+    then unit id, and cut at `depth`. Each listed candidate carries `score_alpha` and its
+    shared nodes. `alpha = 0` is refused: it is `node_hop_columnwise` itself (D2), which the
+    caller returns unchanged. The Phase 9-13 functions are left untouched.
+    """
+    if any(alpha <= 0.0 for alpha in alphas):
+        raise ValueError("alpha = 0 is the Phase 9 hop: call node_hop_columnwise for it")
+    incidence = index.incidence
+    p1_nodes = incidence.indices[incidence.indptr[p1] : incidence.indptr[p1 + 1]]
+    shared = np.sort(p1_nodes[columns.mask[p1_nodes]])
+    scores = np.zeros(incidence.shape[0])
+    for node in shared:
+        rows = columns.indices[columns.indptr[node] : columns.indptr[node + 1]]
+        scores[rows] += weights[node]
+    excluded = np.zeros(incidence.shape[0], dtype=bool)
+    excluded[list(read)] = True
+    positive_rows = np.nonzero((scores > 0.0) & ~excluded)[0]
+    if positive_rows.size == 0:
+        return RelevanceHop({alpha: [] for alpha in alphas}, 0, 0.0)
+
+    started = time.perf_counter()
+    similarity = phase14.candidate_similarity(vectors, positive_rows, question_vector)
+    sim_seconds = time.perf_counter() - started
+    r_hat = phase14.min_max(scores[positive_rows])
+    s_hat = phase14.min_max(similarity)
+    lists: dict[float, list[RankedCandidate]] = {}
+    for alpha in alphas:
+        mixed = phase14.mixed_scores(r_hat, s_hat, alpha)
+        ranked = phase14.rank_cut(positive_rows, mixed, index.unit_ids, depth)
+        candidates = _candidates(index, weights, scores, [row for row, _ in ranked], shared)
+        lists[alpha] = [
+            replace(candidate, score=score)
+            for candidate, (_row, score) in zip(candidates, ranked, strict=True)
+        ]
+    return RelevanceHop(lists, int(positive_rows.size), sim_seconds)
