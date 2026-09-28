@@ -183,3 +183,26 @@ def label(wins: int, losses: int, p: float) -> str:
     if losses > wins and p < alpha:
         return REGRESSION
     return NOT_SUPPORTED
+
+
+# --- D3: the reproduction ---------------------------------------------------------------------
+
+
+def reproduction_verdict(
+    observed: int, differing_qids: Sequence[str], lists_differing_qids: Sequence[str]
+) -> dict[str, Any]:
+    """D3: exactly P10-C's dev count, no question moved, no `alpha = 0` hop list moved.
+
+    The shape of `phase13.reproduction_verdict`, with Phase 14's point.
+    """
+    weights = dict(zip(config.PHASE_14_COMPONENT_NAMES, config.PHASE_14_P10C_WEIGHTS, strict=True))
+    recorded = config.PHASE_14_P10C_DEV_SUPPORTED
+    return {
+        "metric": "full_support@2048_tokens over the 7,405 dev questions",
+        "point": {"alpha": config.PHASE_14_P10C_ALPHA, "weights": weights},
+        "observed": int(observed),
+        "recorded": recorded,
+        "differing_qids": sorted(differing_qids),
+        "hop_list_differing_qids": sorted(lists_differing_qids),
+        "passed": observed == recorded and not differing_qids and not lists_differing_qids,
+    }

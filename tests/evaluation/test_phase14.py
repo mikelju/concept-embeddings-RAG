@@ -184,3 +184,18 @@ def test_the_label_on_constructed_counts():
         p14.REGRESSION,
         p14.DEV_STOP,
     }
+
+
+# --- D3: the reproduction ---------------------------------------------------------------------
+
+
+def test_the_reproduction_passes_only_on_the_exact_count_with_nothing_moved():
+    assert p14.reproduction_verdict(4801, [], [])["passed"]
+    assert p14.reproduction_verdict(4801, [], [])["point"] == {
+        "alpha": 0.0,
+        "weights": {"dense": 0.5, "bm25": 0.3, "relevance-hop": 0.2},
+    }
+    assert not p14.reproduction_verdict(4800, [], [])["passed"]
+    assert not p14.reproduction_verdict(4801, ["q2", "q1"], [])["passed"]
+    assert p14.reproduction_verdict(4801, ["q2", "q1"], [])["differing_qids"] == ["q1", "q2"]
+    assert not p14.reproduction_verdict(4801, [], ["q3"])["passed"]

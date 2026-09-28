@@ -48,6 +48,7 @@
     p13-screen      the D3 screen: W against T1 and T2 over the 2,651 bridge items (Phase 13)
     p13-lists       the window-seeded hop dev lists at every m and the D4 reproduction
     p13-fit         the 264-point grid on dev, the tie rule and the dev gate (Phase 13)
+    p14-lists       D1 integrity, the relevance-ordered hop dev lists and the D3 reproduction
 
 Each stage is idempotent and refuses to run if its input is missing, saying which
 stage to run first rather than failing somewhere deep inside numpy.
@@ -151,6 +152,7 @@ from concept_embeddings_rag.evaluation import (
     phase11,
     phase12,
     phase13,
+    phase14,
     scale_sensitivity,
     strong_dense,
 )
@@ -267,6 +269,7 @@ from concept_embeddings_rag.retrieval.entity_hop import (
     ColumnwiseEntityHopStage,
     EntityHopStage,
     QuestionEntityHop,
+    RelevanceHopStage,
     SentenceSeededHopStage,
     WindowSeededHopStage,
 )
@@ -6459,6 +6462,317 @@ def cmd_p13_fit(
     return path
 
 
+# --- Phase 14: ordering the hop's candidates by their similarity to the question ----------
+
+P14_DEV_LISTS = "dev-lists.jsonl.gz"
+P14_DEV_LISTS_MANIFEST = "dev-lists.json"
+P14_REPRODUCTION_NAME = "reproduction.json"
+
+
+def _p14_write_once(name: str, body: Mapping[str, Any], target_dir: Path) -> Path:
+    path = Path(target_dir) / name
+    if path.exists():
+        _die(f"{path} already exists; a Phase 14 artifact is written once")
+    Path(target_dir).mkdir(parents=True, exist_ok=True)
+    write_text_atomic(path, json.dumps(dict(body), indent=2, sort_keys=True))
+    return path
+
+
+def _p14_peak_memory_mb() -> float | None:
+    """This process's peak memory in MiB: the peak working set on Windows, VmHWM on Linux.
+
+    The Windows figure comes from `GetProcessMemoryInfo` through the standard library's
+    `ctypes`, since no memory-probing package is a dependency; `None` when neither is readable.
+    """
+    if sys.platform == "win32":
+        import ctypes
+        from ctypes import wintypes
+
+        class Counters(ctypes.Structure):
+            _fields_ = [
+                ("cb", wintypes.DWORD),
+                ("PageFaultCount", wintypes.DWORD),
+                ("PeakWorkingSetSize", ctypes.c_size_t),
+                ("WorkingSetSize", ctypes.c_size_t),
+                ("QuotaPeakPagedPoolUsage", ctypes.c_size_t),
+                ("QuotaPagedPoolUsage", ctypes.c_size_t),
+                ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t),
+                ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
+                ("PagefileUsage", ctypes.c_size_t),
+                ("PeakPagefileUsage", ctypes.c_size_t),
+            ]
+
+        counters = Counters()
+        counters.cb = ctypes.sizeof(Counters)
+        kernel32 = ctypes.WinDLL("kernel32")
+        psapi = ctypes.WinDLL("psapi")
+        kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+        psapi.GetProcessMemoryInfo.argtypes = [
+            wintypes.HANDLE,
+            ctypes.POINTER(Counters),
+            wintypes.DWORD,
+        ]
+        handle = kernel32.GetCurrentProcess()
+        if not psapi.GetProcessMemoryInfo(handle, ctypes.byref(counters), counters.cb):
+            return None
+        return float(counters.PeakWorkingSetSize) / (1024.0 * 1024.0)
+    return phase9.peak_memory()["peak_rss_mb"]
+
+
+def _p14_passage_vectors(source_dir: Path, unit_ids: Sequence[str]) -> tuple[np.ndarray, str]:
+    """The Phase 9 passage vectors, one row per entity-index row, digest-checked (C1).
+
+    Loaded whole with `EmbeddingCache.load` against the index's unit ids: a cache whose rows
+    are not those units in that order stops the stage. Returns the vectors and their digest.
+    """
+    embedding = json.loads((source_dir / phase9.EMBEDDING_FILENAME).read_text("utf-8"))
+    try:
+        loaded = EmbeddingCache(source_dir / "cache").load(
+            str(embedding["corpus_cache_key"]), expected_unit_ids=list(unit_ids)
+        )
+    except CacheAlignmentError as error:
+        _die(f"the passage vector rows are not the entity index rows in its order: {error}")
+    if loaded is None:
+        _die("the FullWiki vectors are missing: run 'fullwiki-build --stage embed'")
+    vectors = loaded[0]
+    digest = phase9.vectors_digest(vectors)
+    if digest != embedding["vectors_digest"]:
+        _die("the FullWiki vectors do not match the vectors_digest embedding.json records")
+    return vectors, digest
+
+
+def cmd_p14_lists(
+    source_dir: Path = config.PHASE_9_DIR,
+    phase10_dir: Path = config.PHASE_10_DIR,
+    target_dir: Path = config.PHASE_14_DIR,
+) -> Path:
+    """S3 (D1, D3): the integrity check, the relevance-ordered hop dev lists, the reproduction.
+
+    Dense and BM25 are not re-run: P1, `read(q)` and both lists come from the Phase 10 dev
+    lists, digest-checked. D1 runs first, over every dev question: `sim(P1)` recomputed from
+    the Phase 9 passage vectors must equal the Dense score Phase 10 recorded for P1 within
+    the tolerance, or the stage stops with nothing written. Then the hop list at every
+    `alpha`, the 2,651 bridge items' first-5 and depth-100 counts (D8), and D3: the
+    `alpha = 0` list must equal Phase 10's hop list for every question, and P14 at
+    `alpha = 0, 0.5 / 0.3 / 0.2` must give 4,801 with no question's outcome moved.
+    """
+    source_dir, phase10_dir, target_dir = Path(source_dir), Path(phase10_dir), Path(target_dir)
+    for name in (P14_REPRODUCTION_NAME, P14_DEV_LISTS_MANIFEST):
+        if (target_dir / name).exists():
+            _die(f"{target_dir / name} already records this stage's output")
+    started = time.perf_counter()
+    rows10, dev_lists_digest = _p13_phase10_dev_lists(phase10_dir)
+    questions, token_counts = _p11_dev_inputs(source_dir)
+    if [r["qid"] for r in rows10] != [q.qid for q in questions]:
+        _die("the Phase 10 dev lists are not in the dev question order")
+    index, index_record = _p11_entity_index(source_dir)
+    vectors, passage_digest = _p14_passage_vectors(source_dir, index.unit_ids)
+    question_key = _p13_question_cache_key(source_dir)
+    if question_key != config.PHASE_14_DEV_QUESTION_VECTORS_KEY:
+        _die(f"the dev question cache is {question_key}, not the key D1 names")
+    query_backend = _p12_dev_question_vector(source_dir, questions)
+
+    def question_vector(text: str) -> np.ndarray:
+        return query_backend.encode([text])[0]
+
+    row_of = {unit_id: row for row, unit_id in enumerate(index.unit_ids)}
+    load_seconds = time.perf_counter() - started
+    print(f"[INFO] inputs loaded in {load_seconds / 60:.1f} min", flush=True)
+
+    # D1 first: nothing is written unless every dev question passes.
+    recomputed: dict[str, float] = {}
+    recorded: dict[str, float] = {}
+    for row10 in rows10:
+        p1, p1_score = row10["dense"][0]
+        rows = np.array([row_of[p1]])
+        similarity = phase14.candidate_similarity(vectors, rows, question_vector(row10["question"]))
+        recomputed[row10["qid"]] = float(similarity[0])
+        recorded[row10["qid"]] = float(p1_score)
+    integrity = phase14.integrity_verdict(recomputed, recorded, config.PHASE_14_SIM_TOLERANCE)
+    if not integrity["passed"]:
+        offending = integrity["offending_qids"]
+        _die(
+            f"D1 integrity miss on {len(offending)} of {integrity['questions']} dev questions "
+            f"(max |difference| {integrity['max_abs_difference']:.3g}, tolerance "
+            f"{integrity['tolerance']:g}): {', '.join(offending[:20])}"
+            f"{' ...' if len(offending) > 20 else ''}; nothing was written"
+        )
+    print(
+        f"[OK] D1 integrity: {integrity['questions']} questions, max |difference| "
+        f"{integrity['max_abs_difference']:.3g}",
+        flush=True,
+    )
+
+    weights = node_weights(index)
+    columns = ColumnwiseEntityHopStage.columns_for(index)
+    mask = _p13_arm_mask(index)
+    stage = RelevanceHopStage(
+        index,
+        weights,
+        columns=columns,
+        vectors=vectors,
+        question_vector=question_vector,
+        alpha=config.PHASE_14_P10C_ALPHA,
+    )
+    alphas = config.PHASE_14_ALPHAS
+    keys = {alpha: phase14.alpha_key(alpha) for alpha in alphas}
+    zero_key = keys[config.PHASE_14_P10C_ALPHA]
+
+    depth = config.PHASE_9_RANKING_DEPTH
+    rows_out: list[dict[str, Any]] = []
+    lists_differing: list[str] = []
+    positives: dict[float, list[int]] = {alpha: [] for alpha in alphas}
+    first5: dict[float, int] = dict.fromkeys(alphas, 0)
+    in_list: dict[float, int] = dict.fromkeys(alphas, 0)
+    n_items = 0
+    lists_started = time.perf_counter()
+    for position, (row10, question) in enumerate(zip(rows10, questions, strict=True), start=1):
+        first = row10["dense"]
+        expansions = stage.hop_all(row10["question"], first, depth, alphas)
+        row: dict[str, Any] = {
+            "qid": row10["qid"],
+            "question": row10["question"],
+            "dense": first,
+            "bm25": row10["bm25"],
+            "positives": {},
+        }
+        for alpha in alphas:
+            expansion = expansions[alpha]
+            row[keys[alpha]] = [(c.unit_id, c.score) for c in expansion.candidates]
+            row["positives"][keys[alpha]] = expansion.positives
+            positives[alpha].append(expansion.positives)
+        if row[zero_key] != row10[config.ENTITY_HOP_NAME]:
+            lists_differing.append(row10["qid"])
+
+        p1 = first[0][0]
+        items = phase13.screen_population(
+            dense_top10=[unit_id for unit_id, _score in first[:10]],
+            gold=question.gold_unit_ids,
+            p1_nodes=_p13_entity_nodes(index, mask, row_of, p1),
+            nodes_of=lambda u: _p13_entity_nodes(index, mask, row_of, u) if u in row_of else None,
+        )
+        n_items += len(items)
+        for gold, _bridge in items:
+            for alpha in alphas:
+                ids = [unit_id for unit_id, _score in row[keys[alpha]]]
+                if gold in ids:
+                    in_list[alpha] += 1
+                    first5[alpha] += ids.index(gold) < 5
+        rows_out.append(row)
+        if position % 500 == 0:
+            elapsed = time.perf_counter() - lists_started
+            print(
+                f"[INFO] dev lists {position}/{len(rows10)} in {elapsed / 60:.1f} min", flush=True
+            )
+    lists_seconds = time.perf_counter() - lists_started
+    if n_items != config.PHASE_13_SCREEN_POPULATION:
+        _die(
+            f"{n_items} bridge items, not the {config.PHASE_13_SCREEN_POPULATION} Phase 13 "
+            "recorded; nothing was written"
+        )
+
+    names = ["dense", "bm25", *(keys[alpha] for alpha in alphas)]
+    text = "".join(json.dumps(row, sort_keys=True) + "\n" for row in rows_out)
+    target_dir.mkdir(parents=True, exist_ok=True)
+    temporary = target_dir / (P14_DEV_LISTS + ".tmp")
+    with temporary.open("wb") as raw, gzip.GzipFile(fileobj=raw, mode="wb", mtime=0) as packed:
+        packed.write(text.encode("utf-8"))
+    temporary.replace(target_dir / P14_DEV_LISTS)
+
+    sim_seconds = np.asarray(stage.sim_seconds, dtype=np.float64)
+    manifest = {
+        "rows": len(rows_out),
+        "digest": digest_of(text),
+        "lists": names,
+        "alphas": list(alphas),
+        "depth": depth,
+        "phase10_dev_lists_digest": dev_lists_digest,
+        "entity_index_digest": index_record["entity_index_digest"],
+        "passage_vectors_digest": passage_digest,
+        "question_vectors_key": question_key,
+        "question_vectors_digest": phase9.vectors_digest(
+            np.stack([question_vector(r["question"]) for r in rows10])
+        ),
+        "integrity": integrity,
+        "candidates_per_question": phase13.list_summary(positives[alphas[-1]]),
+        "candidates_per_question_by_alpha": {
+            keys[alpha]: phase13.list_summary(positives[alpha]) for alpha in alphas
+        },
+        "candidate_pairs": int(sum(positives[alphas[-1]])),
+        "bridge_items": {
+            "population": n_items,
+            "in_list": {keys[alpha]: in_list[alpha] for alpha in alphas},
+            "first_5": {keys[alpha]: first5[alpha] for alpha in alphas},
+        },
+        "sim_seconds": {
+            "total": float(sim_seconds.sum()),
+            "mean": float(sim_seconds.mean()) if sim_seconds.size else 0.0,
+            "max": float(sim_seconds.max()) if sim_seconds.size else 0.0,
+        },
+        "load_seconds": load_seconds,
+        "lists_seconds": lists_seconds,
+        "peak_memory_mb": _p14_peak_memory_mb(),
+        "peak_memory_probe": (
+            "Windows PeakWorkingSetSize" if sys.platform == "win32" else "Linux VmHWM"
+        ),
+        "code_commit": _git_commit(),
+        "host": local_extraction.hardware_block(device="cpu"),
+        "seconds": time.perf_counter() - started,
+    }
+    _p14_write_once(P14_DEV_LISTS_MANIFEST, manifest, target_dir)
+    bridge = manifest["bridge_items"]
+    print(
+        f"[INFO] bridge items {n_items}: first-5 {bridge['first_5']}, "
+        f"depth-100 {bridge['in_list']}",
+        flush=True,
+    )
+
+    p10c_weights = config.PHASE_14_P10C_WEIGHTS
+    control = [
+        (
+            r["question"],
+            fuse_lists(
+                (r["dense"], r["bm25"], r[config.ENTITY_HOP_NAME]), p10c_weights, top_k=depth
+            ),
+        )
+        for r in rows10
+    ]
+    candidate = [
+        (
+            r["question"],
+            fuse_lists((r["dense"], r["bm25"], r[zero_key]), p10c_weights, top_k=depth),
+        )
+        for r in rows_out
+    ]
+    name = config.PHASE_14_SYSTEMS[2]
+    control_records = _p10_replay_records(name, control, questions, token_counts)
+    candidate_records = _p10_replay_records(name, candidate, questions, token_counts)
+    budget = str(config.PHASE_9_PRIMARY_BUDGET)
+    differing = [
+        c["qid"]
+        for c, d in zip(control_records, candidate_records, strict=True)
+        if c["budgets"][budget]["full_support"] != d["budgets"][budget]["full_support"]
+    ]
+    verdict = phase14.reproduction_verdict(
+        phase10.supported(candidate_records), differing, lists_differing
+    )
+    body = {
+        **verdict,
+        "control_observed": phase10.supported(control_records),
+        "dev_lists_digest": manifest["digest"],
+        "code_commit": _git_commit(),
+    }
+    path = _p14_write_once(P14_REPRODUCTION_NAME, body, target_dir)
+    print(
+        f"[INFO] P14 at alpha=0: {body['observed']} (recorded {body['recorded']}), "
+        f"{len(differing)} outcomes and {len(lists_differing)} lists differ"
+    )
+    if not body["passed"]:
+        _die(f"the new code does not reproduce P10-C on dev; see {path}")
+    print(f"[OK] P10-C reproduced on dev -> {path}")
+    return path
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="cer",
@@ -6772,6 +7086,10 @@ def build_parser() -> argparse.ArgumentParser:
         "p13-fit",
         help="Phase 13: the 264-point grid on dev, the tie rule and the dev gate",
     )
+    subparsers.add_parser(
+        "p14-lists",
+        help="Phase 14: D1 integrity, the relevance-ordered hop dev lists, D3 reproduction",
+    )
     build.add_argument(
         "--smoke",
         type=int,
@@ -6914,6 +7232,8 @@ def main(argv: list[str] | None = None) -> int:
         cmd_p13_lists()
     elif args.command == "p13-fit":
         cmd_p13_fit()
+    elif args.command == "p14-lists":
+        cmd_p14_lists()
     return 0
 
 
