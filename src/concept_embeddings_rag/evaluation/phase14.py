@@ -1,0 +1,185 @@
+"""Phase 14: ordering the hop's candidates by their similarity to the question.
+
+`14.spec.md` (approved 2026-09-28) fixes every rule here before any Phase 14 number exists.
+The Phase 9 hop's candidate set is unchanged: every paragraph outside `read(q)` sharing an
+entity node with P1. What is new is the order and the score the fusion reads (D2): each
+candidate's rarity overlap with P1 and its BGE similarity to the question (D1) are min-max
+normalized over the question's whole candidate set and mixed as
+`(1 - alpha) * r_hat + alpha * s_hat`. At `alpha = 0` the Phase 9 hop is returned unchanged.
+
+This module holds those rules as pure functions over plain arrays, plus the D4 grid and tie
+rule, the D5 gate, the D1 integrity check, the D8 Dense-rank split and the D6 label. It
+imports no evaluation runner, because `evaluation.second_hop` and `retrieval.entity_hop`
+import it. The runtime stage lives in `retrieval/entity_hop.py`.
+"""
+
+from collections.abc import Collection, Mapping, Sequence
+from typing import Any
+
+import numpy as np
+
+from concept_embeddings_rag import config
+from concept_embeddings_rag.evaluation import phase12
+
+SUPPORTED = "CANDIDATE_RELEVANCE_SUPPORTED"
+NOT_SUPPORTED = "CANDIDATE_RELEVANCE_NOT_SUPPORTED"
+REGRESSION = "CANDIDATE_RELEVANCE_REGRESSION"
+DEV_STOP = "DEV_STOP"
+
+
+class Phase14Error(Exception):
+    """A Phase 14 input is missing, modified, or not the one this run may use."""
+
+
+# --- D1, D2: similarity, normalization, mixing and the ranking ------------------------------
+
+
+def candidate_similarity(
+    vectors: np.ndarray, rows: np.ndarray, question_vector: np.ndarray
+) -> np.ndarray:
+    """`sim(c) = v_q . v_c` in float32 over the gathered rows (D1).
+
+    Both sides are L2-normalized, so the dot product is the cosine. This is the one function
+    dev and `test-11` share; it never reuses Dense's own score vector.
+    """
+    gathered = vectors[rows].astype(np.float32, copy=False)
+    return gathered @ np.asarray(question_vector, dtype=np.float32)
+
+
+def min_max(values: np.ndarray) -> np.ndarray:
+    """D2's per-question normalization in float64; 0 everywhere when max equals min."""
+    values = np.asarray(values, dtype=np.float64)
+    low, high = values.min(), values.max()
+    if high == low:
+        return np.zeros_like(values)
+    return (values - low) / (high - low)
+
+
+def mixed_scores(r_hat: np.ndarray, s_hat: np.ndarray, alpha: float) -> np.ndarray:
+    """`score_alpha = (1 - alpha) * r_hat + alpha * s_hat`, both terms already normalized."""
+    return (1.0 - alpha) * r_hat + alpha * s_hat
+
+
+def rank_cut(
+    rows: np.ndarray, scores: np.ndarray, unit_ids: Sequence[str], depth: int
+) -> list[tuple[int, float]]:
+    """`(row, score)` by score descending, then unit id ascending, cut at `depth` (D2).
+
+    `scores` is aligned with `rows`; `unit_ids` is indexed by row. As in
+    `second_hop.node_hop_columnwise`, the rows strictly above the depth-th best score, plus
+    the tied rows at it, are sorted and cut: the head of a full sort, without sorting the rest.
+    """
+    kept = np.arange(rows.size)
+    if rows.size > depth:
+        threshold = -np.partition(-scores, depth - 1)[depth - 1]
+        kept = np.nonzero(scores >= threshold)[0]
+    ordered = sorted(
+        (int(i) for i in kept), key=lambda i: (-float(scores[i]), unit_ids[int(rows[i])])
+    )
+    return [(int(rows[i]), float(scores[i])) for i in ordered[:depth]]
+
+
+# --- D4, D5: the grid, the tie rule and the dev gate ------------------------------------------
+
+
+def alpha_key(alpha: float) -> str:
+    """The dev-list / grid key for one alpha, e.g. `relevance-hop@alpha=0.25`."""
+    return f"{config.PHASE_14_COMPONENT_NAMES[2]}@alpha={alpha:.2f}"
+
+
+def grid_points(
+    alphas: Sequence[float] = config.PHASE_14_ALPHAS,
+) -> list[tuple[float, tuple[float, float, float]]]:
+    """The 5 alphas x the 66 convex weight triples: 330 points (D4)."""
+    triples = phase12.weight_grid(config.PHASE_14_GRID_TENTHS)
+    return [(alpha, weights) for alpha in alphas for weights in triples]
+
+
+def selection_key(point: Mapping[str, Any]) -> tuple[Any, ...]:
+    """D4, in order: Full Support; gold recall; smaller alpha; larger w_dense, larger w_bm25."""
+    w_dense, w_bm25, _w_hop = point["weights"]
+    return (point["supported"], point["gold_recall_sum"], -point["alpha"], w_dense, w_bm25)
+
+
+def choose_point(curve: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    best: Mapping[str, Any] = max(curve, key=selection_key)
+    return dict(best)
+
+
+def dev_gate(chosen: Mapping[str, Any]) -> str | None:
+    """D5: `DEV_STOP` below the bar (P10-C's 4,801 plus 34, 4,835)."""
+    return None if chosen["supported"] >= config.PHASE_14_DEV_BAR else DEV_STOP
+
+
+# --- D1: the integrity check ------------------------------------------------------------------
+
+
+def integrity_verdict(
+    recomputed: Mapping[str, float],
+    recorded: Mapping[str, float],
+    tolerance: float = config.PHASE_14_SIM_TOLERANCE,
+) -> dict[str, Any]:
+    """D1: every recomputed `sim(P1)` within `tolerance` of Dense's recorded score for P1."""
+    if set(recomputed) != set(recorded):
+        raise Phase14Error("the integrity check must compare the same questions")
+    differences = {qid: abs(float(recomputed[qid]) - float(recorded[qid])) for qid in recorded}
+    offending = sorted(qid for qid, difference in differences.items() if difference > tolerance)
+    return {
+        "questions": len(differences),
+        "tolerance": tolerance,
+        "max_abs_difference": max(differences.values(), default=0.0),
+        "offending_qids": offending,
+        "passed": not offending,
+    }
+
+
+# --- D8: where the gains come from ------------------------------------------------------------
+
+
+def dense_rank_class(rank: int | None) -> str:
+    """A 1-based Dense rank's class: `1-10`, `11-100`, or `beyond-100` (absent from depth 100)."""
+    if rank is None or rank > 100:
+        return "beyond-100"
+    return "1-10" if rank <= 10 else "11-100"
+
+
+def coverage_changes(
+    *,
+    gold: Sequence[str],
+    candidate_context: Collection[str],
+    control_context: Collection[str],
+    dense_ranks: Mapping[str, int],
+) -> list[dict[str, Any]]:
+    """Each gold paragraph in one system's 2,048-token context and not the other's (D8).
+
+    `gained` when only the candidate's context holds it, `lost` when only the control's does;
+    `dense_ranks` maps a unit to its 1-based rank in the Dense list (depth 100).
+    """
+    changes: list[dict[str, Any]] = []
+    for unit_id in gold:
+        in_candidate, in_control = unit_id in candidate_context, unit_id in control_context
+        if in_candidate == in_control:
+            continue
+        rank = dense_ranks.get(unit_id)
+        changes.append(
+            {
+                "unit_id": unit_id,
+                "change": "gained" if in_candidate else "lost",
+                "dense_rank": rank,
+                "dense_class": dense_rank_class(rank),
+            }
+        )
+    return changes
+
+
+# --- D6: the label ----------------------------------------------------------------------------
+
+
+def label(wins: int, losses: int, p: float) -> str:
+    """D6, from P14 against P10-C only; the secondary comparison (D7) takes no part in it."""
+    alpha = config.PHASE_9_ALPHA
+    if wins > losses and p < alpha:
+        return SUPPORTED
+    if losses > wins and p < alpha:
+        return REGRESSION
+    return NOT_SUPPORTED
