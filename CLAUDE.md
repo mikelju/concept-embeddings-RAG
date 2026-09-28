@@ -38,8 +38,9 @@ What is established (figures and full records in each phase's `X.results.md`):
 
 **Current state (2026-09-28):** Phase 13 (bridge entity by a mention window) closed with
 `DEV_STOP` (`phase_13/13.results.md`): P10-C stays the best system and `test-11` stays unopened.
-The next phase is the author's decision. If this line and the master plan disagree, the master
-plan wins; fix this line.
+Phase 14 (ordering the hop's candidates by similarity to the question) has an approved spec; next
+is its plan. Entity canonicalization follows as Phase 15. If this line and the master plan
+disagree, the master plan wins; fix this line.
 
 ## Where things live
 

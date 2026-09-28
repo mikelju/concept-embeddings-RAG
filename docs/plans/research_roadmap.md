@@ -567,6 +567,12 @@ These should only be introduced after a concrete failure mode motivates them.
 
 ## 8.1 Entity canonicalization
 
+**Scheduled as Phase 15 (author, 2026-09-28)**, after Phase 14 closes, starting with route A of
+[`phase_14/14.spec.md`](phase_14/14.spec.md) step 0: a strict string rule (one form a full word
+sequence of the other), on the laptop, no LLM. Its dev reach ceiling is +157 questions on top of
+perfect ordering (lenient rule +282); see [`phase_13/13.results.md`](phase_13/13.results.md),
+"Reach ceilings".
+
 Current raw forms may split:
 
 ```text
