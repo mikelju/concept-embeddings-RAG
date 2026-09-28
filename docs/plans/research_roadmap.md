@@ -517,6 +517,17 @@ showing a real ceiling. The reading, a hypothesis and not a measurement, is that
 sentence-similarity score, without the entity's relation to the question, cannot reach that
 ceiling.
 
+**Phase 13 evidence (2026-09-28, dev).** Phase 13 scored each of P1's entities by BGE
+similarity between the question and the 5 words around its mention (mention masked), and hopped
+only from the `m` best-scored entities, ordering candidates by their full overlap with P1. It
+ended in `DEV_STOP` ([`phase_13/13.results.md`](phase_13/13.results.md)). The entity-level signal
+exists: it puts a bridge entity first for 40.78 % of the 2,651 bridge-sharing gold paragraphs,
+against 19.01 % for the best trivial rule. But as a hard seed filter it lowers the hop's first-5
+bridge count at every `m` (429-568 against 590) and the best dev point is P10-C's own. The reading,
+a hypothesis: Phases 12 and 13 both used the question to *remove* part of the query-blind hop, and
+the removal is what fails. Using the entity ranking as a *weight* on the hop score (seeds weighted
+softly) was excluded by both specs and is untested.
+
 ---
 
 ## 7.3 QA end to end
