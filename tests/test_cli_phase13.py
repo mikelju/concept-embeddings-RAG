@@ -69,6 +69,16 @@ def test_lists_refuse_a_second_run(tmp_path, monkeypatch):
         cli.cmd_p13_lists(target_dir=tmp_path)
 
 
+def test_lists_refuse_when_the_lists_already_exist(tmp_path, monkeypatch):
+    # A crash between the lists and the reproduction must not let a rerun rewrite the lists.
+    write(tmp_path, cli.P13_DEV_LISTS_MANIFEST, {"digest": "recorded"})
+    monkeypatch.setattr(
+        cli, "_p10_json", lambda *a, **k: pytest.fail("no input read after the refusal")
+    )
+    with pytest.raises(SystemExit, match="already records"):
+        cli.cmd_p13_lists(target_dir=tmp_path)
+
+
 def test_lists_refuse_without_a_screen(tmp_path):
     with pytest.raises(SystemExit, match="screen.json does not exist"):
         cli.cmd_p13_lists(target_dir=tmp_path)

@@ -127,10 +127,10 @@ bridge-sharing gold paragraphs, against 19.01 % for the best trivial rule. The n
 P10-C exactly (4,801 / 7,405). But across the 264-point dev fit the best point is P10-C's own
 (`m = all`), at 4,801 against the bar of 4,834: every `m` below `all` loses questions (4,643 /
 4,740 / 4,765) and lowers the hop's first-5 bridge count (429 / 541 / 568 against 590). Under the
-spec's rule each restricted list is the P10-C hop list with seedless candidates removed, so an
-imperfect entity ranking used as a hard filter drops more bridges than it promotes. The reading,
-a hypothesis, is that the signal should be used as a weight, not a gate; that form was excluded
-and is untested. See [`phase_13/13.results.md`](phase_13/13.results.md), the spec
+spec's rule each restricted list is P10-C's hop ranking filtered to seed holders, so the filter
+can only promote a bridge by removing competitors and drops it whenever the ranking misses it.
+The reading, a hypothesis, is that the signal should be used as a weight, not a gate; that form
+was excluded and is untested. See [`phase_13/13.results.md`](phase_13/13.results.md), the spec
 [`phase_13/13.spec.md`](phase_13/13.spec.md) and the plan
 [`phase_13/13.0_bridge_window.md`](phase_13/13.0_bridge_window.md).
 

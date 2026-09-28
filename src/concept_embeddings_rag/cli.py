@@ -6201,8 +6201,9 @@ def cmd_p13_lists(
     4,801 with no question's outcome moved; a miss stops the phase.
     """
     source_dir, phase10_dir, target_dir = Path(source_dir), Path(phase10_dir), Path(target_dir)
-    if (target_dir / P13_REPRODUCTION_NAME).exists():
-        _die(f"{target_dir / P13_REPRODUCTION_NAME} already records the reproduction")
+    for name in (P13_REPRODUCTION_NAME, P13_DEV_LISTS_MANIFEST):
+        if (target_dir / name).exists():
+            _die(f"{target_dir / name} already records this stage's output")
     screen = _p13_passing_screen(target_dir)
     started = time.perf_counter()
     rows10, dev_lists_digest = _p13_phase10_dev_lists(phase10_dir)

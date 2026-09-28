@@ -525,7 +525,7 @@ exists: it puts a bridge entity first for 40.78 % of the 2,651 bridge-sharing go
 against 19.01 % for the best trivial rule. But as a hard seed filter it lowers the hop's first-5
 bridge count at every `m` (429-568 against 590) and the best dev point is P10-C's own. The reading,
 a hypothesis: Phases 12 and 13 both used the question to *remove* part of the query-blind hop, and
-the removal is what fails. Using the entity ranking as a *weight* on the hop score (seeds weighted
+the removal, not the signal, may be what fails. Using the entity ranking as a *weight* on the hop score (seeds weighted
 softly) was excluded by both specs and is untested.
 
 ---
