@@ -49,6 +49,7 @@
     p13-lists       the window-seeded hop dev lists at every m and the D4 reproduction
     p13-fit         the 264-point grid on dev, the tie rule and the dev gate (Phase 13)
     p14-lists       D1 integrity, the relevance-ordered hop dev lists and the D3 reproduction
+    p14-fit         the 330-point grid on dev, the tie rule, the dev gate and D8 (Phase 14)
 
 Each stage is idempotent and refuses to run if its input is missing, saying which
 stage to run first rather than failing somewhere deep inside numpy.
@@ -156,7 +157,7 @@ from concept_embeddings_rag.evaluation import (
     scale_sensitivity,
     strong_dense,
 )
-from concept_embeddings_rag.evaluation.budget import TokenCounter
+from concept_embeddings_rag.evaluation.budget import TokenCounter, fill_context
 from concept_embeddings_rag.evaluation.cheap_extraction import (
     DEV_FILENAME,
     SELECTION_FILENAME,
@@ -6773,6 +6774,212 @@ def cmd_p14_lists(
     return path
 
 
+P14_FIT_NAME = "fit.json"
+
+
+def _p14_json(name: str, target_dir: Path = config.PHASE_14_DIR) -> dict[str, Any]:
+    path = Path(target_dir) / name
+    if not path.exists():
+        _die(f"{path} does not exist: run the Phase 14 stage that writes it first")
+    body: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+    return body
+
+
+def _p14_load_dev_lists(target_dir: Path) -> list[dict[str, Any]]:
+    """The S3 dev lists, checked against their manifest's digest; lists as `(unit, score)`."""
+    body = _p14_json(P14_DEV_LISTS_MANIFEST, target_dir)
+    text = gzip.decompress((target_dir / P14_DEV_LISTS).read_bytes()).decode("utf-8")
+    if digest_of(text) != body["digest"]:
+        _die(f"{P14_DEV_LISTS} does not match its recorded digest")
+    rows = [json.loads(line) for line in text.splitlines()]
+    for row in rows:
+        for name in body["lists"]:
+            row[name] = [(str(u), float(s)) for u, s in row[name]]
+    return rows
+
+
+def _p14_rankings(
+    rows: Sequence[Mapping[str, Any]], alpha: float, weights: Sequence[float]
+) -> list[tuple[str, list[Any]]]:
+    """Dense, BM25 and the hop at `alpha`, re-fused with `fuse_lists` exactly as P14 would."""
+    key, depth = phase14.alpha_key(alpha), config.PHASE_9_RANKING_DEPTH
+    return [
+        (r["question"], fuse_lists((r["dense"], r["bm25"], r[key]), weights, top_k=depth))
+        for r in rows
+    ]
+
+
+def _p14_dense_rank_split(
+    rows: Sequence[Mapping[str, Any]],
+    questions: Sequence[Question],
+    token_counts: Mapping[str, int],
+    *,
+    alpha: float,
+    weights: Sequence[float],
+) -> dict[str, Any]:
+    """D8 on dev: the point `(alpha, weights)` against P10-C, split by the gold's Dense rank.
+
+    Both rankings are re-fused from the same rows and replayed through the harness. The
+    2,048-token contexts are packed with `budget.fill_context` from the same ranked ids the
+    harness packs, and every question's won / lost / tie reading from those contexts must
+    match the Full Support the replayed records report, or the stage stops.
+    """
+    budget = config.PHASE_9_PRIMARY_BUDGET
+    name = config.PHASE_14_SYSTEMS[3]
+    candidate = _p14_rankings(rows, alpha, weights)
+    control = _p14_rankings(rows, config.PHASE_14_P10C_ALPHA, config.PHASE_14_P10C_WEIGHTS)
+    candidate_records = _p10_replay_records(name, candidate, questions, token_counts)
+    control_records = _p10_replay_records(name, control, questions, token_counts)
+    depth = config.PHASE_9_RANKING_DEPTH
+    entries: list[dict[str, Any]] = []
+    mismatched: list[str] = []
+    for row, question, (_q, cand), (_q2, ctrl), cand_rec, ctrl_rec in zip(
+        rows, questions, candidate, control, candidate_records, control_records, strict=True
+    ):
+        cand_context = fill_context([u for u, _s in cand[:depth]], token_counts, budget)
+        ctrl_context = fill_context([u for u, _s in ctrl[:depth]], token_counts, budget)
+        gold = question.gold_unit_ids
+        for context, record in ((cand_context, cand_rec), (ctrl_context, ctrl_rec)):
+            if float(set(gold) <= set(context)) != record["budgets"][str(budget)]["full_support"]:
+                mismatched.append(question.qid)
+        entries.append(
+            {
+                "qid": question.qid,
+                "gold": list(gold),
+                "candidate_context": cand_context,
+                "control_context": ctrl_context,
+                "dense_ids": [u for u, _s in row["dense"][:depth]],
+            }
+        )
+    if mismatched:
+        _die(
+            f"the D8 contexts disagree with the harness's Full Support on {len(mismatched)} "
+            f"questions: {', '.join(sorted(set(mismatched))[:20])}"
+        )
+    split = phase14.dense_rank_split(entries)
+    wins = sum(
+        c["budgets"][str(budget)]["full_support"] > d["budgets"][str(budget)]["full_support"]
+        for c, d in zip(candidate_records, control_records, strict=True)
+    )
+    losses = sum(
+        c["budgets"][str(budget)]["full_support"] < d["budgets"][str(budget)]["full_support"]
+        for c, d in zip(candidate_records, control_records, strict=True)
+    )
+    if (split["won"]["questions"], split["lost"]["questions"]) != (wins, losses):
+        _die("the D8 split's won and lost questions are not the harness's")
+    return {
+        "point": {"alpha": alpha, "weights": list(weights)},
+        "control": {
+            "alpha": config.PHASE_14_P10C_ALPHA,
+            "weights": list(config.PHASE_14_P10C_WEIGHTS),
+        },
+        "budget": budget,
+        "dense_rank_source": "the Phase 10 Dense list in the dev lists (depth 100)",
+        **split,
+    }
+
+
+def cmd_p14_fit(
+    source_dir: Path = config.PHASE_9_DIR, target_dir: Path = config.PHASE_14_DIR
+) -> Path:
+    """S4 (D4, D5, D8): the 330-point grid on the cached dev lists, the tie rule, the gate.
+
+    Requires the passing `reproduction.json` and the dev lists it checked. Every point
+    re-fuses the cached Dense, BM25 and hop-at-`alpha` lists and replays them through the
+    harness. With the fit, D8: the best point per `alpha`, the bridge-item counts from the
+    dev-lists manifest, and the Dense-rank split of the selected point against P10-C.
+    """
+    source_dir, target_dir = Path(source_dir), Path(target_dir)
+    reproduction = _p14_json(P14_REPRODUCTION_NAME, target_dir)
+    if not reproduction["passed"]:
+        _die("the reproduction did not pass; nothing is fitted")
+    if (target_dir / P14_FIT_NAME).exists():
+        _die(f"{target_dir / P14_FIT_NAME} already records the fit")
+    manifest = _p14_json(P14_DEV_LISTS_MANIFEST, target_dir)
+    if manifest["digest"] != reproduction["dev_lists_digest"]:
+        _die("the Phase 14 dev lists are not the ones the reproduction checked")
+    questions, token_counts = _p11_dev_inputs(source_dir)
+    rows = _p14_load_dev_lists(target_dir)
+    if [r["qid"] for r in rows] != [q.qid for q in questions]:
+        _die("the Phase 14 dev lists are not in the dev question order")
+
+    name = config.PHASE_14_SYSTEMS[3]
+    curve: list[dict[str, Any]] = []
+    started = time.perf_counter()
+    points = phase14.grid_points()
+    for alpha, weights in points:
+        records = _p10_replay_records(
+            name, _p14_rankings(rows, alpha, weights), questions, token_counts
+        )
+        curve.append(
+            {
+                "alpha": alpha,
+                "weights": list(weights),
+                "supported": phase10.supported(records),
+                "gold_recall_sum": phase10.gold_recall_sum(records),
+            }
+        )
+        if len(curve) % 50 == 0:
+            elapsed = time.perf_counter() - started
+            print(f"[INFO] {len(curve)}/{len(points)} points in {elapsed / 60:.1f} min", flush=True)
+
+    chosen = phase14.choose_point(curve)
+    p10c = next(
+        p
+        for p in curve
+        if p["alpha"] == config.PHASE_14_P10C_ALPHA
+        and tuple(p["weights"]) == config.PHASE_14_P10C_WEIGHTS
+    )
+    best_per_alpha = {
+        phase14.alpha_key(alpha): phase14.choose_point([p for p in curve if p["alpha"] == alpha])
+        for alpha in config.PHASE_14_ALPHAS
+    }
+    split = _p14_dense_rank_split(
+        rows, questions, token_counts, alpha=chosen["alpha"], weights=chosen["weights"]
+    )
+    body = {
+        "grid": "alpha in (0, 0.25, 0.5, 0.75, 1) x convex triples (dense, bm25, relevance-hop) "
+        "in tenths",
+        "n_points": len(curve),
+        "objective": "full_support@2048 over the 7,405 dev questions",
+        "tie_rule": (
+            "gold_recall@2048 sum; then the smaller alpha (closest to P10-C); "
+            "then the larger w_dense; then the larger w_bm25"
+        ),
+        "curve": curve,
+        "best_per_alpha": best_per_alpha,
+        "chosen": chosen,
+        "weights": dict(zip(config.PHASE_14_COMPONENT_NAMES, chosen["weights"], strict=True)),
+        "alpha": chosen["alpha"],
+        "p10c_point_in_grid": p10c,
+        "p10c_dev_supported": config.PHASE_14_P10C_DEV_SUPPORTED,
+        "dev_margin": config.PHASE_14_DEV_MARGIN,
+        "dev_bar": config.PHASE_14_DEV_BAR,
+        "terminal_state": phase14.dev_gate(chosen),
+        "d8": {
+            "best_supported_per_alpha": {
+                key: point["supported"] for key, point in best_per_alpha.items()
+            },
+            "bridge_items": manifest["bridge_items"],
+            "bridge_items_phase9": {"first_5": 590, "in_list": 1665},
+            "dense_rank_split": split,
+        },
+        "dev_lists_digest": reproduction["dev_lists_digest"],
+        "seconds": time.perf_counter() - started,
+        "host": local_extraction.hardware_block(device="cpu"),
+        "code_commit": _git_commit(),
+    }
+    path = _p14_write_once(P14_FIT_NAME, body, target_dir)
+    print(
+        f"[INFO] chosen alpha={chosen['alpha']} weights={chosen['weights']}: "
+        f"{chosen['supported']} of 7,405 against the bar of {body['dev_bar']}"
+    )
+    if body["terminal_state"] is not None:
+        _die(f"{body['terminal_state']} recorded in {path}; test-11 stays unopened")
+    print(f"[OK] fit written -> {path}; commit it before the held-out pass")
+    return path
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="cer",
@@ -7090,6 +7297,10 @@ def build_parser() -> argparse.ArgumentParser:
         "p14-lists",
         help="Phase 14: D1 integrity, the relevance-ordered hop dev lists, D3 reproduction",
     )
+    subparsers.add_parser(
+        "p14-fit",
+        help="Phase 14: the 330-point grid on dev, the tie rule, the dev gate and D8",
+    )
     build.add_argument(
         "--smoke",
         type=int,
@@ -7234,6 +7445,8 @@ def main(argv: list[str] | None = None) -> int:
         cmd_p13_fit()
     elif args.command == "p14-lists":
         cmd_p14_lists()
+    elif args.command == "p14-fit":
+        cmd_p14_fit()
     return 0
 
 

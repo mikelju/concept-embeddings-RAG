@@ -172,6 +172,48 @@ def coverage_changes(
     return changes
 
 
+DENSE_RANK_CLASSES: tuple[str, ...] = ("1-10", "11-100", "beyond-100")
+
+
+def dense_rank_split(entries: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    """D8's split of the won and lost questions, one entry per question.
+
+    Each entry holds `qid`, `gold`, both 2,048-token contexts (`candidate_context`,
+    `control_context`) and `dense_ids`, the Dense list in rank order (depth 100). A question
+    is won when only the candidate's context holds every gold paragraph, lost when only the
+    control's does; ties are not counted, whatever moved inside them. For each won or lost
+    question, every gold paragraph whose coverage changed is tallied by its Dense rank class.
+    """
+
+    def tally() -> dict[str, Any]:
+        return {
+            "questions": 0,
+            "gold_changed": dict.fromkeys(DENSE_RANK_CLASSES, 0),
+            "gold_changed_total": 0,
+        }
+
+    split = {"won": tally(), "lost": tally(), "total": tally()}
+    per_question: list[dict[str, Any]] = []
+    for entry in entries:
+        gold = list(entry["gold"])
+        candidate, control = set(entry["candidate_context"]), set(entry["control_context"])
+        candidate_full, control_full = set(gold) <= candidate, set(gold) <= control
+        if candidate_full == control_full:
+            continue
+        outcome = "won" if candidate_full else "lost"
+        ranks = {unit_id: rank for rank, unit_id in enumerate(entry["dense_ids"], start=1)}
+        changes = coverage_changes(
+            gold=gold, candidate_context=candidate, control_context=control, dense_ranks=ranks
+        )
+        for bucket in (split[outcome], split["total"]):
+            bucket["questions"] += 1
+            for change in changes:
+                bucket["gold_changed"][change["dense_class"]] += 1
+                bucket["gold_changed_total"] += 1
+        per_question.append({"qid": entry["qid"], "outcome": outcome, "changes": changes})
+    return {**split, "per_question": per_question}
+
+
 # --- D6: the label ----------------------------------------------------------------------------
 
 

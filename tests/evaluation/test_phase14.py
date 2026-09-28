@@ -169,6 +169,59 @@ def test_coverage_changes_list_only_gold_that_entered_one_context_but_not_the_ot
     ]
 
 
+def test_the_dense_rank_split_tallies_won_and_lost_questions_only():
+    dense = [f"d{i}" for i in range(1, 101)]
+    dense[11] = "g12"  # rank 12
+    dense[2] = "g3"  # rank 3
+    entries = [
+        # won: both gold enter P14's context; one at Dense rank 12, one beyond 100
+        {
+            "qid": "won",
+            "gold": ["g12", "gx"],
+            "candidate_context": ["g12", "gx"],
+            "control_context": ["d1"],
+            "dense_ids": dense,
+        },
+        # lost: g3 leaves the context; a3 is covered by both, so it did not change
+        {
+            "qid": "lost",
+            "gold": ["g3", "a3"],
+            "candidate_context": ["a3"],
+            "control_context": ["g3", "a3"],
+            "dense_ids": dense,
+        },
+        # a tie with a coverage change still moves no question, so it is not counted
+        {
+            "qid": "tie",
+            "gold": ["g3", "gx"],
+            "candidate_context": ["g3"],
+            "control_context": ["gx"],
+            "dense_ids": dense,
+        },
+    ]
+    got = p14.dense_rank_split(entries)
+    assert got["won"] == {
+        "questions": 1,
+        "gold_changed": {"1-10": 0, "11-100": 1, "beyond-100": 1},
+        "gold_changed_total": 2,
+    }
+    assert got["lost"] == {
+        "questions": 1,
+        "gold_changed": {"1-10": 1, "11-100": 0, "beyond-100": 0},
+        "gold_changed_total": 1,
+    }
+    assert got["total"] == {
+        "questions": 2,
+        "gold_changed": {"1-10": 1, "11-100": 1, "beyond-100": 1},
+        "gold_changed_total": 3,
+    }
+    assert [(q["qid"], q["outcome"]) for q in got["per_question"]] == [
+        ("won", "won"),
+        ("lost", "lost"),
+    ]
+    assert [c["dense_rank"] for c in got["per_question"][0]["changes"]] == [12, None]
+
+
 # --- D6: the label ---------------------------------------------------------------------------
 
 
