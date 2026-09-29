@@ -470,6 +470,13 @@ Both run the systems unchanged, with the weights and `α` fitted on HotpotQA dev
 fine-tuned on either candidate corpus, so neither carries HotpotQA's train contamination.
 2WikiMultiHopQA stays unscheduled.
 
+**MuSiQue measured in Phase 15 (2026-09-29): `TRANSFER_SUPPORTED`**
+([`phase_15/15.results.md`](phase_15/15.results.md)). With nothing refitted, P14 beats Dense + BM25
+by +9.81 pp Full Support @2,048 (294 wins / 57 losses) and P10-C by +3.81 pp on the 2,417
+validation questions, over 101,962 pooled paragraphs; P10-C beats Dense + BM25 by +6.00 pp. The
+gain comes almost entirely from the 2-paragraph questions; on 4-paragraph questions no system
+retrieves the full evidence. The second question of the table (another kind of text) is Phase 16.
+
 ---
 
 ## 7.2 Query-aware Entity Hop

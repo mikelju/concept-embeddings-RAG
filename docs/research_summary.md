@@ -1,6 +1,6 @@
 # Research summary — minimum structure for multi-hop retrieval
 
-> Status on 2026-09-29: the planned research line (Phases 1-9) is complete, and Phases 10-14 of
+> Status on 2026-09-29: the planned research line (Phases 1-9) is complete, and Phases 10-15 of
 > the next line are measured. This page summarises
 > what was asked, what was measured and what it establishes. Every figure links back to the
 > phase document that records it with its artifact; nothing here is new measurement.
@@ -22,7 +22,9 @@ has a baseline it must justify itself against.
 
 - **Benchmark.** HotpotQA. A frozen 600 dev / 1,400 test question split over a pooled corpus of
   19,366 whole Wikipedia intro paragraphs (Phases 1-8), then the full HotpotQA processed Wikipedia,
-  5,233,329 paragraphs, with all 7,405 validation questions (Phase 9).
+  5,233,329 paragraphs, with all 7,405 validation questions (Phase 9). Phase 15 adds MuSiQue: its
+  2,417 validation questions (2-4 supporting paragraphs) over 101,962 pooled MuSiQue paragraphs,
+  with every weight frozen at its HotpotQA value.
 - **Unit.** One complete paragraph, never a fixed-length window.
 - **Metric of record.** Full Support @2,048 tokens: the share of questions for which **every** gold
   paragraph fits in a 2,048-token context built from the ranking. It measures what a reader model
@@ -45,6 +47,7 @@ has a baseline it must justify itself against.
 | [10](plans/phase_10/10.results.md) | Does the Entity Hop add anything on top of Dense + BM25 at FullWiki scale? | **`THREE_WAY_SUPPORTED`**: +3.92 pp on 5,000 held-out train questions (seen by BGE in fine-tuning) |
 | [11](plans/phase_11/11.results.md)-[13](plans/phase_13/13.results.md) | Can the question choose which of P1's entities to hop from (DF cap, question entities, sentence or mention-window similarity)? | **`DEV_STOP` three times.** Every hard filter on the seeds loses on dev; `test-11` stayed unopened |
 | [14](plans/phase_14/14.results.md) | Does ordering the hop's candidates by their similarity to the question help? | **`CANDIDATE_RELEVANCE_SUPPORTED`**: +4.90 pp over Dense + BM25 + Entity Hop on 5,000 new held-out train questions |
+| [15](plans/phase_15/15.results.md) | Do the Entity Hop systems still beat Dense + BM25 on MuSiQue, with nothing refitted? | **`TRANSFER_SUPPORTED`**: P14 +9.81 pp over Dense + BM25 and +3.81 pp over the Entity Hop system; the gain is on 2-paragraph questions |
 
 ## The mechanism that worked
 
@@ -131,6 +134,28 @@ Dense's own signal, and part of the gain may re-weight what Dense already ranks:
 the gold paragraphs the new order brought into the context were in Dense's ranks 11-100 and half
 beyond its top 100.
 
+**7. The gain is not HotpotQA's alone: it transfers, frozen, to MuSiQue.** HotpotQA built its
+bridge questions from first-paragraph hyperlinks, and every weight above was fitted on its dev set.
+Phase 15 ran the four systems once, with nothing refitted, on the 2,417 validation questions of
+MuSiQue (Wikipedia; questions composed from single-hop ones, filtered against shortcuts, needing
+2, 3 or 4 paragraphs) over a corpus of all 101,962 MuSiQue paragraphs. Full Support @2,048, beside
+the same systems on HotpotQA `test-11`:
+
+| System | MuSiQue validation | HotpotQA `test-11` |
+|---|---:|---:|
+| Dense | 18.04 % | 57.04 % |
+| Dense + BM25 | 21.68 % | 61.58 % |
+| Dense + BM25 + Entity Hop | 27.68 % (+6.00 pp over Dense + BM25) | 65.70 % |
+| P14 | 31.49 % (+9.81 pp over Dense + BM25, 294 wins / 57 losses, p = 1.3e-39; +3.81 pp over the Entity Hop system) | 70.60 % |
+
+Every step adds on both benchmarks; the columns differ in corpus, questions and size, so only the
+direction and order of the gains compare. The gain is a two-paragraph gain: 211 of P14's net 237
+questions over Dense + BM25 come from the 1,252 questions with two supporting paragraphs. It is
+small on three-paragraph questions, and on the 405 four-paragraph questions no system retrieves
+the full evidence for more than 2. Refitting the weights on the same questions, an exploratory
+upper bound, would add at most 45 questions. The GLiNER extraction took 10.3 min on one rented
+RTX 4090 (0.13 USD attributable).
+
 ## What did not work, and what is not established
 
 - **Concepts, in two operationalizations**, add nothing. The first used concepts induced from
@@ -169,9 +194,13 @@ the entities is kept; and Dense + BM25, the reference the literature understands
 questions are now dev.
 
 Phase 14 then moved the bar: the relevance-ordered hop (P14) beats that system by 4.90 points on a
-second held-out set, which is now spent. P14 is the line's best system. The next phase (15) tests
-an untrained second-hop query, the vector of "question + P1", against Dense
-([`plans/0_master_plan.md`](plans/0_master_plan.md)).
+second held-out set, which is now spent. P14 is the line's best system. Phase 15 then checked that
+the gain was not only an artifact of how HotpotQA was built: frozen, P14 and the Entity Hop system still
+beat Dense + BM25 on MuSiQue, on two-paragraph questions. That is a second Wikipedia benchmark, a
+small corpus and a one-hop design against 2-4 hop questions: evidence, not proof, of generality.
+Next, by the author's decision, Phase 16 runs the same frozen systems on a corpus that is not
+Wikipedia, and Phase 17 tests an untrained second-hop query, the vector of "question + P1",
+against Dense ([`plans/0_master_plan.md`](plans/0_master_plan.md)).
 
 ## Reproducibility
 
