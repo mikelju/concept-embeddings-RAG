@@ -275,14 +275,25 @@ def recorded_rank_split(
 # --- D6: the label ----------------------------------------------------------------------------
 
 
-def label(wins: int, losses: int, p: float) -> str:
-    """D6, from P14 against P10-C only; the secondary comparison (D7) takes no part in it."""
+def label(
+    wins: int,
+    losses: int,
+    p: float,
+    *,
+    supported: str = SUPPORTED,
+    regression: str = REGRESSION,
+    not_supported: str = NOT_SUPPORTED,
+) -> str:
+    """D6, from P14 against P10-C only; the secondary comparison (D7) takes no part in it.
+
+    The rule is the same three-way rule in later phases; they pass their own label names.
+    """
     alpha = config.PHASE_9_ALPHA
     if wins > losses and p < alpha:
-        return SUPPORTED
+        return supported
     if losses > wins and p < alpha:
-        return REGRESSION
-    return NOT_SUPPORTED
+        return regression
+    return not_supported
 
 
 # --- D3: the reproduction ---------------------------------------------------------------------

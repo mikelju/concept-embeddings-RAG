@@ -1125,6 +1125,58 @@ PHASE_14_TERMINAL_STATES: Final[tuple[str, ...]] = (
     "DEV_STOP",
 )
 
+# --- Phase 15: the frozen systems on MuSiQue --------------------------------------------
+# Fixed by `15.spec.md` (approved and frozen 2026-09-29) and `15.0_musique_validation.md`
+# (approved the same day). Nothing is fitted on MuSiQue (D3). The split names and the source
+# file names live in `corpus/musique.py`: this module is on the selection path's import
+# closure, which may name no split but dev.
+
+PHASE_15_DIR: Final[Path] = DATA_DIR / "phase15"
+# Own caches, never a Phase 9-14 one: `question_cache_key` does not include the corpus.
+PHASE_15_CACHE_DIR: Final[Path] = PHASE_15_DIR / "cache"
+PHASE_15_QUESTION_CACHE_DIR: Final[Path] = PHASE_15_CACHE_DIR / "questions"
+PHASE_15_BM25_DIR: Final[Path] = PHASE_15_DIR / "bm25"
+PHASE_15_NODES_DIR: Final[Path] = PHASE_15_DIR / "nodes"
+PHASE_15_MODELS_DIR: Final[Path] = PHASE_15_DIR / "models"
+
+# D1/D2: the row counts of the two MuSiQue-Ans files (measured 2026-09-29), and the
+# validation questions by number of supporting paragraphs.
+PHASE_15_TRAIN_ROWS: Final[int] = 19_938
+PHASE_15_VALIDATION_ROWS: Final[int] = 2_417
+PHASE_15_SUPPORTING_COUNTS: Final[dict[int, int]] = {2: 1_252, 3: 760, 4: 405}
+# D2: more than this share of the validation questions with an unmapped gold is DATA_STOP.
+PHASE_15_UNMAPPED_SHARE: Final[float] = 0.01
+# Author decision 3: more than this share of the units longer than GLiNER's window
+# (`GLINER_MAX_LEN` of its own words) stops the phase before the pod is rented.
+PHASE_15_LONG_UNIT_SHARE: Final[float] = 0.01
+# Author decision 5: a gold unit with another unit of the same title whose text starts with
+# the same this-many characters is a near-duplicate, counted and declared, never merged.
+PHASE_15_NEAR_DUPLICATE_PREFIX_CHARS: Final[int] = 80
+
+# D4: the live path's train questions (first by id, question text only), and the HotpotQA
+# dev counts (Full Support @2,048) the Phase 15 code must reproduce exactly.
+PHASE_15_LIVE_PATH_QUESTIONS: Final[int] = 200
+PHASE_15_DEV_QUESTIONS: Final[int] = PHASE_9_COHORT_SIZES[PHASE_9_STANDARD]
+PHASE_15_P10C_DEV_SUPPORTED: Final[int] = PHASE_14_P10C_DEV_SUPPORTED
+PHASE_15_P14_DEV_SUPPORTED: Final[int] = 5224
+
+# The four systems, by their Phase 14 names, and the frozen values the weight reader must
+# find in the recorded fits (spec table): weights in component order (dense, bm25, hop).
+PHASE_15_SYSTEMS: Final[tuple[str, ...]] = PHASE_14_SYSTEMS
+PHASE_15_SYSTEM_LABELS: Final[dict[str, str]] = PHASE_14_SYSTEM_LABELS
+PHASE_15_P10B_WEIGHTS: Final[tuple[float, ...]] = (0.5, 0.5)
+PHASE_15_P10C_WEIGHTS: Final[tuple[float, ...]] = PHASE_14_P10C_WEIGHTS
+PHASE_15_P14_ALPHA: Final[float] = 0.75
+PHASE_15_P14_WEIGHTS: Final[tuple[float, ...]] = (0.5, 0.3, 0.2)
+
+# D5: the primary endpoint's four terminal states, written by code.
+PHASE_15_TERMINAL_STATES: Final[tuple[str, ...]] = (
+    "TRANSFER_SUPPORTED",
+    "TRANSFER_NOT_SUPPORTED",
+    "TRANSFER_REGRESSION",
+    "DATA_STOP",
+)
+
 
 def ensure_directories() -> None:
     """Create the data directories if they do not exist yet."""

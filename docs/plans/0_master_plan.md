@@ -81,7 +81,9 @@ From Phase 7 onward:
 | 12 | Choosing with the question which of P1's entities to hop from | [Approved](phase_12/12.spec.md) | **Complete — DEV_STOP** |
 | 13 | Choosing P1's bridge entity by the words around its mention | [Approved](phase_13/13.spec.md) | **Complete — DEV_STOP** |
 | 14 | Ordering the hop's candidates by their similarity to the question | [Approved](phase_14/14.spec.md) | **Complete — CANDIDATE_RELEVANCE_SUPPORTED** |
-| 15 | Second-hop query reformulation: the vector of "question + P1 text" against Dense, untrained (author decision 2026-09-29; replaces canonicalization route A) | Not written | **Planned** |
+| 15 | Validation on MuSiQue: Dense, P10-B, P10-C and P14 with nothing refitted (author decision 2026-09-29) | [Approved](phase_15/15.spec.md) | **Complete — TRANSFER_SUPPORTED** |
+| 16 | Validation on a corpus that is not Wikipedia, the same frozen systems (candidate: MultiHop-RAG, news) | Not written | **Planned** |
+| 17 | Second-hop query reformulation: the vector of "question + P1 text" against Dense, untrained | [Draft](phase_17/17.spec.md), to revise after Phases 15-16 | **Planned** |
 
 **The first research line is closed** (2026-09-15): concepts induced from pooled embeddings, tested through Phases 2-4, gave a negative and bounded result. The original Phase 5 — a comparative evaluation of that method — was not run; the plan was renumbered so Phase 5 tests the representation the proposal actually described. See [`phase_4/4.1_research_line_closure.md`](phase_4/4.1_research_line_closure.md).
 
@@ -165,6 +167,45 @@ Dense + BM25 replicates on `test-11` (+4.12 pp). **P14 is the line's new best sy
 [`phase_14/14.results.md`](phase_14/14.results.md), the spec
 [`phase_14/14.spec.md`](phase_14/14.spec.md) and the plan
 [`phase_14/14.0_candidate_relevance.md`](phase_14/14.0_candidate_relevance.md).
+
+**Order of the next phases, decided by the author on 2026-09-29 after Phase 14 closed.** Two
+validation phases come before any new component:
+
+- **Why.** The aim of the line is a set of strategies that serve any corpus; Wikipedia figures
+  are kept because they compare with the literature. HotpotQA's bridge questions were built from
+  first-paragraph hyperlinks, and only 4,661 fresh `hard` train questions remain for held-out
+  sets (15,661 in the release, 11,000 drawn in Phase 10; derived). A gain that holds only on
+  HotpotQA should be known before a fourth component is stacked on it.
+- **Phase 15** measures Dense, P10-B, P10-C and P14 on MuSiQue (Wikipedia, 2-4 hop questions
+  built to resist shortcuts) with every weight and `α` frozen at its HotpotQA value. A user
+  with a private corpus has no labelled questions to fit weights on, so the frozen transfer is
+  the honest test.
+- **Phase 16** does the same on a corpus that is not Wikipedia. The candidate examined is
+  MultiHop-RAG (609 news articles, 2,556 queries, evidence marked as sentences); its spec
+  decides.
+- **Phase 17** is the query reformulation the author chose on 2026-09-29 (written first as
+  Phase 15 in the review note and in `phase_14/14.results.md`, which keep that number as
+  historical records). Its draft spec is revised with what Phases 15 and 16 measure.
+- Both validation phases extract entities with the pinned GLiNER on a rented RunPod GPU, which
+  the author authorized on 2026-09-29.
+
+**Phase 15 is measured and closed** (2026-09-29) with **`TRANSFER_SUPPORTED`**. The four systems
+ran once, with every weight and `α` frozen at its HotpotQA value, on the 2,417 validation questions
+of MuSiQue-Ans over a corpus pooling every MuSiQue-Ans train and validation paragraph (101,962
+units, not the literature's about 84,000). The code first reproduced P10-C and P14 on HotpotQA dev
+exactly (4,801 and 5,224 / 7,405), and the pod's GLiNER digest equalled Phase 9's. P14 reaches
+**761 / 2,417** Full Support @2,048 against Dense + BM25's **524** (+9.81 pp; exact McNemar
+294 wins / 57 losses, p = 1.3e-39) and P10-C's 669 (+3.81 pp, 151 / 59, p = 1.7e-10); P10-C beats
+Dense + BM25 by +6.00 pp (189 / 44). Every step of the ladder Dense → Dense + BM25 → P10-C → P14
+adds, as on HotpotQA `test-11`, in a different order. The gain is a 2-paragraph gain: 211 of P14's
+net 237 questions over Dense + BM25 come from the 1,252 questions with 2 supporting paragraphs; it
+is small on 3-paragraph questions, and on the 405 4-paragraph questions no system fully supports
+more than 2. Refitting the weights on the same questions (exploratory, an upper bound) reaches 806.
+The GPU steps took 59.6 s and 618.2 s, 0.14 USD attributable; the invoiced session total is
+pending. Still Wikipedia and a small corpus. See [`phase_15/15.results.md`](phase_15/15.results.md),
+the spec [`phase_15/15.spec.md`](phase_15/15.spec.md) and the plan
+[`phase_15/15.0_musique_validation.md`](phase_15/15.0_musique_validation.md). Next, by the author's
+decision: Phase 16 (a corpus that is not Wikipedia), then Phase 17.
 
 Up to Phase 14, the remaining scheduled work deliberately did **not** try to improve the Entity Hop with canonicalization, relations, multiple seeds or additional hops. Phase 9 asks whether the simple mechanism already discovered survives **corpus scale** with BGE-small as the validated primary Dense candidate. The separate question of Entity Hop beside a substantially stronger Dense retriever remains open.
 
