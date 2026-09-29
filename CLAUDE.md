@@ -41,9 +41,10 @@ What is established (figures and full records in each phase's `X.results.md`):
 
 **Current state (2026-09-29):** Phase 14 closed `CANDIDATE_RELEVANCE_SUPPORTED`
 (`phase_14/14.results.md`): P14 (Dense + BM25 + relevance-ordered hop) is the best system and the
-bar to beat; `test-11` is spent. Next is the spec of Phase 15, the untrained second-hop query
-reformulation (question + P1; `docs/plans/review_2026-09-29.md`). If this line and the master plan
-disagree, the master plan wins; fix this line.
+bar to beat; `test-11` is spent. Next, by the author's decision: Phase 15 validates the frozen
+systems on MuSiQue (spec drafted, awaiting approval), Phase 16 on a corpus that is not Wikipedia,
+and Phase 17 is the untrained query reformulation (question + P1). If this line and the master
+plan disagree, the master plan wins; fix this line.
 
 ## Where things live
 
