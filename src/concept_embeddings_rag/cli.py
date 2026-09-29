@@ -59,6 +59,7 @@ stage to run first rather than failing somewhere deep inside numpy.
 
 import argparse
 import gzip
+import importlib.metadata
 import json
 import math
 import shutil
@@ -116,8 +117,13 @@ from concept_embeddings_rag.concepts.labeling import (
     read_api_key,
     save_labels,
 )
-from concept_embeddings_rag.corpus import fullwiki, hf_source, scale_corpus
-from concept_embeddings_rag.corpus.download import CorpusIntegrityError, sha256_of_file
+from concept_embeddings_rag.corpus import fullwiki, hf_source, musique, scale_corpus
+from concept_embeddings_rag.corpus.download import (
+    CorpusIntegrityError,
+    Fetcher,
+    ensure_corpus,
+    sha256_of_file,
+)
 from concept_embeddings_rag.corpus.manifest import CorpusManifest
 from concept_embeddings_rag.corpus.pool import (
     IndexingUnit,
@@ -7356,6 +7362,153 @@ def cmd_p14_outcome(target_dir: Path = config.PHASE_14_DIR) -> Path:
     return path
 
 
+# --- Phase 15: the frozen systems on MuSiQue ---------------------------------------------
+
+P15_SOURCE_DIRNAME = "source"
+P15_WORDS_SPLITTER = "whitespace"
+
+
+def _p15_gliner_words() -> Callable[[str], int]:
+    """GLiNER's own word splitter, the unit its `max_len` truncates on (not the DeBERTa
+    sub-word count `windows_for` packs sentences by). Offline: no model is loaded."""
+    from gliner.data_processing.tokenizer import WordsSplitter
+
+    splitter = WordsSplitter(splitter_type=P15_WORDS_SPLITTER)
+
+    def count(text: str) -> int:
+        return sum(1 for _word in splitter(text))
+
+    return count
+
+
+def _p15_source(source_dir: Path, fetcher: Fetcher | None) -> dict[str, Path]:
+    """The two pinned files, downloaded once, SHA-256 then bytes checked before any parse."""
+    paths: dict[str, Path] = {}
+    for name, pin in musique.SOURCE_FILES.items():
+        path = source_dir / name
+        try:
+            ensure_corpus(musique.source_url(name), path, str(pin["sha256"]), fetcher)
+        except CorpusIntegrityError as error:
+            _die(f"{name}: {error}; nothing was parsed")
+        size = path.stat().st_size
+        if size != int(pin["bytes"]):
+            _die(f"{name} holds {size} bytes, not the pinned {pin['bytes']}; nothing was parsed")
+        print(f"[OK] {name}: {size} bytes, sha256 {str(pin['sha256'])[:16]}...")
+        paths[name] = path
+    return paths
+
+
+def cmd_p15_data(
+    target_dir: Path = config.PHASE_15_DIR,
+    *,
+    fetcher: Fetcher | None = None,
+    counter: Any = None,
+    train_rows: int = config.PHASE_15_TRAIN_ROWS,
+    validation_rows: int = config.PHASE_15_VALIDATION_ROWS,
+    supporting_counts: Mapping[int, int] = config.PHASE_15_SUPPORTING_COUNTS,
+    live_path_size: int = config.PHASE_15_LIVE_PATH_QUESTIONS,
+) -> dict[str, Any]:
+    """S2: the pinned source, the pooled corpus, the validation questions and gold, the D4
+    live-path set and the token counts, each written once, before any retrieval exists.
+
+    A source that is not the one examined on 2026-09-29 (bytes, SHA-256, row counts,
+    answerability, qids, supporting counts) is refused before anything is written. A
+    `DATA_STOP` (D2) or too many units past GLiNER's window (author decision 3) is written with
+    its evidence and the stage exits non-zero: the stop is a result, for the author.
+    """
+    target_dir = Path(target_dir)
+    for name in (fullwiki.CORPUS_MANIFEST, musique.QUESTIONS_FILENAME):
+        if (target_dir / name).exists():
+            _die(f"{target_dir / name} already exists; the Phase 15 data is written once")
+    started = time.perf_counter()
+    paths = _p15_source(target_dir / P15_SOURCE_DIRNAME, fetcher)
+    source = musique.read_source(paths[musique.TRAIN_FILE], paths[musique.VALIDATION_FILE])
+    problems = musique.source_problems(
+        source,
+        train_rows=train_rows,
+        validation_rows=validation_rows,
+        supporting_counts=supporting_counts,
+    )
+    if problems:
+        _die(f"the source is not the one examined on 2026-09-29: {'; '.join(problems)}")
+    units = source.units
+    print(
+        f"[INFO] {len(source.train)} train and {len(source.validation)} validation rows; "
+        f"{len(units)} units from {source.paragraphs_read} paragraphs"
+    )
+
+    questions, body = musique.validation_questions(
+        source.validation, units, corpus=musique.corpus_identity(units)
+    )
+    window = musique.units_over_window(
+        units,
+        _p15_gliner_words(),
+        max_len=config.GLINER_MAX_LEN,
+        share=config.PHASE_15_LONG_UNIT_SHARE,
+        splitter=(
+            f"gliner {importlib.metadata.version('gliner')} WordsSplitter({P15_WORDS_SPLITTER!r})"
+        ),
+    )
+    near = musique.near_duplicate_gold(
+        units, questions, prefix_chars=config.PHASE_15_NEAR_DUPLICATE_PREFIX_CHARS
+    )
+    try:
+        corpus = musique.write_corpus(
+            units,
+            target_dir,
+            paragraphs_read=source.paragraphs_read,
+            extra={"near_duplicate_gold": near, "gliner_window": window},
+        )
+        body["expected_supporting_counts"] = {
+            str(n): count for n, count in sorted(supporting_counts.items())
+        }
+        path = musique.write_questions(
+            target_dir, body, live_path=musique.live_path_block(source.train, size=live_path_size)
+        )
+    except musique.MusiqueError as error:
+        _die(str(error))
+    print(
+        f"[INFO] corpus {corpus['unit_set_hash']}: {corpus['duplicate_paragraphs_collapsed']} "
+        f"duplicates collapsed, {corpus['empty_text_units']} empty"
+    )
+    print(
+        f"[INFO] questions: supporting {body['supporting_counts']}, gold {body['gold_counts']}, "
+        f"{len(body['collapsed_gold'])} collapsed, {body['questions_with_unmapped_gold']} with "
+        f"unmapped gold (ceiling share {body['unmapped_ceiling_share']})"
+    )
+    print(
+        f"[INFO] near-duplicate gold: {near['gold_units_with_near_duplicate']} of "
+        f"{near['gold_units']} gold units, {len(near['qids'])} questions"
+    )
+    print(
+        f"[INFO] GLiNER window: {window['units_over']} of {window['n_units']} units over "
+        f"{window['max_len']} words (ceiling share {window['ceiling_share']})"
+    )
+    stops = []
+    if body["terminal_state"] is not None:
+        stops.append(f"{body['terminal_state']} recorded in {path}")
+    if window["stop"]:
+        stops.append(
+            f"{window['units_over']} units exceed GLiNER's window, past the share of "
+            f"{window['ceiling_share']}; recorded in {target_dir / fullwiki.CORPUS_MANIFEST}"
+        )
+    if stops:
+        _die("; ".join(stops))
+
+    tokens = phase9.build_token_counts(
+        units,
+        TokenCounter() if counter is None else counter,
+        target_dir,
+        unit_set_hash=str(corpus["unit_set_hash"]),
+    )
+    seconds = time.perf_counter() - started
+    print(
+        f"[OK] Phase 15 data frozen in {seconds:.0f} s: {corpus['n_units']} units, "
+        f"{body['n_questions']} questions, {tokens['total_tokens']} tokens -> {target_dir}"
+    )
+    return {"corpus": corpus, "questions": path, "token_counts": tokens, "seconds": seconds}
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="cer",
@@ -7685,6 +7838,10 @@ def build_parser() -> argparse.ArgumentParser:
         "p14-outcome",
         help="Phase 14: exact McNemar against P10-C (the label) and P10-B, D8 and D9",
     )
+    subparsers.add_parser(
+        "p15-data",
+        help="Phase 15: pinned MuSiQue-Ans source, pooled corpus, questions, token counts",
+    )
     build.add_argument(
         "--smoke",
         type=int,
@@ -7835,6 +7992,8 @@ def main(argv: list[str] | None = None) -> int:
         cmd_p14_eval(authorized=args.authorized)
     elif args.command == "p14-outcome":
         cmd_p14_outcome()
+    elif args.command == "p15-data":
+        cmd_p15_data()
     return 0
 
 

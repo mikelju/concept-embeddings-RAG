@@ -33,6 +33,10 @@ def row(qid: str, paragraphs: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+# S2 adds the live-path block; these tests are about the validation gold only.
+NO_LIVE_PATH = musique.live_path_block([], size=0)
+
+
 def uid(title: str, text: str) -> str:
     return unit_id_for(title, (text,))
 
@@ -115,7 +119,7 @@ def test_gold_keeps_three_and_four_paragraphs_through_the_file_and_the_loader(tm
     ]
     units, manifest = pooled(rows, tmp_path)
     questions, body = musique.validation_questions(rows, units, corpus=manifest)
-    musique.write_questions(tmp_path, body)
+    musique.write_questions(tmp_path, body, live_path=NO_LIVE_PATH)
 
     loaded, _ = musique.load_questions(tmp_path, corpus_unit_set_hash=manifest["unit_set_hash"])
 
@@ -203,7 +207,7 @@ def test_one_question_with_unmapped_gold_goes_at_one_percent_and_stops_past_it(
     assert len(first.gold_unit_ids) == 2
     assert first.gold_unit_ids[1].startswith(phase9.UNRESOLVED_PREFIX)
     if state is not None:
-        musique.write_questions(tmp_path, body)
+        musique.write_questions(tmp_path, body, live_path=NO_LIVE_PATH)
         with pytest.raises(phase9.DataStop):
             musique.load_questions(tmp_path, corpus_unit_set_hash=manifest["unit_set_hash"])
 

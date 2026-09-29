@@ -1146,6 +1146,12 @@ PHASE_15_VALIDATION_ROWS: Final[int] = 2_417
 PHASE_15_SUPPORTING_COUNTS: Final[dict[int, int]] = {2: 1_252, 3: 760, 4: 405}
 # D2: more than this share of the validation questions with an unmapped gold is DATA_STOP.
 PHASE_15_UNMAPPED_SHARE: Final[float] = 0.01
+# Author decision 3: more than this share of the units longer than GLiNER's window
+# (`GLINER_MAX_LEN` of its own words) stops the phase before the pod is rented.
+PHASE_15_LONG_UNIT_SHARE: Final[float] = 0.01
+# Author decision 5: a gold unit with another unit of the same title whose text starts with
+# the same this-many characters is a near-duplicate, counted and declared, never merged.
+PHASE_15_NEAR_DUPLICATE_PREFIX_CHARS: Final[int] = 80
 
 # D4: the live path's train questions (first by id, question text only), and the HotpotQA
 # dev counts (Full Support @2,048) the Phase 15 code must reproduce exactly.
