@@ -1072,6 +1072,59 @@ PHASE_13_TERMINAL_STATES: Final[tuple[str, ...]] = (
     "SCREEN_STOP",
 )
 
+# --- Phase 14: ordering the hop's candidates by their similarity to the question ---------
+# Fixed by `14.spec.md` (approved 2026-09-28) and `14.0_candidate_relevance.md` (approved the
+# same day). Dev is the 7,405 validation questions; the held-out set is Phase 10's reserved
+# `test-11`, opened only after the author's authorization (S5).
+
+PHASE_14_DIR: Final[Path] = DATA_DIR / "phase14"
+PHASE_14_DEV: Final[str] = PHASE_11_DEV
+PHASE_14_TEST: Final[str] = PHASE_11_TEST
+PHASE_14_QUESTION_SETS: Final[tuple[str, ...]] = (PHASE_14_DEV, PHASE_14_TEST)
+
+# D1: `sim(c) = v_q . v_c` in float32 from the Phase 9 passage cache, the question vector the
+# question alone. The recomputed `sim(P1)` must equal Phase 10's recorded Dense score within
+# this tolerance on every dev question. The keys name the question caches Dense already reads.
+PHASE_14_SIM_TOLERANCE: Final[float] = 1e-5
+PHASE_14_DEV_QUESTION_VECTORS_KEY: Final[str] = "4894aceb0406c63a"
+PHASE_14_TEST_QUESTION_VECTORS_KEY: Final[str] = "3ab80134c058052d"
+
+# D2/D4: the mixing grid, `score = (1 - alpha) * r_hat + alpha * s_hat`; `alpha = 0` is the
+# Phase 9 hop exactly. 5 alphas x 66 weight triples (tenths) = 330 points.
+PHASE_14_ALPHAS: Final[tuple[float, ...]] = (0.0, 0.25, 0.5, 0.75, 1.0)
+PHASE_14_GRID_TENTHS: Final[int] = 10
+PHASE_14_COMPONENT_NAMES: Final[tuple[str, ...]] = ("dense", "bm25", "relevance-hop")
+
+# D3: the point the new code must reproduce exactly, and P10-C's recorded dev count.
+PHASE_14_P10C_ALPHA: Final[float] = 0.0
+PHASE_14_P10C_WEIGHTS: Final[tuple[float, ...]] = (0.5, 0.3, 0.2)
+PHASE_14_P10C_DEV_SUPPORTED: Final[int] = 4801
+
+# D5: 37 x sqrt(ln 330 / ln 1,430) = 33.06, rounded up to 34; the bar is 4,835.
+PHASE_14_DEV_MARGIN: Final[int] = 34
+PHASE_14_DEV_BAR: Final[int] = PHASE_14_P10C_DEV_SUPPORTED + PHASE_14_DEV_MARGIN
+
+# P14's name is the one `QueryTripleFusedRetriever` gives any stage in its third slot, which
+# must be named `seeded-hop`; `relevance-hop` names the component in the dev lists and fit.
+PHASE_14_SYSTEMS: Final[tuple[str, ...]] = (
+    "dense",
+    "hybrid-bm25",
+    "hybrid-bm25-entity-hop",
+    "hybrid-bm25-seeded-hop",
+)
+PHASE_14_SYSTEM_LABELS: Final[dict[str, str]] = {
+    "dense": "P10-A",
+    "hybrid-bm25": "P10-B",
+    "hybrid-bm25-entity-hop": "P10-C",
+    "hybrid-bm25-seeded-hop": "P14",
+}
+PHASE_14_TERMINAL_STATES: Final[tuple[str, ...]] = (
+    "CANDIDATE_RELEVANCE_SUPPORTED",
+    "CANDIDATE_RELEVANCE_NOT_SUPPORTED",
+    "CANDIDATE_RELEVANCE_REGRESSION",
+    "DEV_STOP",
+)
+
 
 def ensure_directories() -> None:
     """Create the data directories if they do not exist yet."""

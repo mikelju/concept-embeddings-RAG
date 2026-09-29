@@ -48,6 +48,10 @@
     p13-screen      the D3 screen: W against T1 and T2 over the 2,651 bridge items (Phase 13)
     p13-lists       the window-seeded hop dev lists at every m and the D4 reproduction
     p13-fit         the 264-point grid on dev, the tie rule and the dev gate (Phase 13)
+    p14-lists       D1 integrity, the relevance-ordered hop dev lists and the D3 reproduction
+    p14-fit         the 330-point grid on dev, the tie rule, the dev gate and D8 (Phase 14)
+    p14-eval        the single authorized held-out pass on test-11 (Phase 14)
+    p14-outcome     exact McNemar against P10-C (the label) and P10-B, D8 and D9 (Phase 14)
 
 Each stage is idempotent and refuses to run if its input is missing, saying which
 stage to run first rather than failing somewhere deep inside numpy.
@@ -151,10 +155,11 @@ from concept_embeddings_rag.evaluation import (
     phase11,
     phase12,
     phase13,
+    phase14,
     scale_sensitivity,
     strong_dense,
 )
-from concept_embeddings_rag.evaluation.budget import TokenCounter
+from concept_embeddings_rag.evaluation.budget import TokenCounter, fill_context
 from concept_embeddings_rag.evaluation.cheap_extraction import (
     DEV_FILENAME,
     SELECTION_FILENAME,
@@ -261,12 +266,15 @@ from concept_embeddings_rag.retrieval.dense import DenseRetriever
 from concept_embeddings_rag.retrieval.diffusion import EXPANSION_NAMES, DiffusionRetriever
 from concept_embeddings_rag.retrieval.entity_hop import (
     QUESTION_HOP_NAME,
+    RELEVANCE_HOP_NAME,
+    SEEDED_HOP_NAME,
     CachedSentences,
     CachedWindows,
     CappedEntityHopStage,
     ColumnwiseEntityHopStage,
     EntityHopStage,
     QuestionEntityHop,
+    RelevanceHopStage,
     SentenceSeededHopStage,
     WindowSeededHopStage,
 )
@@ -275,6 +283,7 @@ from concept_embeddings_rag.retrieval.fusion import (
     WEIGHTED,
     FusedRetriever,
     QuadFusedRetriever,
+    QueryTripleFusedRetriever,
     TripleFusedRetriever,
     fuse_lists,
 )
@@ -6459,6 +6468,894 @@ def cmd_p13_fit(
     return path
 
 
+# --- Phase 14: ordering the hop's candidates by their similarity to the question ----------
+
+P14_DEV_LISTS = "dev-lists.jsonl.gz"
+P14_DEV_LISTS_MANIFEST = "dev-lists.json"
+P14_REPRODUCTION_NAME = "reproduction.json"
+
+
+def _p14_write_once(name: str, body: Mapping[str, Any], target_dir: Path) -> Path:
+    path = Path(target_dir) / name
+    if path.exists():
+        _die(f"{path} already exists; a Phase 14 artifact is written once")
+    Path(target_dir).mkdir(parents=True, exist_ok=True)
+    write_text_atomic(path, json.dumps(dict(body), indent=2, sort_keys=True))
+    return path
+
+
+def _p14_peak_memory_mb() -> float | None:
+    """This process's peak memory in MiB: the peak working set on Windows, VmHWM on Linux.
+
+    The Windows figure comes from `GetProcessMemoryInfo` through the standard library's
+    `ctypes`, since no memory-probing package is a dependency; `None` when neither is readable.
+    """
+    if sys.platform == "win32":
+        import ctypes
+        from ctypes import wintypes
+
+        class Counters(ctypes.Structure):
+            _fields_ = [
+                ("cb", wintypes.DWORD),
+                ("PageFaultCount", wintypes.DWORD),
+                ("PeakWorkingSetSize", ctypes.c_size_t),
+                ("WorkingSetSize", ctypes.c_size_t),
+                ("QuotaPeakPagedPoolUsage", ctypes.c_size_t),
+                ("QuotaPagedPoolUsage", ctypes.c_size_t),
+                ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t),
+                ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
+                ("PagefileUsage", ctypes.c_size_t),
+                ("PeakPagefileUsage", ctypes.c_size_t),
+            ]
+
+        counters = Counters()
+        counters.cb = ctypes.sizeof(Counters)
+        kernel32 = ctypes.WinDLL("kernel32")
+        psapi = ctypes.WinDLL("psapi")
+        kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+        psapi.GetProcessMemoryInfo.argtypes = [
+            wintypes.HANDLE,
+            ctypes.POINTER(Counters),
+            wintypes.DWORD,
+        ]
+        handle = kernel32.GetCurrentProcess()
+        if not psapi.GetProcessMemoryInfo(handle, ctypes.byref(counters), counters.cb):
+            return None
+        return float(counters.PeakWorkingSetSize) / (1024.0 * 1024.0)
+    return phase9.peak_memory()["peak_rss_mb"]
+
+
+def _p14_passage_vectors(source_dir: Path, unit_ids: Sequence[str]) -> tuple[np.ndarray, str]:
+    """The Phase 9 passage vectors, one row per entity-index row, digest-checked (C1).
+
+    Loaded whole with `EmbeddingCache.load` against the index's unit ids: a cache whose rows
+    are not those units in that order stops the stage. Returns the vectors and their digest.
+    """
+    embedding = json.loads((source_dir / phase9.EMBEDDING_FILENAME).read_text("utf-8"))
+    try:
+        loaded = EmbeddingCache(source_dir / "cache").load(
+            str(embedding["corpus_cache_key"]), expected_unit_ids=list(unit_ids)
+        )
+    except CacheAlignmentError as error:
+        _die(f"the passage vector rows are not the entity index rows in its order: {error}")
+    if loaded is None:
+        _die("the FullWiki vectors are missing: run 'fullwiki-build --stage embed'")
+    vectors = loaded[0]
+    digest = phase9.vectors_digest(vectors)
+    if digest != embedding["vectors_digest"]:
+        _die("the FullWiki vectors do not match the vectors_digest embedding.json records")
+    return vectors, digest
+
+
+def cmd_p14_lists(
+    source_dir: Path = config.PHASE_9_DIR,
+    phase10_dir: Path = config.PHASE_10_DIR,
+    target_dir: Path = config.PHASE_14_DIR,
+) -> Path:
+    """S3 (D1, D3): the integrity check, the relevance-ordered hop dev lists, the reproduction.
+
+    Dense and BM25 are not re-run: P1, `read(q)` and both lists come from the Phase 10 dev
+    lists, digest-checked. D1 runs first, over every dev question: `sim(P1)` recomputed from
+    the Phase 9 passage vectors must equal the Dense score Phase 10 recorded for P1 within
+    the tolerance, or the stage stops with nothing written. Then the hop list at every
+    `alpha`, the 2,651 bridge items' first-5 and depth-100 counts (D8), and D3: the
+    `alpha = 0` list must equal Phase 10's hop list for every question, and P14 at
+    `alpha = 0, 0.5 / 0.3 / 0.2` must give 4,801 with no question's outcome moved.
+    """
+    source_dir, phase10_dir, target_dir = Path(source_dir), Path(phase10_dir), Path(target_dir)
+    for name in (P14_REPRODUCTION_NAME, P14_DEV_LISTS_MANIFEST):
+        if (target_dir / name).exists():
+            _die(f"{target_dir / name} already records this stage's output")
+    started = time.perf_counter()
+    rows10, dev_lists_digest = _p13_phase10_dev_lists(phase10_dir)
+    questions, token_counts = _p11_dev_inputs(source_dir)
+    if [r["qid"] for r in rows10] != [q.qid for q in questions]:
+        _die("the Phase 10 dev lists are not in the dev question order")
+    index, index_record = _p11_entity_index(source_dir)
+    vectors, passage_digest = _p14_passage_vectors(source_dir, index.unit_ids)
+    question_key = _p13_question_cache_key(source_dir)
+    if question_key != config.PHASE_14_DEV_QUESTION_VECTORS_KEY:
+        _die(f"the dev question cache is {question_key}, not the key D1 names")
+    query_backend = _p12_dev_question_vector(source_dir, questions)
+
+    def question_vector(text: str) -> np.ndarray:
+        return query_backend.encode([text])[0]
+
+    row_of = {unit_id: row for row, unit_id in enumerate(index.unit_ids)}
+    load_seconds = time.perf_counter() - started
+    print(f"[INFO] inputs loaded in {load_seconds / 60:.1f} min", flush=True)
+
+    # D1 first: nothing is written unless every dev question passes.
+    recomputed: dict[str, float] = {}
+    recorded: dict[str, float] = {}
+    for row10 in rows10:
+        p1, p1_score = row10["dense"][0]
+        rows = np.array([row_of[p1]])
+        similarity = phase14.candidate_similarity(vectors, rows, question_vector(row10["question"]))
+        recomputed[row10["qid"]] = float(similarity[0])
+        recorded[row10["qid"]] = float(p1_score)
+    integrity = phase14.integrity_verdict(recomputed, recorded, config.PHASE_14_SIM_TOLERANCE)
+    if not integrity["passed"]:
+        offending = integrity["offending_qids"]
+        _die(
+            f"D1 integrity miss on {len(offending)} of {integrity['questions']} dev questions "
+            f"(max |difference| {integrity['max_abs_difference']:.3g}, tolerance "
+            f"{integrity['tolerance']:g}): {', '.join(offending[:20])}"
+            f"{' ...' if len(offending) > 20 else ''}; nothing was written"
+        )
+    print(
+        f"[OK] D1 integrity: {integrity['questions']} questions, max |difference| "
+        f"{integrity['max_abs_difference']:.3g}",
+        flush=True,
+    )
+
+    weights = node_weights(index)
+    columns = ColumnwiseEntityHopStage.columns_for(index)
+    mask = _p13_arm_mask(index)
+    stage = RelevanceHopStage(
+        index,
+        weights,
+        columns=columns,
+        vectors=vectors,
+        question_vector=question_vector,
+        alpha=config.PHASE_14_P10C_ALPHA,
+    )
+    alphas = config.PHASE_14_ALPHAS
+    keys = {alpha: phase14.alpha_key(alpha) for alpha in alphas}
+    zero_key = keys[config.PHASE_14_P10C_ALPHA]
+
+    depth = config.PHASE_9_RANKING_DEPTH
+    rows_out: list[dict[str, Any]] = []
+    lists_differing: list[str] = []
+    positives: dict[float, list[int]] = {alpha: [] for alpha in alphas}
+    first5: dict[float, int] = dict.fromkeys(alphas, 0)
+    in_list: dict[float, int] = dict.fromkeys(alphas, 0)
+    n_items = 0
+    lists_started = time.perf_counter()
+    for position, (row10, question) in enumerate(zip(rows10, questions, strict=True), start=1):
+        first = row10["dense"]
+        expansions = stage.hop_all(row10["question"], first, depth, alphas)
+        row: dict[str, Any] = {
+            "qid": row10["qid"],
+            "question": row10["question"],
+            "dense": first,
+            "bm25": row10["bm25"],
+            "positives": {},
+        }
+        for alpha in alphas:
+            expansion = expansions[alpha]
+            row[keys[alpha]] = [(c.unit_id, c.score) for c in expansion.candidates]
+            row["positives"][keys[alpha]] = expansion.positives
+            positives[alpha].append(expansion.positives)
+        if row[zero_key] != row10[config.ENTITY_HOP_NAME]:
+            lists_differing.append(row10["qid"])
+
+        p1 = first[0][0]
+        items = phase13.screen_population(
+            dense_top10=[unit_id for unit_id, _score in first[:10]],
+            gold=question.gold_unit_ids,
+            p1_nodes=_p13_entity_nodes(index, mask, row_of, p1),
+            nodes_of=lambda u: _p13_entity_nodes(index, mask, row_of, u) if u in row_of else None,
+        )
+        n_items += len(items)
+        for gold, _bridge in items:
+            for alpha in alphas:
+                ids = [unit_id for unit_id, _score in row[keys[alpha]]]
+                if gold in ids:
+                    in_list[alpha] += 1
+                    first5[alpha] += ids.index(gold) < 5
+        rows_out.append(row)
+        if position % 500 == 0:
+            elapsed = time.perf_counter() - lists_started
+            print(
+                f"[INFO] dev lists {position}/{len(rows10)} in {elapsed / 60:.1f} min", flush=True
+            )
+    lists_seconds = time.perf_counter() - lists_started
+    if n_items != config.PHASE_13_SCREEN_POPULATION:
+        _die(
+            f"{n_items} bridge items, not the {config.PHASE_13_SCREEN_POPULATION} Phase 13 "
+            "recorded; nothing was written"
+        )
+
+    names = ["dense", "bm25", *(keys[alpha] for alpha in alphas)]
+    text = "".join(json.dumps(row, sort_keys=True) + "\n" for row in rows_out)
+    target_dir.mkdir(parents=True, exist_ok=True)
+    temporary = target_dir / (P14_DEV_LISTS + ".tmp")
+    with temporary.open("wb") as raw, gzip.GzipFile(fileobj=raw, mode="wb", mtime=0) as packed:
+        packed.write(text.encode("utf-8"))
+    temporary.replace(target_dir / P14_DEV_LISTS)
+
+    sim_seconds = np.asarray(stage.sim_seconds, dtype=np.float64)
+    manifest = {
+        "rows": len(rows_out),
+        "digest": digest_of(text),
+        "lists": names,
+        "alphas": list(alphas),
+        "depth": depth,
+        "phase10_dev_lists_digest": dev_lists_digest,
+        "entity_index_digest": index_record["entity_index_digest"],
+        "passage_vectors_digest": passage_digest,
+        "question_vectors_key": question_key,
+        "question_vectors_digest": phase9.vectors_digest(
+            np.stack([question_vector(r["question"]) for r in rows10])
+        ),
+        "integrity": integrity,
+        "candidates_per_question": phase13.list_summary(positives[alphas[-1]]),
+        "candidates_per_question_by_alpha": {
+            keys[alpha]: phase13.list_summary(positives[alpha]) for alpha in alphas
+        },
+        "candidate_pairs": int(sum(positives[alphas[-1]])),
+        "bridge_items": {
+            "population": n_items,
+            "in_list": {keys[alpha]: in_list[alpha] for alpha in alphas},
+            "first_5": {keys[alpha]: first5[alpha] for alpha in alphas},
+        },
+        "sim_seconds": {
+            "total": float(sim_seconds.sum()),
+            "mean": float(sim_seconds.mean()) if sim_seconds.size else 0.0,
+            "max": float(sim_seconds.max()) if sim_seconds.size else 0.0,
+        },
+        "load_seconds": load_seconds,
+        "lists_seconds": lists_seconds,
+        "peak_memory_mb": _p14_peak_memory_mb(),
+        "peak_memory_probe": (
+            "Windows PeakWorkingSetSize" if sys.platform == "win32" else "Linux VmHWM"
+        ),
+        "code_commit": _git_commit(),
+        "host": local_extraction.hardware_block(device="cpu"),
+        "seconds": time.perf_counter() - started,
+    }
+    _p14_write_once(P14_DEV_LISTS_MANIFEST, manifest, target_dir)
+    bridge = manifest["bridge_items"]
+    print(
+        f"[INFO] bridge items {n_items}: first-5 {bridge['first_5']}, "
+        f"depth-100 {bridge['in_list']}",
+        flush=True,
+    )
+
+    p10c_weights = config.PHASE_14_P10C_WEIGHTS
+    control = [
+        (
+            r["question"],
+            fuse_lists(
+                (r["dense"], r["bm25"], r[config.ENTITY_HOP_NAME]), p10c_weights, top_k=depth
+            ),
+        )
+        for r in rows10
+    ]
+    candidate = [
+        (
+            r["question"],
+            fuse_lists((r["dense"], r["bm25"], r[zero_key]), p10c_weights, top_k=depth),
+        )
+        for r in rows_out
+    ]
+    name = config.PHASE_14_SYSTEMS[2]
+    control_records = _p10_replay_records(name, control, questions, token_counts)
+    candidate_records = _p10_replay_records(name, candidate, questions, token_counts)
+    budget = str(config.PHASE_9_PRIMARY_BUDGET)
+    differing = [
+        c["qid"]
+        for c, d in zip(control_records, candidate_records, strict=True)
+        if c["budgets"][budget]["full_support"] != d["budgets"][budget]["full_support"]
+    ]
+    verdict = phase14.reproduction_verdict(
+        phase10.supported(candidate_records), differing, lists_differing
+    )
+    body = {
+        **verdict,
+        "control_observed": phase10.supported(control_records),
+        "dev_lists_digest": manifest["digest"],
+        "code_commit": _git_commit(),
+    }
+    path = _p14_write_once(P14_REPRODUCTION_NAME, body, target_dir)
+    print(
+        f"[INFO] P14 at alpha=0: {body['observed']} (recorded {body['recorded']}), "
+        f"{len(differing)} outcomes and {len(lists_differing)} lists differ"
+    )
+    if not body["passed"]:
+        _die(f"the new code does not reproduce P10-C on dev; see {path}")
+    print(f"[OK] P10-C reproduced on dev -> {path}")
+    return path
+
+
+P14_FIT_NAME = "fit.json"
+
+
+def _p14_json(name: str, target_dir: Path = config.PHASE_14_DIR) -> dict[str, Any]:
+    path = Path(target_dir) / name
+    if not path.exists():
+        _die(f"{path} does not exist: run the Phase 14 stage that writes it first")
+    body: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+    return body
+
+
+def _p14_load_dev_lists(target_dir: Path) -> list[dict[str, Any]]:
+    """The S3 dev lists, checked against their manifest's digest; lists as `(unit, score)`."""
+    body = _p14_json(P14_DEV_LISTS_MANIFEST, target_dir)
+    text = gzip.decompress((target_dir / P14_DEV_LISTS).read_bytes()).decode("utf-8")
+    if digest_of(text) != body["digest"]:
+        _die(f"{P14_DEV_LISTS} does not match its recorded digest")
+    rows = [json.loads(line) for line in text.splitlines()]
+    for row in rows:
+        for name in body["lists"]:
+            row[name] = [(str(u), float(s)) for u, s in row[name]]
+    return rows
+
+
+def _p14_rankings(
+    rows: Sequence[Mapping[str, Any]], alpha: float, weights: Sequence[float]
+) -> list[tuple[str, list[Any]]]:
+    """Dense, BM25 and the hop at `alpha`, re-fused with `fuse_lists` exactly as P14 would."""
+    key, depth = phase14.alpha_key(alpha), config.PHASE_9_RANKING_DEPTH
+    return [
+        (r["question"], fuse_lists((r["dense"], r["bm25"], r[key]), weights, top_k=depth))
+        for r in rows
+    ]
+
+
+def _p14_dense_rank_split(
+    rows: Sequence[Mapping[str, Any]],
+    questions: Sequence[Question],
+    token_counts: Mapping[str, int],
+    *,
+    alpha: float,
+    weights: Sequence[float],
+) -> dict[str, Any]:
+    """D8 on dev: the point `(alpha, weights)` against P10-C, split by the gold's Dense rank.
+
+    Both rankings are re-fused from the same rows and replayed through the harness. The
+    2,048-token contexts are packed with `budget.fill_context` from the same ranked ids the
+    harness packs, and every question's won / lost / tie reading from those contexts must
+    match the Full Support the replayed records report, or the stage stops.
+    """
+    budget = config.PHASE_9_PRIMARY_BUDGET
+    name = config.PHASE_14_SYSTEMS[3]
+    candidate = _p14_rankings(rows, alpha, weights)
+    control = _p14_rankings(rows, config.PHASE_14_P10C_ALPHA, config.PHASE_14_P10C_WEIGHTS)
+    candidate_records = _p10_replay_records(name, candidate, questions, token_counts)
+    control_records = _p10_replay_records(name, control, questions, token_counts)
+    depth = config.PHASE_9_RANKING_DEPTH
+    entries: list[dict[str, Any]] = []
+    mismatched: list[str] = []
+    for row, question, (_q, cand), (_q2, ctrl), cand_rec, ctrl_rec in zip(
+        rows, questions, candidate, control, candidate_records, control_records, strict=True
+    ):
+        cand_context = fill_context([u for u, _s in cand[:depth]], token_counts, budget)
+        ctrl_context = fill_context([u for u, _s in ctrl[:depth]], token_counts, budget)
+        gold = question.gold_unit_ids
+        for context, record in ((cand_context, cand_rec), (ctrl_context, ctrl_rec)):
+            if float(set(gold) <= set(context)) != record["budgets"][str(budget)]["full_support"]:
+                mismatched.append(question.qid)
+        entries.append(
+            {
+                "qid": question.qid,
+                "gold": list(gold),
+                "candidate_context": cand_context,
+                "control_context": ctrl_context,
+                "dense_ids": [u for u, _s in row["dense"][:depth]],
+            }
+        )
+    if mismatched:
+        _die(
+            f"the D8 contexts disagree with the harness's Full Support on {len(mismatched)} "
+            f"questions: {', '.join(sorted(set(mismatched))[:20])}"
+        )
+    split = phase14.dense_rank_split(entries)
+    wins = sum(
+        c["budgets"][str(budget)]["full_support"] > d["budgets"][str(budget)]["full_support"]
+        for c, d in zip(candidate_records, control_records, strict=True)
+    )
+    losses = sum(
+        c["budgets"][str(budget)]["full_support"] < d["budgets"][str(budget)]["full_support"]
+        for c, d in zip(candidate_records, control_records, strict=True)
+    )
+    if (split["won"]["questions"], split["lost"]["questions"]) != (wins, losses):
+        _die("the D8 split's won and lost questions are not the harness's")
+    return {
+        "point": {"alpha": alpha, "weights": list(weights)},
+        "control": {
+            "alpha": config.PHASE_14_P10C_ALPHA,
+            "weights": list(config.PHASE_14_P10C_WEIGHTS),
+        },
+        "budget": budget,
+        "dense_rank_source": "the Phase 10 Dense list in the dev lists (depth 100)",
+        **split,
+    }
+
+
+def cmd_p14_fit(
+    source_dir: Path = config.PHASE_9_DIR, target_dir: Path = config.PHASE_14_DIR
+) -> Path:
+    """S4 (D4, D5, D8): the 330-point grid on the cached dev lists, the tie rule, the gate.
+
+    Requires the passing `reproduction.json` and the dev lists it checked. Every point
+    re-fuses the cached Dense, BM25 and hop-at-`alpha` lists and replays them through the
+    harness. With the fit, D8: the best point per `alpha`, the bridge-item counts from the
+    dev-lists manifest, and the Dense-rank split of the selected point against P10-C.
+    """
+    source_dir, target_dir = Path(source_dir), Path(target_dir)
+    reproduction = _p14_json(P14_REPRODUCTION_NAME, target_dir)
+    if not reproduction["passed"]:
+        _die("the reproduction did not pass; nothing is fitted")
+    if (target_dir / P14_FIT_NAME).exists():
+        _die(f"{target_dir / P14_FIT_NAME} already records the fit")
+    manifest = _p14_json(P14_DEV_LISTS_MANIFEST, target_dir)
+    if manifest["digest"] != reproduction["dev_lists_digest"]:
+        _die("the Phase 14 dev lists are not the ones the reproduction checked")
+    questions, token_counts = _p11_dev_inputs(source_dir)
+    rows = _p14_load_dev_lists(target_dir)
+    if [r["qid"] for r in rows] != [q.qid for q in questions]:
+        _die("the Phase 14 dev lists are not in the dev question order")
+
+    name = config.PHASE_14_SYSTEMS[3]
+    curve: list[dict[str, Any]] = []
+    started = time.perf_counter()
+    points = phase14.grid_points()
+    for alpha, weights in points:
+        records = _p10_replay_records(
+            name, _p14_rankings(rows, alpha, weights), questions, token_counts
+        )
+        curve.append(
+            {
+                "alpha": alpha,
+                "weights": list(weights),
+                "supported": phase10.supported(records),
+                "gold_recall_sum": phase10.gold_recall_sum(records),
+            }
+        )
+        if len(curve) % 50 == 0:
+            elapsed = time.perf_counter() - started
+            print(f"[INFO] {len(curve)}/{len(points)} points in {elapsed / 60:.1f} min", flush=True)
+
+    chosen = phase14.choose_point(curve)
+    p10c = next(
+        p
+        for p in curve
+        if p["alpha"] == config.PHASE_14_P10C_ALPHA
+        and tuple(p["weights"]) == config.PHASE_14_P10C_WEIGHTS
+    )
+    best_per_alpha = {
+        phase14.alpha_key(alpha): phase14.choose_point([p for p in curve if p["alpha"] == alpha])
+        for alpha in config.PHASE_14_ALPHAS
+    }
+    split = _p14_dense_rank_split(
+        rows, questions, token_counts, alpha=chosen["alpha"], weights=chosen["weights"]
+    )
+    body = {
+        "grid": "alpha in (0, 0.25, 0.5, 0.75, 1) x convex triples (dense, bm25, relevance-hop) "
+        "in tenths",
+        "n_points": len(curve),
+        "objective": "full_support@2048 over the 7,405 dev questions",
+        "tie_rule": (
+            "gold_recall@2048 sum; then the smaller alpha (closest to P10-C); "
+            "then the larger w_dense; then the larger w_bm25"
+        ),
+        "curve": curve,
+        "best_per_alpha": best_per_alpha,
+        "chosen": chosen,
+        "weights": dict(zip(config.PHASE_14_COMPONENT_NAMES, chosen["weights"], strict=True)),
+        "alpha": chosen["alpha"],
+        "p10c_point_in_grid": p10c,
+        "p10c_dev_supported": config.PHASE_14_P10C_DEV_SUPPORTED,
+        "dev_margin": config.PHASE_14_DEV_MARGIN,
+        "dev_bar": config.PHASE_14_DEV_BAR,
+        "terminal_state": phase14.dev_gate(chosen),
+        "d8": {
+            "best_supported_per_alpha": {
+                key: point["supported"] for key, point in best_per_alpha.items()
+            },
+            "bridge_items": manifest["bridge_items"],
+            "bridge_items_phase9": {"first_5": 590, "in_list": 1665},
+            "dense_rank_split": split,
+        },
+        "dev_lists_digest": reproduction["dev_lists_digest"],
+        "seconds": time.perf_counter() - started,
+        "host": local_extraction.hardware_block(device="cpu"),
+        "code_commit": _git_commit(),
+    }
+    path = _p14_write_once(P14_FIT_NAME, body, target_dir)
+    print(
+        f"[INFO] chosen alpha={chosen['alpha']} weights={chosen['weights']}: "
+        f"{chosen['supported']} of 7,405 against the bar of {body['dev_bar']}"
+    )
+    if body["terminal_state"] is not None:
+        _die(f"{body['terminal_state']} recorded in {path}; test-11 stays unopened")
+    print(f"[OK] fit written -> {path}; commit it before the held-out pass")
+    return path
+
+
+P14_MARKER_NAME = "pass.json"
+P14_SIM_BOUNDARY = (
+    "seconds of the one phase14.candidate_similarity call per question (gathering the C(q) "
+    "rows and their dot products with the question vector), inside retrieve: latency_ms "
+    "includes it; 0.0 when C(q) is empty"
+)
+
+
+def _p14_test_11_backend(
+    questions: Sequence[Question], phase11_dir: Path, embedding: Mapping[str, Any]
+) -> tuple[CachedQueryBackend, dict[str, Any]]:
+    """The Phase 11 `test-11` question vectors under D1's key, as Dense's cached backend.
+
+    The key must be the one the spec names, and the vectors must come from the model and
+    revision of the passage vectors, or the pass stops before it starts.
+    """
+    record = _p11_json(P11_EMBED_NAME, phase11_dir)["sets"][config.PHASE_14_TEST]
+    key = str(record["key"])
+    if key != config.PHASE_14_TEST_QUESTION_VECTORS_KEY:
+        _die(
+            f"the test-11 question cache is {key}, not the key D1 names "
+            f"({config.PHASE_14_TEST_QUESTION_VECTORS_KEY})"
+        )
+    if (record["model"], record["revision"]) != (embedding["model"], embedding["revision"]):
+        _die("the test-11 question vectors come from another model than the passage vectors")
+    loaded = EmbeddingCache(phase11_dir / "cache" / "questions").load(
+        key, expected_unit_ids=[q.qid for q in questions]
+    )
+    if loaded is None:
+        _die("the test-11 question vectors are missing: run 'p11-embed'")
+    backend = CachedQueryBackend(
+        texts=[q.question for q in questions],
+        vectors=loaded[0],
+        name=str(record["model"]),
+        revision=str(record["revision"]),
+    )
+    return backend, {"key": key, "digest": phase9.vectors_digest(loaded[0])}
+
+
+def _p14_sim_summary(seconds: Sequence[float]) -> dict[str, Any]:
+    """The per-question `sim` time in milliseconds, summarized as `latency_summary` is."""
+    values = np.asarray(seconds, dtype=np.float64) * 1000.0
+    if values.size == 0:
+        return {"n_questions": 0}
+    return {
+        "n_questions": int(values.size),
+        "mean_ms": float(values.mean()),
+        "median_ms": float(np.percentile(values, 50)),
+        "p95_ms": float(np.percentile(values, 95)),
+        "max_ms": float(values.max()),
+        "total_seconds": float(values.sum() / 1000.0),
+        "boundary": P14_SIM_BOUNDARY,
+    }
+
+
+def cmd_p14_eval(
+    *,
+    authorized: bool,
+    source_dir: Path = config.PHASE_9_DIR,
+    phase10_dir: Path = config.PHASE_10_DIR,
+    phase11_dir: Path = config.PHASE_11_DIR,
+    target_dir: Path = config.PHASE_14_DIR,
+) -> list[Path]:
+    """S5 (HU-3): P10-A, P10-B, P10-C and P14 on `test-11`, once, after the author's authorization.
+
+    Refuses without the flag, without a fit, on a recorded terminal state, on a fit git does not
+    track unmodified, and after a first start. Every input - the Phase 9 components, `test-11`
+    and its Phase 11 question vectors - is loaded and checked before `pass.json` is written;
+    from then on the pass is started and a second start is refused. P14 is
+    `QueryTripleFusedRetriever` over `RelevanceHopStage` at the fitted `alpha`, reading the same
+    passage matrix Dense scores with; its stage is named `seeded-hop` (the fusion key), and the
+    run records `alpha`, the component `relevance-hop` and the fit digest. Each P14 outcome
+    carries that question's `sim_seconds`, which its `latency_ms` includes (D9).
+    """
+    source_dir, phase10_dir = Path(source_dir), Path(phase10_dir)
+    phase11_dir, target_dir = Path(phase11_dir), Path(target_dir)
+    if not authorized:
+        _die("the held-out pass opens test-11: it needs --authorized-pass from the author")
+    fit = _p14_json(P14_FIT_NAME, target_dir)
+    if fit["terminal_state"] is not None:
+        _die(f"the fit recorded {fit['terminal_state']}; the held-out pass does not run")
+    if not _p10_fit_is_committed(target_dir / P14_FIT_NAME):
+        _die("fit.json is not committed unmodified; commit the fit before the held-out pass")
+    if (target_dir / P14_MARKER_NAME).exists():
+        _die(f"{target_dir / P14_MARKER_NAME} exists: the held-out pass has already started once")
+    started = time.perf_counter()
+    fit10 = _p10_json(P10_FIT_NAME, phase10_dir)
+    components = _phase_9_inputs(source_dir)
+    corpus_hash = str(components["provenance"]["corpus_unit_set_hash"])
+    questions = phase11.load_test_11(phase10_dir, corpus_unit_set_hash=corpus_hash)
+    backend, question_vectors = _p14_test_11_backend(
+        questions, phase11_dir, components["provenance"]["embedding"]
+    )
+    base, index = components["dense"], components["index"]
+    # D1: `sim` reads the Dense matrix itself, so its rows must be the entity index's rows.
+    if list(base.unit_ids) != list(index.unit_ids):
+        _die("the passage vector rows are not the entity index rows in its order")
+    dense = DenseRetriever(base.vectors, base.unit_ids, backend)
+    bm25, hop_weights = components["bm25"], components["node_weights"]
+
+    def question_vector(text: str) -> np.ndarray:
+        return backend.encode([text])[0]
+
+    alpha = float(fit["alpha"])
+    stage = RelevanceHopStage(
+        index,
+        hop_weights,
+        columns=ColumnwiseEntityHopStage.columns_for(index),
+        vectors=base.vectors,
+        question_vector=question_vector,
+        alpha=alpha,
+    )
+    _dense_name, p10b, p10c, p14 = config.PHASE_14_SYSTEMS
+    fitted = fit["weights"]
+    weights: dict[str, dict[str, float]] = {
+        p10b: dict(components["weights"]["hybrid-bm25"]),
+        p10c: dict(fit10["weights"]),
+        p14: {
+            "dense": float(fitted["dense"]),
+            "bm25": float(fitted["bm25"]),
+            SEEDED_HOP_NAME: float(fitted[RELEVANCE_HOP_NAME]),
+        },
+    }
+    systems: dict[str, Any] = {
+        "dense": RecordingRetriever(dense),
+        p10b: RecordingHybrid(dense, bm25, scheme=WEIGHTED, weights=weights[p10b]),
+        p10c: RecordingRetriever(
+            TripleFusedRetriever(
+                dense, bm25, ColumnwiseEntityHopStage(index, hop_weights), weights=weights[p10c]
+            )
+        ),
+        p14: RecordingRetriever(
+            QueryTripleFusedRetriever(dense, bm25, stage, weights=weights[p14])
+        ),
+    }
+    commit = _git_commit()
+    host = local_extraction.hardware_block(device="cpu")
+    fit_digest = digest_of(json.dumps(fit, sort_keys=True))
+    provenance = {
+        **_p11_pass_provenance(components, weights, phase10_dir, phase11_dir),
+        "hop_implementation": phase9.COLUMNWISE_HOP,
+        "question_set": config.PHASE_14_TEST,
+        "question_vectors_digest": question_vectors["digest"],
+        "fit_digest": fit_digest,
+        "phase10_fit_digest": digest_of(json.dumps(fit10, sort_keys=True)),
+        "code_commit": commit,
+        "host": host,
+    }
+    relevance_hop = {
+        "component": RELEVANCE_HOP_NAME,
+        "stage_name": SEEDED_HOP_NAME,
+        "alpha": alpha,
+        "fit_weights": dict(fitted),
+        "fit_digest": fit_digest,
+    }
+    load_seconds = time.perf_counter() - started
+    print(f"[INFO] inputs loaded in {load_seconds / 60:.1f} min", flush=True)
+    _p14_write_once(
+        P14_MARKER_NAME,
+        {
+            "started_at": datetime.now(UTC).isoformat(timespec="seconds"),
+            "code_commit": commit,
+            "fit_digest": fit_digest,
+            "set": config.PHASE_14_TEST,
+            "alpha": alpha,
+            "question_vectors_key": question_vectors["key"],
+            "load_seconds": load_seconds,
+        },
+        target_dir,
+    )
+    written: list[Path] = []
+    for name, system in systems.items():
+        print(f"[INFO] pass: {name} over {len(questions)} questions", flush=True)
+        system_started = time.perf_counter()
+        if name == p14:
+            stage.sim_seconds.clear()
+        records = phase9.measure_system(name, system, questions, components["token_counts"])
+        system_seconds = time.perf_counter() - system_started
+        inner = system.inner if isinstance(system, RecordingRetriever) else system
+        body: dict[str, Any] = {
+            "phase": 14,
+            "system": name,
+            "label": config.PHASE_14_SYSTEM_LABELS[name],
+            "set": config.PHASE_14_TEST,
+            "ranking_depth": config.PHASE_9_RANKING_DEPTH,
+            "fusion": inner.describe() if hasattr(inner, "describe") else None,
+            "metrics": phase9.cohort_metrics(records)[config.PHASE_9_STANDARD],
+            "latency": phase9.latency_summary(records),
+            "seconds": system_seconds,
+            "peak_memory_mb": _p14_peak_memory_mb(),
+            "provenance": provenance,
+        }
+        if name == p14:
+            if len(stage.sim_seconds) != len(records):
+                _die(
+                    f"{len(stage.sim_seconds)} sim timings for {len(records)} questions; "
+                    "the P14 run is not written"
+                )
+            for record, seconds in zip(records, stage.sim_seconds, strict=True):
+                record["sim_seconds"] = seconds
+            body["relevance_hop"] = {**relevance_hop, "sim": _p14_sim_summary(stage.sim_seconds)}
+        written.append(phase9.write_run(target_dir, name, records, body=body))
+        supported = body["metrics"]["supported_at_primary_budget"]
+        print(
+            f"[OK] {name} run written in {system_seconds / 60:.1f} min "
+            f"({supported} supported at 2,048) -> {written[-1]}",
+            flush=True,
+        )
+    print(f"[OK] pass complete in {(time.perf_counter() - started) / 60:.1f} min", flush=True)
+    return written
+
+
+P14_OUTCOME_NAME = "outcome.json"
+P14_D8_TEST_NOTE = (
+    "The test-11 outcome records hold per-question metrics, not rankings, and retrieval is "
+    "not re-run on test-11, so each changed gold paragraph's Dense rank cannot be read. From "
+    "the records: won and lost questions and their changed gold paragraphs are exact counts; "
+    "each changed paragraph's Dense rank is bounded by Dense's recorded gold recall @10: "
+    "'1-10' certainly in Dense's first 10, 'beyond-10' certainly outside them (ranks 11-100 "
+    "and beyond 100 are not separable), 'undetermined' either."
+)
+
+
+def _p14_latency_stats(values_ms: Sequence[float]) -> dict[str, float]:
+    """Mean, median, p95 and max in milliseconds, as `phase9.latency_summary` computes them."""
+    stats = phase9.latency_summary([{"latency_ms": v} for v in values_ms])
+    return {key: float(stats[key]) for key in ("mean_ms", "median_ms", "p95_ms", "max_ms")}
+
+
+def _p14_recorded_runs(target_dir: Path) -> tuple[dict[str, list[dict[str, Any]]], dict[str, Any]]:
+    """The four `test-11` runs, each checked before anything is compared.
+
+    Every outcomes file must match the digest its run file records, hold the 5,000 `test-11`
+    questions in the same order as the others, and name `test-11` and the digest of the
+    committed `fit.json`, which `pass.json` also records; P14's run must be at the fit's
+    `alpha` and carry `sim_seconds` on every question. Any miss stops the stage.
+    """
+    fit_path = target_dir / P14_FIT_NAME
+    fit = _p14_json(P14_FIT_NAME, target_dir)
+    if not _p10_fit_is_committed(fit_path):
+        _die("fit.json is not committed unmodified; the outcome reads only the committed fit")
+    fit_digest = digest_of(json.dumps(fit, sort_keys=True))
+    marker = _p14_json(P14_MARKER_NAME, target_dir)
+    if marker["fit_digest"] != fit_digest:
+        _die("pass.json records another fit digest than the committed fit.json")
+    size = config.PHASE_10_SET_SIZES[config.PHASE_14_TEST]
+    runs: dict[str, list[dict[str, Any]]] = {}
+    for name in config.PHASE_14_SYSTEMS:
+        body = _p14_json(f"run-{name}.json", target_dir)
+        try:
+            records = phase9.load_outcomes(target_dir, name)
+        except phase9.FullWikiPhaseError as error:
+            _die(str(error))
+        provenance = body["provenance"]
+        if (
+            body["set"] != config.PHASE_14_TEST
+            or provenance["question_set"] != config.PHASE_14_TEST
+        ):
+            _die(f"run-{name}.json does not name {config.PHASE_14_TEST}")
+        if provenance["fit_digest"] != fit_digest:
+            _die(f"run-{name}.json was not measured under the committed fit")
+        qids = [r["qid"] for r in records]
+        if len(qids) != size or len(set(qids)) != size:
+            _die(f"run-{name}.json holds {len(set(qids))} questions, not {size}")
+        if runs and qids != [r["qid"] for r in next(iter(runs.values()))]:
+            _die(f"run-{name}.json lists its questions in another order")
+        runs[name] = records
+    p14 = config.PHASE_14_SYSTEMS[3]
+    p14_run = _p14_json(f"run-{p14}.json", target_dir)
+    if float(p14_run["relevance_hop"]["alpha"]) != float(fit["alpha"]):
+        _die("the P14 run's alpha is not the fitted one")
+    if any("sim_seconds" not in r for r in runs[p14]):
+        _die("some P14 outcome records carry no sim_seconds")
+    integrity = {
+        "systems": list(config.PHASE_14_SYSTEMS),
+        "n_questions": size,
+        "same_qid_order": True,
+        "outcomes_digests": {
+            name: _p14_json(f"run-{name}.json", target_dir)["outcomes_digest"]
+            for name in config.PHASE_14_SYSTEMS
+        },
+        "fit_digest": fit_digest,
+        "fit_committed": True,
+        "pass_started_at": marker.get("started_at"),
+    }
+    return runs, {"fit": fit, "integrity": integrity}
+
+
+def cmd_p14_outcome(target_dir: Path = config.PHASE_14_DIR) -> Path:
+    """S6 (D6, D7, D8, D9): the paired tests, the label, the D8 split on `test-11` and latency.
+
+    One paired function (Full Support @2,048, exact McNemar) for P14 against P10-C (D6: the
+    label, from this comparison only), P14 against P10-B (D7, which cannot change it) and
+    P10-C against P10-B (descriptive). D8 on `test-11` reads the recorded outcomes only, since
+    they hold no ranking and retrieval is never re-run on `test-11`. D9: `retrieve` for every
+    system; for P14 also `retrieve` without `sim`, `sim`, and their sum (its `latency_ms`).
+    """
+    target_dir = Path(target_dir)
+    if (target_dir / P14_OUTCOME_NAME).exists():
+        _die(f"{target_dir / P14_OUTCOME_NAME} already exists; a Phase 14 artifact is written once")
+    runs, checked = _p14_recorded_runs(target_dir)
+    dense, p10b, p10c, p14 = config.PHASE_14_SYSTEMS
+    primary = phase11.paired(runs[p10c], runs[p14])
+    secondary = phase11.paired(runs[p10b], runs[p14])
+    descriptive = phase11.paired(runs[p10b], runs[p10c])
+    d8 = phase14.recorded_rank_split(runs[p14], runs[p10c], runs[dense])
+    latency: dict[str, Any] = {
+        name: {"retrieve": _p14_latency_stats([r["latency_ms"] for r in runs[name]])}
+        for name in (dense, p10b, p10c)
+    }
+    total = [float(r["latency_ms"]) for r in runs[p14]]
+    sim = [1000.0 * float(r["sim_seconds"]) for r in runs[p14]]
+    latency[p14] = {
+        "retrieve_without_sim": _p14_latency_stats(
+            [t - s for t, s in zip(total, sim, strict=True)]
+        ),
+        "sim": _p14_latency_stats(sim),
+        "retrieve_with_sim": _p14_latency_stats(total),
+    }
+    mean = {name: latency[name]["retrieve"]["mean_ms"] for name in (p10b, p10c)}
+    with_sim = latency[p14]["retrieve_with_sim"]["mean_ms"]
+    without_sim = latency[p14]["retrieve_without_sim"]["mean_ms"]
+    fit = checked["fit"]
+    body = {
+        "set": config.PHASE_14_TEST,
+        "metric": "full_support@2048_tokens",
+        "test": "exact two-sided McNemar (binomial on discordant questions, p = 1/2)",
+        "alpha": config.PHASE_9_ALPHA,
+        "selected": {"alpha": fit["alpha"], "weights": fit["weights"]},
+        "primary_p14_vs_p10c": primary,
+        "secondary_p14_vs_p10b": secondary,
+        "descriptive_p10c_vs_p10b": descriptive,
+        "terminal_state": phase14.label(
+            primary["wins"], primary["losses"], primary["exact_two_sided_p"]
+        ),
+        # DEV_STOP ends the phase before a pass exists, and every integrity miss stops the
+        # stage before this file is written, so none can reach here.
+        "stop_reasons": [],
+        "integrity": checked["integrity"],
+        "d8_test_11": {
+            "comparison": "P14 against P10-C, Full Support @2,048",
+            "computed_from_rankings": False,
+            "note": P14_D8_TEST_NOTE,
+            **d8,
+        },
+        "latency": {
+            "boundary": (
+                "Retriever.retrieve wall time per question from the recorded latency_ms, "
+                "laptop, one pass; for P14 retrieve_with_sim is latency_ms, sim is "
+                "1000 * sim_seconds, retrieve_without_sim their difference"
+            ),
+            **latency,
+        },
+        "latency_ratios": {
+            "p14_with_sim_over_p10c": with_sim / mean[p10c],
+            "p14_with_sim_over_p10b": with_sim / mean[p10b],
+            "p14_without_sim_over_p10c": without_sim / mean[p10c],
+            "p14_without_sim_over_p10b": without_sim / mean[p10b],
+        },
+        "code_commit": _git_commit(),
+    }
+    path = _p14_write_once(P14_OUTCOME_NAME, body, target_dir)
+    print(
+        f"[OK] {body['terminal_state']}: against P10-C wins {primary['wins']}, losses "
+        f"{primary['losses']}, p = {primary['exact_two_sided_p']:.4g}; against P10-B wins "
+        f"{secondary['wins']}, losses {secondary['losses']}, "
+        f"p = {secondary['exact_two_sided_p']:.4g} -> {path}"
+    )
+    return path
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="cer",
@@ -6772,6 +7669,22 @@ def build_parser() -> argparse.ArgumentParser:
         "p13-fit",
         help="Phase 13: the 264-point grid on dev, the tie rule and the dev gate",
     )
+    subparsers.add_parser(
+        "p14-lists",
+        help="Phase 14: D1 integrity, the relevance-ordered hop dev lists, D3 reproduction",
+    )
+    subparsers.add_parser(
+        "p14-fit",
+        help="Phase 14: the 330-point grid on dev, the tie rule, the dev gate and D8",
+    )
+    p14_eval = subparsers.add_parser(
+        "p14-eval", help="Phase 14: the single authorized held-out pass on test-11"
+    )
+    p14_eval.add_argument("--authorized-pass", action="store_true", dest="authorized")
+    subparsers.add_parser(
+        "p14-outcome",
+        help="Phase 14: exact McNemar against P10-C (the label) and P10-B, D8 and D9",
+    )
     build.add_argument(
         "--smoke",
         type=int,
@@ -6914,6 +7827,14 @@ def main(argv: list[str] | None = None) -> int:
         cmd_p13_lists()
     elif args.command == "p13-fit":
         cmd_p13_fit()
+    elif args.command == "p14-lists":
+        cmd_p14_lists()
+    elif args.command == "p14-fit":
+        cmd_p14_fit()
+    elif args.command == "p14-eval":
+        cmd_p14_eval(authorized=args.authorized)
+    elif args.command == "p14-outcome":
+        cmd_p14_outcome()
     return 0
 
 

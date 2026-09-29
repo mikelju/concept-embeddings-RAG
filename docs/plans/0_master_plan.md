@@ -80,6 +80,8 @@ From Phase 7 onward:
 | 11 | A better use of the entities at FullWiki scale (step 2 of 2) | [Approved](phase_11/11.spec.md) | **Complete — DEV_STOP** |
 | 12 | Choosing with the question which of P1's entities to hop from | [Approved](phase_12/12.spec.md) | **Complete — DEV_STOP** |
 | 13 | Choosing P1's bridge entity by the words around its mention | [Approved](phase_13/13.spec.md) | **Complete — DEV_STOP** |
+| 14 | Ordering the hop's candidates by their similarity to the question | [Approved](phase_14/14.spec.md) | **Complete — CANDIDATE_RELEVANCE_SUPPORTED** |
+| 15 | Second-hop query reformulation: the vector of "question + P1 text" against Dense, untrained (author decision 2026-09-29; replaces canonicalization route A) | Not written | **Planned** |
 
 **The first research line is closed** (2026-09-15): concepts induced from pooled embeddings, tested through Phases 2-4, gave a negative and bounded result. The original Phase 5 — a comparative evaluation of that method — was not run; the plan was renumbered so Phase 5 tests the representation the proposal actually described. See [`phase_4/4.1_research_line_closure.md`](phase_4/4.1_research_line_closure.md).
 
@@ -134,7 +136,37 @@ was excluded and is untested. See [`phase_13/13.results.md`](phase_13/13.results
 [`phase_13/13.spec.md`](phase_13/13.spec.md) and the plan
 [`phase_13/13.0_bridge_window.md`](phase_13/13.0_bridge_window.md).
 
-The remaining scheduled work deliberately does **not** try to improve the Entity Hop with canonicalization, relations, multiple seeds or additional hops. Phase 9 asks whether the simple mechanism already discovered survives **corpus scale** with BGE-small as the validated primary Dense candidate. The separate question of Entity Hop beside a substantially stronger Dense retriever remains open.
+**Review of 2026-09-29** ([`review_2026-09-29.md`](review_2026-09-29.md), dev, exploratory,
+selecting nothing): a failure anatomy of P10-C on dev finds 40.8 % of its failures out of reach of
+the current three lists and 59.2 % badly ordered (932 with both gold in the fused top 100, the
+second at median rank 48); P1 is not gold for 22.6 % of the questions and 37.3 % of the failures.
+Two reach yardsticks (Wikipedia hyperlinks, 62.8 %; a link-free title-mention rule, 55.6 %)
+suggest, as an interpretation and partly as a property of how HotpotQA was built, that the
+second gold paragraph is usually the one *about* something P1 names. The author excluded
+hyperlinks as a component (the target corpora carry none) and decided: Phase 15 is the untrained
+second-hop query reformulation (question + P1) in place of canonicalization; multiple seeds, a
+zero-shot cross-encoder over the fused list and a cross-benchmark validation (MuSiQue or 2Wiki)
+enter the roadmap as future phases with a spec. The Phase 14 dev fit, measured during the review,
+passes its gate (5,224 / 7,405, bar 4,835).
+
+**Phase 14 is measured and closed** (2026-09-29) with **`CANDIDATE_RELEVANCE_SUPPORTED`**. It kept
+the Phase 9 hop's seed, candidate set and depth, and changed only the hop's score: each candidate's
+rarity overlap with P1 and its BGE similarity to the question, both min-max normalized over the
+question's candidates, mixed as `(1 − α) · rarity + α · similarity`. The new code first reproduced
+P10-C exactly on dev (4,801 / 7,405 at `α = 0`). The 330-point dev fit selected `α = 0.75` at
+P10-C's own weights, 0.5 / 0.3 / 0.2 (5,224 against the bar of 4,835); the hop's first-5 count of
+bridge-sharing gold doubled (590 → 1,207). On the single `test-11` pass (5,000 held-out HotpotQA
+train questions), P14 reaches **3,530 / 5,000** Full Support @2,048 against P10-C's **3,285**
+(+4.90 pp; exact McNemar 317 wins / 72 losses, p = 9.0e-38) and Dense + BM25's 3,079 (+9.02 pp,
+532 / 81, p = 2.9e-82), at 1.82× P10-C's mean latency on the laptop. P10-C's own gain over
+Dense + BM25 replicates on `test-11` (+4.12 pp). **P14 is the line's new best system**, and
+`test-11` is spent. The D8 split by Dense rank could be computed on dev only (deviation
+[`14.1`](phase_14/14.1_d8_test_split_incomplete.md)). See
+[`phase_14/14.results.md`](phase_14/14.results.md), the spec
+[`phase_14/14.spec.md`](phase_14/14.spec.md) and the plan
+[`phase_14/14.0_candidate_relevance.md`](phase_14/14.0_candidate_relevance.md).
+
+Up to Phase 14, the remaining scheduled work deliberately did **not** try to improve the Entity Hop with canonicalization, relations, multiple seeds or additional hops. Phase 9 asks whether the simple mechanism already discovered survives **corpus scale** with BGE-small as the validated primary Dense candidate. The separate question of Entity Hop beside a substantially stronger Dense retriever remains open.
 
 ---
 

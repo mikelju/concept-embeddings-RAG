@@ -633,3 +633,132 @@ class OnlineWindows:
     def windows_rows(self) -> tuple[list[str], list[int], list[int], list[int], list[str]]:
         """Every window built so far, in the cache's row order (unit, node, window)."""
         return phase13.window_rows(sorted(self._built), self._built)
+
+
+# --- Phase 14: ordering the hop's candidates by their similarity to the question ---------
+
+RELEVANCE_HOP_NAME: str = "relevance-hop"
+
+
+@dataclass(frozen=True)
+class RelevanceExpansion:
+    """One relevance-ordered hop at one `alpha`: the list the fusion reads and `|C(q)|`."""
+
+    alpha: float
+    candidates: tuple[RankedCandidate, ...]
+    positives: int
+
+
+class RelevanceHopStage:
+    """The Phase 9 hop's candidates, ordered by rarity mixed with question similarity
+    (Phase 14, D1/D2).
+
+    At `alpha = 0` the stage returns `second_hop.node_hop_columnwise`'s list and raw rarity
+    scores unchanged, without reading a passage vector or the question vector; it therefore
+    equals `ColumnwiseEntityHopStage` bit for bit (held by `tests/retrieval/test_relevance_hop.py`,
+    and on the real index by the D3 reproduction). For `alpha > 0` it scores the whole
+    candidate set with `second_hop.relevance_hop_columnwise`. `vectors` are the Phase 9 passage
+    vectors, one row per index row in the index's order; `question_vector` maps the question
+    text to its cached Dense vector.
+
+    `sim_seconds` holds one entry per `hop`, `propose` or `hop_all` call, in order: the seconds
+    spent on `sim`, or 0.0 when none was computed, so the pass can report it beside `retrieve`
+    (D9). The stage is named `seeded-hop` because that is the name `QueryTripleFusedRetriever`
+    requires in its third slot; `RELEVANCE_HOP_NAME` names the component in the dev lists.
+    """
+
+    name: str = SEEDED_HOP_NAME
+
+    def __init__(
+        self,
+        index: NodeIndex,
+        weights: np.ndarray,
+        *,
+        columns: second_hop.ArmColumns,
+        vectors: np.ndarray,
+        question_vector: Callable[[str], np.ndarray],
+        alpha: float,
+    ) -> None:
+        self._index = index
+        self._weights = weights
+        self._columns = columns
+        self._vectors = vectors
+        self._question_vector = question_vector
+        self.alpha = alpha
+        self._rows = {unit_id: row for row, unit_id in enumerate(index.unit_ids)}
+        self.sim_seconds: list[float] = []
+
+    def _read(self, first: Sequence[Hit], top_k: int) -> list[int]:
+        if top_k <= 0:
+            raise EntityHopError(f"top_k must be positive, not {top_k}")
+        if not first:
+            raise EntityHopError("the dense list is empty: a reader who read nothing has no p1")
+        check_dense_order(first)
+        read: list[int] = []
+        for unit_id, _score in first[:READ_DEPTH]:
+            row = self._rows.get(unit_id)
+            if row is None:
+                raise EntityHopError(f"unit {unit_id!r} is not in the node index this hop reads")
+            read.append(row)
+        return read
+
+    def _phase_9(self, read: list[int], top_k: int) -> RelevanceExpansion:
+        candidates, positives = second_hop.node_hop_columnwise(
+            self._index, self._weights, self._columns, p1=read[0], read=read, depth=top_k
+        )
+        return RelevanceExpansion(0.0, tuple(candidates), positives)
+
+    def _relevance(
+        self, query: str, read: list[int], top_k: int, alphas: Sequence[float]
+    ) -> tuple[dict[float, RelevanceExpansion], float]:
+        result = second_hop.relevance_hop_columnwise(
+            self._index,
+            self._weights,
+            self._columns,
+            p1=read[0],
+            read=read,
+            depth=top_k,
+            vectors=self._vectors,
+            question_vector=self._question_vector(query),
+            alphas=alphas,
+        )
+        expansions = {
+            alpha: RelevanceExpansion(alpha, tuple(result.lists[alpha]), result.positives)
+            for alpha in alphas
+        }
+        return expansions, result.sim_seconds
+
+    def hop(self, query: str, first: Sequence[Hit], top_k: int) -> RelevanceExpansion:
+        read = self._read(first, top_k)
+        if self.alpha == 0.0:
+            self.sim_seconds.append(0.0)
+            return self._phase_9(read, top_k)
+        expansions, seconds = self._relevance(query, read, top_k, (self.alpha,))
+        self.sim_seconds.append(seconds)
+        return expansions[self.alpha]
+
+    def hop_all(
+        self,
+        query: str,
+        first: Sequence[Hit],
+        top_k: int,
+        alphas: Sequence[float] = config.PHASE_14_ALPHAS,
+    ) -> dict[float, RelevanceExpansion]:
+        """Every alpha's list, in `alphas` order, from one `sim` pass (the dev lists).
+
+        `alpha = 0` is `node_hop_columnwise`'s list, as in `hop`; every `alpha > 0` comes from
+        one `relevance_hop_columnwise` call. One `sim_seconds` entry is recorded per call.
+        """
+        read = self._read(first, top_k)
+        positive = [alpha for alpha in alphas if alpha != 0.0]
+        expansions, seconds = (
+            self._relevance(query, read, top_k, positive) if positive else ({}, 0.0)
+        )
+        if 0.0 in alphas:
+            expansions[0.0] = self._phase_9(read, top_k)
+        self.sim_seconds.append(seconds)
+        return {alpha: expansions[alpha] for alpha in alphas}
+
+    def propose(self, query: str, first: Sequence[Hit], top_k: int) -> list[Hit]:
+        expansion = self.hop(query, first, top_k)
+        return [(candidate.unit_id, candidate.score) for candidate in expansion.candidates]

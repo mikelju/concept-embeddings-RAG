@@ -1,7 +1,7 @@
 # Research summary — minimum structure for multi-hop retrieval
 
-> Status on 2026-09-24: the planned research line (Phases 1-9) is complete, and Phase 10 (step 1
-> of the next line) is measured. This page summarises
+> Status on 2026-09-29: the planned research line (Phases 1-9) is complete, and Phases 10-14 of
+> the next line are measured. This page summarises
 > what was asked, what was measured and what it establishes. Every figure links back to the
 > phase document that records it with its artifact; nothing here is new measurement.
 
@@ -43,6 +43,8 @@ has a baseline it must justify itself against.
 | [8](plans/phase_8/8.results.md) / [8.1](plans/phase_8/8.1_results.md) | Does the hop still help beside a stronger Dense? | **Premise failed.** Qwen3-Embedding-0.6B was weaker than BGE-small on this task at every corpus size up to 500k; no stronger Dense was tested |
 | [9](plans/phase_9/9.results.md) | Does it survive the real FullWiki search space? | **`SCALE_SUPPORTED`**, with Dense + BM25 slightly ahead at scale |
 | [10](plans/phase_10/10.results.md) | Does the Entity Hop add anything on top of Dense + BM25 at FullWiki scale? | **`THREE_WAY_SUPPORTED`**: +3.92 pp on 5,000 held-out train questions (seen by BGE in fine-tuning) |
+| [11](plans/phase_11/11.results.md)-[13](plans/phase_13/13.results.md) | Can the question choose which of P1's entities to hop from (DF cap, question entities, sentence or mention-window similarity)? | **`DEV_STOP` three times.** Every hard filter on the seeds loses on dev; `test-11` stayed unopened |
+| [14](plans/phase_14/14.results.md) | Does ordering the hop's candidates by their similarity to the question help? | **`CANDIDATE_RELEVANCE_SUPPORTED`**: +4.90 pp over Dense + BM25 + Entity Hop on 5,000 new held-out train questions |
 
 ## The mechanism that worked
 
@@ -110,6 +112,25 @@ The mean query latency on the laptop rose 1.33×, with a tail of up to 16.5 s. B
 fine-tuned on HotpotQA, and Dense reads these train questions 2.6-2.9 points better than the
 validation ones. That bias leaves less for a complement to add, so it works against the result.
 
+**6. The hop's order, not only its reach, was holding it back.** Phases 11-13 used the question
+to choose which of P1's entities to hop from, as a hard filter, and all three stopped at their dev
+gate. Phase 14 kept the seed, the candidate set and the fusion weights, and changed only how the
+hop scores its candidates: `(1 − α) · rarity + α · cos(question, candidate)`, both terms min-max
+normalized per question, `α = 0.75` fitted on dev. On a second held-out draw of 5,000 `hard` train
+questions (`test-11`), Full Support @2,048 was:
+
+| System | Full Support @2,048 |
+|---|---:|
+| Dense | 57.04 % |
+| Dense + BM25 | 61.58 % |
+| Dense + BM25 + Entity Hop | 65.70 % (+4.12 pp over Dense + BM25: Phase 10 replicates) |
+| Dense + BM25 + relevance-ordered hop (P14) | 70.60 % (+4.90 pp over the Entity Hop system; 317 wins, 72 losses, exact McNemar p = 9.0e-38; +9.02 pp over Dense + BM25) |
+
+The mean query latency on the laptop is 1.82× that of the Entity Hop system. The similarity is
+Dense's own signal, and part of the gain may re-weight what Dense already ranks: on dev, half of
+the gold paragraphs the new order brought into the context were in Dense's ranks 11-100 and half
+beyond its top 100.
+
 ## What did not work, and what is not established
 
 - **Concepts, in two operationalizations**, add nothing. The first used concepts induced from
@@ -145,8 +166,12 @@ FullWiki scale.** Phase 10 shows one: the unchanged entity signal, fused as a th
 beats Dense + BM25 by 3.92 points on held-out train questions. From step 2 on, every new system is reported
 against both: Dense + BM25 + Entity Hop, the project's own bar, which decides whether a new use of
 the entities is kept; and Dense + BM25, the reference the literature understands. The 7,405 validation
-questions are now dev. A 5,000-question held-out set (`test-11`) is drawn, frozen and untouched for
-step 2.
+questions are now dev.
+
+Phase 14 then moved the bar: the relevance-ordered hop (P14) beats that system by 4.90 points on a
+second held-out set, which is now spent. P14 is the line's best system. The next phase (15) tests
+an untrained second-hop query, the vector of "question + P1", against Dense
+([`plans/0_master_plan.md`](plans/0_master_plan.md)).
 
 ## Reproducibility
 

@@ -451,9 +451,20 @@ A method that works only there may be exploiting benchmark structure.
 
 Keep the basic architecture unchanged initially.
 
+**Selected by the author on 2026-09-29 as a future phase with its own spec**
+([`review_2026-09-29.md`](review_2026-09-29.md), §8): the unchanged system on MuSiQue or
+2WikiMultiHopQA. The review measured that 79.9 % of the dev gold pairs are joined by a
+first-paragraph hyperlink, which is how HotpotQA built its bridge questions; a benchmark without
+that construction is the check that protects any general claim.
+
 ---
 
 ## 7.2 Query-aware Entity Hop
+
+> **Candidate side tested in Phase 14 (2026-09-29): `CANDIDATE_RELEVANCE_SUPPORTED`.**
+> `relevance(candidate, Q)` as part of the hop's score beats P10-C by +4.90 pp Full Support
+> @2,048 on `test-11` ([`phase_14/14.results.md`](phase_14/14.results.md)). The seed side
+> (Phases 11-13) stopped at dev three times.
 
 The current Entity Hop becomes query-blind after Dense produces `P1`.
 
@@ -537,6 +548,38 @@ unchanged cannot move any question. The candidate side has the most room, but on
 question signal enters the hop's score. 1,154 of the 2,651 items are already in Dense's ranks
 11-100.
 
+**Phase 14 on dev (2026-09-28, measured, `data/phase14/fit.json`, commit `8a3694b`).** The
+relevance-ordered hop passes its dev gate: α = 0.75 at 0.5 / 0.3 / 0.2 gives 5,224 / 7,405
+against the bar of 4,835, with 520 questions won and 97 lost against P10-C; of the gold
+paragraphs that enter the context in the won questions, 260 were in Dense's ranks 11-100 and
+242 beyond its top 100. The single held-out pass on `test-11` is the Phase 14 branch's to run,
+on the author's authorization, and to record in `phase_14/14.results.md`.
+
+**Phase 14 on `test-11` (2026-09-29, measured, held-out;
+[`phase_14/14.results.md`](phase_14/14.results.md)).** The single pass gives P14 (`α = 0.75`,
+0.5 / 0.3 / 0.2) 3,530 / 5,000 Full Support @2,048 against P10-C's 3,285: +4.90 pp, 317 wins /
+72 losses, exact McNemar p = 9.0e-38, label `CANDIDATE_RELEVANCE_SUPPORTED`; against Dense + BM25
++9.02 pp (532 / 81). Mean latency 1.82× P10-C's. So the answer to this section's question, on
+HotpotQA: re-introducing query relevance **on the candidate side**, as a soft score rather than a
+filter, helps; whether part of the gain is Dense's own signal counted twice cannot be separated
+(on dev, half of the won gold paragraphs were in Dense's ranks 11-100). P14 is the new bar; the
+MDR-style query vector (question + P1) is Phase 15.
+
+**Review of 2026-09-29 (dev, gold-informed, exploratory;
+[`review_2026-09-29.md`](review_2026-09-29.md)).** A failure anatomy of P10-C on dev: of its
+2,604 failures, 40.8 % have a gold paragraph in none of the three component lists (reach) and
+59.2 % have both gold listed but badly placed (ordering; 932 of them with both gold in the fused
+top 100, the second at median fused rank 48 while the context holds about 25 units). P1 is not
+gold for 22.6 % of the questions and 37.3 % of the failures, and the hop's reach collapses there.
+Two yardsticks measured how far a "fact link" from P1 reaches the missed gold: Wikipedia
+hyperlinks 62.8 % (a yardstick only; **the author excluded them as a component**, because the
+target corpora carry none) and a link-free title-mention rule 55.6 % with all titles (ceiling
++1,187; 47.1 % and +993 with multi-word titles only). **The author's decision (2026-09-29):
+Phase 15 is the second-hop query reformulation** that the Phase 14 spec (D1) left to the
+roadmap: the vector of "question + text of P1" against Dense, untrained, chosen because it
+depends on no corpus structure. The hop to the unit *about* an entity (title, glossary entry,
+record) is recorded as a conditional variant, not scheduled.
+
 ---
 
 ## 7.3 QA end to end
@@ -566,6 +609,18 @@ Retrieval improvement does not automatically guarantee answer improvement, so th
 These should only be introduced after a concrete failure mode motivates them.
 
 ## 8.1 Entity canonicalization
+
+**Scheduled as Phase 15 on 2026-09-28 and displaced on 2026-09-29, both by the author.** The
+2026-09-28 plan was route A of [`phase_14/14.spec.md`](phase_14/14.spec.md) step 0: a strict
+string rule (one form a full word sequence of the other), on the laptop, no LLM. Its dev reach
+ceiling is +157 questions on top of perfect ordering (lenient rule +282); see
+[`phase_13/13.results.md`](phase_13/13.results.md), "Reach ceilings"; the same document measured that merging forms multiplies the hop's candidate
+sets by 4.5 (strict) to 32 (lenient) on a 500-question dev sample. The review of 2026-09-29
+([`review_2026-09-29.md`](review_2026-09-29.md)) weighed that reach ceiling against the ordering
+lever (+1,257) and the author chose the second-hop query reformulation for Phase 15 (7.2) because
+it depends on no corpus structure; no figure was measured for the reformulation itself.
+Canonicalization stays deferred; in enterprise corpora it matters more than in Wikipedia
+(abbreviations, aliases), and there it would be done by glossary rather than by string rule.
 
 Current raw forms may split:
 
@@ -695,6 +750,13 @@ For now:
 
 > **P1 remains fixed.**
 
+**Selected by the author on 2026-09-29 as a future phase with its own spec**
+([`review_2026-09-29.md`](review_2026-09-29.md), §8). The dev failure anatomy is the motivation:
+P1 is not gold for 22.6 % of the questions and 37.3 % of P10-C's failures, and a wrong P1 has no
+remedy in a one-seed hop. The cost depends on the hop's neighbourhood size: with the entity hop
+(median 5,504 candidates per seed) more seeds multiply the candidates; with a narrower hop they
+add little.
+
 ---
 
 ## 8.4 Multiple entity hops
@@ -770,6 +832,11 @@ This could isolate mechanisms very precisely.
 
 It is **not part of the immediate roadmap**.
 
+**Update 2026-09-29:** the untrained form of the "MDR-style second Dense" query (question + P1
+text encoded with the project's own Dense model) is now Phase 15 (see 7.2), measured as this
+project's own system under its own spec, not as a reimplementation of MDR. The reimplementation
+suite above stays unplanned.
+
 The priority is first to obtain numbers in a benchmark regime that can already be compared with published results.
 
 If Phase 9 produces a strong result but the reason for the difference remains ambiguous, selective implementation of one or two competing mechanisms may then become worthwhile.
@@ -795,6 +862,44 @@ Potentially useful, but not required for the current scientific story.
 **Measured in Phase 10 (2026-09-24): `THREE_WAY_SUPPORTED`.** At FullWiki scale the three-way
 fusion beats Dense + BM25 by 3.92 pp Full Support @2,048 on 5,000 held-out HotpotQA train questions (seen by BGE-small in fine-tuning). See
 [`phase_10/10.results.md`](phase_10/10.results.md).
+
+---
+
+## Zero-shot cross-encoder reranking of the fused list
+
+**Selected by the author on 2026-09-29 as a future phase with its own spec**
+([`review_2026-09-29.md`](review_2026-09-29.md), §7-8). The three components compare the question
+and each paragraph separately; a cross-encoder reads the question and one candidate together,
+which is more precise and slower, so it is applied only to the fused top 100. On dev, 932 of
+P10-C's failures have both gold paragraphs in the fused top 100 with the second at median rank
+48: a perfect reorder of that list is worth +932 questions (ceiling, gold-informed). On
+BEIR-HotpotQA, the same 5.23 M corpus and the 7,405 questions BEIR uses as its test split (this
+project's dev), a zero-shot MiniLM-L6 lifts BM25 from 0.603 to 0.707 nDCG@10 (Thakur et al.
+2021); and PromptRank's ablation shows the value of scoring the whole two-passage path rather
+than one passage (R@2 22.8 → 46.9, with a T5 likelihood scorer, not a cross-encoder; Khalifa et
+al. 2023). It depends on no corpus structure. It puts a model in the online loop, which must be
+declared, and it must be applied to every compared system alike so that the structural signal's
+contribution stays measurable.
+
+---
+
+## The corpus's own reference structure (hyperlinks, cross-references, keys)
+
+The FullWiki source archive (downloaded in deviation 8.1, `data/phase8_1/source/`, and the input
+of the Phase 9 corpus) carries Wikipedia hyperlinks (`text_with_links`), which the corpus loader
+drops. The review of 2026-09-29 read them once, on dev, as a **yardstick**: 62.8 % of the
+gold paragraphs outside Dense's top 10 are linked to P1 (96.9 % when P1 is gold), the link
+neighbourhood of P1 has a median of 8 units against the entity hop's 5,504, and the perfect-order
+ceiling is +1,384. **The author excluded hyperlinks as a component (2026-09-29):** Wikipedia is an
+example corpus, and the knowledge bases the technique is for (engineering documentation,
+regulations, client records) carry none, so a gain from them would not transfer. What the
+yardstick teaches does not depend on links: the entity hop links a mention to every other mention,
+while what reaches the second gold paragraph is the link from a mention in P1 to the unit
+*about* it. A link-free title-mention rule reaches 55.6 % of the same gold with all titles
+(ceiling +1,187) and 47.1 % with multi-word titles only (ceiling +993); whether a corpus has such
+units is a property to declare. Both are recorded in the review note; neither is scheduled. In technical corpora the explicit
+references ("see article 12", document ids, database keys) are the analogue, present or not by
+corpus, and any use of them would be declared as conditional on the corpus.
 
 ---
 
