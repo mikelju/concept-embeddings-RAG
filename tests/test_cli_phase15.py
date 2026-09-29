@@ -12,6 +12,11 @@ For S3: which extractor configuration may write Phase 15 records (the Phase 9 po
 that the Phase 9 extraction path is unchanged by its generalization, and that every artifact is
 written under the Phase 15 directory and names the Phase 15 corpus. The encoder and GLiNER are
 stubs.
+
+For S4: the live systems are built from the verified Phase 15 inputs built by the S3 stages
+over the same synthetic corpus, `p15-integrity` writes `integrity.json` once, a miss is a
+written `DATA_STOP`, and no metric of a live-path question is computed or stored. The HotpotQA
+code-identity half reads the real Phase 9-14 artifacts and is replaced by a stub here.
 """
 
 import hashlib
@@ -29,6 +34,7 @@ from concept_embeddings_rag.corpus import musique
 from concept_embeddings_rag.corpus.pool import IndexingUnit, unit_id_for
 from concept_embeddings_rag.embeddings.cache import EmbeddingCache
 from concept_embeddings_rag.evaluation import fullwiki as phase9
+from concept_embeddings_rag.evaluation import phase15
 from concept_embeddings_rag.nodes import local_extraction
 from concept_embeddings_rag.nodes.index import load_node_index
 from concept_embeddings_rag.nodes.local_extraction import LocalExtractor
@@ -580,3 +586,155 @@ def test_embed_and_bm25_write_only_under_the_phase_15_directories(
         embedding["question_cache_key"], expected_unit_ids=qids
     )
     assert loaded is not None
+
+
+# --- S4: `p15-integrity` -----------------------------------------------------------------
+
+FROZEN = {
+    "weights": {
+        "hybrid-bm25": {"dense": 0.5, "bm25": 0.5},
+        "hybrid-bm25-entity-hop": {"dense": 0.5, "bm25": 0.3, "entity-hop": 0.2},
+        "hybrid-bm25-seeded-hop": {"dense": 0.5, "bm25": 0.3, "seeded-hop": 0.2},
+    },
+    "alpha": 0.75,
+    "sources": {},
+    "fit_digests": {},
+}
+METRIC_KEYS = {
+    "budgets",
+    "full_support",
+    "gold_recall",
+    "context_precision",
+    "fs_at_k",
+    "gpr_at_k",
+    "supported",
+    "recall",
+    "gold",
+    "latency_ms",
+}
+
+
+def keys_of(value: Any) -> set[str]:
+    if isinstance(value, dict):
+        return set(value) | {k for v in value.values() for k in keys_of(v)}
+    if isinstance(value, list):
+        return {k for v in value for k in keys_of(v)}
+    return set()
+
+
+def no_measure(*args: Any, **kwargs: Any) -> Any:
+    raise AssertionError("no metric of a live-path question may be computed")
+
+
+def built(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Every Phase 15 input S4 reads, built over the synthetic corpus with the S3 stages."""
+    target = tmp_path / "phase15"
+    phase15_data(target, monkeypatch)
+    snapshot = tmp_path / "hub" / config.EMBEDDING_REVISION
+    snapshot.mkdir(parents=True)
+    (snapshot / "model.safetensors").write_bytes(b"bge")
+    monkeypatch.setattr(cli, "snapshot_directory", lambda name, revision: snapshot)
+    monkeypatch.setattr(cli, "SentenceTransformerBackend", StubBGE)
+    weights_in(target / "models" / config.GLINER_EXTRACTOR)
+    serve_extractor(monkeypatch, stub_extractor(PINNED))
+    for stage in ("embed", "bm25", "extract", "index"):
+        cli.cmd_p15_build(stage, target_dir=target)
+    monkeypatch.setattr(phase15, "frozen_weights", lambda **kwargs: FROZEN)
+    return target
+
+
+def phase9_extraction(tmp_path: Path, **versions: str) -> Path:
+    """The Phase 9 pod manifest the extractor identity is compared against."""
+    directory = tmp_path / "phase9"
+    (directory / phase9.GLINER_DIRNAME).mkdir(parents=True)
+    body = {"configuration_digest": PINNED, "library_versions": {"gliner": "stub", **versions}}
+    (directory / phase9.GLINER_DIRNAME / local_extraction.MANIFEST_NAME).write_text(
+        json.dumps(body), encoding="utf-8"
+    )
+    return directory
+
+
+def passing_code_identity(*args: Any, **kwargs: Any) -> dict[str, Any]:
+    return {"passed": True, "checks": {}}
+
+
+def test_the_live_systems_are_built_from_the_verified_phase_15_inputs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    target = built(tmp_path, monkeypatch)
+    monkeypatch.setattr(phase9, "measure_system", no_measure)
+
+    components = cli._p15_inputs(target)
+    systems = cli._p15_systems(components)
+
+    assert list(systems) == list(config.PHASE_15_SYSTEMS)
+    p14 = systems["hybrid-bm25-seeded-hop"]
+    assert isinstance(p14.hop, phase15.RecordingRelevanceStage)
+    assert p14.hop.name == "seeded-hop" and p14.hop.inner.alpha == 0.75
+    assert p14.fusion_weights == (0.5, 0.3, 0.2)
+    assert [q.qid for q in components["live_path"]] == ["2hop__t1", "2hop__t2"]
+    assert all(q.gold_unit_ids == () for q in components["live_path"])
+    corpus_ids = set(components["dense"].unit_ids)
+
+    result = phase15.run_live_path(systems, components["live_path"], corpus_ids, depth=100)
+
+    assert result["passed"] is True, result
+    hop = p14.hop.expansions
+    assert len(hop) == 2 and all(e.alpha == 0.75 for e in hop)
+    assert not keys_of(result) & METRIC_KEYS
+
+
+def test_the_stage_writes_integrity_once_with_no_metric_of_the_live_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    target = built(tmp_path, monkeypatch)
+    phase9_dir = phase9_extraction(tmp_path)
+    monkeypatch.setattr(cli, "_p15_code_identity", passing_code_identity)
+    monkeypatch.setattr(phase9, "measure_system", no_measure)
+
+    path = cli.cmd_p15_integrity(target, phase9_dir=phase9_dir)
+
+    body = json.loads(path.read_text(encoding="utf-8"))
+    assert path == target / phase15.INTEGRITY_FILENAME
+    assert body["terminal_state"] is None and body["stop_reasons"] == []
+    assert body["extractor_identity"]["passed"] is True
+    live = body["live_path"]
+    assert live["qids"] == ["2hop__t1", "2hop__t2"]
+    assert list(live["systems"]) == list(config.PHASE_15_SYSTEMS)
+    assert not keys_of(body) & METRIC_KEYS
+    assert not (target / "run-dense.json").exists()
+    assert not list(target.glob("rankings-*"))
+
+    with pytest.raises(SystemExit, match="already"):
+        cli.cmd_p15_integrity(target, phase9_dir=phase9_dir)
+
+
+def test_an_extractor_other_than_the_phase_9_pod_one_writes_data_stop(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    target = built(tmp_path, monkeypatch)
+    phase9_dir = phase9_extraction(tmp_path, torch="2.13.0+cu126")
+    monkeypatch.setattr(cli, "_p15_code_identity", passing_code_identity)
+
+    with pytest.raises(SystemExit, match=phase9.DATA_STOP):
+        cli.cmd_p15_integrity(target, phase9_dir=phase9_dir)
+
+    body = json.loads((target / phase15.INTEGRITY_FILENAME).read_text(encoding="utf-8"))
+    assert body["terminal_state"] == phase9.DATA_STOP
+    assert body["extractor_identity"]["library_versions_differing"] == ["torch"]
+
+
+def test_missing_phase_15_inputs_stop_the_stage_before_anything_is_written(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    phase15_data(tmp_path, monkeypatch)
+    monkeypatch.setattr(cli, "_p15_code_identity", passing_code_identity)
+
+    with pytest.raises(SystemExit):
+        cli.cmd_p15_integrity(tmp_path, phase9_dir=phase9_extraction(tmp_path / "p9"))
+
+    assert not (tmp_path / phase15.INTEGRITY_FILENAME).exists()
+
+
+def test_the_p15_integrity_stage_is_registered():
+    assert cli.build_parser().parse_args(["p15-integrity"]).command == "p15-integrity"

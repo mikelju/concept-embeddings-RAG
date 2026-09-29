@@ -54,6 +54,7 @@
     p14-outcome     exact McNemar against P10-C (the label) and P10-B, D8 and D9 (Phase 14)
     p15-data        the pinned MuSiQue-Ans source, pooled corpus, questions and token counts
     p15-build       one build step over the MuSiQue corpus: bm25, embed, extract, index
+    p15-integrity   D4: HotpotQA dev code identity, the pod extractor, the live path, once
 
 Each stage is idempotent and refuses to run if its input is missing, saying which
 stage to run first rather than failing somewhere deep inside numpy.
@@ -164,6 +165,7 @@ from concept_embeddings_rag.evaluation import (
     phase12,
     phase13,
     phase14,
+    phase15,
     scale_sensitivity,
     strong_dense,
 )
@@ -177,7 +179,11 @@ from concept_embeddings_rag.evaluation.cheap_extraction import (
     measure_held_out,
     select_extractor,
 )
-from concept_embeddings_rag.evaluation.entity_diagnostics import RecordingHybrid, RecordingRetriever
+from concept_embeddings_rag.evaluation.entity_diagnostics import (
+    RecordingHybrid,
+    RecordingRetriever,
+    RecordingStage,
+)
 from concept_embeddings_rag.evaluation.expansion_selection import (
     ExpansionSelection,
     ExpansionSelectionError,
@@ -7616,6 +7622,358 @@ def cmd_p15_build(
     return body
 
 
+def _p15_inputs(
+    target_dir: Path = config.PHASE_15_DIR,
+    *,
+    phase10_dir: Path = config.PHASE_10_DIR,
+    phase14_dir: Path = config.PHASE_14_DIR,
+) -> dict[str, Any]:
+    """Every Phase 15 input the live systems read, loaded once and checked (`_phase_9_inputs`'s
+    shape): the corpus, its vectors, BM25 rebuilt, the entity index, the token counts, the
+    validation and live-path questions with their cached vectors, and the frozen weights.
+
+    Returns the verified components and the provenance chain a run records. The validation
+    questions are loaded (their digests are verified here) but nothing here scores them. The
+    passage vectors must be the entity index's rows in order: P14's `sim` reads Dense's matrix.
+    """
+    target_dir = Path(target_dir)
+    units, corpus = _phase_9_corpus(target_dir)
+    corpus_hash = str(corpus["unit_set_hash"])
+    unit_ids = [unit.unit_id for unit in units]
+    cache_dir, nodes_dir = target_dir / "cache", target_dir / "nodes"
+    try:
+        embedding = json.loads((cache_dir / phase9.EMBEDDING_FILENAME).read_text("utf-8"))
+        bm25_record = json.loads((target_dir / "bm25" / phase9.BM25_FILENAME).read_text("utf-8"))
+        entity_record = json.loads((nodes_dir / phase9.ENTITY_INDEX_FILENAME).read_text("utf-8"))
+    except FileNotFoundError as error:
+        _die(f"a Phase 15 input is missing ({error.filename}): run 'p15-build' first")
+    try:
+        questions, question_body = musique.load_questions(
+            target_dir, corpus_unit_set_hash=corpus_hash
+        )
+        live_path = musique.live_path_questions(question_body)
+        token_counts = phase9.load_phase9_token_counts(
+            target_dir, unit_set_hash=corpus_hash, unit_ids=unit_ids
+        )
+        extraction = local_extraction.load_manifest(nodes_dir)
+        index = load_node_index(
+            nodes_dir, extraction_digest=str(extraction["digest"]), expected_unit_ids=unit_ids
+        )
+        weights = phase15.frozen_weights(
+            is_committed=_p10_fit_is_committed,
+            phase10_fit=Path(phase10_dir) / P10_FIT_NAME,
+            phase14_fit=Path(phase14_dir) / P14_FIT_NAME,
+        )
+    except (
+        musique.MusiqueError,
+        phase9.FullWikiPhaseError,
+        LocalExtractionError,
+        NodeIndexError,
+        phase15.Phase15Error,
+    ) as error:
+        _die(str(error))
+    records = (
+        ("embedding", embedding),
+        ("BM25", bm25_record),
+        ("entity index", entity_record),
+        ("extraction", extraction),
+    )
+    for name, record in records:
+        if record.get("unit_set_hash", record.get("corpus_unit_set_hash")) != corpus_hash:
+            _die(f"the {name} manifest names another corpus")
+    try:
+        loaded = EmbeddingCache(cache_dir).load(
+            str(embedding["corpus_cache_key"]), expected_unit_ids=unit_ids
+        )
+    except CacheAlignmentError as error:
+        _die(f"the Phase 15 vectors are not the corpus units in order: {error}")
+    if loaded is None:
+        _die("the Phase 15 vectors are missing: run 'p15-build --stage embed'")
+    vectors = loaded[0]
+    if phase9.vectors_digest(vectors) != embedding["vectors_digest"]:
+        _die("the Phase 15 vectors do not match the digest embedding.json records")
+    # Encoded together at S3: the validation questions, then the live path.
+    asked = [*questions, *live_path]
+    question_vectors = EmbeddingCache(cache_dir / "questions").load(
+        str(embedding["question_cache_key"]), expected_unit_ids=[q.qid for q in asked]
+    )
+    if question_vectors is None:
+        _die("the Phase 15 question vectors are missing: run 'p15-build --stage embed'")
+    query_backend = CachedQueryBackend(
+        texts=[q.question for q in asked],
+        vectors=question_vectors[0],
+        name=str(embedding["model"]),
+        revision=str(embedding["revision"]),
+    )
+    dense = DenseRetriever(vectors, unit_ids, query_backend)
+    bm25, rebuilt = phase9.build_bm25(units, unit_set_hash=corpus_hash)
+    if rebuilt["index_digest"] != bm25_record["index_digest"]:
+        _die("the rebuilt BM25 index does not match the digest bm25.json records")
+    if index.digest != entity_record["index_digest"]:
+        _die("the entity index does not match the digest entity-index.json records")
+    if list(index.unit_ids) != unit_ids:
+        _die("the passage vector rows are not the entity index rows in its order")
+    provenance = {
+        "corpus_unit_set_hash": corpus_hash,
+        "corpus_ordered_unit_digest": corpus["ordered_unit_digest"],
+        "source_revision": corpus["source"]["revision"],
+        "question_digest": question_body["question_digest"],
+        "mapping_digest": question_body["mapping_digest"],
+        "live_path_question_digest": question_body["live_path"]["question_digest"],
+        "embedding": {
+            key: embedding[key]
+            for key in (
+                "model",
+                "revision",
+                "weights_sha256",
+                "vectors_digest",
+                "corpus_cache_key",
+                "question_cache_key",
+            )
+        },
+        "bm25_index_digest": bm25_record["index_digest"],
+        "extraction": {
+            "model": extraction["model"],
+            "revision": extraction["revision"],
+            "configuration_digest": extraction["configuration_digest"],
+            "weights_sha256": extraction.get("weights_sha256"),
+            "records_digest": extraction["digest"],
+        },
+        "entity_index_digest": index.digest,
+        "weights": weights["weights"],
+        "alpha": weights["alpha"],
+        "fit_digests": weights["fit_digests"],
+    }
+    return {
+        "dense": dense,
+        "bm25": bm25,
+        "index": index,
+        "node_weights": node_weights(index),
+        "weights": weights,
+        "questions": questions,
+        "live_path": live_path,
+        "token_counts": token_counts,
+        "extraction": extraction,
+        "provenance": provenance,
+    }
+
+
+def _p15_systems(components: Mapping[str, Any]) -> dict[str, phase15.LiveSystem]:
+    """P10-A, P10-B, P10-C and P14 over the loaded components, with fresh recorders.
+
+    The systems of the Phase 14 pass, at the frozen weights and `alpha`, each wrapped so its
+    fused list and every component's list are kept: the live path (S4) and the pass (S5) build
+    them here and nowhere else. The wrappers only copy lists; they change no ranking.
+    """
+    dense, bm25, index = components["dense"], components["bm25"], components["index"]
+    hop_weights = components["node_weights"]
+    frozen = components["weights"]
+    weights, alpha = frozen["weights"], float(frozen["alpha"])
+    backend = dense.backend
+
+    def question_vector(text: str) -> np.ndarray:
+        return backend.encode([text])[0]
+
+    p10a, p10b, p10c, p14 = config.PHASE_15_SYSTEMS
+    alone = RecordingRetriever(dense)
+    hybrid = RecordingHybrid(dense, bm25, scheme=WEIGHTED, weights=weights[p10b])
+    c_dense, c_bm25 = RecordingRetriever(dense), RecordingRetriever(bm25)
+    c_hop = RecordingStage(ColumnwiseEntityHopStage(index, hop_weights))
+    d_dense, d_bm25 = RecordingRetriever(dense), RecordingRetriever(bm25)
+    d_hop = phase15.RecordingRelevanceStage(
+        RelevanceHopStage(
+            index,
+            hop_weights,
+            columns=ColumnwiseEntityHopStage.columns_for(index),
+            vectors=dense.vectors,
+            question_vector=question_vector,
+            alpha=alpha,
+        )
+    )
+    return {
+        p10a: phase15.LiveSystem(p10a, alone, {"dense": alone}),
+        p10b: phase15.LiveSystem(
+            p10b,
+            hybrid,
+            {"dense": hybrid.dense, "bm25": hybrid.second},  # type: ignore[dict-item]
+            fusion_weights=tuple(weights[p10b][name] for name in ("dense", "bm25")),
+        ),
+        p10c: phase15.LiveSystem(
+            p10c,
+            RecordingRetriever(TripleFusedRetriever(c_dense, c_bm25, c_hop, weights=weights[p10c])),
+            {"dense": c_dense, "bm25": c_bm25},
+            c_hop,
+            config.ENTITY_HOP_NAME,
+            tuple(weights[p10c][name] for name in TRIPLE_COMPONENTS),
+        ),
+        p14: phase15.LiveSystem(
+            p14,
+            RecordingRetriever(
+                QueryTripleFusedRetriever(d_dense, d_bm25, d_hop, weights=weights[p14])
+            ),
+            {"dense": d_dense, "bm25": d_bm25},
+            d_hop,
+            RELEVANCE_HOP_NAME,
+            tuple(weights[p14][name] for name in ("dense", "bm25", SEEDED_HOP_NAME)),
+        ),
+    }
+
+
+def _p15_code_identity(
+    frozen: Mapping[str, Any],
+    phase9_dir: Path = config.PHASE_9_DIR,
+    phase10_dir: Path = config.PHASE_10_DIR,
+    phase14_dir: Path = config.PHASE_14_DIR,
+) -> dict[str, Any]:
+    """D4's code identity: P10-C and P14 re-fused on HotpotQA dev with the Phase 15 reader.
+
+    Both dev-lists files are read, each checked against the digest its committed fit read.
+    Each system is fused with `fuse_lists` at the reader's weights and replayed through
+    `_p10_replay_records` twice: from the lists its own phase recorded (the count), and with
+    the lists the other file also holds (no question may move). P10-C: its Phase 10 lists,
+    and the Phase 14 file's Dense, BM25 and `alpha = 0` hop. P14: the Phase 14 file's lists at
+    the frozen `alpha`, and the same hop with the Phase 10 file's Dense and BM25.
+    """
+    started = time.perf_counter()
+    questions, token_counts = _p11_dev_inputs(Path(phase9_dir))
+    rows10, digest10 = _p13_phase10_dev_lists(Path(phase10_dir))
+    fit14 = _p14_json(P14_FIT_NAME, phase14_dir)
+    if _p14_json(P14_DEV_LISTS_MANIFEST, phase14_dir)["digest"] != fit14["dev_lists_digest"]:
+        _die("the Phase 14 dev lists are not the ones its fit read")
+    rows14 = _p14_load_dev_lists(Path(phase14_dir))
+    qids = [question.qid for question in questions]
+    if [r["qid"] for r in rows10] != qids or [r["qid"] for r in rows14] != qids:
+        _die("the dev lists are not in the dev question order")
+    p10c, p14 = config.PHASE_15_SYSTEMS[2:]
+    weights = frozen["weights"]
+    p10c_weights = tuple(weights[p10c][name] for name in TRIPLE_COMPONENTS)
+    p14_weights = tuple(weights[p14][name] for name in ("dense", "bm25", SEEDED_HOP_NAME))
+    zero, hop = phase14.alpha_key(0.0), phase14.alpha_key(float(frozen["alpha"]))
+    depth, budget = config.PHASE_9_RANKING_DEPTH, str(config.PHASE_9_PRIMARY_BUDGET)
+
+    def outcomes(
+        name: str, lists: Sequence[tuple[Any, ...]], fusion: Sequence[float]
+    ) -> dict[str, float]:
+        rankings = [
+            (row["question"], fuse_lists(triple, fusion, top_k=depth))
+            for row, triple in zip(rows14, lists, strict=True)
+        ]
+        records = _p10_replay_records(name, rankings, questions, token_counts)
+        return {r["qid"]: float(r["budgets"][budget]["full_support"]) for r in records}
+
+    pairs = list(zip(rows10, rows14, strict=True))
+    observed = {
+        p10c: outcomes(
+            p10c,
+            [(a["dense"], a["bm25"], a[config.ENTITY_HOP_NAME]) for a, _b in pairs],
+            p10c_weights,
+        ),
+        p14: outcomes(p14, [(b["dense"], b["bm25"], b[hop]) for _a, b in pairs], p14_weights),
+    }
+    reference = {
+        p10c: outcomes(p10c, [(b["dense"], b["bm25"], b[zero]) for _a, b in pairs], p10c_weights),
+        p14: outcomes(p14, [(a["dense"], a["bm25"], b[hop]) for a, b in pairs], p14_weights),
+    }
+    verdict = phase15.code_identity_verdict(observed, reference)
+    return {
+        **verdict,
+        "routes": {
+            p10c: {
+                "observed": f"Phase 10 dev lists: dense, bm25, {config.ENTITY_HOP_NAME}",
+                "reference": f"Phase 14 dev lists: dense, bm25, {zero}",
+            },
+            p14: {
+                "observed": f"Phase 14 dev lists: dense, bm25, {hop}",
+                "reference": f"Phase 10 dev lists' dense and bm25, Phase 14 dev lists' {hop}",
+            },
+        },
+        "fusion": "fuse_lists at depth 100, replayed through _p10_replay_records "
+        "(phase9.measure_system and the Phase 1 harness)",
+        "weights": {p10c: weights[p10c], p14: weights[p14]},
+        "alpha": frozen["alpha"],
+        "fit_digests": frozen["fit_digests"],
+        "phase10_dev_lists_digest": digest10,
+        "phase14_dev_lists_digest": fit14["dev_lists_digest"],
+        "seconds": time.perf_counter() - started,
+    }
+
+
+def cmd_p15_integrity(
+    target_dir: Path = config.PHASE_15_DIR,
+    *,
+    phase9_dir: Path = config.PHASE_9_DIR,
+    phase10_dir: Path = config.PHASE_10_DIR,
+    phase14_dir: Path = config.PHASE_14_DIR,
+) -> Path:
+    """S4 (D4): integrity before the pass, written once to `integrity.json`.
+
+    Every Phase 15 input is loaded and verified first; a missing or modified input stops the
+    stage with nothing written. Then the three halves: the pod extractor against the Phase 9
+    pod manifest; the four live systems on the 200 live-path train questions (question text
+    only, no metric: `phase9.measure_system` is never called on them, and their ranking records
+    are checked in memory); and the code identity on HotpotQA dev. Any miss is written as
+    `DATA_STOP` with its reasons, and the stage exits non-zero.
+    """
+    target_dir, phase9_dir = Path(target_dir), Path(phase9_dir)
+    target = target_dir / phase15.INTEGRITY_FILENAME
+    if target.exists():
+        _die(f"{target} already records D4; it is written once")
+    started = time.perf_counter()
+    components = _p15_inputs(target_dir, phase10_dir=phase10_dir, phase14_dir=phase14_dir)
+    try:
+        pod = local_extraction.load_manifest(phase9_dir / phase9.GLINER_DIRNAME)
+    except LocalExtractionError as error:
+        _die(f"the Phase 9 pod manifest is missing: {error}")
+    extractor = phase15.extractor_identity_verdict(components["extraction"], pod)
+    print(
+        f"[INFO] extractor {extractor['configuration_digest']} (Phase 9 pod "
+        f"{extractor['phase9_configuration_digest']}), versions differing "
+        f"{extractor['library_versions_differing']}",
+        flush=True,
+    )
+
+    systems = _p15_systems(components)
+    live_path = components["live_path"]
+    live = phase15.run_live_path(systems, live_path, set(components["dense"].unit_ids))
+    del systems
+    live["split"] = musique.LIVE_PATH_SPLIT
+    live["question_digest"] = components["provenance"]["live_path_question_digest"]
+    for name, result in live["systems"].items():
+        print(
+            f"[INFO] live path {name}: {result['calls']}/{live['n_questions']} calls in "
+            f"{result['seconds']['total']:.1f} s, records well formed: {result['passed']}",
+            flush=True,
+        )
+
+    code = _p15_code_identity(components["weights"], phase9_dir, phase10_dir, phase14_dir)
+    for check in code["checks"].values():
+        print(
+            f"[INFO] {check['label']} on HotpotQA dev: {check['observed']} of "
+            f"{check['n_questions']} (recorded {check['expected']}), "
+            f"{len(check['differing_qids'])} questions moved",
+            flush=True,
+        )
+    verdict = phase15.d4_verdict(code, extractor, live)
+    body = {
+        "phase": 15,
+        **verdict,
+        "code_identity": code,
+        "extractor_identity": extractor,
+        "live_path": live,
+        "provenance": components["provenance"],
+        "code_commit": _git_commit(),
+        "created_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        "host": local_extraction.hardware_block(device="cpu"),
+        "peak_memory_mb": _p14_peak_memory_mb(),
+        "seconds": time.perf_counter() - started,
+    }
+    path = write_text_atomic(target, json.dumps(body, indent=2, sort_keys=True))
+    if verdict["terminal_state"] is not None:
+        _die(f"{verdict['terminal_state']}: {'; '.join(verdict['stop_reasons'])}; see {path}")
+    print(f"[OK] D4 passed -> {path}; commit it before the pass")
+    return path
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="cer",
@@ -7953,6 +8311,10 @@ def build_parser() -> argparse.ArgumentParser:
         "p15-build",
         help="Phase 15: one build step over the MuSiQue corpus (embed and extract on the pod)",
     )
+    subparsers.add_parser(
+        "p15-integrity",
+        help="Phase 15: D4 once - HotpotQA dev code identity, the pod extractor, the live path",
+    )
     p15_build.add_argument("--stage", choices=P15_BUILD_STAGES, required=True)
     p15_build.add_argument(
         "--hourly-rate-usd",
@@ -8121,6 +8483,8 @@ def main(argv: list[str] | None = None) -> int:
         cmd_p15_data()
     elif args.command == "p15-build":
         cmd_p15_build(args.stage, hourly_rate_usd=args.hourly_rate_usd, smoke=args.smoke)
+    elif args.command == "p15-integrity":
+        cmd_p15_integrity()
     return 0
 
 
