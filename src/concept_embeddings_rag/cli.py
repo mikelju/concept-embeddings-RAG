@@ -50,6 +50,7 @@
     p13-fit         the 264-point grid on dev, the tie rule and the dev gate (Phase 13)
     p14-lists       D1 integrity, the relevance-ordered hop dev lists and the D3 reproduction
     p14-fit         the 330-point grid on dev, the tie rule, the dev gate and D8 (Phase 14)
+    p14-eval        the single authorized held-out pass on test-11 (Phase 14)
 
 Each stage is idempotent and refuses to run if its input is missing, saying which
 stage to run first rather than failing somewhere deep inside numpy.
@@ -264,6 +265,8 @@ from concept_embeddings_rag.retrieval.dense import DenseRetriever
 from concept_embeddings_rag.retrieval.diffusion import EXPANSION_NAMES, DiffusionRetriever
 from concept_embeddings_rag.retrieval.entity_hop import (
     QUESTION_HOP_NAME,
+    RELEVANCE_HOP_NAME,
+    SEEDED_HOP_NAME,
     CachedSentences,
     CachedWindows,
     CappedEntityHopStage,
@@ -279,6 +282,7 @@ from concept_embeddings_rag.retrieval.fusion import (
     WEIGHTED,
     FusedRetriever,
     QuadFusedRetriever,
+    QueryTripleFusedRetriever,
     TripleFusedRetriever,
     fuse_lists,
 )
@@ -6980,6 +6984,218 @@ def cmd_p14_fit(
     return path
 
 
+P14_MARKER_NAME = "pass.json"
+P14_SIM_BOUNDARY = (
+    "seconds of the one phase14.candidate_similarity call per question (gathering the C(q) "
+    "rows and their dot products with the question vector), inside retrieve: latency_ms "
+    "includes it; 0.0 when C(q) is empty"
+)
+
+
+def _p14_test_11_backend(
+    questions: Sequence[Question], phase11_dir: Path, embedding: Mapping[str, Any]
+) -> tuple[CachedQueryBackend, dict[str, Any]]:
+    """The Phase 11 `test-11` question vectors under D1's key, as Dense's cached backend.
+
+    The key must be the one the spec names, and the vectors must come from the model and
+    revision of the passage vectors, or the pass stops before it starts.
+    """
+    record = _p11_json(P11_EMBED_NAME, phase11_dir)["sets"][config.PHASE_14_TEST]
+    key = str(record["key"])
+    if key != config.PHASE_14_TEST_QUESTION_VECTORS_KEY:
+        _die(
+            f"the test-11 question cache is {key}, not the key D1 names "
+            f"({config.PHASE_14_TEST_QUESTION_VECTORS_KEY})"
+        )
+    if (record["model"], record["revision"]) != (embedding["model"], embedding["revision"]):
+        _die("the test-11 question vectors come from another model than the passage vectors")
+    loaded = EmbeddingCache(phase11_dir / "cache" / "questions").load(
+        key, expected_unit_ids=[q.qid for q in questions]
+    )
+    if loaded is None:
+        _die("the test-11 question vectors are missing: run 'p11-embed'")
+    backend = CachedQueryBackend(
+        texts=[q.question for q in questions],
+        vectors=loaded[0],
+        name=str(record["model"]),
+        revision=str(record["revision"]),
+    )
+    return backend, {"key": key, "digest": phase9.vectors_digest(loaded[0])}
+
+
+def _p14_sim_summary(seconds: Sequence[float]) -> dict[str, Any]:
+    """The per-question `sim` time in milliseconds, summarized as `latency_summary` is."""
+    values = np.asarray(seconds, dtype=np.float64) * 1000.0
+    if values.size == 0:
+        return {"n_questions": 0}
+    return {
+        "n_questions": int(values.size),
+        "mean_ms": float(values.mean()),
+        "median_ms": float(np.percentile(values, 50)),
+        "p95_ms": float(np.percentile(values, 95)),
+        "max_ms": float(values.max()),
+        "total_seconds": float(values.sum() / 1000.0),
+        "boundary": P14_SIM_BOUNDARY,
+    }
+
+
+def cmd_p14_eval(
+    *,
+    authorized: bool,
+    source_dir: Path = config.PHASE_9_DIR,
+    phase10_dir: Path = config.PHASE_10_DIR,
+    phase11_dir: Path = config.PHASE_11_DIR,
+    target_dir: Path = config.PHASE_14_DIR,
+) -> list[Path]:
+    """S5 (HU-3): P10-A, P10-B, P10-C and P14 on `test-11`, once, after the author's authorization.
+
+    Refuses without the flag, without a fit, on a recorded terminal state, on a fit git does not
+    track unmodified, and after a first start. Every input - the Phase 9 components, `test-11`
+    and its Phase 11 question vectors - is loaded and checked before `pass.json` is written;
+    from then on the pass is started and a second start is refused. P14 is
+    `QueryTripleFusedRetriever` over `RelevanceHopStage` at the fitted `alpha`, reading the same
+    passage matrix Dense scores with; its stage is named `seeded-hop` (the fusion key), and the
+    run records `alpha`, the component `relevance-hop` and the fit digest. Each P14 outcome
+    carries that question's `sim_seconds`, which its `latency_ms` includes (D9).
+    """
+    source_dir, phase10_dir = Path(source_dir), Path(phase10_dir)
+    phase11_dir, target_dir = Path(phase11_dir), Path(target_dir)
+    if not authorized:
+        _die("the held-out pass opens test-11: it needs --authorized-pass from the author")
+    fit = _p14_json(P14_FIT_NAME, target_dir)
+    if fit["terminal_state"] is not None:
+        _die(f"the fit recorded {fit['terminal_state']}; the held-out pass does not run")
+    if not _p10_fit_is_committed(target_dir / P14_FIT_NAME):
+        _die("fit.json is not committed unmodified; commit the fit before the held-out pass")
+    if (target_dir / P14_MARKER_NAME).exists():
+        _die(f"{target_dir / P14_MARKER_NAME} exists: the held-out pass has already started once")
+    started = time.perf_counter()
+    fit10 = _p10_json(P10_FIT_NAME, phase10_dir)
+    components = _phase_9_inputs(source_dir)
+    corpus_hash = str(components["provenance"]["corpus_unit_set_hash"])
+    questions = phase11.load_test_11(phase10_dir, corpus_unit_set_hash=corpus_hash)
+    backend, question_vectors = _p14_test_11_backend(
+        questions, phase11_dir, components["provenance"]["embedding"]
+    )
+    base, index = components["dense"], components["index"]
+    # D1: `sim` reads the Dense matrix itself, so its rows must be the entity index's rows.
+    if list(base.unit_ids) != list(index.unit_ids):
+        _die("the passage vector rows are not the entity index rows in its order")
+    dense = DenseRetriever(base.vectors, base.unit_ids, backend)
+    bm25, hop_weights = components["bm25"], components["node_weights"]
+
+    def question_vector(text: str) -> np.ndarray:
+        return backend.encode([text])[0]
+
+    alpha = float(fit["alpha"])
+    stage = RelevanceHopStage(
+        index,
+        hop_weights,
+        columns=ColumnwiseEntityHopStage.columns_for(index),
+        vectors=base.vectors,
+        question_vector=question_vector,
+        alpha=alpha,
+    )
+    _dense_name, p10b, p10c, p14 = config.PHASE_14_SYSTEMS
+    fitted = fit["weights"]
+    weights: dict[str, dict[str, float]] = {
+        p10b: dict(components["weights"]["hybrid-bm25"]),
+        p10c: dict(fit10["weights"]),
+        p14: {
+            "dense": float(fitted["dense"]),
+            "bm25": float(fitted["bm25"]),
+            SEEDED_HOP_NAME: float(fitted[RELEVANCE_HOP_NAME]),
+        },
+    }
+    systems: dict[str, Any] = {
+        "dense": RecordingRetriever(dense),
+        p10b: RecordingHybrid(dense, bm25, scheme=WEIGHTED, weights=weights[p10b]),
+        p10c: RecordingRetriever(
+            TripleFusedRetriever(
+                dense, bm25, ColumnwiseEntityHopStage(index, hop_weights), weights=weights[p10c]
+            )
+        ),
+        p14: RecordingRetriever(
+            QueryTripleFusedRetriever(dense, bm25, stage, weights=weights[p14])
+        ),
+    }
+    commit = _git_commit()
+    host = local_extraction.hardware_block(device="cpu")
+    fit_digest = digest_of(json.dumps(fit, sort_keys=True))
+    provenance = {
+        **_p11_pass_provenance(components, weights, phase10_dir, phase11_dir),
+        "hop_implementation": phase9.COLUMNWISE_HOP,
+        "question_set": config.PHASE_14_TEST,
+        "question_vectors_digest": question_vectors["digest"],
+        "fit_digest": fit_digest,
+        "phase10_fit_digest": digest_of(json.dumps(fit10, sort_keys=True)),
+        "code_commit": commit,
+        "host": host,
+    }
+    relevance_hop = {
+        "component": RELEVANCE_HOP_NAME,
+        "stage_name": SEEDED_HOP_NAME,
+        "alpha": alpha,
+        "fit_weights": dict(fitted),
+        "fit_digest": fit_digest,
+    }
+    load_seconds = time.perf_counter() - started
+    print(f"[INFO] inputs loaded in {load_seconds / 60:.1f} min", flush=True)
+    _p14_write_once(
+        P14_MARKER_NAME,
+        {
+            "started_at": datetime.now(UTC).isoformat(timespec="seconds"),
+            "code_commit": commit,
+            "fit_digest": fit_digest,
+            "set": config.PHASE_14_TEST,
+            "alpha": alpha,
+            "question_vectors_key": question_vectors["key"],
+            "load_seconds": load_seconds,
+        },
+        target_dir,
+    )
+    written: list[Path] = []
+    for name, system in systems.items():
+        print(f"[INFO] pass: {name} over {len(questions)} questions", flush=True)
+        system_started = time.perf_counter()
+        if name == p14:
+            stage.sim_seconds.clear()
+        records = phase9.measure_system(name, system, questions, components["token_counts"])
+        system_seconds = time.perf_counter() - system_started
+        inner = system.inner if isinstance(system, RecordingRetriever) else system
+        body: dict[str, Any] = {
+            "phase": 14,
+            "system": name,
+            "label": config.PHASE_14_SYSTEM_LABELS[name],
+            "set": config.PHASE_14_TEST,
+            "ranking_depth": config.PHASE_9_RANKING_DEPTH,
+            "fusion": inner.describe() if hasattr(inner, "describe") else None,
+            "metrics": phase9.cohort_metrics(records)[config.PHASE_9_STANDARD],
+            "latency": phase9.latency_summary(records),
+            "seconds": system_seconds,
+            "peak_memory_mb": _p14_peak_memory_mb(),
+            "provenance": provenance,
+        }
+        if name == p14:
+            if len(stage.sim_seconds) != len(records):
+                _die(
+                    f"{len(stage.sim_seconds)} sim timings for {len(records)} questions; "
+                    "the P14 run is not written"
+                )
+            for record, seconds in zip(records, stage.sim_seconds, strict=True):
+                record["sim_seconds"] = seconds
+            body["relevance_hop"] = {**relevance_hop, "sim": _p14_sim_summary(stage.sim_seconds)}
+        written.append(phase9.write_run(target_dir, name, records, body=body))
+        supported = body["metrics"]["supported_at_primary_budget"]
+        print(
+            f"[OK] {name} run written in {system_seconds / 60:.1f} min "
+            f"({supported} supported at 2,048) -> {written[-1]}",
+            flush=True,
+        )
+    print(f"[OK] pass complete in {(time.perf_counter() - started) / 60:.1f} min", flush=True)
+    return written
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="cer",
@@ -7301,6 +7517,10 @@ def build_parser() -> argparse.ArgumentParser:
         "p14-fit",
         help="Phase 14: the 330-point grid on dev, the tie rule, the dev gate and D8",
     )
+    p14_eval = subparsers.add_parser(
+        "p14-eval", help="Phase 14: the single authorized held-out pass on test-11"
+    )
+    p14_eval.add_argument("--authorized-pass", action="store_true", dest="authorized")
     build.add_argument(
         "--smoke",
         type=int,
@@ -7447,6 +7667,8 @@ def main(argv: list[str] | None = None) -> int:
         cmd_p14_lists()
     elif args.command == "p14-fit":
         cmd_p14_fit()
+    elif args.command == "p14-eval":
+        cmd_p14_eval(authorized=args.authorized)
     return 0
 
 

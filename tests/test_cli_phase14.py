@@ -283,3 +283,219 @@ def test_the_fit_writes_the_curve_and_the_gate_verdict_once(tmp_path, monkeypatc
 
 def test_the_p14_fit_stage_is_registered():
     assert cli.build_parser().parse_args(["p14-fit"]).command == "p14-fit"
+
+
+# --- S5: p14-eval, the single held-out pass on test-11 ---------------------------------------
+
+
+def test_the_pass_refuses_without_the_authorization_flag(tmp_path):
+    with pytest.raises(SystemExit, match="authorized-pass"):
+        cli.cmd_p14_eval(authorized=False, target_dir=tmp_path)
+
+
+def test_the_pass_refuses_without_a_fit(tmp_path):
+    with pytest.raises(SystemExit, match="fit.json does not exist"):
+        cli.cmd_p14_eval(authorized=True, target_dir=tmp_path)
+
+
+def test_the_pass_refuses_after_a_dev_stop(tmp_path):
+    write(tmp_path, cli.P14_FIT_NAME, {"terminal_state": "DEV_STOP"})
+    with pytest.raises(SystemExit, match="DEV_STOP"):
+        cli.cmd_p14_eval(authorized=True, target_dir=tmp_path)
+
+
+def test_the_pass_refuses_an_uncommitted_fit(tmp_path, monkeypatch):
+    write(tmp_path, cli.P14_FIT_NAME, {"terminal_state": None})
+    monkeypatch.setattr(cli, "_p10_fit_is_committed", lambda path: False)
+    with pytest.raises(SystemExit, match="not committed"):
+        cli.cmd_p14_eval(authorized=True, target_dir=tmp_path)
+
+
+def test_the_pass_refuses_a_second_start(tmp_path, monkeypatch):
+    write(tmp_path, cli.P14_FIT_NAME, {"terminal_state": None})
+    write(tmp_path, cli.P14_MARKER_NAME, {"started_at": "earlier"})
+    monkeypatch.setattr(cli, "_p10_fit_is_committed", lambda path: True)
+    monkeypatch.setattr(
+        cli, "_phase_9_inputs", lambda *a, **k: pytest.fail("inputs loaded after a start")
+    )
+    with pytest.raises(SystemExit, match="already started once"):
+        cli.cmd_p14_eval(authorized=True, target_dir=tmp_path)
+
+
+def test_test_10_is_not_a_phase_14_set():
+    assert config.PHASE_10_TEST not in config.PHASE_14_QUESTION_SETS
+    assert config.PHASE_14_TEST == config.PHASE_11_TEST != config.PHASE_10_TEST
+
+
+PASS_ALPHA = 0.5  # not the real selection, so a hard-coded alpha would fail
+PASS_WEIGHTS = {"dense": 0.5, "bm25": 0.3, "relevance-hop": 0.2}
+
+
+def pass_fixture(tmp_path, monkeypatch, *, key=config.PHASE_14_TEST_QUESTION_VECTORS_KEY):
+    """A 40-unit corpus, three test-11 questions, and the loaders replaced by it.
+
+    Returns `(dirs, questions)`. A `test-10` load fails the test.
+    """
+    from concept_embeddings_rag.corpus.pool import IndexingUnit
+    from concept_embeddings_rag.evaluation import phase10, phase11
+    from concept_embeddings_rag.evaluation.second_hop import node_weights
+    from concept_embeddings_rag.nodes.index import build_node_index
+    from concept_embeddings_rag.nodes.local_extraction import record_from_forms
+    from concept_embeddings_rag.retrieval.bm25 import BM25Retriever
+    from concept_embeddings_rag.retrieval.dense import DenseRetriever
+
+    rng = np.random.default_rng(5)
+    unit_ids = [f"u{i:02d}" for i in range(40)]
+    records = {
+        u: record_from_forms(
+            u,
+            [f"Form {int(f)}" for f in rng.integers(0, 6, size=int(rng.integers(1, 4)))],
+            model="fixture",
+            configuration_digest="f",
+        )
+        for u in unit_ids
+    }
+    index = build_node_index(records, unit_ids, extraction_digest="0" * 64)
+    vectors = rng.normal(size=(40, 4)).astype(np.float32)
+    vectors /= np.linalg.norm(vectors, axis=1, keepdims=True)
+    units = [
+        IndexingUnit(u, f"Title {u}", (f"text about {u} and form {i % 6}",))
+        for i, u in enumerate(unit_ids)
+    ]
+    questions = [
+        Question(
+            f"t{i}",
+            f"which form {i}?",
+            "",
+            (unit_ids[i], unit_ids[i + 20]),
+            (),
+            config.PHASE_14_TEST,
+        )
+        for i in range(3)
+    ]
+    question_vectors = rng.normal(size=(3, 4)).astype(np.float32)
+    question_vectors /= np.linalg.norm(question_vectors, axis=1, keepdims=True)
+
+    source_dir, phase10_dir = tmp_path / "phase9", tmp_path / "phase10"
+    phase11_dir, target_dir = tmp_path / "phase11", tmp_path / "phase14"
+    write(
+        phase10_dir,
+        phase10.QUESTIONS_FILENAME,
+        {"sets": {config.PHASE_11_TEST: {"question_digest": "q11", "mapping_digest": "m11"}}},
+    )
+    write(
+        phase10_dir,
+        cli.P10_FIT_NAME,
+        {"terminal_state": None, "weights": {"dense": 0.5, "bm25": 0.3, "entity-hop": 0.2}},
+    )
+    EmbeddingCache(phase11_dir / "cache" / "questions").save(
+        key, question_vectors, [q.qid for q in questions], {}
+    )
+    write(
+        phase11_dir,
+        cli.P11_EMBED_NAME,
+        {"sets": {config.PHASE_11_TEST: {"key": key, "model": "bge", "revision": "rev"}}},
+    )
+    write(
+        target_dir,
+        cli.P14_FIT_NAME,
+        {"terminal_state": None, "alpha": PASS_ALPHA, "weights": PASS_WEIGHTS},
+    )
+    components = {
+        "dense": DenseRetriever(
+            vectors, unit_ids, CachedQueryBackend(["unused"], vectors[:1], "bge", "rev")
+        ),
+        "bm25": BM25Retriever(units),
+        "index": index,
+        "node_weights": node_weights(index),
+        "weights": {"hybrid-bm25": {"dense": 0.5, "bm25": 0.5}},
+        "questions": [],  # the dev questions: the pass never reads them
+        "token_counts": dict.fromkeys(unit_ids, 300),
+        "provenance": {
+            "corpus_unit_set_hash": "corpus",
+            "question_digest": "q9",
+            "mapping_digest": "m9",
+            "embedding": {"model": "bge", "revision": "rev", "question_cache_key": "k9"},
+            "weights": {},
+        },
+    }
+    monkeypatch.setattr(cli, "_phase_9_inputs", lambda *a, **k: components)
+    monkeypatch.setattr(cli, "_p10_fit_is_committed", lambda path: True)
+    monkeypatch.setattr(phase11, "load_test_11", lambda *a, **k: list(questions))
+    monkeypatch.setattr(phase10, "load_set", lambda *a, **k: pytest.fail("phase10.load_set"))
+    real_read_set = phase10._read_set
+
+    def read_set(directory, name, **kwargs):
+        assert name != config.PHASE_10_TEST, "test-10 was loaded"
+        return real_read_set(directory, name, **kwargs)
+
+    monkeypatch.setattr(phase10, "_read_set", read_set)
+    dirs = {
+        "source_dir": source_dir,
+        "phase10_dir": phase10_dir,
+        "phase11_dir": phase11_dir,
+        "target_dir": target_dir,
+    }
+    return dirs, questions
+
+
+def test_the_pass_refuses_question_vectors_under_another_key(tmp_path, monkeypatch):
+    dirs, _questions = pass_fixture(tmp_path, monkeypatch, key="not-the-key")
+    with pytest.raises(SystemExit, match="3ab80134c058052d"):
+        cli.cmd_p14_eval(authorized=True, **dirs)
+    assert not (dirs["target_dir"] / cli.P14_MARKER_NAME).exists()
+
+
+def test_the_pass_builds_p14_at_the_fitted_alpha_and_writes_every_run(tmp_path, monkeypatch):
+    dirs, questions = pass_fixture(tmp_path, monkeypatch)
+    built = []
+    real_stage = cli.RelevanceHopStage
+
+    def spy(*args, **kwargs):
+        stage = real_stage(*args, **kwargs)
+        built.append(stage)
+        return stage
+
+    monkeypatch.setattr(cli, "RelevanceHopStage", spy)
+    written_paths = cli.cmd_p14_eval(authorized=True, **dirs)
+    target_dir = dirs["target_dir"]
+
+    assert [stage.alpha for stage in built] == [PASS_ALPHA]
+    assert len(built[0].sim_seconds) == len(questions)
+    marker = json.loads((target_dir / cli.P14_MARKER_NAME).read_text(encoding="utf-8"))
+    assert marker["set"] == config.PHASE_14_TEST
+    assert marker["alpha"] == PASS_ALPHA
+    assert [p.name for p in written_paths] == [
+        f"run-{name}.json" for name in config.PHASE_14_SYSTEMS
+    ]
+    p14 = json.loads((target_dir / "run-hybrid-bm25-seeded-hop.json").read_text("utf-8"))
+    assert p14["label"] == "P14"
+    assert p14["set"] == config.PHASE_14_TEST
+    assert p14["metrics"]["n_questions"] == len(questions)
+    assert p14["fusion"]["weights"] == {"dense": 0.5, "bm25": 0.3, "seeded-hop": 0.2}
+    assert p14["relevance_hop"]["alpha"] == PASS_ALPHA
+    assert p14["relevance_hop"]["component"] == "relevance-hop"
+    provenance = p14["provenance"]
+    assert provenance["question_set"] == config.PHASE_14_TEST
+    assert provenance["question_digest"] == "q11"
+    key = provenance["embedding"]["question_cache_key"]
+    assert key == config.PHASE_14_TEST_QUESTION_VECTORS_KEY
+    assert provenance["fit_digest"] == marker["fit_digest"]
+    assert provenance["weights"]["hybrid-bm25-entity-hop"] == {
+        "dense": 0.5,
+        "bm25": 0.3,
+        "entity-hop": 0.2,
+    }
+    outcomes = phase9.load_outcomes(target_dir, "hybrid-bm25-seeded-hop")
+    assert [r["qid"] for r in outcomes] == [q.qid for q in questions]
+    assert [r["sim_seconds"] for r in outcomes] == built[0].sim_seconds
+    assert all(r["sim_seconds"] * 1000.0 <= r["latency_ms"] for r in outcomes)
+    for name in config.PHASE_14_SYSTEMS[:3]:
+        assert "sim_seconds" not in phase9.load_outcomes(target_dir, name)[0]
+    with pytest.raises(SystemExit, match="already started once"):
+        cli.cmd_p14_eval(authorized=True, **dirs)
+
+
+def test_the_p14_eval_stage_is_registered():
+    args = cli.build_parser().parse_args(["p14-eval", "--authorized-pass"])
+    assert (args.command, args.authorized) == ("p14-eval", True)
