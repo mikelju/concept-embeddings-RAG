@@ -138,7 +138,8 @@ beyond its top 100.
 bridge questions from first-paragraph hyperlinks, and every weight above was fitted on its dev set.
 Phase 15 ran the four systems once, with nothing refitted, on the 2,417 validation questions of
 MuSiQue (Wikipedia; questions composed from single-hop ones, filtered against shortcuts, needing
-2, 3 or 4 paragraphs) over a corpus of all 101,962 MuSiQue paragraphs. Full Support @2,048, beside
+2, 3 or 4 paragraphs) over a corpus of the 101,962 paragraphs of MuSiQue-Ans train and validation.
+Full Support @2,048, beside
 the same systems on HotpotQA `test-11`:
 
 | System | MuSiQue validation | HotpotQA `test-11` |
@@ -153,7 +154,7 @@ direction and order of the gains compare. The gain is a two-paragraph gain: 211 
 questions over Dense + BM25 come from the 1,252 questions with two supporting paragraphs. It is
 small on three-paragraph questions, and on the 405 four-paragraph questions no system retrieves
 the full evidence for more than 2. Refitting the weights on the same questions, an exploratory
-upper bound, would add at most 45 questions. The GLiNER extraction took 10.3 min on one rented
+figure, adds 45 questions at the best of a 330-point grid. The GLiNER extraction took 10.3 min on one rented
 RTX 4090 (0.13 USD attributable).
 
 ## What did not work, and what is not established
