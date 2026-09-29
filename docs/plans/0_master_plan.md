@@ -81,7 +81,7 @@ From Phase 7 onward:
 | 12 | Choosing with the question which of P1's entities to hop from | [Approved](phase_12/12.spec.md) | **Complete — DEV_STOP** |
 | 13 | Choosing P1's bridge entity by the words around its mention | [Approved](phase_13/13.spec.md) | **Complete — DEV_STOP** |
 | 14 | Ordering the hop's candidates by their similarity to the question | [Approved](phase_14/14.spec.md) | **Complete — CANDIDATE_RELEVANCE_SUPPORTED** |
-| 15 | Validation on MuSiQue: Dense, P10-B, P10-C and P14 with nothing refitted (author decision 2026-09-29) | [Approved](phase_15/15.spec.md) | **Spec approved 2026-09-29 — planning** |
+| 15 | Validation on MuSiQue: Dense, P10-B, P10-C and P14 with nothing refitted (author decision 2026-09-29) | [Approved](phase_15/15.spec.md) | **Plan approved ([`15.0`](phase_15/15.0_musique_validation.md)) — ready to implement** |
 | 16 | Validation on a corpus that is not Wikipedia, the same frozen systems (candidate: MultiHop-RAG, news) | Not written | **Planned** |
 | 17 | Second-hop query reformulation: the vector of "question + P1 text" against Dense, untrained | [Draft](phase_17/17.spec.md), to revise after Phases 15-16 | **Planned** |
 
