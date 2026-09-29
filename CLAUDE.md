@@ -36,11 +36,13 @@ What is established (figures and full records in each phase's `X.results.md`):
   trivial rule (40.78 % vs 19.01 %), yet hopping only from the best-scored entities loses to P10-C
   on dev (Phase 13, `DEV_STOP`). Hypothesis: the hard filter, not the signal, is what fails.
 
-**Current state (2026-09-28):** Phase 13 (bridge entity by a mention window) closed with
-`DEV_STOP` (`phase_13/13.results.md`): P10-C stays the best system and `test-11` stays unopened.
-Phase 14 (ordering the hop's candidates by similarity to the question) has an approved spec; next
-is its plan. Entity canonicalization follows as Phase 15. If this line and the master plan
-disagree, the master plan wins; fix this line.
+**Current state (2026-09-29):** Phase 14 (ordering the hop's candidates by similarity to the
+question) passed its dev gate (5,224 / 7,405 against the bar 4,835, `data/phase14/fit.json`);
+its single held-out pass on `test-11` and its results belong to the Phase 14 branch
+(`phase_14/14.results.md` when written). Until then P10-C is the best held-out system. Phase 15
+is the untrained second-hop query reformulation (question + P1), the author's decision of
+2026-09-29 (`docs/plans/review_2026-09-29.md`); canonicalization is deferred. If this line and
+the master plan disagree, the master plan wins; fix this line.
 
 ## Where things live
 
