@@ -193,13 +193,23 @@ def uses_question(chosen: Mapping[str, Any]) -> bool:
 
 
 def paired(
-    control: Sequence[Mapping[str, Any]], candidate: Sequence[Mapping[str, Any]]
+    control: Sequence[Mapping[str, Any]],
+    candidate: Sequence[Mapping[str, Any]],
+    *,
+    any_size: bool = False,
 ) -> dict[str, Any]:
-    """Full Support @2,048 of two runs on the same `test-11` questions, exact McNemar."""
+    """Full Support @2,048 of two runs on the same `test-11` questions, exact McNemar.
+
+    `any_size=True` accepts any non-empty common question set (Phase 15's n-agnostic use);
+    the default keeps the `test-11` size check of Phases 11 and 14.
+    """
     budget = str(config.PHASE_9_PRIMARY_BUDGET)
     a = {r["qid"]: r["budgets"][budget]["full_support"] for r in control}
     c = {r["qid"]: r["budgets"][budget]["full_support"] for r in candidate}
-    if set(a) != set(c) or len(a) != config.PHASE_10_SET_SIZES[config.PHASE_11_TEST]:
+    if any_size:
+        if set(a) != set(c) or not a or len(a) != len(control) or len(c) != len(candidate):
+            raise Phase11Error("the two runs do not hold the same, non-empty set of questions")
+    elif set(a) != set(c) or len(a) != config.PHASE_10_SET_SIZES[config.PHASE_11_TEST]:
         raise Phase11Error("the two runs do not hold the same test-11 questions")
     wins = sum(1 for q in a if c[q] == 1.0 and a[q] == 0.0)
     losses = sum(1 for q in a if a[q] == 1.0 and c[q] == 0.0)

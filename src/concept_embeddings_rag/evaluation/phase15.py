@@ -20,21 +20,30 @@ The ranking record is the prospective fix of deviation 14.1: the pass (S5) store
 question and system, the fused list and each component's list with scores to depth 100, and
 the hop's P1, `|C(q)|` and, for P14, `sim_seconds`. The live path builds, checks and
 round-trips the same records in memory, so S5 writes a format already exercised.
+
+S6 reads the pass back: the paired comparisons and the label (D5, D6), the ladder beside
+HotpotQA `test-11`, the split by supporting paragraphs (D7) and what the hop reaches (D8),
+all from the recorded outcomes and rankings. S7 (D9, exploratory) checks that re-fusing the
+stored lists at the frozen points reproduces the recorded outcomes before any refit is kept.
 """
 
 import gzip
 import json
 import math
+from collections import Counter
 from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 from concept_embeddings_rag import config
 from concept_embeddings_rag.artifacts import digest_of, write_text_atomic
 from concept_embeddings_rag.corpus.pool import Question
 from concept_embeddings_rag.evaluation import fullwiki as phase9
-from concept_embeddings_rag.evaluation import phase14
+from concept_embeddings_rag.evaluation import phase11, phase14
+from concept_embeddings_rag.evaluation.budget import fill_context
 from concept_embeddings_rag.evaluation.entity_diagnostics import (
     RecordingHybrid,
     RecordingRetriever,
@@ -566,4 +575,373 @@ def run_live_path(
             "or stored (D4); the ranking records were built and checked in memory only"
         ),
         "passed": all(result["passed"] for result in results.values()),
+    }
+
+
+# --- S6: the paired comparisons, the label and the descriptive splits (D5-D8) --------------
+
+OUTCOME_FILENAME = "outcome.json"
+REFIT_FILENAME = "refit.json"
+TRANSFER_SUPPORTED, TRANSFER_NOT_SUPPORTED, TRANSFER_REGRESSION, _DATA_STOP = (
+    config.PHASE_15_TERMINAL_STATES
+)
+BUDGET = str(config.PHASE_9_PRIMARY_BUDGET)
+
+# D5 first, then D6's three, as (key, control, candidate). Author decision 4: D7 reports all
+# four in each group. Only the first decides the label.
+PRIMARY = "p14_vs_p10b"
+COMPARISONS: tuple[tuple[str, str, str], ...] = (
+    (PRIMARY, P10B, P14),
+    ("p14_vs_p10c", P10C, P14),
+    ("p10c_vs_p10b", P10B, P10C),
+    ("p10b_vs_p10a", P10A, P10B),
+)
+SUPPORTING_GROUPS: tuple[int, ...] = tuple(sorted(config.PHASE_15_SUPPORTING_COUNTS))
+
+# D6: the four systems' Full Support @2,048 on HotpotQA `test-11`, measured in Phase 14 and
+# read back from its run files, which must still hold them.
+HOTPOTQA_TEST_11_QUESTIONS = 5000
+HOTPOTQA_TEST_11_SUPPORTED: dict[str, int] = {P10A: 2852, P10B: 3079, P10C: 3285, P14: 3530}
+
+
+def paired(
+    control: Sequence[Mapping[str, Any]], candidate: Sequence[Mapping[str, Any]]
+) -> dict[str, Any]:
+    """Full Support @2,048 of two runs on the same questions, exact McNemar, any `n`.
+
+    `phase11.paired` without its `test-11` size check (the same code, `any_size=True`).
+    """
+    try:
+        return phase11.paired(control, candidate, any_size=True)
+    except phase11.Phase11Error as error:
+        raise Phase15Error(str(error)) from error
+
+
+def label(wins: int, losses: int, p: float) -> str:
+    """D5: `TRANSFER_SUPPORTED`, `TRANSFER_REGRESSION` or `TRANSFER_NOT_SUPPORTED`, by the
+    three-way rule of Phases 11-14 at `alpha = 0.05`."""
+    return phase14.label(
+        wins,
+        losses,
+        p,
+        supported=TRANSFER_SUPPORTED,
+        regression=TRANSFER_REGRESSION,
+        not_supported=TRANSFER_NOT_SUPPORTED,
+    )
+
+
+def _labelled(control: str, candidate: str, result: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "control": config.PHASE_15_SYSTEM_LABELS[control],
+        "candidate": config.PHASE_15_SYSTEM_LABELS[candidate],
+        **result,
+    }
+
+
+def comparisons(runs: Mapping[str, Sequence[Mapping[str, Any]]]) -> dict[str, dict[str, Any]]:
+    """The four paired comparisons of `COMPARISONS`, each naming its control and candidate."""
+    return {
+        key: _labelled(control, candidate, paired(runs[control], runs[candidate]))
+        for key, control, candidate in COMPARISONS
+    }
+
+
+def outcome_label(compared: Mapping[str, Mapping[str, Any]]) -> str:
+    """The label, from P14 against P10-B only (D5); D6 cannot change it."""
+    primary = compared[PRIMARY]
+    return label(primary["wins"], primary["losses"], primary["exact_two_sided_p"])
+
+
+def _supported(records: Sequence[Mapping[str, Any]]) -> int:
+    return int(sum(r["budgets"][BUDGET]["full_support"] for r in records))
+
+
+def _percent(count: int, n: int) -> float:
+    return 100.0 * count / n
+
+
+def ladder(
+    runs: Mapping[str, Sequence[Mapping[str, Any]]],
+    hotpotqa: Mapping[str, Mapping[str, int]],
+) -> dict[str, Any]:
+    """D6's progression P10-A -> P10-B -> P10-C -> P14: each rung's Full Support @2,048 on
+    MuSiQue beside HotpotQA `test-11`, and each step's gain in points on both."""
+    rungs: list[dict[str, Any]] = []
+    for system in config.PHASE_15_SYSTEMS:
+        records = runs[system]
+        supported, n = _supported(records), len(records)
+        other = hotpotqa[system]
+        rungs.append(
+            {
+                "system": system,
+                "label": config.PHASE_15_SYSTEM_LABELS[system],
+                "musique": {
+                    "supported": supported,
+                    "n_questions": n,
+                    "full_support_percent": _percent(supported, n),
+                },
+                "hotpotqa_test_11": {
+                    "supported": int(other["supported"]),
+                    "n_questions": int(other["n_questions"]),
+                    "full_support_percent": _percent(
+                        int(other["supported"]), int(other["n_questions"])
+                    ),
+                },
+            }
+        )
+    steps: list[dict[str, Any]] = []
+    for before, after in zip(rungs, rungs[1:], strict=False):
+        musique_gain = (
+            after["musique"]["full_support_percent"] - before["musique"]["full_support_percent"]
+        )
+        hotpotqa_gain = (
+            after["hotpotqa_test_11"]["full_support_percent"]
+            - before["hotpotqa_test_11"]["full_support_percent"]
+        )
+        steps.append(
+            {
+                "from": before["label"],
+                "to": after["label"],
+                "musique_gain_pp": musique_gain,
+                "hotpotqa_gain_pp": hotpotqa_gain,
+                "same_direction": bool(np.sign(musique_gain) == np.sign(hotpotqa_gain)),
+            }
+        )
+    return {
+        "metric": f"full_support@{BUDGET}_tokens",
+        "rungs": rungs,
+        "steps": steps,
+        "note": (
+            "the two columns differ in corpus and in questions: they compare the direction "
+            "and order of the gains, not their size (D6)"
+        ),
+    }
+
+
+def by_supporting(
+    questions: Sequence[Question],
+    runs: Mapping[str, Sequence[Mapping[str, Any]]],
+    *,
+    groups: Sequence[int] = SUPPORTING_GROUPS,
+) -> dict[str, Any]:
+    """D7: per number of supporting paragraphs, each system's Full Support and mean gold
+    recall @2,048 and the four paired comparisons. Descriptive, deciding nothing.
+
+    The group is the question's count of `is_supporting` paragraphs (its `supporting_facts`,
+    the count the spec's 1,252 / 760 / 405 refer to), not its gold count after two supporting
+    paragraphs collapse into one unit; the gold counts inside each group are recorded.
+    """
+    size = {q.qid: len(q.supporting_facts) for q in questions}
+    gold = {q.qid: len(q.gold_unit_ids) for q in questions}
+    body: dict[str, Any] = {}
+    for n in groups:
+        members = {qid for qid, count in size.items() if count == n}
+        if not members:
+            body[str(n)] = {"n_questions": 0}
+            continue
+        subset = {
+            system: [r for r in records if r["qid"] in members] for system, records in runs.items()
+        }
+        systems: dict[str, Any] = {}
+        for system in config.PHASE_15_SYSTEMS:
+            records = subset[system]
+            supported = _supported(records)
+            systems[system] = {
+                "label": config.PHASE_15_SYSTEM_LABELS[system],
+                "full_support": supported,
+                "full_support_share": supported / len(records),
+                "mean_gold_recall": float(
+                    sum(r["budgets"][BUDGET]["gold_recall"] for r in records) / len(records)
+                ),
+            }
+        body[str(n)] = {
+            "n_questions": len(members),
+            "gold_counts": {
+                str(k): v for k, v in sorted(Counter(gold[qid] for qid in members).items())
+            },
+            "systems": systems,
+            "comparisons": comparisons(subset),
+        }
+    return {
+        "grouping": "the question's number of supporting paragraphs (is_supporting)",
+        "budget": int(BUDGET),
+        "groups": body,
+        "other": sum(1 for count in size.values() if count not in groups),
+        "note": "descriptive, deciding nothing (D7); every comparison is exact McNemar",
+    }
+
+
+def refusion_mismatches(
+    records: Sequence[Mapping[str, Any]],
+    components: Sequence[str],
+    weights: Sequence[float] | None,
+    *,
+    depth: int = config.PHASE_9_RANKING_DEPTH,
+) -> list[str]:
+    """The qids whose stored components, re-fused in the run file's `ranking_components`
+    order, do not give the stored fused list. A parsed record's `components` come back in
+    alphabetical key order, so the order is always taken from the run file."""
+    mismatched: list[str] = []
+    for record in records:
+        if set(record["components"]) != set(components):
+            mismatched.append(str(record["qid"]))
+            continue
+        ordered = [record["components"][name] for name in components]
+        again = ordered[0] if weights is None else fuse_lists(ordered, weights, top_k=depth)
+        if again != record["fused"]:
+            mismatched.append(str(record["qid"]))
+    return mismatched
+
+
+def recorded_contexts(
+    rankings: Sequence[Mapping[str, Any]],
+    outcomes: Sequence[Mapping[str, Any]],
+    questions: Sequence[Question],
+    token_counts: Mapping[str, int],
+    *,
+    budget: int = config.PHASE_9_PRIMARY_BUDGET,
+    depth: int = config.PHASE_9_RANKING_DEPTH,
+) -> dict[str, list[str]]:
+    """Each question's 2,048-token context, packed with `budget.fill_context` from the stored
+    fused list, checked against the Full Support its outcome record reports."""
+    contexts: dict[str, list[str]] = {}
+    mismatched: list[str] = []
+    for ranking, record, question in zip(rankings, outcomes, questions, strict=True):
+        if not ranking["qid"] == record["qid"] == question.qid:
+            raise Phase15Error("the rankings, outcomes and questions are not in one qid order")
+        context = fill_context([u for u, _s in ranking["fused"][:depth]], token_counts, budget)
+        full = float(set(question.gold_unit_ids) <= set(context))
+        if full != float(record["budgets"][str(budget)]["full_support"]):
+            mismatched.append(question.qid)
+        contexts[question.qid] = context
+    if mismatched:
+        raise Phase15Error(
+            f"the stored fused lists disagree with the recorded Full Support on "
+            f"{len(mismatched)} questions: {mismatched[:20]}"
+        )
+    return contexts
+
+
+def rank_split(
+    questions: Sequence[Question],
+    dense: Sequence[Mapping[str, Any]],
+    candidate: Mapping[str, Sequence[str]],
+    control: Mapping[str, Sequence[str]],
+    *,
+    depth: int = config.PHASE_9_RANKING_DEPTH,
+) -> dict[str, Any]:
+    """D8: `phase14.dense_rank_split` of two systems' checked contexts, by the Dense rank
+    (in `dense`'s stored Dense component, depth 100) of each paragraph that changed."""
+    entries = [
+        {
+            "qid": question.qid,
+            "gold": list(question.gold_unit_ids),
+            "candidate_context": list(candidate[question.qid]),
+            "control_context": list(control[question.qid]),
+            "dense_ids": [u for u, _s in record["components"]["dense"][:depth]],
+        }
+        for question, record in zip(questions, dense, strict=True)
+    ]
+    return phase14.dense_rank_split(entries)
+
+
+def _size_summary(sizes: Sequence[int]) -> dict[str, Any]:
+    values = np.asarray(sizes, dtype=np.float64)
+    if values.size == 0:
+        return {"questions": 0}
+    return {
+        "questions": int(values.size),
+        "median": float(np.percentile(values, 50)),
+        "p90": float(np.percentile(values, 90)),
+        "max": int(values.max()),
+        "empty": int((values == 0).sum()),
+        "empty_share": float((values == 0).mean()),
+    }
+
+
+def reach(
+    questions: Sequence[Question],
+    rankings: Mapping[str, Sequence[Mapping[str, Any]]],
+    components: Mapping[str, Sequence[str]],
+    *,
+    dense_top: int = 10,
+) -> dict[str, Any]:
+    """D8: per system, how many supporting paragraphs outside Dense's first `dense_top` each
+    component (and the fused list) lists at depth 100; for the systems with a hop, whether P1
+    is a supporting paragraph and the hop's candidate-set sizes `|C(q)|`.
+
+    Read from the stored rankings only; `components` is each system's `ranking_components`.
+    """
+    gold = {q.qid: set(q.gold_unit_ids) for q in questions}
+    systems: dict[str, Any] = {}
+    for system, records in rankings.items():
+        names = [*components[system], "fused"]
+        listed = {name: {"gold": 0, "questions": 0} for name in names}
+        outside_total = 0
+        p1_supporting = p1_absent = 0
+        sizes: list[int] = []
+        hop_system = any(record.get("hop") is not None for record in records)
+        for record in records:
+            dense_ids = [u for u, _s in record["components"]["dense"]]
+            outside = gold[record["qid"]] - set(dense_ids[:dense_top])
+            outside_total += len(outside)
+            lists = {**record["components"], "fused": record["fused"]}
+            for name in names:
+                found = outside & {u for u, _s in lists[name]}
+                listed[name]["gold"] += len(found)
+                listed[name]["questions"] += bool(found)
+            if hop_system:
+                hop = record["hop"]
+                p1 = hop["p1"]
+                if p1 != (dense_ids[0] if dense_ids else None):
+                    raise Phase15Error(f"{system} {record['qid']}: P1 is not Dense's first unit")
+                p1_absent += p1 is None
+                p1_supporting += p1 in gold[record["qid"]]
+                sizes.append(int(hop["positives"]))
+        entry: dict[str, Any] = {
+            "label": config.PHASE_15_SYSTEM_LABELS.get(system, system),
+            "gold_outside_dense_top_10": outside_total,
+            "listed": listed,
+        }
+        if hop_system:
+            entry["p1"] = {
+                "questions": len(records),
+                "p1_supporting": p1_supporting,
+                "p1_supporting_share": p1_supporting / len(records) if records else 0.0,
+                "p1_absent": p1_absent,
+            }
+            entry["candidate_set"] = _size_summary(sizes)
+        systems[system] = entry
+    return {
+        "dense_top": dense_top,
+        "depth": config.PHASE_9_RANKING_DEPTH,
+        "systems": systems,
+        "note": (
+            "'gold' counts supporting paragraphs outside the system's own Dense first "
+            f"{dense_top} that the list holds at depth 100; 'questions' the questions with at "
+            "least one. Descriptive, deciding nothing (D8)."
+        ),
+    }
+
+
+# --- S7: the refit's consistency (D9, exploratory) -----------------------------------------
+
+
+def replay_consistency(
+    observed: Sequence[Mapping[str, Any]], recorded: Sequence[Mapping[str, Any]]
+) -> dict[str, Any]:
+    """A replayed point against a system's recorded outcomes: the count, and every question
+    whose Full Support @2,048 moved. Any moved question fails it."""
+    if [r["qid"] for r in observed] != [r["qid"] for r in recorded]:
+        raise Phase15Error("the replay and the recorded outcomes are not in one qid order")
+    differing = [
+        str(a["qid"])
+        for a, b in zip(observed, recorded, strict=True)
+        if a["budgets"][BUDGET]["full_support"] != b["budgets"][BUDGET]["full_support"]
+    ]
+    return {
+        "supported": _supported(observed),
+        "recorded": _supported(recorded),
+        "differing_qids": differing,
+        "passed": not differing,
     }

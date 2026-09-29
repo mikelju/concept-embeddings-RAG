@@ -22,10 +22,10 @@ import pytest
 from concept_embeddings_rag import config
 from concept_embeddings_rag.corpus.pool import Question
 from concept_embeddings_rag.evaluation import fullwiki as phase9
-from concept_embeddings_rag.evaluation import phase14, phase15
+from concept_embeddings_rag.evaluation import phase11, phase14, phase15
 from concept_embeddings_rag.evaluation.entity_diagnostics import RecordingHybrid, RecordingRetriever
 from concept_embeddings_rag.retrieval.base import Hit
-from concept_embeddings_rag.retrieval.fusion import WEIGHTED
+from concept_embeddings_rag.retrieval.fusion import WEIGHTED, fuse_lists
 
 P10B, P10C, P14 = config.PHASE_15_SYSTEMS[1:]
 N_DEV = config.PHASE_15_DEV_QUESTIONS
@@ -449,3 +449,337 @@ def test_the_hop_lists_ride_in_p14s_records_and_survive_serialization():
     assert stored[0]["hop_alphas"] == lists[0] and "hop_alphas" not in p14[0]
     assert list(stored[0]["components"]) == ["dense", "bm25", "relevance-hop"]
     assert phase15.parse_rankings(phase15.serialize_rankings(stored)) == stored
+
+
+# --- S6: the paired comparisons, the label and the descriptive splits ----------------------
+
+P10A = config.PHASE_15_SYSTEMS[0]
+N_VALIDATION = config.PHASE_15_VALIDATION_ROWS
+
+
+def outcome(qid: str, fs: float, recall: float | None = None) -> dict[str, Any]:
+    """An outcome record as `phase9.measure_system` writes it, reduced to the 2,048 reading."""
+    return {
+        "qid": qid,
+        "budgets": {"2048": {"full_support": fs, "gold_recall": fs if recall is None else recall}},
+    }
+
+
+def run_pair(n: int, *, wins: int, losses: int, both: int) -> tuple[list[Any], list[Any]]:
+    """Control and candidate runs over `n` questions with the given discordant counts."""
+    control, candidate = [], []
+    for i in range(n):
+        qid = f"q{i:05d}"
+        if i < wins:
+            a, c = 0.0, 1.0
+        elif i < wins + losses:
+            a, c = 1.0, 0.0
+        elif i < wins + losses + both:
+            a, c = 1.0, 1.0
+        else:
+            a, c = 0.0, 0.0
+        control.append(outcome(qid, a))
+        candidate.append(outcome(qid, c))
+    return control, candidate
+
+
+def test_paired_counts_a_2417_question_run_and_its_exact_p():
+    control, candidate = run_pair(N_VALIDATION, wins=60, losses=30, both=1000)
+
+    result = phase15.paired(control, candidate)
+
+    assert result["n_questions"] == N_VALIDATION
+    assert (result["wins"], result["losses"], result["ties"]) == (60, 30, N_VALIDATION - 90)
+    assert result["control_successes"] == 1030 and result["candidate_successes"] == 1060
+    assert result["delta_percentage_points"] == pytest.approx(100.0 * 30 / N_VALIDATION)
+    assert result["exact_two_sided_p"] == phase9.exact_two_sided_p(60, 30)
+
+
+def test_paired_counts_a_three_question_run():
+    control = [outcome("a", 0.0), outcome("b", 1.0), outcome("c", 1.0)]
+    candidate = [outcome("a", 1.0), outcome("b", 1.0), outcome("c", 0.0)]
+
+    result = phase15.paired(control, candidate)
+
+    assert (result["n_questions"], result["wins"], result["losses"], result["ties"]) == (3, 1, 1, 1)
+    assert result["delta_percentage_points"] == 0.0
+    assert result["exact_two_sided_p"] == 1.0
+
+
+def test_paired_refuses_two_runs_over_different_questions():
+    with pytest.raises(phase15.Phase15Error, match="same"):
+        phase15.paired([outcome("a", 1.0)], [outcome("b", 1.0)])
+    with pytest.raises(phase15.Phase15Error, match="same"):
+        phase15.paired([], [])
+
+
+def test_phase_11_paired_still_refuses_anything_but_test_11():
+    control, candidate = run_pair(N_VALIDATION, wins=1, losses=0, both=0)
+
+    with pytest.raises(phase11.Phase11Error, match="test-11"):
+        phase11.paired(control, candidate)
+
+
+@pytest.mark.parametrize(
+    ("wins", "losses", "p", "expected"),
+    [
+        (60, 30, 0.002, "TRANSFER_SUPPORTED"),
+        (30, 60, 0.002, "TRANSFER_REGRESSION"),
+        (60, 30, 0.05, "TRANSFER_NOT_SUPPORTED"),  # at alpha: not below it
+        (60, 30, 0.0501, "TRANSFER_NOT_SUPPORTED"),
+        (30, 60, 0.05, "TRANSFER_NOT_SUPPORTED"),
+        (45, 45, 0.001, "TRANSFER_NOT_SUPPORTED"),
+    ],
+)
+def test_the_label_rule(wins: int, losses: int, p: float, expected: str):
+    assert phase15.label(wins, losses, p) == expected
+    assert expected in config.PHASE_15_TERMINAL_STATES
+
+
+def four_runs(
+    *, p14_vs_p10b: tuple[int, int], p14_vs_p10c: tuple[int, int], n: int = N_VALIDATION
+) -> dict[str, list[dict[str, Any]]]:
+    """P10-A, P10-B, P10-C and P14 over `n` questions: P10-A equals P10-B, P14 has the given
+    (wins, losses) against P10-B, and P10-C is P14 with its given (wins, losses) undone."""
+    p10b, p14 = run_pair(n, wins=p14_vs_p10b[0], losses=p14_vs_p10b[1], both=500)
+    wins, losses = p14_vs_p10c
+    fs = [r["budgets"]["2048"]["full_support"] for r in p14]
+    successes = [i for i, v in enumerate(fs) if v == 1.0 and i >= 1000]
+    failures = [i for i, v in enumerate(fs) if v == 0.0]
+    p10c_fs = list(fs)
+    for i in successes[:wins]:
+        p10c_fs[i] = 0.0
+    for i in failures[len(failures) - losses :]:
+        p10c_fs[i] = 1.0
+    p10c = [outcome(r["qid"], v) for r, v in zip(p14, p10c_fs, strict=True)]
+    return {P10A: p10b, P10B: p10b, P10C: p10c, P14: p14}
+
+
+def test_the_label_is_supported_on_a_significant_gain_over_p10b():
+    runs = four_runs(p14_vs_p10b=(60, 30), p14_vs_p10c=(0, 0))
+
+    compared = phase15.comparisons(runs)
+
+    assert list(compared) == [key for key, _control, _candidate in phase15.COMPARISONS]
+    assert compared[phase15.PRIMARY]["wins"] == 60
+    assert phase15.outcome_label(compared) == "TRANSFER_SUPPORTED"
+
+
+def test_a_significant_secondary_regression_leaves_the_label_alone():
+    # No difference against P10-B (the label's comparison); a large loss against P10-C.
+    runs = four_runs(p14_vs_p10b=(0, 0), p14_vs_p10c=(0, 80))
+
+    compared = phase15.comparisons(runs)
+
+    secondary = compared["p14_vs_p10c"]
+    assert secondary["losses"] == 80 and secondary["exact_two_sided_p"] < 0.05
+    assert compared[phase15.PRIMARY]["wins"] == compared[phase15.PRIMARY]["losses"] == 0
+    assert phase15.outcome_label(compared) == "TRANSFER_NOT_SUPPORTED"
+    # Both comparisons of the line are carried, with their labels.
+    assert (secondary["control"], secondary["candidate"]) == ("P10-C", "P14")
+    primary = compared[phase15.PRIMARY]
+    assert (primary["control"], primary["candidate"]) == ("P10-B", "P14")
+
+
+def test_a_significant_loss_against_p10b_is_a_regression():
+    runs = four_runs(p14_vs_p10b=(10, 70), p14_vs_p10c=(0, 0))
+
+    assert phase15.outcome_label(phase15.comparisons(runs)) == "TRANSFER_REGRESSION"
+
+
+def gold_question(qid: str, n_supporting: int) -> Question:
+    return Question(
+        qid=qid,
+        question=f"question {qid}?",
+        answer="",
+        gold_unit_ids=tuple(f"{qid}-g{i}" for i in range(n_supporting)),
+        supporting_facts=tuple((f"T{i}", i) for i in range(n_supporting)),
+        split="musique-validation",
+    )
+
+
+def test_the_d7_split_groups_by_supporting_paragraphs_with_all_four_comparisons():
+    questions = [
+        gold_question("a", 2),
+        gold_question("b", 2),
+        gold_question("c", 3),
+        gold_question("d", 4),
+    ]
+    runs = {
+        P10A: [
+            outcome("a", 0.0, 0.5),
+            outcome("b", 0.0, 0.5),
+            outcome("c", 0.0, 1 / 3),
+            outcome("d", 0.0, 0.25),
+        ],
+        P10B: [
+            outcome("a", 1.0),
+            outcome("b", 0.0, 0.5),
+            outcome("c", 0.0, 2 / 3),
+            outcome("d", 0.0, 0.5),
+        ],
+        P10C: [
+            outcome("a", 1.0),
+            outcome("b", 1.0),
+            outcome("c", 0.0, 2 / 3),
+            outcome("d", 0.0, 0.75),
+        ],
+        P14: [outcome("a", 1.0), outcome("b", 1.0), outcome("c", 1.0), outcome("d", 0.0, 0.5)],
+    }
+
+    split = phase15.by_supporting(questions, runs)
+
+    assert list(split["groups"]) == ["2", "3", "4"]
+    two, three, four = (split["groups"][k] for k in ("2", "3", "4"))
+    assert (two["n_questions"], three["n_questions"], four["n_questions"]) == (2, 1, 1)
+    assert two["systems"][P10A]["full_support"] == 0
+    assert two["systems"][P10B]["full_support"] == 1
+    assert two["systems"][P10C]["full_support_share"] == 1.0
+    assert two["systems"][P10A]["mean_gold_recall"] == pytest.approx(0.5)
+    assert four["systems"][P10C]["mean_gold_recall"] == pytest.approx(0.75)
+    assert list(two["comparisons"]) == [key for key, _a, _b in phase15.COMPARISONS]
+    assert two["comparisons"]["p10c_vs_p10b"]["wins"] == 1
+    assert three["comparisons"][phase15.PRIMARY]["wins"] == 1
+    assert three["comparisons"]["p14_vs_p10c"]["wins"] == 1
+    assert four["comparisons"]["p14_vs_p10c"]["losses"] == 0
+    assert split["other"] == 0
+    assert "descriptive" in split["note"]
+
+
+def test_the_d7_split_records_an_empty_group_without_a_comparison():
+    questions = [gold_question("a", 2)]
+    runs = {name: [outcome("a", 1.0)] for name in config.PHASE_15_SYSTEMS}
+
+    split = phase15.by_supporting(questions, runs)
+
+    assert split["groups"]["4"] == {"n_questions": 0}
+
+
+def test_the_ladder_puts_each_step_beside_hotpotqa():
+    runs = {
+        P10A: [outcome("a", 0.0), outcome("b", 0.0)],
+        P10B: [outcome("a", 1.0), outcome("b", 0.0)],
+        P10C: [outcome("a", 1.0), outcome("b", 0.0)],
+        P14: [outcome("a", 1.0), outcome("b", 1.0)],
+    }
+    hotpotqa = {
+        P10A: {"supported": 2852, "n_questions": 5000},
+        P10B: {"supported": 3079, "n_questions": 5000},
+        P10C: {"supported": 3285, "n_questions": 5000},
+        P14: {"supported": 3530, "n_questions": 5000},
+    }
+
+    ladder = phase15.ladder(runs, hotpotqa)
+
+    assert [row["system"] for row in ladder["rungs"]] == list(config.PHASE_15_SYSTEMS)
+    assert ladder["rungs"][3]["musique"]["full_support_percent"] == 100.0
+    assert ladder["rungs"][0]["hotpotqa_test_11"]["full_support_percent"] == pytest.approx(57.04)
+    steps = ladder["steps"]
+    assert [(s["from"], s["to"]) for s in steps] == [
+        ("P10-A", "P10-B"),
+        ("P10-B", "P10-C"),
+        ("P10-C", "P14"),
+    ]
+    assert steps[0]["musique_gain_pp"] == 50.0 and steps[1]["musique_gain_pp"] == 0.0
+    assert steps[2]["hotpotqa_gain_pp"] == pytest.approx(4.90)
+
+
+# --- S6, D8: what the hop reaches, from the stored rankings --------------------------------
+
+
+def hits(*ids: str) -> list[Hit]:
+    return [(unit_id, 1.0 - i / 100) for i, unit_id in enumerate(ids)]
+
+
+def test_the_d8_reach_counts_gold_outside_dense_top_10_per_component():
+    question = Question(
+        qid="q",
+        question="q?",
+        answer="",
+        gold_unit_ids=("g1", "g2", "g3"),
+        supporting_facts=(("A", 0), ("B", 0), ("C", 0)),
+        split="musique-validation",
+    )
+    dense = hits("g1", *[f"x{i}" for i in range(10)], "g2")  # g1 rank 1, g2 rank 12
+    rankings = {
+        P10C: [
+            {
+                "qid": "q",
+                "fused": hits("g1", "g3", "g2"),
+                # As parsed back from the file: keys in alphabetical order.
+                "components": {"bm25": hits("g3"), "dense": dense, "entity-hop": hits("g2", "g3")},
+                "hop": {"p1": "g1", "positives": 7},
+            }
+        ]
+    }
+
+    reach = phase15.reach([question], rankings, {P10C: ["dense", "bm25", "entity-hop"]})
+
+    system = reach["systems"][P10C]
+    assert system["gold_outside_dense_top_10"] == 2
+    assert system["listed"]["dense"]["gold"] == 1  # g2 at rank 12
+    assert system["listed"]["bm25"]["gold"] == 1  # g3
+    assert system["listed"]["entity-hop"]["gold"] == 2
+    assert system["listed"]["fused"]["gold"] == 2
+    assert system["p1"] == {
+        "questions": 1,
+        "p1_supporting": 1,
+        "p1_supporting_share": 1.0,
+        "p1_absent": 0,
+    }
+    sizes = system["candidate_set"]
+    assert (sizes["median"], sizes["max"], sizes["empty_share"]) == (7.0, 7, 0.0)
+
+
+def test_the_d8_reach_refuses_a_p1_that_is_not_dense_first():
+    question = gold_question("q", 2)
+    rankings = {
+        P10C: [
+            {
+                "qid": "q",
+                "fused": hits("a"),
+                "components": {"dense": hits("a"), "bm25": [], "entity-hop": []},
+                "hop": {"p1": "b", "positives": 0},
+            }
+        ]
+    }
+
+    with pytest.raises(phase15.Phase15Error, match="P1"):
+        phase15.reach([question], rankings, {P10C: ["dense", "bm25", "entity-hop"]})
+
+
+def test_recorded_contexts_must_give_the_recorded_full_support():
+    question = gold_question("q", 2)
+    record = {"qid": "q", "fused": hits("q-g0", "q-g1", "x")}
+    counts = {"q-g0": 10, "q-g1": 10, "x": 10}
+
+    contexts = phase15.recorded_contexts([record], [outcome("q", 1.0)], [question], counts)
+
+    assert contexts == {"q": ["q-g0", "q-g1", "x"]}
+    with pytest.raises(phase15.Phase15Error, match="Full Support"):
+        phase15.recorded_contexts([record], [outcome("q", 0.0)], [question], counts)
+
+
+def test_refusion_mismatches_use_the_run_files_component_order():
+    dense, bm25, hop = hits("a", "b"), hits("c", "a"), hits("d")
+    fused = fuse_lists([dense, bm25, hop], (0.5, 0.3, 0.2), top_k=100)
+    # As parsed back from the file: the components in alphabetical key order.
+    record = {"qid": "q", "fused": fused, "components": {"bm25": bm25, "dense": dense, "h": hop}}
+
+    assert phase15.refusion_mismatches([record], ["dense", "bm25", "h"], [0.5, 0.3, 0.2]) == []
+    assert phase15.refusion_mismatches([record], ["bm25", "dense", "h"], [0.5, 0.3, 0.2]) == ["q"]
+    alone = {"qid": "q", "fused": dense, "components": {"dense": dense}}
+    assert phase15.refusion_mismatches([alone], ["dense"], None) == []
+
+
+# --- S7: the refit's consistency before anything is written --------------------------------
+
+
+def test_the_refit_consistency_names_every_moved_question():
+    recorded = [outcome("a", 1.0), outcome("b", 0.0)]
+
+    same = phase15.replay_consistency([outcome("a", 1.0), outcome("b", 0.0)], recorded)
+    moved = phase15.replay_consistency([outcome("a", 1.0), outcome("b", 1.0)], recorded)
+
+    assert same == {"supported": 1, "recorded": 1, "differing_qids": [], "passed": True}
+    assert moved["differing_qids"] == ["b"] and moved["passed"] is False

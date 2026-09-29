@@ -23,8 +23,15 @@ fits, or after a first start; over the synthetic corpus (its gold, not MuSiQue's
 component lists re-fuse to the stored fused list, whose Full Support is the outcome record's,
 and the hop lists at the five `alpha` agree with the live P10-C and P14 lists or nothing is
 written. Git is replaced by a stub: nothing under `tmp_path` is tracked.
+
+For S6 and S7: `p15-outcome` writes the stop-only form on a recorded `DATA_STOP`, reads the
+synthetic pass back only after checking it whole, labels it from P14 against P10-B and carries
+the comparison against P10-C beside it; `p15-refit` refuses without the outcome or twice, and
+writes nothing unless the frozen points re-fused from the stored rankings reproduce the stored
+outcomes. The HotpotQA `test-11` run files the ladder reads are synthetic stand-ins.
 """
 
+import gzip
 import hashlib
 import json
 from collections.abc import Sequence
@@ -980,3 +987,262 @@ def test_the_p15_eval_stage_is_registered():
 
     assert args.command == "p15-eval" and args.authorized is True
     assert cli.build_parser().parse_args(["p15-eval"]).authorized is False
+
+
+# --- S6: `p15-outcome` -------------------------------------------------------------------
+
+HOTPOTQA_TEST_11 = {P10A: 2852, P10B: 3079, P10C: 3285, P14: 3530}
+STOP_KEYS = {
+    "phase",
+    "primary_comparison",
+    "primary_metric",
+    "terminal_state",
+    "stop_reasons",
+    "code_commit",
+    "created_at",
+}
+
+
+def phase14_runs(directory: Path, counts: dict[str, int] = HOTPOTQA_TEST_11) -> Path:
+    """The four Phase 14 run files the ladder reads, reduced to what it reads."""
+    directory.mkdir(parents=True, exist_ok=True)
+    for name, supported in counts.items():
+        body = {
+            "system": name,
+            "set": config.PHASE_14_TEST,
+            "metrics": {"n_questions": 5000, "supported_at_primary_budget": supported},
+        }
+        (directory / f"run-{name}.json").write_text(json.dumps(body), encoding="utf-8")
+    return directory
+
+
+def measured(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """The synthetic pass, run once: runs, outcomes and rankings of the four systems."""
+    target = passable(tmp_path, monkeypatch)
+    evaluate(target)
+    return target
+
+
+def outcome_of(target: Path, tmp_path: Path, **overrides: Any) -> Path:
+    arguments: dict[str, Any] = {
+        "phase14_dir": phase14_runs(tmp_path / "p14"),
+        "n_questions": N_TOY,
+    }
+    arguments.update(overrides)
+    return cli.cmd_p15_outcome(target, **arguments)
+
+
+def test_the_outcome_labels_the_pass_and_carries_both_comparisons_of_the_line(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    target = measured(tmp_path, monkeypatch)
+
+    path = outcome_of(target, tmp_path)
+
+    body = json.loads(path.read_text(encoding="utf-8"))
+    assert path == target / "outcome.json"
+    primary = body["d5_primary_p14_vs_p10b"]
+    assert (primary["control"], primary["candidate"]) == ("P10-B", "P14")
+    assert primary["n_questions"] == N_TOY
+    assert body["terminal_state"] == phase15.label(
+        primary["wins"], primary["losses"], primary["exact_two_sided_p"]
+    )
+    assert body["terminal_state"] != phase9.DATA_STOP and body["stop_reasons"] == []
+    secondary = body["d6_secondary"]
+    assert set(secondary) == {"p14_vs_p10c", "p10c_vs_p10b", "p10b_vs_p10a"}
+    assert (secondary["p14_vs_p10c"]["control"], secondary["p14_vs_p10c"]["candidate"]) == (
+        "P10-C",
+        "P14",
+    )
+    ladder = body["d6_ladder"]
+    assert [r["hotpotqa_test_11"]["supported"] for r in ladder["rungs"]] == list(
+        HOTPOTQA_TEST_11.values()
+    )
+    groups = body["d7_by_supporting"]["groups"]
+    assert (groups["2"]["n_questions"], groups["3"]["n_questions"]) == (2, 1)
+    assert groups["4"] == {"n_questions": 0}
+    assert set(groups["2"]["comparisons"]) == {key for key, _a, _b in phase15.COMPARISONS}
+    d8 = body["d8_reach"]
+    assert set(d8["dense_rank_split"]) == {"p14_vs_p10b", "p14_vs_p10c"}
+    assert set(d8["systems"]) == set(config.PHASE_15_SYSTEMS)
+    assert "candidate_set" in d8["systems"][P14] and "candidate_set" not in d8["systems"][P10B]
+    d10 = body["d10_latency"]
+    assert d10["run_order"] == list(config.PHASE_15_SYSTEMS)
+    assert set(d10["systems"][P10A]["memory_before"]) == {"working_set_mb", "peak_memory_mb"}
+    assert d10["p14_sim"]["n_questions"] == N_TOY
+    integrity = body["integrity"]
+    assert integrity["n_questions"] == N_TOY and integrity["same_qid_order"] is True
+    assert integrity["refusion_consistent"] is True
+    assert set(integrity["rankings_digests"]) == set(config.PHASE_15_SYSTEMS)
+
+    with pytest.raises(SystemExit, match="already"):
+        outcome_of(target, tmp_path)
+
+
+def test_the_outcome_refuses_a_rankings_file_its_run_does_not_record(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    target = measured(tmp_path, monkeypatch)
+    path = target / f"rankings-{P10C}.jsonl.gz"
+    path.write_bytes(gzip.compress(b'{"qid": "x"}\n', mtime=0))
+
+    with pytest.raises(SystemExit, match="digest"):
+        outcome_of(target, tmp_path)
+
+    assert not (target / "outcome.json").exists()
+
+
+def test_the_outcome_refuses_hotpotqa_figures_other_than_the_recorded_ones(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    target = measured(tmp_path, monkeypatch)
+    moved = {**HOTPOTQA_TEST_11, P14: 3531}
+
+    with pytest.raises(SystemExit, match="test-11"):
+        outcome_of(target, tmp_path, phase14_dir=phase14_runs(tmp_path / "moved", moved))
+
+    assert not (target / "outcome.json").exists()
+
+
+def test_the_outcome_refuses_when_no_pass_ran(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    target = passable(tmp_path, monkeypatch)
+
+    with pytest.raises(SystemExit, match="pass"):
+        outcome_of(target, tmp_path)
+
+    assert not (target / "outcome.json").exists()
+
+
+def test_a_questions_data_stop_writes_the_stop_only_outcome(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    fetcher = source(monkeypatch)
+    pool = musique.pool_units
+    missing = uid("D", "d text")
+    monkeypatch.setattr(
+        musique, "pool_units", lambda rows: [u for u in pool(rows) if u.unit_id != missing]
+    )
+    with pytest.raises(SystemExit, match=phase9.DATA_STOP):
+        run(tmp_path, fetcher)
+
+    path = cli.cmd_p15_outcome(tmp_path)
+
+    body = json.loads(path.read_text(encoding="utf-8"))
+    assert set(body) == STOP_KEYS
+    assert body["terminal_state"] == phase9.DATA_STOP
+    assert len(body["stop_reasons"]) == 1 and "unmapped" in body["stop_reasons"][0]
+
+
+def test_an_integrity_data_stop_writes_the_stop_only_outcome(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    phase15_data(tmp_path, monkeypatch)
+    integrity = {"terminal_state": phase9.DATA_STOP, "stop_reasons": ["live path: ['dense']"]}
+    (tmp_path / phase15.INTEGRITY_FILENAME).write_text(json.dumps(integrity), encoding="utf-8")
+
+    body = json.loads(cli.cmd_p15_outcome(tmp_path).read_text(encoding="utf-8"))
+
+    assert set(body) == STOP_KEYS
+    assert body["terminal_state"] == phase9.DATA_STOP
+    assert body["stop_reasons"] == ["integrity: live path: ['dense']"]
+
+    with pytest.raises(SystemExit, match="already"):
+        cli.cmd_p15_outcome(tmp_path)
+
+
+# --- S7: `p15-refit` ---------------------------------------------------------------------
+
+
+def test_the_refit_refuses_without_outcome_json(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    target = measured(tmp_path, monkeypatch)
+
+    with pytest.raises(SystemExit, match="outcome.json"):
+        cli.cmd_p15_refit(target, n_questions=N_TOY)
+
+    assert not (target / "refit.json").exists()
+
+
+def test_the_refit_refuses_when_refit_json_exists(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    target = measured(tmp_path, monkeypatch)
+    outcome_of(target, tmp_path)
+    (target / "refit.json").write_text("{}", encoding="utf-8")
+
+    with pytest.raises(SystemExit, match="already"):
+        cli.cmd_p15_refit(target, n_questions=N_TOY)
+
+    assert (target / "refit.json").read_text(encoding="utf-8") == "{}"
+
+
+def test_the_refit_refuses_after_a_stop_only_outcome(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    phase15_data(tmp_path, monkeypatch)
+    integrity = {"terminal_state": phase9.DATA_STOP, "stop_reasons": ["x"]}
+    (tmp_path / phase15.INTEGRITY_FILENAME).write_text(json.dumps(integrity), encoding="utf-8")
+    cli.cmd_p15_outcome(tmp_path)
+
+    with pytest.raises(SystemExit, match=phase9.DATA_STOP):
+        cli.cmd_p15_refit(tmp_path, n_questions=N_TOY)
+
+    assert not (tmp_path / "refit.json").exists()
+
+
+def test_the_refit_reproduces_the_stored_outcomes_at_the_frozen_points(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    target = measured(tmp_path, monkeypatch)
+    outcome_of(target, tmp_path)
+
+    path = cli.cmd_p15_refit(target, n_questions=N_TOY)
+
+    body = json.loads(path.read_text(encoding="utf-8"))
+    assert path == target / "refit.json"
+    assert body["exploratory"] is True
+    assert "upper bound" in body["caution"] and "never" in body["caution"]
+    assert body["n_points"] == len(body["curve"]) == 330
+    consistency = body["consistency"]
+    assert consistency["passed"] is True
+    recorded = {name: phase10_supported(target, name) for name in (P10C, P14)}
+    assert consistency["frozen_p14"]["supported"] == recorded[P14]
+    assert consistency["frozen_p14"]["differing_qids"] == []
+    assert consistency["p10c_at_alpha_0"]["supported"] == recorded[P10C]
+    frozen = next(
+        p for p in body["curve"] if p["alpha"] == 0.75 and p["weights"] == [0.5, 0.3, 0.2]
+    )
+    assert frozen["supported"] == recorded[P14]
+    assert body["best"] == phase14.choose_point(body["curve"])
+
+    with pytest.raises(SystemExit, match="already"):
+        cli.cmd_p15_refit(target, n_questions=N_TOY)
+
+
+def phase10_supported(target: Path, name: str) -> int:
+    return int(
+        sum(r["budgets"]["2048"]["full_support"] for r in phase9.load_outcomes(target, name))
+    )
+
+
+def test_the_refit_writes_nothing_when_the_frozen_point_moves_a_question(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    target = measured(tmp_path, monkeypatch)
+    outcome_of(target, tmp_path)
+    replay = cli._p10_replay_records
+
+    def moved(*args: Any, **kwargs: Any) -> list[dict[str, Any]]:
+        records = replay(*args, **kwargs)
+        first = records[0]["budgets"]["2048"]
+        first["full_support"] = 1.0 - first["full_support"]
+        return records
+
+    monkeypatch.setattr(cli, "_p10_replay_records", moved)
+
+    with pytest.raises(SystemExit, match="moved"):
+        cli.cmd_p15_refit(target, n_questions=N_TOY)
+
+    assert not (target / "refit.json").exists()
+
+
+def test_the_p15_outcome_and_refit_stages_are_registered():
+    assert cli.build_parser().parse_args(["p15-outcome"]).command == "p15-outcome"
+    assert cli.build_parser().parse_args(["p15-refit"]).command == "p15-refit"
