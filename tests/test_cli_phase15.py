@@ -1,25 +1,37 @@
 """Phase 15 CLI, S2: `p15-data` turns the two pinned MuSiQue-Ans files into the corpus, the
-validation questions with their gold, the live-path set and the token counts.
+validation questions with their gold, the live-path set and the token counts. S3:
+`p15-build` builds BM25, the vectors, the GLiNER records and the entity index over it.
 
 What can change a Phase 15 result here: which bytes are parsed (the pin), which units and gold
 come out of them, what the live path carries (question text only), and the two stops, unmapped
 gold (D2) and units longer than GLiNER's window (author decision 3). The source is a small
 synthetic pair of JSON lines files handed to the stage by an injected fetcher, with the pins
 replaced by theirs; the budget tokenizer is a stub. Nothing reaches the network or `data/`.
+
+For S3: which extractor configuration may write Phase 15 records (the Phase 9 pod digest, D4),
+that the Phase 9 extraction path is unchanged by its generalization, and that every artifact is
+written under the Phase 15 directory and names the Phase 15 corpus. The encoder and GLiNER are
+stubs.
 """
 
 import hashlib
 import json
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pytest
 
-from concept_embeddings_rag import cli
+from concept_embeddings_rag import cli, config
 from concept_embeddings_rag.corpus import fullwiki as fullwiki_corpus
 from concept_embeddings_rag.corpus import musique
 from concept_embeddings_rag.corpus.pool import IndexingUnit, unit_id_for
+from concept_embeddings_rag.embeddings.cache import EmbeddingCache
 from concept_embeddings_rag.evaluation import fullwiki as phase9
+from concept_embeddings_rag.nodes import local_extraction
+from concept_embeddings_rag.nodes.index import load_node_index
+from concept_embeddings_rag.nodes.local_extraction import LocalExtractor
 
 # A gold paragraph and a near-copy under the same title: equal first 80 characters,
 # different ending, so two units (author decision 5 counts the gold one).
@@ -360,3 +372,211 @@ def test_the_loader_refuses_an_edited_live_path_question(
 
     with pytest.raises(musique.MusiqueError, match="live"):
         musique.load_questions(tmp_path, corpus_unit_set_hash=corpus["unit_set_hash"])
+
+
+# --- S3: `p15-build` ---------------------------------------------------------------------
+
+PINNED = config.PHASE_9_GLINER_CONFIGURATION_DIGEST
+
+
+def phase15_data(target: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    """The synthetic Phase 15 data directory S2 writes: corpus, questions, token counts."""
+    run(target, source(monkeypatch))
+    corpus: dict[str, Any] = json.loads((target / "corpus.json").read_text(encoding="utf-8"))
+    return corpus
+
+
+def titles(texts: Sequence[str]) -> list[list[str]]:
+    """A stub GLiNER: each paragraph's title is its one entity."""
+    return [[text.split(".")[0]] for text in texts]
+
+
+def stub_extractor(digest: str, spans: Any = titles) -> LocalExtractor:
+    """GLiNER's carrier with a stub reader and a chosen configuration digest."""
+    return LocalExtractor(
+        extractor_id=config.GLINER_EXTRACTOR,
+        model=config.GLINER_MODEL,
+        revision=config.GLINER_REVISION,
+        labels=config.GLINER_LABELS,
+        parameters={},
+        library_versions={"gliner": "stub"},
+        spans=spans,
+        _digest=[digest],
+    )
+
+
+def serve_extractor(monkeypatch: pytest.MonkeyPatch, extractor: LocalExtractor) -> list[Path]:
+    """Hand `extractor` to whoever loads GLiNER and log the model directory it was asked for."""
+    loaded: list[Path] = []
+
+    def load(directory: Path | str) -> tuple[LocalExtractor, float]:
+        loaded.append(Path(directory))
+        return extractor, 0.5
+
+    monkeypatch.setattr(local_extraction, "gliner_extractor", load)
+    return loaded
+
+
+def weights_in(model_dir: Path) -> str:
+    model_dir.mkdir(parents=True)
+    (model_dir / config.PHASE_9_GLINER_WEIGHTS_FILE).write_bytes(b"weights")
+    return hashlib.sha256(b"weights").hexdigest()
+
+
+class StubBGE:
+    """The pinned BGE-small's identity, with constant unit vectors."""
+
+    name = config.EMBEDDING_MODEL
+    revision = config.EMBEDDING_REVISION
+    normalize = True
+    query_prompt = ""
+
+    def encode(self, texts: Sequence[str]) -> np.ndarray:
+        vectors = np.ones((len(texts), 4), dtype=np.float32)
+        return vectors / np.linalg.norm(vectors, axis=1, keepdims=True)
+
+
+def files_under(root: Path) -> set[Path]:
+    return {path for path in root.rglob("*") if path.is_file()}
+
+
+def test_extract_refuses_a_digest_other_than_the_phase_9_pod_one_before_any_span(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    phase15_data(tmp_path, monkeypatch)
+    asked: list[Sequence[str]] = []
+
+    def spans(texts: Sequence[str]) -> list[list[str]]:
+        asked.append(texts)
+        return [[] for _ in texts]
+
+    loaded = serve_extractor(monkeypatch, stub_extractor("0" * 16, spans))
+
+    with pytest.raises(SystemExit, match="configuration digest"):
+        cli.cmd_p15_build("extract", target_dir=tmp_path)
+
+    assert asked == []
+    assert loaded == [tmp_path / "models" / config.GLINER_EXTRACTOR]
+    assert not (tmp_path / "nodes").exists()
+
+
+def test_extract_refuses_a_corpus_whose_long_units_stopped_the_phase(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    phase15_data(tmp_path, monkeypatch)
+    path = tmp_path / "corpus.json"
+    corpus = json.loads(path.read_text(encoding="utf-8"))
+    corpus["gliner_window"]["stop"] = True
+    path.write_text(json.dumps(corpus), encoding="utf-8")
+    loaded = serve_extractor(monkeypatch, stub_extractor(PINNED))
+
+    with pytest.raises(SystemExit, match="window"):
+        cli.cmd_p15_build("extract", target_dir=tmp_path)
+
+    assert loaded == []
+    assert not (tmp_path / "nodes").exists()
+
+
+def test_the_phase_9_defaults_of_the_extraction_are_unchanged(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    loaded = serve_extractor(monkeypatch, stub_extractor(PINNED))
+    hashed: list[Path] = []
+
+    def weights(directory: Path | str, filename: str) -> str:
+        hashed.append(Path(directory))
+        return "w" * 64
+
+    monkeypatch.setattr(cli, "weights_sha256", weights)
+    units = [IndexingUnit(uid("A", "a"), "A", ("a",)), IndexingUnit(uid("B", "b"), "B", ("b",))]
+
+    manifest = cli._fullwiki_extract(units, tmp_path, "corpus", 0.0, None)
+
+    phase_9_models = config.PHASE_9_DIR / "models" / config.GLINER_EXTRACTOR
+    assert loaded == hashed == [phase_9_models]
+    assert manifest["phase"] == 9
+    assert "gliner_window" not in manifest
+    assert sorted(path.name for path in tmp_path.iterdir()) == [phase9.GLINER_DIRNAME]
+    assert (tmp_path / phase9.GLINER_DIRNAME / local_extraction.MANIFEST_NAME).exists()
+
+
+def test_extract_then_index_name_the_phase_15_corpus_and_extraction(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    corpus = phase15_data(tmp_path, monkeypatch)
+    weights = weights_in(tmp_path / "models" / config.GLINER_EXTRACTOR)
+    serve_extractor(monkeypatch, stub_extractor(PINNED))
+
+    extraction = cli.cmd_p15_build("extract", target_dir=tmp_path, hourly_rate_usd=0.74)
+    body = cli.cmd_p15_build("index", target_dir=tmp_path)
+
+    assert extraction["phase"] == 15
+    assert extraction["configuration_digest"] == PINNED
+    assert extraction["configuration_digest_matches"] is True
+    assert extraction["corpus_unit_set_hash"] == corpus["unit_set_hash"]
+    assert extraction["weights_sha256"] == weights
+    assert extraction["gliner_window"] == corpus["gliner_window"]
+    assert body["corpus_unit_set_hash"] == corpus["unit_set_hash"]
+    assert body["extraction_digest"] == extraction["digest"]
+    nodes = tmp_path / "nodes"
+    assert json.loads((nodes / local_extraction.MANIFEST_NAME).read_text("utf-8")) == extraction
+    assert (nodes / phase9.ENTITY_INDEX_FILENAME).exists()
+    assert not (tmp_path / phase9.GLINER_DIRNAME).exists()
+    unit_ids = [unit.unit_id for unit in fullwiki_corpus.load_corpus(tmp_path)]
+    index = load_node_index(
+        nodes, extraction_digest=extraction["digest"], expected_unit_ids=unit_ids
+    )
+    assert index.digest == body["index_digest"]
+    assert index.incidence.shape[0] == corpus["n_units"]
+
+
+def test_a_smoke_extract_on_another_stack_records_the_mismatch_under_smoke(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    phase15_data(tmp_path, monkeypatch)
+    weights_in(tmp_path / "models" / config.GLINER_EXTRACTOR)
+    serve_extractor(monkeypatch, stub_extractor("0" * 16))
+
+    manifest = cli.cmd_p15_build("extract", target_dir=tmp_path, smoke=4)
+
+    assert manifest["configuration_digest_matches"] is False
+    assert manifest["smoke"] == 4 and manifest["n_units"] == 4
+    assert (tmp_path / "smoke" / "nodes" / local_extraction.MANIFEST_NAME).exists()
+    assert not (tmp_path / "nodes").exists()
+
+
+def test_embed_and_bm25_write_only_under_the_phase_15_directories(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    target = tmp_path / "phase15"
+    corpus = phase15_data(target, monkeypatch)
+    elsewhere = tmp_path / "elsewhere"
+    for name in ("DATA_DIR", "CACHE_DIR", "QUESTION_CACHE_DIR", "PHASE_9_DIR"):
+        monkeypatch.setattr(config, name, elsewhere / name)
+    snapshot = tmp_path / "hub" / config.EMBEDDING_REVISION
+    snapshot.mkdir(parents=True)
+    (snapshot / "model.safetensors").write_bytes(b"bge")
+    monkeypatch.setattr(cli, "snapshot_directory", lambda name, revision: snapshot)
+    monkeypatch.setattr(cli, "SentenceTransformerBackend", StubBGE)
+    before = files_under(tmp_path)
+
+    embedding = cli.cmd_p15_build("embed", target_dir=target, hourly_rate_usd=0.74)
+    bm25 = cli.cmd_p15_build("bm25", target_dir=target)
+
+    written = files_under(tmp_path) - before
+    cache = target / "cache"
+    assert all(path.is_relative_to(cache) or path.parent == target / "bm25" for path in written)
+    assert cache / phase9.EMBEDDING_FILENAME in written
+    assert any(path.parent == cache / "questions" for path in written)
+    assert target / "bm25" / phase9.BM25_FILENAME in written
+    assert not elsewhere.exists()
+    assert embedding["unit_set_hash"] == bm25["unit_set_hash"] == corpus["unit_set_hash"]
+
+    # The question vectors cover the validation questions, then the live path.
+    questions, body = musique.load_questions(target, corpus_unit_set_hash=corpus["unit_set_hash"])
+    qids = [q.qid for q in questions] + [q.qid for q in musique.live_path_questions(body)]
+    assert embedding["n_questions"] == len(qids) == 5
+    loaded = EmbeddingCache(cache / "questions").load(
+        embedding["question_cache_key"], expected_unit_ids=qids
+    )
+    assert loaded is not None

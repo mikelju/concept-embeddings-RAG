@@ -52,6 +52,8 @@
     p14-fit         the 330-point grid on dev, the tie rule, the dev gate and D8 (Phase 14)
     p14-eval        the single authorized held-out pass on test-11 (Phase 14)
     p14-outcome     exact McNemar against P10-C (the label) and P10-B, D8 and D9 (Phase 14)
+    p15-data        the pinned MuSiQue-Ans source, pooled corpus, questions and token counts
+    p15-build       one build step over the MuSiQue corpus: bm25, embed, extract, index
 
 Each stage is idempotent and refuses to run if its input is missing, saying which
 stage to run first rather than failing somewhere deep inside numpy.
@@ -3897,15 +3899,21 @@ def _fullwiki_extract(
     corpus_hash: str,
     hourly_rate_usd: float,
     smoke: int | None,
+    *,
+    model_dir: Path = config.PHASE_9_DIR / "models" / config.GLINER_EXTRACTOR,
+    gliner_dir: Path | None = None,
+    phase: int = 9,
+    extra: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """GLiNER over every unit in resumable shards, at the frozen Phase 7 configuration (D6).
 
     The configuration digest covers the library versions, so it is checked before a single
     paragraph is read; a smoke build on another stack records the mismatch instead, and
-    its records are never Phase 9 records.
+    its records are never Phase 9 records. Phase 15 passes its own model and output
+    directories, its phase number and `extra` fields for the manifest; the defaults are
+    Phase 9's (`out / gliner/`).
     """
-    gliner_dir = out / phase9.GLINER_DIRNAME
-    model_dir = config.PHASE_9_DIR / "models" / config.GLINER_EXTRACTOR
+    gliner_dir = out / phase9.GLINER_DIRNAME if gliner_dir is None else gliner_dir
     extractor, load_seconds = local_extraction.gliner_extractor(model_dir)
     digest = extractor.configuration_digest
     pinned = config.PHASE_9_GLINER_CONFIGURATION_DIGEST
@@ -3937,7 +3945,8 @@ def _fullwiki_extract(
     failures = manifest["failures"]
     manifest.update(
         {
-            "phase": 9,
+            **(extra or {}),
+            "phase": phase,
             "weights_sha256": weights,
             "configuration_digest_pinned": pinned,
             "configuration_digest_matches": digest == pinned,
@@ -7509,6 +7518,104 @@ def cmd_p15_data(
     return {"corpus": corpus, "questions": path, "token_counts": tokens, "seconds": seconds}
 
 
+P15_BUILD_STAGES: tuple[str, ...] = ("bm25", "embed", "extract", "index")
+
+
+def cmd_p15_build(
+    stage: str,
+    *,
+    hourly_rate_usd: float = 0.0,
+    smoke: int | None = None,
+    target_dir: Path = config.PHASE_15_DIR,
+) -> dict[str, Any]:
+    """S3: one build step over the Phase 15 corpus, with Phase 9's own build functions.
+
+    Each step writes under `target_dir` only: `bm25/`, `cache/` (with `cache/questions/`, so
+    the question cache is Phase 15's own) and `nodes/`; the GLiNER checkpoint goes to
+    `models/gliner`. `embed` encodes the validation questions and the D4 live-path questions
+    beside the passages, so every question is encoded on the passages' device. `extract`
+    refuses a corpus S2 stopped for GLiNER's window, and carries S2's window count into its
+    manifest. A smoke build reads the first `smoke` units and writes under `smoke/`.
+    """
+    target_dir = Path(target_dir)
+    if stage not in P15_BUILD_STAGES:
+        _die(f"unknown build stage {stage!r}; expected one of {P15_BUILD_STAGES}")
+    units, corpus, out = _build_inputs(target_dir, smoke)
+    corpus_hash = str(corpus["unit_set_hash"])
+    unit_ids = [unit.unit_id for unit in units]
+    nodes_dir = out / "nodes"
+    device = _embedding_device()
+    print(f"[INFO] p15-build {stage} over {len(units)} units into {out} ({device})")
+    try:
+        if stage == "bm25":
+            _retriever, body = phase9.build_bm25(units, unit_set_hash=corpus_hash)
+            (out / "bm25").mkdir(parents=True, exist_ok=True)
+            write_text_atomic(
+                out / "bm25" / phase9.BM25_FILENAME, json.dumps(body, indent=2, sort_keys=True)
+            )
+        elif stage == "embed":
+            # The questions are mapped against the whole corpus, a smoke build included.
+            whole = json.loads((target_dir / fullwiki.CORPUS_MANIFEST).read_text("utf-8"))
+            questions, question_body = musique.load_questions(
+                target_dir, corpus_unit_set_hash=str(whole["unit_set_hash"])
+            )
+            questions = [*questions, *musique.live_path_questions(question_body)]
+            snapshot = snapshot_directory(config.EMBEDDING_MODEL, config.EMBEDDING_REVISION)
+            body = phase9.build_embedding(
+                units,
+                questions,
+                SentenceTransformerBackend(),
+                out / "cache",
+                out / "cache" / "questions",
+                out / "cache",
+                unit_set_hash=corpus_hash,
+                weights_sha256=weights_sha256(snapshot, "model.safetensors"),
+                resolved_revision=snapshot.name,
+                hardware=local_extraction.hardware_block(device=device),
+                hourly_rate_usd=hourly_rate_usd,
+            )
+        elif stage == "extract":
+            window = corpus["gliner_window"]
+            if window["stop"]:
+                _die(
+                    f"{window['units_over']} units exceed GLiNER's window, past the share of "
+                    f"{window['ceiling_share']}: S2 stopped the phase (author decision 3)"
+                )
+            body = _fullwiki_extract(
+                units,
+                out,
+                corpus_hash,
+                hourly_rate_usd,
+                smoke,
+                model_dir=target_dir / "models" / config.GLINER_EXTRACTOR,
+                gliner_dir=nodes_dir,
+                phase=15,
+                extra={"gliner_window": window},
+            )
+        else:
+            records, manifest = local_extraction.load_extraction(
+                nodes_dir, expected_unit_ids=unit_ids
+            )
+            body = phase9.build_entity_index(
+                records,
+                unit_ids,
+                nodes_dir,
+                extraction_digest=str(manifest["digest"]),
+                corpus_unit_set_hash=corpus_hash,
+            )
+    except (
+        phase9.FullWikiPhaseError,
+        musique.MusiqueError,
+        LocalExtractionError,
+        NodeIndexError,
+        BackendError,
+        CacheAlignmentError,
+    ) as error:
+        _die(str(error))
+    print(f"[OK] p15-build {stage}: {json.dumps(body.get('memory'))}")
+    return body
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="cer",
@@ -7842,6 +7949,24 @@ def build_parser() -> argparse.ArgumentParser:
         "p15-data",
         help="Phase 15: pinned MuSiQue-Ans source, pooled corpus, questions, token counts",
     )
+    p15_build = subparsers.add_parser(
+        "p15-build",
+        help="Phase 15: one build step over the MuSiQue corpus (embed and extract on the pod)",
+    )
+    p15_build.add_argument("--stage", choices=P15_BUILD_STAGES, required=True)
+    p15_build.add_argument(
+        "--hourly-rate-usd",
+        type=float,
+        default=0.0,
+        dest="hourly_rate_usd",
+        help="contracted hourly rate, for the attributable cost of GPU steps",
+    )
+    p15_build.add_argument(
+        "--smoke",
+        type=int,
+        default=None,
+        help="build over the first N units into data/phase15/smoke/ (a code check, not a figure)",
+    )
     build.add_argument(
         "--smoke",
         type=int,
@@ -7994,6 +8119,8 @@ def main(argv: list[str] | None = None) -> int:
         cmd_p14_outcome()
     elif args.command == "p15-data":
         cmd_p15_data()
+    elif args.command == "p15-build":
+        cmd_p15_build(args.stage, hourly_rate_usd=args.hourly_rate_usd, smoke=args.smoke)
     return 0
 
 
