@@ -35,14 +35,15 @@ What is established (figures and full records in each phase's `X.results.md`):
 - a word window around each mention picks P1's bridge entity about twice as often as the best
   trivial rule (40.78 % vs 19.01 %), yet hopping only from the best-scored entities loses to P10-C
   on dev (Phase 13, `DEV_STOP`). Hypothesis: the hard filter, not the signal, is what fails.
+- scoring the hop's candidates by `(1 − α) · rarity + α · cos(q, c)` (α = 0.75, same seed,
+  candidates and weights) beats P10-C on `test-11` (+4.90 pp, 317 wins / 72 losses, Phase 14,
+  `CANDIDATE_RELEVANCE_SUPPORTED`): with its reach unchanged, the hop's order was a bottleneck.
 
-**Current state (2026-09-29):** Phase 14 (ordering the hop's candidates by similarity to the
-question) passed its dev gate (5,224 / 7,405 against the bar 4,835, `data/phase14/fit.json`);
-its single held-out pass on `test-11` and its results belong to the Phase 14 branch
-(`phase_14/14.results.md` when written). Until then P10-C is the best held-out system. Phase 15
-is the untrained second-hop query reformulation (question + P1), the author's decision of
-2026-09-29 (`docs/plans/review_2026-09-29.md`); canonicalization is deferred. If this line and
-the master plan disagree, the master plan wins; fix this line.
+**Current state (2026-09-29):** Phase 14 closed `CANDIDATE_RELEVANCE_SUPPORTED`
+(`phase_14/14.results.md`): P14 (Dense + BM25 + relevance-ordered hop) is the best system and the
+bar to beat; `test-11` is spent. Next is the spec of Phase 15, the untrained second-hop query
+reformulation (question + P1; `docs/plans/review_2026-09-29.md`). If this line and the master plan
+disagree, the master plan wins; fix this line.
 
 ## Where things live
 
@@ -113,7 +114,8 @@ index), `retrieval/` (`dense`, `bm25`, `fusion`, `entity_hop`, historical `conce
   p1(q) = first unit. Candidates: paragraphs outside read(q) sharing >= 1 raw entity node with
   p1(q). Score: sum of `log(1 + N / (1 + df))` over shared nodes. Rank by score, then unit id. No
   padding. Fused with Dense (weight fitted on dev). No canonicalization, relations, query
-  relevance, multiple seeds or hops unless an approved spec asks for them.
+  relevance, multiple seeds or hops unless an approved spec asks for them (Phase 14's P14 adds
+  candidate-question similarity to the score, an approved variant).
 - Benchmark: frozen HotpotQA-derived set, 600 dev / 1,400 test, 19,366-paragraph pool. Dense:
   `BAAI/bge-small-en-v1.5` (384 d, L2-normalized). Metric of record: Full Support @2,048 tokens.
   Entities: GLiNER `urchade/gliner_medium-v2.1` rev `40ec419335d09393f298636f471328b722c6da9e`, the Phase 7 index, read-only.

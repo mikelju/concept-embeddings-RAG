@@ -461,6 +461,11 @@ that construction is the check that protects any general claim.
 
 ## 7.2 Query-aware Entity Hop
 
+> **Candidate side tested in Phase 14 (2026-09-29): `CANDIDATE_RELEVANCE_SUPPORTED`.**
+> `relevance(candidate, Q)` as part of the hop's score beats P10-C by +4.90 pp Full Support
+> @2,048 on `test-11` ([`phase_14/14.results.md`](phase_14/14.results.md)). The seed side
+> (Phases 11-13) stopped at dev three times.
+
 The current Entity Hop becomes query-blind after Dense produces `P1`.
 
 Current:
@@ -549,6 +554,16 @@ against the bar of 4,835, with 520 questions won and 97 lost against P10-C; of t
 paragraphs that enter the context in the won questions, 260 were in Dense's ranks 11-100 and
 242 beyond its top 100. The single held-out pass on `test-11` is the Phase 14 branch's to run,
 on the author's authorization, and to record in `phase_14/14.results.md`.
+
+**Phase 14 on `test-11` (2026-09-29, measured, held-out;
+[`phase_14/14.results.md`](phase_14/14.results.md)).** The single pass gives P14 (`α = 0.75`,
+0.5 / 0.3 / 0.2) 3,530 / 5,000 Full Support @2,048 against P10-C's 3,285: +4.90 pp, 317 wins /
+72 losses, exact McNemar p = 9.0e-38, label `CANDIDATE_RELEVANCE_SUPPORTED`; against Dense + BM25
++9.02 pp (532 / 81). Mean latency 1.82× P10-C's. So the answer to this section's question, on
+HotpotQA: re-introducing query relevance **on the candidate side**, as a soft score rather than a
+filter, helps; whether part of the gain is Dense's own signal counted twice cannot be separated
+(on dev, half of the won gold paragraphs were in Dense's ranks 11-100). P14 is the new bar; the
+MDR-style query vector (question + P1) is Phase 15.
 
 **Review of 2026-09-29 (dev, gold-informed, exploratory;
 [`review_2026-09-29.md`](review_2026-09-29.md)).** A failure anatomy of P10-C on dev: of its
