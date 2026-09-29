@@ -17,11 +17,18 @@ For S4: the live systems are built from the verified Phase 15 inputs built by th
 over the same synthetic corpus, `p15-integrity` writes `integrity.json` once, a miss is a
 written `DATA_STOP`, and no metric of a live-path question is computed or stored. The HotpotQA
 code-identity half reads the real Phase 9-14 artifacts and is replaced by a stub here.
+
+For S5: `p15-eval` refuses without the flag, a committed passing `integrity.json`, committed
+fits, or after a first start; over the synthetic corpus (its gold, not MuSiQue's) the stored
+component lists re-fuse to the stored fused list, whose Full Support is the outcome record's,
+and the hop lists at the five `alpha` agree with the live P10-C and P14 lists or nothing is
+written. Git is replaced by a stub: nothing under `tmp_path` is tracked.
 """
 
 import hashlib
 import json
 from collections.abc import Sequence
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -29,15 +36,17 @@ import numpy as np
 import pytest
 
 from concept_embeddings_rag import cli, config
+from concept_embeddings_rag.artifacts import digest_of
 from concept_embeddings_rag.corpus import fullwiki as fullwiki_corpus
 from concept_embeddings_rag.corpus import musique
 from concept_embeddings_rag.corpus.pool import IndexingUnit, unit_id_for
 from concept_embeddings_rag.embeddings.cache import EmbeddingCache
 from concept_embeddings_rag.evaluation import fullwiki as phase9
-from concept_embeddings_rag.evaluation import phase15
+from concept_embeddings_rag.evaluation import phase14, phase15
 from concept_embeddings_rag.nodes import local_extraction
 from concept_embeddings_rag.nodes.index import load_node_index
 from concept_embeddings_rag.nodes.local_extraction import LocalExtractor
+from concept_embeddings_rag.retrieval.entity_hop import RelevanceHopStage
 
 # A gold paragraph and a near-copy under the same title: equal first 80 characters,
 # different ending, so two units (author decision 5 counts the gold one).
@@ -598,7 +607,7 @@ FROZEN = {
     },
     "alpha": 0.75,
     "sources": {},
-    "fit_digests": {},
+    "fit_digests": {"hybrid-bm25-entity-hop": "c" * 16, "hybrid-bm25-seeded-hop": "d" * 16},
 }
 METRIC_KEYS = {
     "budgets",
@@ -626,7 +635,13 @@ def no_measure(*args: Any, **kwargs: Any) -> Any:
     raise AssertionError("no metric of a live-path question may be computed")
 
 
-def built(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+def built(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    backend: type[StubBGE] = StubBGE,
+    spans: Any = titles,
+) -> Path:
     """Every Phase 15 input S4 reads, built over the synthetic corpus with the S3 stages."""
     target = tmp_path / "phase15"
     phase15_data(target, monkeypatch)
@@ -634,9 +649,9 @@ def built(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     snapshot.mkdir(parents=True)
     (snapshot / "model.safetensors").write_bytes(b"bge")
     monkeypatch.setattr(cli, "snapshot_directory", lambda name, revision: snapshot)
-    monkeypatch.setattr(cli, "SentenceTransformerBackend", StubBGE)
+    monkeypatch.setattr(cli, "SentenceTransformerBackend", backend)
     weights_in(target / "models" / config.GLINER_EXTRACTOR)
-    serve_extractor(monkeypatch, stub_extractor(PINNED))
+    serve_extractor(monkeypatch, stub_extractor(PINNED, spans))
     for stage in ("embed", "bm25", "extract", "index"):
         cli.cmd_p15_build(stage, target_dir=target)
     monkeypatch.setattr(phase15, "frozen_weights", lambda **kwargs: FROZEN)
@@ -738,3 +753,230 @@ def test_missing_phase_15_inputs_stop_the_stage_before_anything_is_written(
 
 def test_the_p15_integrity_stage_is_registered():
     assert cli.build_parser().parse_args(["p15-integrity"]).command == "p15-integrity"
+
+
+# --- S5: `p15-eval --authorized-pass` -----------------------------------------------------
+
+REAL_FROZEN_WEIGHTS = phase15.frozen_weights
+P10A, P10B, P10C, P14 = config.PHASE_15_SYSTEMS
+N_TOY = 3  # the synthetic validation questions
+
+
+class VariedBGE(StubBGE):
+    """The pinned BGE-small's identity, with a distinct unit vector per text."""
+
+    def encode(self, texts: Sequence[str]) -> np.ndarray:
+        rows = [
+            np.frombuffer(hashlib.sha256(text.encode("utf-8")).digest()[:8], dtype=np.uint8)
+            for text in texts
+        ]
+        vectors = np.asarray(rows, dtype=np.float32).reshape(len(texts), 8) - 127.5
+        return vectors / np.linalg.norm(vectors, axis=1, keepdims=True)
+
+
+def shared_spans(texts: Sequence[str]) -> list[list[str]]:
+    """A stub GLiNER: each paragraph's title, and one entity every paragraph shares, so the
+    hop has candidates outside the Dense units it read."""
+    return [[text.split(".")[0], "the shared city"] for text in texts]
+
+
+def passable(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """The synthetic Phase 15 inputs with a passing, 'committed' `integrity.json`."""
+    target = built(tmp_path, monkeypatch, backend=VariedBGE, spans=shared_spans)
+    monkeypatch.setattr(cli, "_p15_code_identity", passing_code_identity)
+    cli.cmd_p15_integrity(target, phase9_dir=phase9_extraction(tmp_path))
+    monkeypatch.setattr(cli, "_p10_fit_is_committed", lambda path: True)
+    return target
+
+
+def evaluate(target: Path, **overrides: Any) -> list[Path]:
+    arguments: dict[str, Any] = {"authorized": True, "target_dir": target, "n_questions": N_TOY}
+    arguments.update(overrides)
+    return cli.cmd_p15_eval(**arguments)
+
+
+def pass_files(target: Path) -> list[str]:
+    patterns = ("pass.json", "run-*", "outcomes-*", "rankings-*")
+    return sorted(path.name for pattern in patterns for path in target.glob(pattern))
+
+
+def test_the_pass_refuses_without_the_authorization_flag(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    target = passable(tmp_path, monkeypatch)
+
+    with pytest.raises(SystemExit, match="--authorized-pass"):
+        evaluate(target, authorized=False)
+
+    assert pass_files(target) == []
+
+
+def test_the_pass_refuses_without_integrity_json(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    target = passable(tmp_path, monkeypatch)
+    (target / phase15.INTEGRITY_FILENAME).unlink()
+
+    with pytest.raises(SystemExit, match=phase15.INTEGRITY_FILENAME):
+        evaluate(target)
+
+    assert pass_files(target) == []
+
+
+def test_the_pass_refuses_after_a_d4_stop(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    target = passable(tmp_path, monkeypatch)
+    path = target / phase15.INTEGRITY_FILENAME
+    body = json.loads(path.read_text(encoding="utf-8"))
+    body["terminal_state"] = phase9.DATA_STOP
+    path.write_text(json.dumps(body), encoding="utf-8")
+
+    with pytest.raises(SystemExit, match=phase9.DATA_STOP):
+        evaluate(target)
+
+    assert pass_files(target) == []
+
+
+def test_the_pass_refuses_an_integrity_json_git_does_not_track_unmodified(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    target = passable(tmp_path, monkeypatch)
+    integrity = target / phase15.INTEGRITY_FILENAME
+    monkeypatch.setattr(cli, "_p10_fit_is_committed", lambda path: Path(path) != integrity)
+
+    with pytest.raises(SystemExit, match="committed"):
+        evaluate(target)
+
+    assert pass_files(target) == []
+
+
+def test_the_pass_refuses_a_frozen_fit_git_does_not_track_unmodified(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    target = passable(tmp_path, monkeypatch)
+    monkeypatch.setattr(phase15, "frozen_weights", REAL_FROZEN_WEIGHTS)
+    phase10_dir, phase14_dir = tmp_path / "p10", tmp_path / "p14"
+    for directory in (phase10_dir, phase14_dir):
+        directory.mkdir()
+        (directory / "fit.json").write_text("{}", encoding="utf-8")
+    fit14 = phase14_dir / "fit.json"
+    monkeypatch.setattr(cli, "_p10_fit_is_committed", lambda path: Path(path) != fit14)
+
+    with pytest.raises(SystemExit, match="not committed unmodified"):
+        evaluate(target, phase10_dir=phase10_dir, phase14_dir=phase14_dir)
+
+    assert pass_files(target) == []
+
+
+def test_the_pass_refuses_a_second_start(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    target = passable(tmp_path, monkeypatch)
+    (target / "pass.json").write_text("{}", encoding="utf-8")
+
+    with pytest.raises(SystemExit, match="already started"):
+        evaluate(target)
+
+    assert pass_files(target) == ["pass.json"]
+
+
+def test_the_pass_refuses_inputs_other_than_those_d4_checked(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    target = passable(tmp_path, monkeypatch)
+    path = target / phase15.INTEGRITY_FILENAME
+    body = json.loads(path.read_text(encoding="utf-8"))
+    body["provenance"]["bm25_index_digest"] = "0" * 16
+    path.write_text(json.dumps(body), encoding="utf-8")
+
+    with pytest.raises(SystemExit, match="D4"):
+        evaluate(target)
+
+    assert pass_files(target) == []
+
+
+def test_the_pass_measures_the_four_systems_and_stores_their_rankings(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
+    target = passable(tmp_path, monkeypatch)
+    capsys.readouterr()
+
+    written = evaluate(target)
+
+    printed = capsys.readouterr().out
+    assert written == [target / f"run-{name}.json" for name in config.PHASE_15_SYSTEMS]
+    assert "supported" not in printed.lower() and "TRANSFER" not in printed
+    marker = json.loads((target / "pass.json").read_text(encoding="utf-8"))
+    integrity_text = (target / phase15.INTEGRITY_FILENAME).read_text(encoding="utf-8")
+    assert marker["integrity_digest"] == digest_of(integrity_text)
+    assert marker["systems"] == list(config.PHASE_15_SYSTEMS)
+    assert marker["n_questions"] == N_TOY
+
+    components = cli._p15_inputs(target)
+    questions = components["questions"]
+    by_qid = {question.qid: question for question in questions}
+    rankings: dict[str, list[dict[str, Any]]] = {}
+    for position, name in enumerate(config.PHASE_15_SYSTEMS):
+        body = json.loads((target / f"run-{name}.json").read_text(encoding="utf-8"))
+        outcomes = phase9.load_outcomes(target, name)
+        rankings[name] = phase15.load_rankings(target, name)
+        assert body["order"] == position and body["set"] == musique.VALIDATION_SPLIT
+        assert body["rankings_file"] == f"rankings-{name}.jsonl.gz"
+        assert body["provenance"]["integrity_digest"] == marker["integrity_digest"]
+        assert set(body["memory_before"]) == {"working_set_mb", "peak_memory_mb"}
+        assert [r["qid"] for r in outcomes] == [r["qid"] for r in rankings[name]]
+        assert [r["qid"] for r in outcomes] == [q.qid for q in questions]
+        weights = body["fusion_weights"]
+        for outcome, stored in zip(outcomes, rankings[name], strict=True):
+            assert set(outcome["budgets"]) == {"512", "1024", "2048", "4096"}
+            assert set(outcome["fs_at_k"]) == set(outcome["gpr_at_k"]) == {"2", "5", "10", "20"}
+            # The file's keys are sorted: the fusion order is the one the run records.
+            assert set(stored["components"]) == set(body["ranking_components"])
+            ordered = [stored["components"][c] for c in body["ranking_components"]]
+            fused = ordered[0] if weights is None else cli.fuse_lists(ordered, weights, top_k=100)
+            assert fused == stored["fused"]
+            question = by_qid[stored["qid"]]
+            replayed = cli._p10_replay_records(
+                name, [(question.question, fused)], [question], components["token_counts"]
+            )
+            assert (
+                replayed[0]["budgets"]["2048"]["full_support"]
+                == outcome["budgets"]["2048"]["full_support"]
+            )
+
+    # The hop lists at the five alpha: alpha 0 is P10-C's live list, 0.75 is P14's.
+    zero, frozen = phase14.alpha_key(0.0), phase14.alpha_key(0.75)
+    hops = rankings[P14]
+    assert all(
+        list(r["hop_alphas"]) == [phase14.alpha_key(a) for a in config.PHASE_14_ALPHAS]
+        for r in hops
+    )
+    assert any(r["components"]["relevance-hop"] for r in hops)
+    for p14, p10c in zip(hops, rankings[P10C], strict=True):
+        assert p14["hop_alphas"][zero] == p10c["components"]["entity-hop"]
+        assert p14["hop_alphas"][frozen] == p14["components"]["relevance-hop"]
+        assert "sim_seconds" in p14["hop"]
+    assert all("hop_alphas" not in r for name in (P10A, P10B, P10C) for r in rankings[name])
+
+    with pytest.raises(SystemExit, match="already started"):
+        evaluate(target)
+
+
+def test_a_hop_list_that_differs_from_the_live_one_stops_before_any_ranking_is_written(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    target = passable(tmp_path, monkeypatch)
+    live_hop_all = RelevanceHopStage.hop_all
+
+    def moved(self: RelevanceHopStage, *args: Any, **kwargs: Any) -> Any:
+        lists = live_hop_all(self, *args, **kwargs)
+        return {alpha: replace(e, candidates=()) for alpha, e in lists.items()}
+
+    monkeypatch.setattr(RelevanceHopStage, "hop_all", moved)
+
+    with pytest.raises(SystemExit, match="hop"):
+        evaluate(target)
+
+    assert pass_files(target) == ["pass.json"]
+
+
+def test_the_p15_eval_stage_is_registered():
+    args = cli.build_parser().parse_args(["p15-eval", "--authorized-pass"])
+
+    assert args.command == "p15-eval" and args.authorized is True
+    assert cli.build_parser().parse_args(["p15-eval"]).authorized is False

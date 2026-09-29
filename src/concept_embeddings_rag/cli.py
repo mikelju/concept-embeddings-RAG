@@ -55,6 +55,7 @@
     p15-data        the pinned MuSiQue-Ans source, pooled corpus, questions and token counts
     p15-build       one build step over the MuSiQue corpus: bm25, embed, extract, index
     p15-integrity   D4: HotpotQA dev code identity, the pod extractor, the live path, once
+    p15-eval        the single authorized pass on MuSiQue validation, rankings included
 
 Each stage is idempotent and refuses to run if its input is missing, saying which
 stage to run first rather than failing somewhere deep inside numpy.
@@ -6512,6 +6513,29 @@ def _p14_peak_memory_mb() -> float | None:
     `ctypes`, since no memory-probing package is a dependency; `None` when neither is readable.
     """
     if sys.platform == "win32":
+        return _windows_memory_mb("PeakWorkingSetSize")
+    return phase9.peak_memory()["peak_rss_mb"]
+
+
+def _p15_working_set_mb() -> float | None:
+    """This process's current memory in MiB: the working set on Windows, VmRSS on Linux.
+
+    The same `GetProcessMemoryInfo` call as `_p14_peak_memory_mb`, field `WorkingSetSize`;
+    `None` when neither is readable.
+    """
+    if sys.platform == "win32":
+        return _windows_memory_mb("WorkingSetSize")
+    status = Path("/proc/self/status")
+    if status.exists():
+        for line in status.read_text(encoding="utf-8").splitlines():
+            if line.startswith("VmRSS:"):
+                return int(line.split()[1]) / 1024.0
+    return None
+
+
+def _windows_memory_mb(field: str) -> float | None:
+    """One `PROCESS_MEMORY_COUNTERS` field of this process in MiB, `None` if unreadable."""
+    if sys.platform == "win32":
         import ctypes
         from ctypes import wintypes
 
@@ -6542,8 +6566,8 @@ def _p14_peak_memory_mb() -> float | None:
         handle = kernel32.GetCurrentProcess()
         if not psapi.GetProcessMemoryInfo(handle, ctypes.byref(counters), counters.cb):
             return None
-        return float(counters.PeakWorkingSetSize) / (1024.0 * 1024.0)
-    return phase9.peak_memory()["peak_rss_mb"]
+        return float(getattr(counters, field)) / (1024.0 * 1024.0)
+    return None
 
 
 def _p14_passage_vectors(source_dir: Path, unit_ids: Sequence[str]) -> tuple[np.ndarray, str]:
@@ -7974,6 +7998,218 @@ def cmd_p15_integrity(
     return path
 
 
+P15_HOP_ALPHAS_BOUNDARY = (
+    "one RelevanceHopStage.hop_all per question over P14's stored Dense list, after the four "
+    "timed systems and outside every timing; alpha 0 checked equal to P10-C's recorded hop "
+    "list and the frozen alpha to P14's before any rankings file was written"
+)
+
+
+def _p15_marker(
+    components: Mapping[str, Any], integrity_digest: str, commit: str, load_seconds: float
+) -> dict[str, Any]:
+    """What `pass.json` records: when and at which commit the pass started, over what."""
+    provenance = components["provenance"]
+    return {
+        "started_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        "code_commit": commit,
+        "integrity_digest": integrity_digest,
+        "fit_digests": provenance["fit_digests"],
+        "weights": provenance["weights"],
+        "alpha": provenance["alpha"],
+        "corpus_unit_set_hash": provenance["corpus_unit_set_hash"],
+        "question_digest": provenance["question_digest"],
+        "vectors_digest": provenance["embedding"]["vectors_digest"],
+        "question_cache_key": provenance["embedding"]["question_cache_key"],
+        "bm25_index_digest": provenance["bm25_index_digest"],
+        "extraction_records_digest": provenance["extraction"]["records_digest"],
+        "entity_index_digest": provenance["entity_index_digest"],
+        "set": musique.VALIDATION_SPLIT,
+        "n_questions": len(components["questions"]),
+        "systems": list(config.PHASE_15_SYSTEMS),
+        "load_seconds": load_seconds,
+    }
+
+
+def cmd_p15_eval(
+    *,
+    authorized: bool,
+    target_dir: Path = config.PHASE_15_DIR,
+    phase10_dir: Path = config.PHASE_10_DIR,
+    phase14_dir: Path = config.PHASE_14_DIR,
+    n_questions: int = config.PHASE_15_VALIDATION_ROWS,
+) -> list[Path]:
+    """S5 (HU-3, D5): the four frozen systems on the MuSiQue validation questions, once.
+
+    Refuses without the flag, without `integrity.json`, on a recorded D4 stop, on an
+    `integrity.json` or a frozen fit git does not track unmodified, and after a first start.
+    Every input is loaded and verified by `_p15_inputs` (the vector rows are the entity index
+    rows in order: P14's `sim` reads Dense's matrix), and must be the one D4 checked, before
+    `pass.json` is written. The systems are `_p15_systems`, the ones S4's live path ran, measured
+    in the order P10-A, P10-B, P10-C, P14 by `phase9.measure_system`, the working set and peak
+    memory read before each. Then, outside any timing, the hop at the five Phase 14 `alpha` per
+    question; a list that is not the live one stops the pass before anything else is written.
+    Each system's run, outcomes and rankings are then written once. Nothing is compared, fitted
+    or labelled here (S6), and no metric is printed.
+    """
+    target_dir = Path(target_dir)
+    if not authorized:
+        _die("the single MuSiQue pass needs --authorized-pass from the author")
+    integrity_path = target_dir / phase15.INTEGRITY_FILENAME
+    if not integrity_path.exists():
+        _die(f"{integrity_path} is missing: run 'p15-integrity' and commit it first")
+    integrity_text = integrity_path.read_text(encoding="utf-8")
+    integrity = json.loads(integrity_text)
+    if "terminal_state" not in integrity or integrity["terminal_state"] is not None:
+        _die(f"integrity.json records {integrity.get('terminal_state')}; the pass does not run")
+    if not _p10_fit_is_committed(integrity_path):
+        _die("integrity.json is not committed unmodified; commit it before the pass")
+    try:
+        phase15.frozen_weights(
+            is_committed=_p10_fit_is_committed,
+            phase10_fit=Path(phase10_dir) / P10_FIT_NAME,
+            phase14_fit=Path(phase14_dir) / P14_FIT_NAME,
+        )
+    except phase15.Phase15Error as error:
+        _die(str(error))
+    if (target_dir / phase15.MARKER_FILENAME).exists():
+        _die(f"{target_dir / phase15.MARKER_FILENAME} exists: the pass has already started once")
+
+    started = time.perf_counter()
+    components = _p15_inputs(target_dir, phase10_dir=phase10_dir, phase14_dir=phase14_dir)
+    questions: list[Question] = components["questions"]
+    if len(questions) != n_questions:
+        _die(f"{len(questions)} validation questions loaded, not {n_questions}")
+    provenance_now = json.loads(json.dumps(components["provenance"], sort_keys=True))
+    if provenance_now != integrity.get("provenance"):
+        _die("the Phase 15 inputs are not the ones D4 checked in integrity.json")
+    integrity_digest = digest_of(integrity_text)
+    commit = _git_commit()
+    provenance = {
+        **components["provenance"],
+        "question_set": musique.VALIDATION_SPLIT,
+        "n_questions": len(questions),
+        "integrity_digest": integrity_digest,
+        "hop_implementation": phase9.COLUMNWISE_HOP,
+        "code_commit": commit,
+        "host": local_extraction.hardware_block(device="cpu"),
+    }
+    systems = _p15_systems(components)
+    load_seconds = time.perf_counter() - started
+    print(f"[INFO] inputs loaded and verified in {load_seconds / 60:.1f} min", flush=True)
+    try:
+        phase15.start_pass(
+            target_dir, _p15_marker(components, integrity_digest, commit, load_seconds)
+        )
+    except phase15.Phase15Error as error:
+        _die(str(error))
+
+    qids = [question.qid for question in questions]
+    p10c, p14 = config.PHASE_15_SYSTEMS[2:]
+    measured: dict[str, dict[str, Any]] = {}
+    for position, (name, live) in enumerate(systems.items()):
+        memory_before = {
+            "working_set_mb": _p15_working_set_mb(),
+            "peak_memory_mb": _p14_peak_memory_mb(),
+        }
+        print(
+            f"[INFO] pass: {config.PHASE_15_SYSTEM_LABELS[name]} ({name}) over "
+            f"{len(questions)} questions",
+            flush=True,
+        )
+        system_started = time.perf_counter()
+        records = phase9.measure_system(name, live.system, questions, components["token_counts"])
+        system_seconds = time.perf_counter() - system_started
+        try:
+            rankings = phase15.ranking_records(live, qids)
+        except phase15.Phase15Error as error:
+            _die(f"{error}; nothing of the pass is written")
+        if isinstance(live.hop, phase15.RecordingRelevanceStage):
+            sim_seconds = list(live.hop.sim_seconds)
+            if len(sim_seconds) != len(records):
+                _die(f"{len(sim_seconds)} sim timings for {len(records)} questions")
+            for record, seconds in zip(records, sim_seconds, strict=True):
+                record["sim_seconds"] = seconds
+        inner = live.system.inner if isinstance(live.system, RecordingRetriever) else live.system
+        measured[name] = {
+            "records": records,
+            "rankings": rankings,
+            "body": {
+                "phase": 15,
+                "system": name,
+                "label": config.PHASE_15_SYSTEM_LABELS[name],
+                "order": position,
+                "set": musique.VALIDATION_SPLIT,
+                "n_questions": len(records),
+                "ranking_depth": config.PHASE_9_RANKING_DEPTH,
+                "fusion": inner.describe() if hasattr(inner, "describe") else None,
+                "fusion_weights": (
+                    None if live.fusion_weights is None else list(live.fusion_weights)
+                ),
+                "ranking_components": [
+                    *live.components,
+                    *([live.hop_component] if live.hop_component is not None else []),
+                ],
+                "metrics": phase9.cohort_metrics(records)[config.PHASE_9_STANDARD],
+                "latency": phase9.latency_summary(records),
+                "seconds": system_seconds,
+                "memory_before": memory_before,
+                "peak_memory_mb": _p14_peak_memory_mb(),
+                "provenance": provenance,
+            },
+        }
+        print(f"[OK] {name} measured in {system_seconds / 60:.1f} min", flush=True)
+
+    # D9's extra alpha, after the four timed systems and outside any timing.
+    p14_live = systems[p14]
+    if not isinstance(p14_live.hop, phase15.RecordingRelevanceStage):
+        _die("P14's hop is not the relevance-ordered stage")
+    stage = p14_live.hop.inner
+    alpha = float(components["weights"]["alpha"])
+    hop_started = time.perf_counter()
+    try:
+        lists = phase15.hop_alpha_lists(stage, questions, measured[p14]["rankings"])
+    except phase15.Phase15Error as error:
+        _die(f"{error}; no rankings or run file is written")
+    hop_seconds = time.perf_counter() - hop_started
+    mismatches = phase15.hop_alpha_mismatches(
+        measured[p14]["rankings"], measured[p10c]["rankings"], lists, alpha=alpha
+    )
+    if mismatches:
+        _die(
+            f"the hop lists at alpha 0 / {alpha:.2f} differ from the live P10-C / P14 lists on "
+            f"{len(mismatches)} checks ({mismatches[:5]}); no rankings or run file is written"
+        )
+    measured[p14]["rankings"] = phase15.with_hop_alphas(measured[p14]["rankings"], lists)
+    measured[p14]["body"]["relevance_hop"] = {
+        "component": RELEVANCE_HOP_NAME,
+        "stage_name": SEEDED_HOP_NAME,
+        "alpha": alpha,
+        "fit_digest": components["weights"]["fit_digests"][p14],
+        "sim": _p14_sim_summary([r["sim_seconds"] for r in measured[p14]["records"]]),
+        "hop_alphas": {
+            "alphas": list(config.PHASE_14_ALPHAS),
+            "keys": [phase14.alpha_key(a) for a in config.PHASE_14_ALPHAS],
+            "record_key": phase15.HOP_ALPHAS,
+            "seconds": hop_seconds,
+            "boundary": P15_HOP_ALPHAS_BOUNDARY,
+        },
+    }
+    print(f"[OK] hop lists at {len(config.PHASE_14_ALPHAS)} alpha in {hop_seconds:.1f} s")
+
+    written: list[Path] = []
+    for name, result in measured.items():
+        try:
+            ranking_file = phase15.write_rankings(target_dir, name, result["rankings"])
+            body = {**result["body"], **ranking_file}
+            written.append(phase9.write_run(target_dir, name, result["records"], body=body))
+        except (phase15.Phase15Error, phase9.FullWikiPhaseError) as error:
+            _die(str(error))
+        print(f"[OK] {name} -> {written[-1]}", flush=True)
+    print(f"[OK] pass complete in {(time.perf_counter() - started) / 60:.1f} min", flush=True)
+    return written
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="cer",
@@ -8315,6 +8551,10 @@ def build_parser() -> argparse.ArgumentParser:
         "p15-integrity",
         help="Phase 15: D4 once - HotpotQA dev code identity, the pod extractor, the live path",
     )
+    p15_eval = subparsers.add_parser(
+        "p15-eval", help="Phase 15: the single authorized pass on the MuSiQue validation questions"
+    )
+    p15_eval.add_argument("--authorized-pass", action="store_true", dest="authorized")
     p15_build.add_argument("--stage", choices=P15_BUILD_STAGES, required=True)
     p15_build.add_argument(
         "--hourly-rate-usd",
@@ -8485,6 +8725,8 @@ def main(argv: list[str] | None = None) -> int:
         cmd_p15_build(args.stage, hourly_rate_usd=args.hourly_rate_usd, smoke=args.smoke)
     elif args.command == "p15-integrity":
         cmd_p15_integrity()
+    elif args.command == "p15-eval":
+        cmd_p15_eval(authorized=args.authorized)
     return 0
 
 

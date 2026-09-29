@@ -1,4 +1,5 @@
-"""Phase 15: the frozen systems on MuSiQue. S4: integrity before the pass (D4).
+"""Phase 15: the frozen systems on MuSiQue. S4: integrity before the pass (D4); S5: the
+pass's marker, its rankings files and the hop lists at the five Phase 14 `alpha`.
 
 `15.spec.md` (approved and frozen 2026-09-29) fixes every rule here before any Phase 15
 number exists. Nothing is fitted on MuSiQue (D3): the four systems fuse with the weights and
@@ -21,6 +22,7 @@ the hop's P1, `|C(q)|` and, for P14, `sim_seconds`. The live path builds, checks
 round-trips the same records in memory, so S5 writes a format already exercised.
 """
 
+import gzip
 import json
 import math
 from collections.abc import Callable, Collection, Mapping, Sequence
@@ -29,9 +31,10 @@ from pathlib import Path
 from typing import Any
 
 from concept_embeddings_rag import config
-from concept_embeddings_rag.artifacts import digest_of
+from concept_embeddings_rag.artifacts import digest_of, write_text_atomic
 from concept_embeddings_rag.corpus.pool import Question
 from concept_embeddings_rag.evaluation import fullwiki as phase9
+from concept_embeddings_rag.evaluation import phase14
 from concept_embeddings_rag.evaluation.entity_diagnostics import (
     RecordingHybrid,
     RecordingRetriever,
@@ -342,8 +345,122 @@ def parse_rankings(text: str) -> list[dict[str, Any]]:
         record = json.loads(line)
         record["fused"] = _hits(record["fused"])
         record["components"] = {name: _hits(v) for name, v in record["components"].items()}
+        if HOP_ALPHAS in record:
+            record[HOP_ALPHAS] = {key: _hits(v) for key, v in record[HOP_ALPHAS].items()}
         records.append(record)
     return records
+
+
+# --- S5: the pass's marker, its rankings file and the hop lists at the five alpha ----------
+
+MARKER_FILENAME = "pass.json"
+# P14's records carry the hop at each Phase 14 `alpha` under this key, apart from the
+# components, so re-fusing `components` in order still gives the fused list.
+HOP_ALPHAS = "hop_alphas"
+
+
+def start_pass(directory: Path | str, body: Mapping[str, Any]) -> Path:
+    """Mark the single pass as started. A second start is refused, whatever happened."""
+    target = Path(directory) / MARKER_FILENAME
+    if target.exists():
+        raise Phase15Error(
+            f"{target} exists: the pass has already started once and is never rerun; "
+            "a failed pass is a decision for the author"
+        )
+    return write_text_atomic(target, json.dumps(dict(body), indent=2, sort_keys=True))
+
+
+def rankings_name(system: str) -> str:
+    return f"rankings-{system}.jsonl.gz"
+
+
+def write_rankings(
+    directory: Path | str, system: str, records: Sequence[Mapping[str, Any]]
+) -> dict[str, str]:
+    """One system's ranking records, written once as gzip with `mtime = 0`.
+
+    Returns the file name and the digest of its text, which the run file records beside the
+    outcomes digest (`load_rankings` reads it back only against that digest).
+    """
+    directory = Path(directory)
+    archive = directory / rankings_name(system)
+    if archive.exists():
+        raise Phase15Error(f"{archive} already exists; a rankings file is written once")
+    text = serialize_rankings(records)
+    temporary = archive.with_name(archive.name + ".tmp")
+    with temporary.open("wb") as raw, gzip.GzipFile(fileobj=raw, mode="wb", mtime=0) as packed:
+        packed.write(text.encode("utf-8"))
+    temporary.replace(archive)
+    return {"rankings_file": archive.name, "rankings_digest": digest_of(text)}
+
+
+def load_rankings(directory: Path | str, system: str) -> list[dict[str, Any]]:
+    """One system's ranking records, refused unless they match the digest its run records."""
+    directory = Path(directory)
+    run_name = f"run-{system}.json"
+    body = json.loads((directory / run_name).read_text(encoding="utf-8"))
+    text = gzip.decompress((directory / str(body["rankings_file"])).read_bytes()).decode("utf-8")
+    if digest_of(text) != body["rankings_digest"]:
+        raise Phase15Error(f"{body['rankings_file']} does not match the digest {run_name} records")
+    return parse_rankings(text)
+
+
+def hop_alpha_lists(
+    stage: RelevanceHopStage,
+    questions: Sequence[Question],
+    records: Sequence[Mapping[str, Any]],
+    *,
+    depth: int = config.PHASE_9_RANKING_DEPTH,
+    alphas: Sequence[float] = config.PHASE_14_ALPHAS,
+) -> list[dict[str, list[Hit]]]:
+    """The hop at every `alpha`, one `hop_all` per question over its stored Dense list.
+
+    Run after the timed systems, outside any timing: D9 re-fuses these lists. Keyed as the
+    Phase 14 dev lists are (`phase14.alpha_key`), in `alphas` order.
+    """
+    if [r["qid"] for r in records] != [q.qid for q in questions]:
+        raise Phase15Error("the stored rankings are not in the question order")
+    lists: list[dict[str, list[Hit]]] = []
+    for question, record in zip(questions, records, strict=True):
+        expansions = stage.hop_all(question.question, record["components"]["dense"], depth, alphas)
+        lists.append(
+            {
+                phase14.alpha_key(alpha): [(c.unit_id, float(c.score)) for c in e.candidates]
+                for alpha, e in expansions.items()
+            }
+        )
+    return lists
+
+
+def hop_alpha_mismatches(
+    p14_records: Sequence[Mapping[str, Any]],
+    p10c_records: Sequence[Mapping[str, Any]],
+    lists: Sequence[Mapping[str, Sequence[Hit]]],
+    *,
+    alpha: float,
+) -> list[str]:
+    """Each question whose `alpha = 0` list is not P10-C's recorded hop list, or whose frozen
+    `alpha` list is not P14's, as `<qid> alpha=<a>`. Any entry stops the pass."""
+    zero, frozen = phase14.alpha_key(0.0), phase14.alpha_key(alpha)
+    mismatches: list[str] = []
+    for p14, p10c, row in zip(p14_records, p10c_records, lists, strict=True):
+        if p14["qid"] != p10c["qid"]:
+            raise Phase15Error("the P10-C and P14 rankings are not in the same question order")
+        if list(row[zero]) != p10c["components"][config.ENTITY_HOP_NAME]:
+            mismatches.append(f"{p14['qid']} alpha=0.00")
+        if list(row[frozen]) != p14["components"][RELEVANCE_HOP_NAME]:
+            mismatches.append(f"{p14['qid']} alpha={alpha:.2f}")
+    return mismatches
+
+
+def with_hop_alphas(
+    records: Sequence[Mapping[str, Any]], lists: Sequence[Mapping[str, Sequence[Hit]]]
+) -> list[dict[str, Any]]:
+    """P14's records with each question's hop lists at the five `alpha` added."""
+    return [
+        {**record, HOP_ALPHAS: {key: _hits(hits) for key, hits in row.items()}}
+        for record, row in zip(records, lists, strict=True)
+    ]
 
 
 def _seconds(values: Sequence[float]) -> dict[str, float]:

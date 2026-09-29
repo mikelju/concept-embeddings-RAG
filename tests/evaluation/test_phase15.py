@@ -5,8 +5,13 @@ What can change a Phase 15 result here: which weights and `alpha` the four syste
 reproduced question by question, whether the pod's extractor is the Phase 9 one, and whether
 the live path's ranking records are well formed, without a metric of a MuSiQue question ever
 being computed. Everything is fixture-based and fast.
+
+S5: the pass's rankings file is written once, without a timestamp, and read back only against
+the digest its run records; the pass marker is written once; the hop lists at the five `alpha`
+must equal the recorded P10-C and P14 lists and ride in P14's records through serialization.
 """
 
+import gzip
 import json
 from collections.abc import Sequence
 from pathlib import Path
@@ -17,7 +22,7 @@ import pytest
 from concept_embeddings_rag import config
 from concept_embeddings_rag.corpus.pool import Question
 from concept_embeddings_rag.evaluation import fullwiki as phase9
-from concept_embeddings_rag.evaluation import phase15
+from concept_embeddings_rag.evaluation import phase14, phase15
 from concept_embeddings_rag.evaluation.entity_diagnostics import RecordingHybrid, RecordingRetriever
 from concept_embeddings_rag.retrieval.base import Hit
 from concept_embeddings_rag.retrieval.fusion import WEIGHTED
@@ -367,3 +372,80 @@ def test_the_live_path_refuses_a_question_that_carries_gold():
 
     with pytest.raises(phase15.Phase15Error, match="gold"):
         phase15.run_live_path(live_systems(), questions, CORPUS, depth=100)
+
+
+# --- S5: the pass's rankings file, its marker and the hop lists at the five alpha ------------
+
+ZERO, FROZEN_KEY = phase14.alpha_key(0.0), phase14.alpha_key(0.75)
+
+
+def record(qid: str, system: str, hop_name: str, hop: list[Hit]) -> dict[str, Any]:
+    return {
+        "qid": qid,
+        "system": system,
+        "fused": ranked(3),
+        "components": {"dense": ranked(3), "bm25": ranked(2), hop_name: hop},
+        "hop": {"p1": "u000", "positives": len(hop)},
+    }
+
+
+def test_the_rankings_file_is_written_once_without_a_timestamp_and_matches_its_run(
+    tmp_path: Path,
+):
+    records = [record("v1", P14, "relevance-hop", ranked(2))]
+
+    written = phase15.write_rankings(tmp_path, P14, records)
+    phase9.write_run(tmp_path, P14, [], body=written)
+
+    path = tmp_path / f"rankings-{P14}.jsonl.gz"
+    assert written["rankings_file"] == path.name
+    assert path.read_bytes()[4:8] == b"\x00\x00\x00\x00"  # gzip mtime = 0
+    assert phase15.load_rankings(tmp_path, P14) == records
+    with pytest.raises(phase15.Phase15Error, match="written once"):
+        phase15.write_rankings(tmp_path, P14, records)
+
+
+def test_a_rankings_file_that_does_not_match_its_run_digest_is_refused(tmp_path: Path):
+    phase9.write_run(
+        tmp_path, P14, [], body=phase15.write_rankings(tmp_path, P14, [record("v1", P14, "h", [])])
+    )
+    path = tmp_path / f"rankings-{P14}.jsonl.gz"
+    path.write_bytes(gzip.compress(b'{"qid": "v2"}\n', mtime=0))
+
+    with pytest.raises(phase15.Phase15Error, match="digest"):
+        phase15.load_rankings(tmp_path, P14)
+
+
+def test_the_pass_marker_is_written_once(tmp_path: Path):
+    path = phase15.start_pass(tmp_path, {"code_commit": "abc"})
+
+    assert json.loads(path.read_text(encoding="utf-8")) == {"code_commit": "abc"}
+    with pytest.raises(phase15.Phase15Error, match="already started"):
+        phase15.start_pass(tmp_path, {"code_commit": "def"})
+
+
+def test_the_hop_lists_must_equal_the_recorded_p10c_and_p14_lists():
+    p10c = [record("v1", P10C, "entity-hop", ranked(2)), record("v2", P10C, "entity-hop", [])]
+    p14 = [
+        record("v1", P14, "relevance-hop", ranked(2)[::-1]),
+        record("v2", P14, "relevance-hop", []),
+    ]
+    agreeing = [{ZERO: ranked(2), FROZEN_KEY: ranked(2)[::-1]}, {ZERO: [], FROZEN_KEY: []}]
+    moved = [{ZERO: ranked(2)[::-1], FROZEN_KEY: ranked(2)}, {ZERO: [], FROZEN_KEY: []}]
+
+    assert phase15.hop_alpha_mismatches(p14, p10c, agreeing, alpha=0.75) == []
+    assert phase15.hop_alpha_mismatches(p14, p10c, moved, alpha=0.75) == [
+        "v1 alpha=0.00",
+        "v1 alpha=0.75",
+    ]
+
+
+def test_the_hop_lists_ride_in_p14s_records_and_survive_serialization():
+    p14 = [record("v1", P14, "relevance-hop", ranked(2))]
+    lists = [{key: ranked(1) for key in (ZERO, FROZEN_KEY)}]
+
+    stored = phase15.with_hop_alphas(p14, lists)
+
+    assert stored[0]["hop_alphas"] == lists[0] and "hop_alphas" not in p14[0]
+    assert list(stored[0]["components"]) == ["dense", "bm25", "relevance-hop"]
+    assert phase15.parse_rankings(phase15.serialize_rankings(stored)) == stored
