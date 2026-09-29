@@ -214,6 +214,64 @@ def dense_rank_split(entries: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     return {**split, "per_question": per_question}
 
 
+RECORDED_RANK_CLASSES: tuple[str, ...] = ("1-10", "beyond-10", "undetermined")
+
+
+def recorded_rank_split(
+    candidate: Sequence[Mapping[str, Any]],
+    control: Sequence[Mapping[str, Any]],
+    dense: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """D8 on `test-11` from the recorded outcome records alone, which hold no ranking.
+
+    A question is won or lost on Full Support @2,048. The winner's context holds every gold
+    paragraph, so the winner gives the gold count (`context_precision * units_included`) and
+    the loser's gold recall gives how many of them changed coverage: exact counts. Which
+    paragraph changed is not recorded, so its Dense rank is bounded from Dense's recorded
+    gold recall @10 (how many of the question's gold paragraphs Dense ranks 1-10): changed
+    paragraphs certainly in Dense's first 10 count `1-10`, certainly outside it `beyond-10`,
+    the rest `undetermined`. Ranks 11-100 and beyond 100 cannot be told apart here.
+    """
+    budget = str(config.PHASE_9_PRIMARY_BUDGET)
+    by_qid = [{r["qid"]: r for r in rows} for rows in (candidate, control, dense)]
+    if not (set(by_qid[0]) == set(by_qid[1]) == set(by_qid[2])):
+        raise Phase14Error("the recorded split must read three runs over the same questions")
+
+    def tally() -> dict[str, Any]:
+        return {
+            "questions": 0,
+            "gold_changed": dict.fromkeys(RECORDED_RANK_CLASSES, 0),
+            "gold_changed_total": 0,
+        }
+
+    split = {"won": tally(), "lost": tally(), "total": tally()}
+    for qid in (r["qid"] for r in candidate):
+        cand, ctrl, base = by_qid[0][qid], by_qid[1][qid], by_qid[2][qid]
+        cand_full = cand["budgets"][budget]["full_support"] == 1.0
+        ctrl_full = ctrl["budgets"][budget]["full_support"] == 1.0
+        if cand_full == ctrl_full:
+            continue
+        outcome = "won" if cand_full else "lost"
+        winner, loser = (cand, ctrl) if cand_full else (ctrl, cand)
+        reading = winner["budgets"][budget]
+        n_gold = round(reading["context_precision"] * reading["units_included"])
+        changed = round(n_gold * (1.0 - loser["budgets"][budget]["gold_recall"]))
+        in_top_10 = round(n_gold * base["gpr_at_k"]["10"])
+        surely_in = max(0, in_top_10 - (n_gold - changed))
+        maybe_in = min(changed, in_top_10)
+        counts = {
+            "1-10": surely_in,
+            "beyond-10": changed - maybe_in,
+            "undetermined": maybe_in - surely_in,
+        }
+        for bucket in (split[outcome], split["total"]):
+            bucket["questions"] += 1
+            bucket["gold_changed_total"] += changed
+            for name, count in counts.items():
+                bucket["gold_changed"][name] += count
+    return split
+
+
 # --- D6: the label ----------------------------------------------------------------------------
 
 

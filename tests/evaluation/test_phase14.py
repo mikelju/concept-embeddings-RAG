@@ -252,3 +252,66 @@ def test_the_reproduction_passes_only_on_the_exact_count_with_nothing_moved():
     assert not p14.reproduction_verdict(4801, ["q2", "q1"], [])["passed"]
     assert p14.reproduction_verdict(4801, ["q2", "q1"], [])["differing_qids"] == ["q1", "q2"]
     assert not p14.reproduction_verdict(4801, [], ["q3"])["passed"]
+
+
+# --- D8 on test-11: the split the recorded outcomes allow ------------------------------------
+
+
+def record(qid, full_support, gold_recall, *, n_gold=2, units=30, dense_at_10=0.0):
+    """One outcome record holding only the fields the recorded split reads."""
+    included = round(gold_recall * n_gold)
+    return {
+        "qid": qid,
+        "budgets": {
+            "2048": {
+                "full_support": full_support,
+                "gold_recall": gold_recall,
+                "context_precision": included / units,
+                "units_included": units,
+            }
+        },
+        "gpr_at_k": {"10": dense_at_10},
+    }
+
+
+def test_the_recorded_split_bounds_each_changed_gold_paragraph_by_dense_top_10():
+    candidate = [
+        record("won-both-outside", 1.0, 1.0),  # control held neither; Dense top 10 none
+        record("won-one-ambiguous", 1.0, 1.0),  # control held one; Dense top 10 held one
+        record("lost-one-inside", 0.0, 0.5),  # candidate dropped one; Dense top 10 held both
+        record("tie", 0.0, 0.5),
+        record("won-three-gold", 1.0, 1.0, n_gold=3),  # control held one of three
+    ]
+    control = [
+        record("won-both-outside", 0.0, 0.0),
+        record("won-one-ambiguous", 0.0, 0.5),
+        record("lost-one-inside", 1.0, 1.0),
+        record("tie", 0.0, 0.0),
+        record("won-three-gold", 0.0, 1 / 3, n_gold=3),
+    ]
+    dense = [
+        record("won-both-outside", 0.0, 0.0, dense_at_10=0.0),
+        record("won-one-ambiguous", 0.0, 0.0, dense_at_10=0.5),
+        record("lost-one-inside", 0.0, 0.0, dense_at_10=1.0),
+        record("tie", 0.0, 0.0, dense_at_10=1.0),
+        record("won-three-gold", 0.0, 0.0, n_gold=3, dense_at_10=1 / 3),
+    ]
+    got = p14.recorded_rank_split(candidate, control, dense)
+    # won-three-gold: 2 changed, 1 unchanged, 1 in Dense's top 10 -> 0..1 of the changed in it
+    assert got["won"] == {
+        "questions": 3,
+        "gold_changed_total": 5,
+        "gold_changed": {"1-10": 0, "beyond-10": 3, "undetermined": 2},
+    }
+    assert got["lost"] == {
+        "questions": 1,
+        "gold_changed_total": 1,
+        "gold_changed": {"1-10": 1, "beyond-10": 0, "undetermined": 0},
+    }
+    assert got["total"]["questions"] == 4
+    assert got["total"]["gold_changed"] == {"1-10": 1, "beyond-10": 3, "undetermined": 2}
+
+
+def test_the_recorded_split_refuses_runs_over_different_questions():
+    with pytest.raises(p14.Phase14Error, match="same questions"):
+        p14.recorded_rank_split([record("a", 1.0, 1.0)], [record("b", 0.0, 0.0)], [])

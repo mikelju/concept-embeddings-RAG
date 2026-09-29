@@ -51,6 +51,7 @@
     p14-lists       D1 integrity, the relevance-ordered hop dev lists and the D3 reproduction
     p14-fit         the 330-point grid on dev, the tie rule, the dev gate and D8 (Phase 14)
     p14-eval        the single authorized held-out pass on test-11 (Phase 14)
+    p14-outcome     exact McNemar against P10-C (the label) and P10-B, D8 and D9 (Phase 14)
 
 Each stage is idempotent and refuses to run if its input is missing, saying which
 stage to run first rather than failing somewhere deep inside numpy.
@@ -7196,6 +7197,165 @@ def cmd_p14_eval(
     return written
 
 
+P14_OUTCOME_NAME = "outcome.json"
+P14_D8_TEST_NOTE = (
+    "The test-11 outcome records hold per-question metrics, not rankings, and retrieval is "
+    "not re-run on test-11, so each changed gold paragraph's Dense rank cannot be read. From "
+    "the records: won and lost questions and their changed gold paragraphs are exact counts; "
+    "each changed paragraph's Dense rank is bounded by Dense's recorded gold recall @10: "
+    "'1-10' certainly in Dense's first 10, 'beyond-10' certainly outside them (ranks 11-100 "
+    "and beyond 100 are not separable), 'undetermined' either."
+)
+
+
+def _p14_latency_stats(values_ms: Sequence[float]) -> dict[str, float]:
+    """Mean, median, p95 and max in milliseconds, as `phase9.latency_summary` computes them."""
+    stats = phase9.latency_summary([{"latency_ms": v} for v in values_ms])
+    return {key: float(stats[key]) for key in ("mean_ms", "median_ms", "p95_ms", "max_ms")}
+
+
+def _p14_recorded_runs(target_dir: Path) -> tuple[dict[str, list[dict[str, Any]]], dict[str, Any]]:
+    """The four `test-11` runs, each checked before anything is compared.
+
+    Every outcomes file must match the digest its run file records, hold the 5,000 `test-11`
+    questions in the same order as the others, and name `test-11` and the digest of the
+    committed `fit.json`, which `pass.json` also records; P14's run must be at the fit's
+    `alpha` and carry `sim_seconds` on every question. Any miss stops the stage.
+    """
+    fit_path = target_dir / P14_FIT_NAME
+    fit = _p14_json(P14_FIT_NAME, target_dir)
+    if not _p10_fit_is_committed(fit_path):
+        _die("fit.json is not committed unmodified; the outcome reads only the committed fit")
+    fit_digest = digest_of(json.dumps(fit, sort_keys=True))
+    marker = _p14_json(P14_MARKER_NAME, target_dir)
+    if marker["fit_digest"] != fit_digest:
+        _die("pass.json records another fit digest than the committed fit.json")
+    size = config.PHASE_10_SET_SIZES[config.PHASE_14_TEST]
+    runs: dict[str, list[dict[str, Any]]] = {}
+    for name in config.PHASE_14_SYSTEMS:
+        body = _p14_json(f"run-{name}.json", target_dir)
+        try:
+            records = phase9.load_outcomes(target_dir, name)
+        except phase9.FullWikiPhaseError as error:
+            _die(str(error))
+        provenance = body["provenance"]
+        if (
+            body["set"] != config.PHASE_14_TEST
+            or provenance["question_set"] != config.PHASE_14_TEST
+        ):
+            _die(f"run-{name}.json does not name {config.PHASE_14_TEST}")
+        if provenance["fit_digest"] != fit_digest:
+            _die(f"run-{name}.json was not measured under the committed fit")
+        qids = [r["qid"] for r in records]
+        if len(qids) != size or len(set(qids)) != size:
+            _die(f"run-{name}.json holds {len(set(qids))} questions, not {size}")
+        if runs and qids != [r["qid"] for r in next(iter(runs.values()))]:
+            _die(f"run-{name}.json lists its questions in another order")
+        runs[name] = records
+    p14 = config.PHASE_14_SYSTEMS[3]
+    p14_run = _p14_json(f"run-{p14}.json", target_dir)
+    if float(p14_run["relevance_hop"]["alpha"]) != float(fit["alpha"]):
+        _die("the P14 run's alpha is not the fitted one")
+    if any("sim_seconds" not in r for r in runs[p14]):
+        _die("some P14 outcome records carry no sim_seconds")
+    integrity = {
+        "systems": list(config.PHASE_14_SYSTEMS),
+        "n_questions": size,
+        "same_qid_order": True,
+        "outcomes_digests": {
+            name: _p14_json(f"run-{name}.json", target_dir)["outcomes_digest"]
+            for name in config.PHASE_14_SYSTEMS
+        },
+        "fit_digest": fit_digest,
+        "fit_committed": True,
+        "pass_started_at": marker.get("started_at"),
+    }
+    return runs, {"fit": fit, "integrity": integrity}
+
+
+def cmd_p14_outcome(target_dir: Path = config.PHASE_14_DIR) -> Path:
+    """S6 (D6, D7, D8, D9): the paired tests, the label, the D8 split on `test-11` and latency.
+
+    One paired function (Full Support @2,048, exact McNemar) for P14 against P10-C (D6: the
+    label, from this comparison only), P14 against P10-B (D7, which cannot change it) and
+    P10-C against P10-B (descriptive). D8 on `test-11` reads the recorded outcomes only, since
+    they hold no ranking and retrieval is never re-run on `test-11`. D9: `retrieve` for every
+    system; for P14 also `retrieve` without `sim`, `sim`, and their sum (its `latency_ms`).
+    """
+    target_dir = Path(target_dir)
+    if (target_dir / P14_OUTCOME_NAME).exists():
+        _die(f"{target_dir / P14_OUTCOME_NAME} already exists; a Phase 14 artifact is written once")
+    runs, checked = _p14_recorded_runs(target_dir)
+    dense, p10b, p10c, p14 = config.PHASE_14_SYSTEMS
+    primary = phase11.paired(runs[p10c], runs[p14])
+    secondary = phase11.paired(runs[p10b], runs[p14])
+    descriptive = phase11.paired(runs[p10b], runs[p10c])
+    d8 = phase14.recorded_rank_split(runs[p14], runs[p10c], runs[dense])
+    latency: dict[str, Any] = {
+        name: {"retrieve": _p14_latency_stats([r["latency_ms"] for r in runs[name]])}
+        for name in (dense, p10b, p10c)
+    }
+    total = [float(r["latency_ms"]) for r in runs[p14]]
+    sim = [1000.0 * float(r["sim_seconds"]) for r in runs[p14]]
+    latency[p14] = {
+        "retrieve_without_sim": _p14_latency_stats(
+            [t - s for t, s in zip(total, sim, strict=True)]
+        ),
+        "sim": _p14_latency_stats(sim),
+        "retrieve_with_sim": _p14_latency_stats(total),
+    }
+    mean = {name: latency[name]["retrieve"]["mean_ms"] for name in (p10b, p10c)}
+    with_sim = latency[p14]["retrieve_with_sim"]["mean_ms"]
+    without_sim = latency[p14]["retrieve_without_sim"]["mean_ms"]
+    fit = checked["fit"]
+    body = {
+        "set": config.PHASE_14_TEST,
+        "metric": "full_support@2048_tokens",
+        "test": "exact two-sided McNemar (binomial on discordant questions, p = 1/2)",
+        "alpha": config.PHASE_9_ALPHA,
+        "selected": {"alpha": fit["alpha"], "weights": fit["weights"]},
+        "primary_p14_vs_p10c": primary,
+        "secondary_p14_vs_p10b": secondary,
+        "descriptive_p10c_vs_p10b": descriptive,
+        "terminal_state": phase14.label(
+            primary["wins"], primary["losses"], primary["exact_two_sided_p"]
+        ),
+        # DEV_STOP ends the phase before a pass exists, and every integrity miss stops the
+        # stage before this file is written, so none can reach here.
+        "stop_reasons": [],
+        "integrity": checked["integrity"],
+        "d8_test_11": {
+            "comparison": "P14 against P10-C, Full Support @2,048",
+            "computed_from_rankings": False,
+            "note": P14_D8_TEST_NOTE,
+            **d8,
+        },
+        "latency": {
+            "boundary": (
+                "Retriever.retrieve wall time per question from the recorded latency_ms, "
+                "laptop, one pass; for P14 retrieve_with_sim is latency_ms, sim is "
+                "1000 * sim_seconds, retrieve_without_sim their difference"
+            ),
+            **latency,
+        },
+        "latency_ratios": {
+            "p14_with_sim_over_p10c": with_sim / mean[p10c],
+            "p14_with_sim_over_p10b": with_sim / mean[p10b],
+            "p14_without_sim_over_p10c": without_sim / mean[p10c],
+            "p14_without_sim_over_p10b": without_sim / mean[p10b],
+        },
+        "code_commit": _git_commit(),
+    }
+    path = _p14_write_once(P14_OUTCOME_NAME, body, target_dir)
+    print(
+        f"[OK] {body['terminal_state']}: against P10-C wins {primary['wins']}, losses "
+        f"{primary['losses']}, p = {primary['exact_two_sided_p']:.4g}; against P10-B wins "
+        f"{secondary['wins']}, losses {secondary['losses']}, "
+        f"p = {secondary['exact_two_sided_p']:.4g} -> {path}"
+    )
+    return path
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="cer",
@@ -7521,6 +7681,10 @@ def build_parser() -> argparse.ArgumentParser:
         "p14-eval", help="Phase 14: the single authorized held-out pass on test-11"
     )
     p14_eval.add_argument("--authorized-pass", action="store_true", dest="authorized")
+    subparsers.add_parser(
+        "p14-outcome",
+        help="Phase 14: exact McNemar against P10-C (the label) and P10-B, D8 and D9",
+    )
     build.add_argument(
         "--smoke",
         type=int,
@@ -7669,6 +7833,8 @@ def main(argv: list[str] | None = None) -> int:
         cmd_p14_fit()
     elif args.command == "p14-eval":
         cmd_p14_eval(authorized=args.authorized)
+    elif args.command == "p14-outcome":
+        cmd_p14_outcome()
     return 0
 
 

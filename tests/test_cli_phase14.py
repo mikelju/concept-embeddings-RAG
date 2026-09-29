@@ -499,3 +499,167 @@ def test_the_pass_builds_p14_at_the_fitted_alpha_and_writes_every_run(tmp_path, 
 def test_the_p14_eval_stage_is_registered():
     args = cli.build_parser().parse_args(["p14-eval", "--authorized-pass"])
     assert (args.command, args.authorized) == ("p14-eval", True)
+
+
+# --- S6: p14-outcome, the paired tests, the label, D8 on test-11 and D9 ---------------------
+
+N_TEST = config.PHASE_10_SET_SIZES[config.PHASE_14_TEST]
+OUTCOME_FIT = {"terminal_state": None, "alpha": 0.75, "weights": {"dense": 0.5}}
+
+
+def outcome_record(qid, supported, *, sim=None, latency=100.0):
+    row = {
+        "qid": qid,
+        "cohort": config.PHASE_14_TEST,
+        "budgets": {
+            "2048": {
+                "full_support": float(supported),
+                "gold_recall": 1.0 if supported else 0.5,
+                "context_precision": (2 if supported else 1) / 30,
+                "units_included": 30,
+            }
+        },
+        "gpr_at_k": {"10": 0.5},
+        "latency_ms": latency,
+    }
+    if sim is not None:
+        row["sim_seconds"] = sim
+    return row
+
+
+def outcome_fixture(tmp_path, monkeypatch, *, p14_wins, p14_losses, p10b_extra=0):
+    """Four constructed `test-11` runs; returns the target directory.
+
+    P14 against P10-C: `p14_wins` questions only P14 supports, `p14_losses` only P10-C does.
+    P10-B supports those questions too plus `p10b_extra` that no other system supports, so a
+    strong P10-B makes the secondary comparison a regression without touching the primary.
+    """
+    fit_digest = digest_of(json.dumps(OUTCOME_FIT, sort_keys=True))
+    write(tmp_path, cli.P14_FIT_NAME, OUTCOME_FIT)
+    write(tmp_path, cli.P14_MARKER_NAME, {"fit_digest": fit_digest, "set": config.PHASE_14_TEST})
+    monkeypatch.setattr(cli, "_p10_fit_is_committed", lambda path: True)
+    qids = [f"q{i:04d}" for i in range(N_TEST)]
+    wins = set(qids[:p14_wins])
+    losses = set(qids[p14_wins : p14_wins + p14_losses])
+    extra = set(qids[p14_wins + p14_losses : p14_wins + p14_losses + p10b_extra])
+    supported = {
+        "dense": set(),
+        "hybrid-bm25": wins | losses | extra,
+        "hybrid-bm25-entity-hop": losses,
+        "hybrid-bm25-seeded-hop": wins,
+    }
+    for name in config.PHASE_14_SYSTEMS:
+        is_p14 = name == "hybrid-bm25-seeded-hop"
+        records = [
+            outcome_record(
+                q,
+                q in supported[name],
+                sim=0.02 if is_p14 else None,
+                latency=300.0 if is_p14 else 100.0,
+            )
+            for q in qids
+        ]
+        body = {
+            "system": name,
+            "set": config.PHASE_14_TEST,
+            "latency": phase9.latency_summary(records),
+            "provenance": {"question_set": config.PHASE_14_TEST, "fit_digest": fit_digest},
+        }
+        if is_p14:
+            body["relevance_hop"] = {"alpha": OUTCOME_FIT["alpha"]}
+        phase9.write_run(tmp_path, name, records, body=body)
+    return tmp_path
+
+
+def read_outcome(target_dir):
+    return json.loads((target_dir / cli.P14_OUTCOME_NAME).read_text(encoding="utf-8"))
+
+
+def test_the_outcome_labels_a_significant_gain_supported(tmp_path, monkeypatch):
+    target_dir = outcome_fixture(tmp_path, monkeypatch, p14_wins=40, p14_losses=10)
+    cli.cmd_p14_outcome(target_dir=target_dir)
+    body = read_outcome(target_dir)
+    primary = body["primary_p14_vs_p10c"]
+    assert (primary["wins"], primary["losses"], primary["ties"]) == (40, 10, N_TEST - 50)
+    assert primary["delta_percentage_points"] == pytest.approx(100.0 * 30 / N_TEST)
+    assert primary["exact_two_sided_p"] == phase9.exact_two_sided_p(40, 10)
+    assert body["terminal_state"] == "CANDIDATE_RELEVANCE_SUPPORTED"
+    assert body["stop_reasons"] == []
+
+
+def test_the_outcome_labels_a_significant_loss_a_regression(tmp_path, monkeypatch):
+    target_dir = outcome_fixture(tmp_path, monkeypatch, p14_wins=10, p14_losses=40)
+    cli.cmd_p14_outcome(target_dir=target_dir)
+    assert read_outcome(target_dir)["terminal_state"] == "CANDIDATE_RELEVANCE_REGRESSION"
+
+
+def test_the_outcome_labels_an_insignificant_gain_not_supported(tmp_path, monkeypatch):
+    target_dir = outcome_fixture(tmp_path, monkeypatch, p14_wins=12, p14_losses=10)
+    cli.cmd_p14_outcome(target_dir=target_dir)
+    assert read_outcome(target_dir)["terminal_state"] == "CANDIDATE_RELEVANCE_NOT_SUPPORTED"
+
+
+def test_the_secondary_comparison_never_changes_the_label(tmp_path, monkeypatch):
+    target_dir = outcome_fixture(tmp_path, monkeypatch, p14_wins=40, p14_losses=10, p10b_extra=200)
+    cli.cmd_p14_outcome(target_dir=target_dir)
+    body = read_outcome(target_dir)
+    secondary = body["secondary_p14_vs_p10b"]
+    assert secondary["losses"] > secondary["wins"]
+    assert secondary["exact_two_sided_p"] < 0.05
+    assert body["terminal_state"] == "CANDIDATE_RELEVANCE_SUPPORTED"
+    descriptive = body["descriptive_p10c_vs_p10b"]
+    assert (descriptive["wins"], descriptive["losses"]) == (0, 240)
+
+
+def test_the_outcome_records_d8_from_the_recorded_runs_and_d9(tmp_path, monkeypatch):
+    target_dir = outcome_fixture(tmp_path, monkeypatch, p14_wins=40, p14_losses=10)
+    cli.cmd_p14_outcome(target_dir=target_dir)
+    body = read_outcome(target_dir)
+    d8 = body["d8_test_11"]
+    assert d8["won"]["questions"] == 40
+    assert d8["lost"]["questions"] == 10
+    assert d8["won"]["gold_changed"] == {"1-10": 0, "beyond-10": 0, "undetermined": 40}
+    assert d8["computed_from_rankings"] is False
+    p14 = body["latency"]["hybrid-bm25-seeded-hop"]
+    assert p14["sim"]["mean_ms"] == pytest.approx(20.0)
+    assert p14["retrieve_without_sim"]["mean_ms"] == pytest.approx(280.0)
+    assert p14["retrieve_with_sim"]["mean_ms"] == pytest.approx(300.0)
+    assert body["latency"]["hybrid-bm25-entity-hop"]["retrieve"]["mean_ms"] == pytest.approx(100.0)
+    ratios = body["latency_ratios"]
+    assert ratios["p14_with_sim_over_p10c"] == pytest.approx(3.0)
+    assert ratios["p14_without_sim_over_p10b"] == pytest.approx(2.8)
+
+
+def test_the_outcome_refuses_to_overwrite(tmp_path, monkeypatch):
+    target_dir = outcome_fixture(tmp_path, monkeypatch, p14_wins=40, p14_losses=10)
+    write(target_dir, cli.P14_OUTCOME_NAME, {"terminal_state": "earlier"})
+    monkeypatch.setattr(
+        phase9, "load_outcomes", lambda *a: pytest.fail("runs read over an existing outcome")
+    )
+    with pytest.raises(SystemExit, match="written once"):
+        cli.cmd_p14_outcome(target_dir=target_dir)
+    assert read_outcome(target_dir) == {"terminal_state": "earlier"}
+
+
+def test_the_outcome_refuses_an_outcomes_file_its_digest_does_not_match(tmp_path, monkeypatch):
+    target_dir = outcome_fixture(tmp_path, monkeypatch, p14_wins=40, p14_losses=10)
+    archive = target_dir / "outcomes-hybrid-bm25-entity-hop.jsonl.gz"
+    text = gzip.decompress(archive.read_bytes()).decode("utf-8")
+    archive.write_bytes(
+        gzip.compress(text.replace('"latency_ms": 100.0', '"latency_ms": 1.0').encode())
+    )
+    with pytest.raises(SystemExit, match="does not match the digest"):
+        cli.cmd_p14_outcome(target_dir=target_dir)
+    assert not (target_dir / cli.P14_OUTCOME_NAME).exists()
+
+
+def test_the_outcome_refuses_a_run_the_committed_fit_did_not_authorize(tmp_path, monkeypatch):
+    target_dir = outcome_fixture(tmp_path, monkeypatch, p14_wins=40, p14_losses=10)
+    write(target_dir, cli.P14_FIT_NAME, {**OUTCOME_FIT, "alpha": 0.5})
+    with pytest.raises(SystemExit, match="fit"):
+        cli.cmd_p14_outcome(target_dir=target_dir)
+    assert not (target_dir / cli.P14_OUTCOME_NAME).exists()
+
+
+def test_the_p14_outcome_stage_is_registered():
+    assert cli.build_parser().parse_args(["p14-outcome"]).command == "p14-outcome"
