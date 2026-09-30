@@ -41,13 +41,16 @@ What is established (figures and full records in each phase's `X.results.md`):
 - frozen at their HotpotQA values, P14 and P10-C still beat Dense + BM25 on MuSiQue's 2,417
   validation questions (+9.81 and +6.00 pp; P14 +3.81 pp over P10-C; Phase 15,
   `TRANSFER_SUPPORTED`). The gain is on 2-paragraph questions; none on 4-paragraph ones.
+- frozen, they lose to Dense + BM25 on MultiHop-RAG news (2,255 queries; P14 −3.28 pp, 31 wins /
+  105 losses; P10-C −2.88 pp; Phase 16, `TRANSFER_REGRESSION`). BM25 adds +11.04 pp there; P1 is
+  gold for only 17 % of queries.
 
-**Current state (2026-09-29):** Phase 15 closed `TRANSFER_SUPPORTED`
-(`phase_15/15.results.md`): P14 (Dense + BM25 + relevance-ordered
-hop) stays the best system and the bar to beat; `test-11` is spent. Next, by the author's
-decision: Phase 16 validates the frozen systems on a corpus that is not Wikipedia, then Phase 17
-is the untrained query reformulation (question + P1). If this line and the master plan disagree,
-the master plan wins; fix this line.
+**Current state (2026-09-30):** Phase 16 closed `TRANSFER_REGRESSION`
+(`phase_16/16.results.md`): P14 remains the best system on Wikipedia benchmarks but does not
+transfer to MultiHop-RAG news; `test-11` is spent; the pod invoice is still to be copied. Next
+step: to be decided by the author with Phase 16's result in view (the master plan had Phase 17,
+query reformulation, next; the roadmap queues QASPER and LegalBench-RAG). If this line and the
+master plan disagree, the master plan wins; fix this line.
 
 ## Where things live
 

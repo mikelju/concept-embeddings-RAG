@@ -82,7 +82,7 @@ From Phase 7 onward:
 | 13 | Choosing P1's bridge entity by the words around its mention | [Approved](phase_13/13.spec.md) | **Complete — DEV_STOP** |
 | 14 | Ordering the hop's candidates by their similarity to the question | [Approved](phase_14/14.spec.md) | **Complete — CANDIDATE_RELEVANCE_SUPPORTED** |
 | 15 | Validation on MuSiQue: Dense, P10-B, P10-C and P14 with nothing refitted (author decision 2026-09-29) | [Approved](phase_15/15.spec.md) | **Complete — TRANSFER_SUPPORTED** |
-| 16 | Validation on a corpus that is not Wikipedia, the same frozen systems (candidate: MultiHop-RAG, news) | Not written | **Planned** |
+| 16 | Validation on a corpus that is not Wikipedia: MultiHop-RAG news, the same frozen systems | [Approved](phase_16/16.spec.md) | **Complete — TRANSFER_REGRESSION** |
 | 17 | Second-hop query reformulation: the vector of "question + P1 text" against Dense, untrained | [Draft](phase_17/17.spec.md), to revise after Phases 15-16 | **Planned** |
 
 **The first research line is closed** (2026-09-15): concepts induced from pooled embeddings, tested through Phases 2-4, gave a negative and bounded result. The original Phase 5 — a comparative evaluation of that method — was not run; the plan was renumbered so Phase 5 tests the representation the proposal actually described. See [`phase_4/4.1_research_line_closure.md`](phase_4/4.1_research_line_closure.md).
@@ -206,6 +206,31 @@ Still Wikipedia and a small corpus, and MuSiQue's distractors were mined with BM
 the spec [`phase_15/15.spec.md`](phase_15/15.spec.md) and the plan
 [`phase_15/15.0_musique_validation.md`](phase_15/15.0_musique_validation.md). Next, by the author's
 decision: Phase 16 (a corpus that is not Wikipedia), then Phase 17.
+
+**Phase 16 is measured and closed** (2026-09-30) with **`TRANSFER_REGRESSION`**. The four systems
+ran once, with every weight and `α` frozen at its HotpotQA value, on the 2,255 answerable
+MultiHop-RAG queries (English news, 2-4 gold units, always from two or more articles) over the 609
+articles cut at their own newline breaks (28,711 paragraphs, 27,989 distinct units, boilerplate
+kept, the title prefixed to every unit). The code first reproduced P10-C and P14 on HotpotQA dev
+exactly (4,801 and 5,224 / 7,405), and the pod's GLiNER digest equalled Phase 9's. P14 reaches
+**513 / 2,255** Full Support @2,048 against Dense + BM25's **587** (−3.28 pp; exact McNemar
+31 wins / 105 losses, p = 1.3e-10); P10-C reaches 522 (−2.88 pp, 25 / 90), and P14 against P10-C is
+not significant (24 / 33, p = 0.29). BM25's step over Dense is the largest the line has measured
+(+11.04 pp, 338 → 587); both hop steps of the ladder are negative, where they were positive on
+HotpotQA `test-11` and MuSiQue. The loss is mostly on 2-gold queries (55 of the net 74) and is
+largest on comparison queries. P1 is a gold unit for only 17.07 % of queries (MuSiQue 57.14 %),
+though its article holds gold for 62.44 %; the hop's few gains are about two thirds from another
+article. Refitting on the same queries (exploratory, an upper bound) reaches 662 with the hop's
+weight at 0 (Dense 0.3 / BM25 0.7). The pod, created and driven by the agent through the RunPod
+API (the first phase run so), took 13 min at 0.74 USD/h; the GPU steps took 41.2 s and 154.8 s,
+0.04 USD attributable; the account balance moved 0.1029 USD; the invoice is pending. A tiny
+corpus, one kind of text, LLM-written questions. **P14 stays the best system on Wikipedia
+benchmarks; it does not transfer to MultiHop-RAG news.** See
+[`phase_16/16.results.md`](phase_16/16.results.md), the spec
+[`phase_16/16.spec.md`](phase_16/16.spec.md) and the plan
+[`phase_16/16.0_multihop_rag_validation.md`](phase_16/16.0_multihop_rag_validation.md). The next
+step is to be decided by the author with this result in view: Phase 17 (the query reformulation)
+was scheduled after the corpus validations, and the roadmap queues QASPER and LegalBench-RAG.
 
 Up to Phase 14, the remaining scheduled work deliberately did **not** try to improve the Entity Hop with canonicalization, relations, multiple seeds or additional hops. Phase 9 asks whether the simple mechanism already discovered survives **corpus scale** with BGE-small as the validated primary Dense candidate. The separate question of Entity Hop beside a substantially stronger Dense retriever remains open.
 
