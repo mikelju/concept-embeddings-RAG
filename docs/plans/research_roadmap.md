@@ -477,6 +477,29 @@ validation questions, over 101,962 pooled paragraphs; P10-C beats Dense + BM25 b
 gain comes almost entirely from the 2-paragraph questions; on 4-paragraph questions no system
 retrieves the full evidence. The second question of the table (another kind of text) is Phase 16.
 
+**Corpus queue after Phase 15 (author, 2026-09-30).** From the survey
+[`corpora_survey_2026-09-30.md`](corpora_survey_2026-09-30.md) the author fixed the order of the
+non-Wikipedia corpora with paragraph-locatable gold: **MultiHop-RAG** (Phase 16; news; measured
+facts in [`phase_16/16.pre_spec_notes.md`](phase_16/16.pre_spec_notes.md)), then **QASPER**
+(scientific papers, native evidence paragraphs, CC BY 4.0; pooled across papers would be a new
+setting), then **LegalBench-RAG** (contracts and policies, character spans, CC BY 4.0, mostly
+single-evidence: a domain-transfer test). Each is a phase of its own, systems frozen, nothing
+fitted, results reported by number of gold paragraphs as they are.
+
+**Set queries with a large context (deferred, author 2026-09-30).** The author wants to see how
+the Entity Hop behaves when a query needs many paragraphs (summaries, "all the causes of X") and
+the context window is much larger (16k-32k). The literature's metric for it is QUEST's
+MRecall@K (all gold documents in the top K; BM25 3.7 % and a T5-Large dual encoder 14.2 % at
+K = 100 on 325,505 Wikipedia entity documents, 10.5 gold per query); GlobalQA is the
+non-Wikipedia option. **QUEST is the author's preferred choice** for that test. It is a new
+question, not an extension of the 2-4 paragraph line; it needs its own spec. Hypothesis, not a
+finding: set queries fan out from constraints rather than chaining through one bridge, so the
+one-hop expansion may matter less than Dense's and BM25's raw recall.
+
+**Filtered numeric aggregates over tables: set aside (author 2026-09-30).** No benchmark scores
+"every matching row retrieved"; where studied directly (TAG, 2024) RAG scores 0 % against 55 % for
+code pipelines. Retrieval finds the table; code computes. Outside this line's question.
+
 ---
 
 ## 7.2 Query-aware Entity Hop
