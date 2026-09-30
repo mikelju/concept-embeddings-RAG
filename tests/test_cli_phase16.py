@@ -561,3 +561,48 @@ def test_the_outcome_refuses_without_questions_json(tmp_path: Path):
 
 def test_the_p16_outcome_stage_is_registered():
     assert cli.build_parser().parse_args(["p16-outcome"]).command == "p16-outcome"
+
+
+# --- S7: `p16-refit` -----------------------------------------------------------------------
+
+
+def test_the_refit_refuses_before_outcome_json(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    target = measured(tmp_path, monkeypatch)
+
+    with pytest.raises(SystemExit, match="after 'p16-outcome'"):
+        cli.cmd_p16_refit(target, n_questions=N_TOY)
+
+    assert not (target / "refit.json").exists()
+
+
+def test_the_refit_reproduces_the_frozen_points_and_is_marked_exploratory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    target = measured(tmp_path, monkeypatch)
+    cli.cmd_p16_outcome(target, n_questions=N_TOY, **earlier_phases(tmp_path))
+
+    path = cli.cmd_p16_refit(target, n_questions=N_TOY)
+
+    body = json.loads(path.read_text(encoding="utf-8"))
+    assert path == target / "refit.json"
+    assert (body["phase"], body["exploratory"], body["n_questions"]) == (16, True, N_TOY)
+    assert body["set"] == multihop_rag.ANSWERABLE_SPLIT
+    assert "MultiHop-RAG" in body["caution"] and "D10" in body["caution"]
+    assert body["n_points"] == 330
+    assert body["consistency"]["passed"] is True
+    frozen, p10c = body["frozen_p14_point"], body["p10c_point"]
+    assert (frozen["alpha"], frozen["weights"]) == (0.75, [0.5, 0.3, 0.2])
+    assert (p10c["alpha"], p10c["weights"]) == (0.0, [0.5, 0.3, 0.2])
+    recorded = {
+        name: sum(r["budgets"]["2048"]["full_support"] for r in phase9.load_outcomes(target, name))
+        for name in (P10C, P14)
+    }
+    assert frozen["supported"] == recorded[P14]
+    assert p10c["supported"] == recorded[P10C]
+
+    with pytest.raises(SystemExit, match="already"):
+        cli.cmd_p16_refit(target, n_questions=N_TOY)
+
+
+def test_the_p16_refit_stage_is_registered():
+    assert cli.build_parser().parse_args(["p16-refit"]).command == "p16-refit"

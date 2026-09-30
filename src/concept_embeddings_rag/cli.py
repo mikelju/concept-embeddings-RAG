@@ -63,7 +63,6 @@
     p16-integrity   D4 once: HotpotQA dev code identity, the pod extractor, the null-query live path
     p16-eval        the single authorized pass on the 2,255 answerable MultiHop-RAG queries
     p16-outcome     exact McNemar against P10-B (the label), the 3-column ladder, D7-D9, D11
-    p16-outcome     exact McNemar against P10-B (the label), the 3-column ladder, D7-D9, D11
     p16-refit       D10, exploratory: the 330-point grid re-fused from the stored rankings
 
 Each stage is idempotent and refuses to run if its input is missing, saying which
@@ -9237,6 +9236,16 @@ def cmd_p16_outcome(
     return path
 
 
+def cmd_p16_refit(
+    target_dir: Path = config.PHASE_16_DIR, *, n_questions: int | None = None
+) -> Path:
+    """S7 (D10, exploratory): Phase 15's `cmd_p15_refit` over the Phase 16 pass. Only after
+    `outcome.json`; the frozen P14 point and `alpha = 0` at 0.5 / 0.3 / 0.2 must reproduce
+    P14's and P10-C's recorded outcomes before Phase 14's 330 points are re-fused;
+    `refit.json` says `exploratory: true`, an upper bound, never a system's result."""
+    return cmd_p15_refit(target_dir, n_questions=n_questions, source=MULTIHOP_RAG_SOURCE)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="cer",
@@ -9610,6 +9619,9 @@ def build_parser() -> argparse.ArgumentParser:
         "p16-outcome",
         help="Phase 16: exact McNemar against P10-B (the label), the ladder, D7-D9 and D11",
     )
+    subparsers.add_parser(
+        "p16-refit", help="Phase 16: D10, the exploratory refit on the stored rankings"
+    )
     p16_build.add_argument("--stage", choices=P15_BUILD_STAGES, required=True)
     p16_build.add_argument(
         "--hourly-rate-usd",
@@ -9810,6 +9822,8 @@ def main(argv: list[str] | None = None) -> int:
         cmd_p16_eval(authorized=args.authorized)
     elif args.command == "p16-outcome":
         cmd_p16_outcome()
+    elif args.command == "p16-refit":
+        cmd_p16_refit()
     return 0
 
 
