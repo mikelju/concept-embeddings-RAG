@@ -8708,7 +8708,9 @@ def _p16_expected_counts() -> dict[str, Any]:
         "answerable_queries": config.PHASE_16_ANSWERABLE_QUERIES,
         "type_counts": dict(config.PHASE_16_TYPE_COUNTS),
         "facts": config.PHASE_16_FACTS,
+        "facts_inside": config.PHASE_16_FACTS_INSIDE,
         "facts_straddling": config.PHASE_16_FACTS_STRADDLING,
+        "facts_repeated": config.PHASE_16_FACTS_REPEATED,
         "gold_counts": dict(config.PHASE_16_GOLD_COUNTS),
         "distinct_gold_units": config.PHASE_16_DISTINCT_GOLD_UNITS,
         "same_article_fact_queries": config.PHASE_16_SAME_ARTICLE_FACT_QUERIES,
@@ -8764,7 +8766,9 @@ def cmd_p16_data(
         "answerable_queries": body["n_questions"],
         "type_counts": body["type_counts"],
         "facts": body["facts"],
+        "facts_inside": body["facts_inside"],
         "facts_straddling": len(body["straddling"]),
+        "facts_repeated": body["facts_repeated"],
         "gold_counts": body["gold_counts"],
         "distinct_gold_units": body["distinct_gold_units"],
         "same_article_fact_queries": body["context"]["queries_with_two_facts_from_one_article"],
@@ -8818,6 +8822,7 @@ def cmd_p16_data(
         f"[INFO] questions: types {body['type_counts']}, gold {body['gold_counts']}, "
         f"{body['distinct_gold_units']} distinct gold; {body['facts']} facts, "
         f"{body['facts_inside']} inside, {len(body['straddling'])} straddling, "
+        f"{body['facts_repeated']} repeated (first occurrence), "
         f"{body['unmapped_facts']} unmapped (ceiling share {body['unmapped_ceiling_share']})"
     )
     print(

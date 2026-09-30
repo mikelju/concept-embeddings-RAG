@@ -13,8 +13,11 @@ ignores; questions are written and read by `musique.write_questions` / `load_que
 whose digests already cover 2-4 gold ids; an unmapped fact becomes Phase 9's sentinel, so
 it stays in the denominator as a miss.
 
-What is new is the gold mapping: a fact is located in its article's body, and one that
-crosses a newline maps to the paragraph holding its first line (author decision 2). The
+What is new is the gold mapping: a fact is located in its article's body by its first
+occurrence (`body.find`). A fact printed twice in its article, in two distinct paragraphs,
+maps to the paragraph of its first occurrence and is listed with the other paragraph's unit
+(29 facts on the pinned source; deviation 16.1, option A). One that would cross a newline
+maps to the paragraph holding its first line (none does on the pinned source). The
 `DATA_STOP` share is counted over facts, not queries (D2). The `answer` field is never read.
 """
 
@@ -282,21 +285,32 @@ def load_articles(directory: Path | str) -> dict[str, dict[str, Any]]:
 # --- The answerable queries and their gold (D2) --------------------------------------------
 
 
+def _holder(fact: str, start: int, paragraphs: Sequence[Paragraph]) -> Paragraph | None:
+    """The paragraph holding the first non-whitespace character of the match at `start`."""
+    first = start + len(fact) - len(fact.lstrip())
+    slot = bisect.bisect_right([p.start for p in paragraphs], first) - 1
+    return paragraphs[slot] if slot >= 0 and first < paragraphs[slot].end else None
+
+
 def _locate(
     fact: str, body: str, paragraphs: Sequence[Paragraph]
-) -> tuple[Paragraph | None, int, bool]:
-    """The paragraph holding the fact's first non-whitespace character, the number of
-    paragraphs its span touches, and whether it occurs more than once. `None` if absent."""
+) -> tuple[Paragraph | None, int, list[Paragraph]]:
+    """The paragraph holding the fact's first occurrence in the body (`body.find`; D2 and
+    deviation 16.1), the number of paragraphs that occurrence's span touches, and the
+    paragraphs holding every later occurrence. `None` if the fact is absent."""
     start = body.find(fact)
     if start < 0 or not fact.strip():
-        return None, 0, False
+        return None, 0, []
     end = start + len(fact)
-    first = start + len(fact) - len(fact.lstrip())
-    starts = [p.start for p in paragraphs]
-    slot = bisect.bisect_right(starts, first) - 1
-    holder = paragraphs[slot] if slot >= 0 and first < paragraphs[slot].end else None
     crossed = sum(1 for p in paragraphs if p.start < end and p.end > start)
-    return holder, crossed, body.count(fact) > 1
+    later: list[Paragraph] = []
+    at = body.find(fact, start + 1)
+    while at >= 0:
+        holder = _holder(fact, at, paragraphs)
+        if holder is not None:
+            later.append(holder)
+        at = body.find(fact, at + 1)
+    return _holder(fact, start, paragraphs), crossed, later
 
 
 def answerable_questions(
@@ -310,8 +324,11 @@ def answerable_questions(
     """Each answerable query's facts mapped to corpus units, in fact order, and the body.
 
     A fact names its article by `title` (its `url` must agree). It is found with
-    `body.find(fact)`, first occurrence. Inside one paragraph it maps to that unit; across a
-    newline it maps to the paragraph holding its first line and is listed. Gold ids are
+    `body.find(fact)`, first occurrence. Inside one paragraph it maps to that unit; printed
+    again later in the body it still maps to its first occurrence and is listed with the
+    later paragraphs' units (deviation 16.1); across a newline it maps to the paragraph
+    holding its first line and is listed. `facts_inside` counts the other facts: found once,
+    inside one paragraph. Gold ids are
     deduplicated in fact order. An unmapped fact is Phase 9's sentinel, in the denominator;
     more than `share` of the facts unmapped is `DATA_STOP`. `answer` is never read.
     """
@@ -344,13 +361,14 @@ def answerable_questions(
             index = by_title.get(title)
             reason = None
             holder: Paragraph | None = None
+            later: list[Paragraph] = []
             if index is None:
                 reason = "no article with this title"
             elif piece.get("url") and piece["url"] != articles[index]["url"]:
                 reason = "the url does not match the article's"
             else:
                 text = str(articles[index]["body"])
-                holder, crossed, twice = _locate(str(piece["fact"]), text, paragraphs[index])
+                holder, crossed, later = _locate(str(piece["fact"]), text, paragraphs[index])
                 if holder is None:
                     reason = "fact not in the article body"
             if holder is None or index is None:
@@ -372,10 +390,27 @@ def answerable_questions(
                             "paragraphs_crossed": crossed,
                         }
                     )
+                elif later:
+                    others = list(
+                        dict.fromkeys(
+                            (p.position, unit_of(title, p.text).unit_id)
+                            for p in later
+                            if unit_of(title, p.text).unit_id != unit_id
+                        )
+                    )
+                    repeated.append(
+                        {
+                            "qid": qid,
+                            "evidence": number,
+                            "article": index,
+                            "unit_id": unit_id,
+                            "position": holder.position,
+                            "other_unit_ids": [u for _, u in others],
+                            "other_positions": [p for p, _ in others],
+                        }
+                    )
                 else:
                     inside += 1
-                if twice:
-                    repeated.append({"qid": qid, "evidence": number, "article": index})
             gold.append(unit_id)
         gold = list(dict.fromkeys(gold))
         evidence_counts.append(len(query["evidence_list"]))
@@ -427,8 +462,16 @@ def answerable_questions(
             "holding its first non-whitespace character (its first line; author decision 2)"
         ),
         "straddling": straddling,
-        "straddling_digest": digest_of(*(json.dumps(e, sort_keys=True) for e in straddling)),
-        "facts_found_more_than_once": repeated,
+        "straddling_digest": _entries_digest(straddling),
+        "facts_repeated": len(repeated),
+        "repeated_rule": (
+            "a fact printed more than once in its article body maps to the unit of the "
+            "paragraph holding its first occurrence (body.find); the units of the paragraphs "
+            "holding its later occurrences are listed and are not gold (deviation 16.1, "
+            "option A)"
+        ),
+        "repeated_facts": repeated,
+        "repeated_facts_digest": _entries_digest(repeated),
         "unmapped_facts": len(unmapped),
         "unmapped_ceiling_share": share,
         "unmapped": unmapped,
@@ -450,6 +493,10 @@ def answerable_questions(
         "questions": entries,
     }
     return questions, body
+
+
+def _entries_digest(entries: Sequence[Mapping[str, Any]]) -> str:
+    return digest_of(*(json.dumps(e, sort_keys=True) for e in entries))
 
 
 def _type_digest(entries: Sequence[Mapping[str, Any]]) -> str:
@@ -502,9 +549,10 @@ def write_questions(
 def load_questions(
     directory: Path | str, *, corpus_unit_set_hash: str
 ) -> tuple[list[Question], dict[str, Any]]:
-    """The frozen answerable queries, every digest recomputed (question type and straddling
-    list included), refused on a `DATA_STOP` or another corpus. `question_type` is in the
-    body's entries; the live-path questions come from `live_path_questions`."""
+    """The frozen answerable queries, every digest recomputed (question type, straddling and
+    repeated-fact lists included), refused on a `DATA_STOP` or another corpus.
+    `question_type` is in the body's entries; the live-path questions come from
+    `live_path_questions`."""
     target = Path(directory) / QUESTIONS_FILENAME
     stored: dict[str, Any] = json.loads(target.read_text(encoding="utf-8"))
     if stored["terminal_state"] is not None:
@@ -518,10 +566,10 @@ def load_questions(
         )
     except musique.MusiqueError as error:
         raise MultiHopRagError(str(error)) from error
-    straddling = digest_of(*(json.dumps(e, sort_keys=True) for e in body["straddling"]))
     if (
         _type_digest(body["questions"]) != body["question_type_digest"]
-        or straddling != body["straddling_digest"]
+        or _entries_digest(body["straddling"]) != body["straddling_digest"]
+        or _entries_digest(body["repeated_facts"]) != body["repeated_facts_digest"]
     ):
         raise MultiHopRagError(f"{target.name} does not match its recorded digests")
     return questions, body

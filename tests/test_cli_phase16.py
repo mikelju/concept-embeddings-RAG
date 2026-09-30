@@ -98,7 +98,9 @@ EXPECTED: dict[str, Any] = {
     "answerable_queries": 2,
     "type_counts": {"comparison_query": 1, "inference_query": 1},
     "facts": 5,
+    "facts_inside": 4,
     "facts_straddling": 1,
+    "facts_repeated": 0,
     "gold_counts": {2: 1, 3: 1},
     "distinct_gold_units": 4,
     "same_article_fact_queries": 1,
@@ -182,6 +184,7 @@ def test_the_stage_writes_the_units_the_gold_and_the_live_path(
         ),
     }
     assert [e["qid"] for e in body["straddling"]] == ["mhr-0002"]
+    assert body["repeated_facts"] == []
     assert body["terminal_state"] is None
     assert body["context"]["queries_with_two_facts_from_one_article"] == 1
 
@@ -224,6 +227,7 @@ def test_a_wrong_sha256_or_byte_count_is_refused_before_parsing(
         ({"newline_paragraphs": 8}, "newline_paragraphs"),
         ({"gold_counts": {2: 2}}, "gold_counts"),
         ({"facts_straddling": 0}, "facts_straddling"),
+        ({"facts_repeated": 1}, "facts_repeated"),
     ],
 )
 def test_a_count_other_than_the_measured_one_stops_before_anything_is_written(

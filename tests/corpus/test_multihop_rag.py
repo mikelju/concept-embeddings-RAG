@@ -3,10 +3,11 @@
 What can change a Phase 16 result here is the corpus and the gold: which newline pieces of an
 article body become units (D1: every non-empty one, boilerplate included, a verbatim repeat
 inside an article collapsing into one unit), which unit each evidence fact maps to (D2: the
-paragraph holding it, or for a fact that straddles a break the paragraph holding its first
-line), the sentinel that keeps an unmapped fact in the denominator, the 1 % `DATA_STOP`
-counted over facts, and that a `null` query is never measured. Every file is written in
-`tmp_path`; nothing reaches the network or `data/`.
+paragraph holding it; a fact printed twice in its article maps to its first occurrence and is
+listed with the other paragraph, deviation 16.1; a fact that would straddle a break maps to
+the paragraph holding its first line), the sentinel that keeps an unmapped fact in the
+denominator, the 1 % `DATA_STOP` counted over facts, and that a `null` query is never
+measured. Every file is written in `tmp_path`; nothing reaches the network or `data/`.
 """
 
 import gzip
@@ -254,6 +255,63 @@ def test_facts_map_to_their_paragraphs_and_a_straddling_fact_to_its_first_line(
     assert body["questions"][0]["question_type"] == "inference_query"
     assert body["terminal_state"] is None
     assert "answer to" not in json.dumps(body)
+
+
+REPEATED_BODY = (
+    "Public Betting Patterns: If much money is on one side, the line moves.\n"
+    f"{ADVERTISEMENT}\n"
+    "Books watch the flow. If much money is on one side, the line moves.\n"
+    "The weekend slate is short."
+)
+
+
+def test_a_fact_printed_twice_maps_to_its_first_occurrence_and_is_listed(tmp_path: Path):
+    delta = article("Delta betting guide", REPEATED_BODY, 0)
+    source = [delta, articles()[1] | {"url": "https://example.org/1"}]
+    units, article_of = multihop_rag.pool_units(source)
+    manifest = multihop_rag.write_corpus(
+        units, tmp_path, articles=source, article_of=article_of, paragraphs_read=7
+    )
+    fact = "If much money is on one side, the line moves."
+    queries = [
+        query(
+            "How do lines move?",
+            [evidence(delta, fact), evidence(source[1], "Gamma opened a new stadium.")],
+        )
+    ]
+
+    questions, body = multihop_rag.answerable_questions(queries, source, units, corpus=manifest)
+
+    first = uid(delta["title"], REPEATED_BODY.split("\n")[0])
+    other = uid(delta["title"], REPEATED_BODY.split("\n")[2])
+    assert questions[0].gold_unit_ids[0] == first
+    assert questions[0].supporting_facts[0] == (delta["title"], 0)
+    assert body["facts_inside"] == 1
+    assert body["straddling"] == []
+    assert body["repeated_facts"] == [
+        {
+            "qid": "mhr-0000",
+            "evidence": 0,
+            "article": 0,
+            "unit_id": first,
+            "position": 0,
+            "other_unit_ids": [other],
+            "other_positions": [2],
+        }
+    ]
+    assert "repeated_facts_digest" in body
+
+    block = multihop_rag.live_path_block(queries)
+    path = multihop_rag.write_questions(tmp_path, body, live_path=block)
+    loaded, _ = multihop_rag.load_questions(
+        tmp_path, corpus_unit_set_hash=manifest["unit_set_hash"]
+    )
+    assert loaded == questions
+    edited = json.loads(path.read_text(encoding="utf-8"))
+    edited["repeated_facts"][0]["other_unit_ids"] = []
+    path.write_text(json.dumps(edited), encoding="utf-8")
+    with pytest.raises(multihop_rag.MultiHopRagError, match="digest"):
+        multihop_rag.load_questions(tmp_path, corpus_unit_set_hash=manifest["unit_set_hash"])
 
 
 def test_two_facts_in_one_paragraph_count_once(tmp_path: Path):

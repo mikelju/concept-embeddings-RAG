@@ -1210,8 +1210,12 @@ PHASE_16_TYPE_COUNTS: Final[dict[str, int]] = {
     "temporal_query": 583,
 }
 PHASE_16_FACTS: Final[int] = 6_084
+# Deviation 16.1 (option A): no fact crosses a paragraph break; 29 facts are printed twice
+# in their article, in two distinct paragraphs, and map to their first occurrence. The
+# other 6,055 are found once, inside one paragraph.
 PHASE_16_FACTS_INSIDE: Final[int] = 6_055
-PHASE_16_FACTS_STRADDLING: Final[int] = 29
+PHASE_16_FACTS_STRADDLING: Final[int] = 0
+PHASE_16_FACTS_REPEATED: Final[int] = 29
 PHASE_16_GOLD_COUNTS: Final[dict[int, int]] = {2: 1_079, 3: 780, 4: 396}
 PHASE_16_DISTINCT_GOLD_UNITS: Final[int] = 962
 # D8 context: queries in which at least two facts name the same article.
