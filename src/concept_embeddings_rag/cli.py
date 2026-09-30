@@ -59,6 +59,7 @@
     p15-outcome     exact McNemar against P10-B (the label) and P10-C, the ladder, D7, D8, D10
     p15-refit       D9, exploratory: the 330-point grid re-fused from the stored rankings
     p16-data        the pinned MultiHop-RAG source, newline-paragraph corpus, queries, token counts
+    p16-build       one build step over the MultiHop-RAG corpus (bm25, embed, extract, index)
 
 Each stage is idempotent and refuses to run if its input is missing, saying which
 stage to run first rather than failing somewhere deep inside numpy.
@@ -74,7 +75,7 @@ import statistics
 import sys
 import time
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, NoReturn
@@ -7560,6 +7561,53 @@ def cmd_p15_data(
     return {"corpus": corpus, "questions": path, "token_counts": tokens, "seconds": seconds}
 
 
+@dataclass(frozen=True)
+class QuestionSource:
+    """What the Phase 15 stages read of the corpus whose questions they measure.
+
+    The stages were written for MuSiQue (Phase 15); Phase 16 runs them unchanged over
+    MultiHop-RAG. Only these names differ between the two, and every stage takes one as a
+    keyword argument defaulting to `MUSIQUE_SOURCE`, so every Phase 15 call is unchanged.
+    """
+
+    phase: int
+    # The stage prefix in messages ("p15", "p16") and the corpus name, ASCII.
+    command: str
+    name: str
+    # The measured questions' split, how messages name them, and how many there are.
+    split: str
+    question_noun: str
+    n_questions: int
+    live_path_split: str
+    questions_filename: str
+    load_questions: Callable[..., tuple[list[Question], dict[str, Any]]]
+    live_path_questions: Callable[[Mapping[str, Any]], list[Question]]
+    error: type[Exception]
+    refit_caution: str
+
+
+P15_REFIT_CAUTION = (
+    "exploratory: fitted and measured on the same MuSiQue validation questions, so the best "
+    "point is an optimistic upper bound on what fitting could give; it is never reported as "
+    "a system's result (D9)"
+)
+
+MUSIQUE_SOURCE = QuestionSource(
+    phase=15,
+    command="p15",
+    name="MuSiQue",
+    split=musique.VALIDATION_SPLIT,
+    question_noun="validation questions",
+    n_questions=config.PHASE_15_VALIDATION_ROWS,
+    live_path_split=musique.LIVE_PATH_SPLIT,
+    questions_filename=musique.QUESTIONS_FILENAME,
+    load_questions=musique.load_questions,
+    live_path_questions=musique.live_path_questions,
+    error=musique.MusiqueError,
+    refit_caution=P15_REFIT_CAUTION,
+)
+
+
 P15_BUILD_STAGES: tuple[str, ...] = ("bm25", "embed", "extract", "index")
 
 
@@ -7569,6 +7617,7 @@ def cmd_p15_build(
     hourly_rate_usd: float = 0.0,
     smoke: int | None = None,
     target_dir: Path = config.PHASE_15_DIR,
+    source: QuestionSource = MUSIQUE_SOURCE,
 ) -> dict[str, Any]:
     """S3: one build step over the Phase 15 corpus, with Phase 9's own build functions.
 
@@ -7577,7 +7626,8 @@ def cmd_p15_build(
     `models/gliner`. `embed` encodes the validation questions and the D4 live-path questions
     beside the passages, so every question is encoded on the passages' device. `extract`
     refuses a corpus S2 stopped for GLiNER's window, and carries S2's window count into its
-    manifest. A smoke build reads the first `smoke` units and writes under `smoke/`.
+    manifest. A smoke build reads the first `smoke` units and writes under `smoke/`. `source` names
+    the questions (MuSiQue's by default; Phase 16 passes MultiHop-RAG's answerable queries).
     """
     target_dir = Path(target_dir)
     if stage not in P15_BUILD_STAGES:
@@ -7587,7 +7637,7 @@ def cmd_p15_build(
     unit_ids = [unit.unit_id for unit in units]
     nodes_dir = out / "nodes"
     device = _embedding_device()
-    print(f"[INFO] p15-build {stage} over {len(units)} units into {out} ({device})")
+    print(f"[INFO] {source.command}-build {stage} over {len(units)} units into {out} ({device})")
     try:
         if stage == "bm25":
             _retriever, body = phase9.build_bm25(units, unit_set_hash=corpus_hash)
@@ -7598,10 +7648,10 @@ def cmd_p15_build(
         elif stage == "embed":
             # The questions are mapped against the whole corpus, a smoke build included.
             whole = json.loads((target_dir / fullwiki.CORPUS_MANIFEST).read_text("utf-8"))
-            questions, question_body = musique.load_questions(
+            questions, question_body = source.load_questions(
                 target_dir, corpus_unit_set_hash=str(whole["unit_set_hash"])
             )
-            questions = [*questions, *musique.live_path_questions(question_body)]
+            questions = [*questions, *source.live_path_questions(question_body)]
             snapshot = snapshot_directory(config.EMBEDDING_MODEL, config.EMBEDDING_REVISION)
             body = phase9.build_embedding(
                 units,
@@ -7631,7 +7681,7 @@ def cmd_p15_build(
                 smoke,
                 model_dir=target_dir / "models" / config.GLINER_EXTRACTOR,
                 gliner_dir=nodes_dir,
-                phase=15,
+                phase=source.phase,
                 extra={"gliner_window": window},
             )
         else:
@@ -7647,14 +7697,14 @@ def cmd_p15_build(
             )
     except (
         phase9.FullWikiPhaseError,
-        musique.MusiqueError,
+        source.error,
         LocalExtractionError,
         NodeIndexError,
         BackendError,
         CacheAlignmentError,
     ) as error:
         _die(str(error))
-    print(f"[OK] p15-build {stage}: {json.dumps(body.get('memory'))}")
+    print(f"[OK] {source.command}-build {stage}: {json.dumps(body.get('memory'))}")
     return body
 
 
@@ -7663,6 +7713,7 @@ def _p15_inputs(
     *,
     phase10_dir: Path = config.PHASE_10_DIR,
     phase14_dir: Path = config.PHASE_14_DIR,
+    source: QuestionSource = MUSIQUE_SOURCE,
 ) -> dict[str, Any]:
     """Every Phase 15 input the live systems read, loaded once and checked (`_phase_9_inputs`'s
     shape): the corpus, its vectors, BM25 rebuilt, the entity index, the token counts, the
@@ -7682,12 +7733,15 @@ def _p15_inputs(
         bm25_record = json.loads((target_dir / "bm25" / phase9.BM25_FILENAME).read_text("utf-8"))
         entity_record = json.loads((nodes_dir / phase9.ENTITY_INDEX_FILENAME).read_text("utf-8"))
     except FileNotFoundError as error:
-        _die(f"a Phase 15 input is missing ({error.filename}): run 'p15-build' first")
+        _die(
+            f"a Phase {source.phase} input is missing ({error.filename}): run "
+            f"'{source.command}-build' first"
+        )
     try:
-        questions, question_body = musique.load_questions(
+        questions, question_body = source.load_questions(
             target_dir, corpus_unit_set_hash=corpus_hash
         )
-        live_path = musique.live_path_questions(question_body)
+        live_path = source.live_path_questions(question_body)
         token_counts = phase9.load_phase9_token_counts(
             target_dir, unit_set_hash=corpus_hash, unit_ids=unit_ids
         )
@@ -7701,7 +7755,7 @@ def _p15_inputs(
             phase14_fit=Path(phase14_dir) / P14_FIT_NAME,
         )
     except (
-        musique.MusiqueError,
+        source.error,
         phase9.FullWikiPhaseError,
         LocalExtractionError,
         NodeIndexError,
@@ -7722,19 +7776,25 @@ def _p15_inputs(
             str(embedding["corpus_cache_key"]), expected_unit_ids=unit_ids
         )
     except CacheAlignmentError as error:
-        _die(f"the Phase 15 vectors are not the corpus units in order: {error}")
+        _die(f"the Phase {source.phase} vectors are not the corpus units in order: {error}")
     if loaded is None:
-        _die("the Phase 15 vectors are missing: run 'p15-build --stage embed'")
+        _die(
+            f"the Phase {source.phase} vectors are missing: run "
+            f"'{source.command}-build --stage embed'"
+        )
     vectors = loaded[0]
     if phase9.vectors_digest(vectors) != embedding["vectors_digest"]:
-        _die("the Phase 15 vectors do not match the digest embedding.json records")
+        _die(f"the Phase {source.phase} vectors do not match the digest embedding.json records")
     # Encoded together at S3: the validation questions, then the live path.
     asked = [*questions, *live_path]
     question_vectors = EmbeddingCache(cache_dir / "questions").load(
         str(embedding["question_cache_key"]), expected_unit_ids=[q.qid for q in asked]
     )
     if question_vectors is None:
-        _die("the Phase 15 question vectors are missing: run 'p15-build --stage embed'")
+        _die(
+            f"the Phase {source.phase} question vectors are missing: run "
+            f"'{source.command}-build --stage embed'"
+        )
     query_backend = CachedQueryBackend(
         texts=[q.question for q in asked],
         vectors=question_vectors[0],
@@ -7940,6 +8000,7 @@ def cmd_p15_integrity(
     phase9_dir: Path = config.PHASE_9_DIR,
     phase10_dir: Path = config.PHASE_10_DIR,
     phase14_dir: Path = config.PHASE_14_DIR,
+    source: QuestionSource = MUSIQUE_SOURCE,
 ) -> Path:
     """S4 (D4): integrity before the pass, written once to `integrity.json`.
 
@@ -7948,14 +8009,18 @@ def cmd_p15_integrity(
     pod manifest; the four live systems on the 200 live-path train questions (question text
     only, no metric: `phase9.measure_system` is never called on them, and their ranking records
     are checked in memory); and the code identity on HotpotQA dev. Any miss is written as
-    `DATA_STOP` with its reasons, and the stage exits non-zero.
+    `DATA_STOP` with its reasons, and the stage exits non-zero. `source` names the
+    questions and the live path (MuSiQue's by default; Phase 16's are MultiHop-RAG's `null`
+    queries).
     """
     target_dir, phase9_dir = Path(target_dir), Path(phase9_dir)
     target = target_dir / phase15.INTEGRITY_FILENAME
     if target.exists():
         _die(f"{target} already records D4; it is written once")
     started = time.perf_counter()
-    components = _p15_inputs(target_dir, phase10_dir=phase10_dir, phase14_dir=phase14_dir)
+    components = _p15_inputs(
+        target_dir, phase10_dir=phase10_dir, phase14_dir=phase14_dir, source=source
+    )
     try:
         pod = local_extraction.load_manifest(phase9_dir / phase9.GLINER_DIRNAME)
     except LocalExtractionError as error:
@@ -7972,7 +8037,7 @@ def cmd_p15_integrity(
     live_path = components["live_path"]
     live = phase15.run_live_path(systems, live_path, set(components["dense"].unit_ids))
     del systems
-    live["split"] = musique.LIVE_PATH_SPLIT
+    live["split"] = source.live_path_split
     live["question_digest"] = components["provenance"]["live_path_question_digest"]
     for name, result in live["systems"].items():
         print(
@@ -7991,7 +8056,7 @@ def cmd_p15_integrity(
         )
     verdict = phase15.d4_verdict(code, extractor, live)
     body = {
-        "phase": 15,
+        "phase": source.phase,
         **verdict,
         "code_identity": code,
         "extractor_identity": extractor,
@@ -8018,7 +8083,12 @@ P15_HOP_ALPHAS_BOUNDARY = (
 
 
 def _p15_marker(
-    components: Mapping[str, Any], integrity_digest: str, commit: str, load_seconds: float
+    components: Mapping[str, Any],
+    integrity_digest: str,
+    commit: str,
+    load_seconds: float,
+    *,
+    source: QuestionSource = MUSIQUE_SOURCE,
 ) -> dict[str, Any]:
     """What `pass.json` records: when and at which commit the pass started, over what."""
     provenance = components["provenance"]
@@ -8036,7 +8106,7 @@ def _p15_marker(
         "bm25_index_digest": provenance["bm25_index_digest"],
         "extraction_records_digest": provenance["extraction"]["records_digest"],
         "entity_index_digest": provenance["entity_index_digest"],
-        "set": musique.VALIDATION_SPLIT,
+        "set": source.split,
         "n_questions": len(components["questions"]),
         "systems": list(config.PHASE_15_SYSTEMS),
         "load_seconds": load_seconds,
@@ -8049,7 +8119,8 @@ def cmd_p15_eval(
     target_dir: Path = config.PHASE_15_DIR,
     phase10_dir: Path = config.PHASE_10_DIR,
     phase14_dir: Path = config.PHASE_14_DIR,
-    n_questions: int = config.PHASE_15_VALIDATION_ROWS,
+    n_questions: int | None = None,
+    source: QuestionSource = MUSIQUE_SOURCE,
 ) -> list[Path]:
     """S5 (HU-3, D5): the four frozen systems on the MuSiQue validation questions, once.
 
@@ -8062,14 +8133,16 @@ def cmd_p15_eval(
     memory read before each. Then, outside any timing, the hop at the five Phase 14 `alpha` per
     question; a list that is not the live one stops the pass before anything else is written.
     Each system's run, outcomes and rankings are then written once. Nothing is compared, fitted
-    or labelled here (S6), and no metric is printed.
+    or labelled here (S6), and no metric is printed. `source` names the questions
+    (MuSiQue's validation questions by default; `n_questions` defaults to its count).
     """
     target_dir = Path(target_dir)
+    n_questions = source.n_questions if n_questions is None else n_questions
     if not authorized:
-        _die("the single MuSiQue pass needs --authorized-pass from the author")
+        _die(f"the single {source.name} pass needs --authorized-pass from the author")
     integrity_path = target_dir / phase15.INTEGRITY_FILENAME
     if not integrity_path.exists():
-        _die(f"{integrity_path} is missing: run 'p15-integrity' and commit it first")
+        _die(f"{integrity_path} is missing: run '{source.command}-integrity' and commit it first")
     integrity_text = integrity_path.read_text(encoding="utf-8")
     integrity = json.loads(integrity_text)
     if "terminal_state" not in integrity or integrity["terminal_state"] is not None:
@@ -8088,18 +8161,20 @@ def cmd_p15_eval(
         _die(f"{target_dir / phase15.MARKER_FILENAME} exists: the pass has already started once")
 
     started = time.perf_counter()
-    components = _p15_inputs(target_dir, phase10_dir=phase10_dir, phase14_dir=phase14_dir)
+    components = _p15_inputs(
+        target_dir, phase10_dir=phase10_dir, phase14_dir=phase14_dir, source=source
+    )
     questions: list[Question] = components["questions"]
     if len(questions) != n_questions:
-        _die(f"{len(questions)} validation questions loaded, not {n_questions}")
+        _die(f"{len(questions)} {source.question_noun} loaded, not {n_questions}")
     provenance_now = json.loads(json.dumps(components["provenance"], sort_keys=True))
     if provenance_now != integrity.get("provenance"):
-        _die("the Phase 15 inputs are not the ones D4 checked in integrity.json")
+        _die(f"the Phase {source.phase} inputs are not the ones D4 checked in integrity.json")
     integrity_digest = digest_of(integrity_text)
     commit = _git_commit()
     provenance = {
         **components["provenance"],
-        "question_set": musique.VALIDATION_SPLIT,
+        "question_set": source.split,
         "n_questions": len(questions),
         "integrity_digest": integrity_digest,
         "hop_implementation": phase9.COLUMNWISE_HOP,
@@ -8111,7 +8186,8 @@ def cmd_p15_eval(
     print(f"[INFO] inputs loaded and verified in {load_seconds / 60:.1f} min", flush=True)
     try:
         phase15.start_pass(
-            target_dir, _p15_marker(components, integrity_digest, commit, load_seconds)
+            target_dir,
+            _p15_marker(components, integrity_digest, commit, load_seconds, source=source),
         )
     except phase15.Phase15Error as error:
         _die(str(error))
@@ -8147,11 +8223,11 @@ def cmd_p15_eval(
             "records": records,
             "rankings": rankings,
             "body": {
-                "phase": 15,
+                "phase": source.phase,
                 "system": name,
                 "label": config.PHASE_15_SYSTEM_LABELS[name],
                 "order": position,
-                "set": musique.VALIDATION_SPLIT,
+                "set": source.split,
                 "n_questions": len(records),
                 "ranking_depth": config.PHASE_9_RANKING_DEPTH,
                 "fusion": inner.describe() if hasattr(inner, "describe") else None,
@@ -8222,7 +8298,9 @@ def cmd_p15_eval(
     return written
 
 
-def _p15_recorded_pass(target_dir: Path, n_questions: int) -> dict[str, Any]:
+def _p15_recorded_pass(
+    target_dir: Path, n_questions: int, *, source: QuestionSource = MUSIQUE_SOURCE
+) -> dict[str, Any]:
     """The single pass read back, every file checked before anything is compared.
 
     `pass.json` must exist and record the digest of the passing, committed `integrity.json`
@@ -8233,7 +8311,8 @@ def _p15_recorded_pass(target_dir: Path, n_questions: int) -> dict[str, Any]:
     parsed record's components come back in alphabetical order), and must pack into a
     2,048-token context whose Full Support is the recorded one. P14's run must be at the
     frozen `alpha`, carry `sim_seconds` on every question and the hop at the five `alpha`.
-    Any miss stops the stage with nothing written.
+    Any miss stops the stage with nothing written. `source` names the questions (MuSiQue's
+    by default).
     """
     marker_path = target_dir / phase15.MARKER_FILENAME
     if not marker_path.exists():
@@ -8252,19 +8331,19 @@ def _p15_recorded_pass(target_dir: Path, n_questions: int) -> dict[str, Any]:
     units, corpus = _phase_9_corpus(target_dir)
     corpus_hash = str(corpus["unit_set_hash"])
     try:
-        questions, question_body = musique.load_questions(
+        questions, question_body = source.load_questions(
             target_dir, corpus_unit_set_hash=corpus_hash
         )
         token_counts = phase9.load_phase9_token_counts(
             target_dir, unit_set_hash=corpus_hash, unit_ids=[unit.unit_id for unit in units]
         )
-    except (musique.MusiqueError, phase9.FullWikiPhaseError) as error:
+    except (source.error, phase9.FullWikiPhaseError) as error:
         _die(str(error))
     if len(questions) != n_questions:
-        _die(f"{len(questions)} validation questions loaded, not {n_questions}")
+        _die(f"{len(questions)} {source.question_noun} loaded, not {n_questions}")
     qids = [question.qid for question in questions]
     if len(set(qids)) != len(qids):
-        _die("the validation questions repeat a qid")
+        _die(f"the {source.question_noun} repeat a qid")
 
     runs: dict[str, list[dict[str, Any]]] = {}
     rankings: dict[str, list[dict[str, Any]]] = {}
@@ -8283,10 +8362,8 @@ def _p15_recorded_pass(target_dir: Path, n_questions: int) -> dict[str, Any]:
         provenance = body["provenance"]
         if body["system"] != name or body["order"] != position:
             _die(f"{run_path.name} is not {name} at position {position} of the run order")
-        if body["set"] != musique.VALIDATION_SPLIT or (
-            provenance["question_set"] != musique.VALIDATION_SPLIT
-        ):
-            _die(f"{run_path.name} does not name {musique.VALIDATION_SPLIT}")
+        if body["set"] != source.split or provenance["question_set"] != source.split:
+            _die(f"{run_path.name} does not name {source.split}")
         if provenance["integrity_digest"] != integrity_digest:
             _die(f"{run_path.name} was not measured under the committed integrity.json")
         if (
@@ -8544,17 +8621,11 @@ def cmd_p15_outcome(
     return path
 
 
-P15_REFIT_CAUTION = (
-    "exploratory: fitted and measured on the same MuSiQue validation questions, so the best "
-    "point is an optimistic upper bound on what fitting could give; it is never reported as "
-    "a system's result (D9)"
-)
-
-
 def cmd_p15_refit(
     target_dir: Path = config.PHASE_15_DIR,
     *,
-    n_questions: int = config.PHASE_15_VALIDATION_ROWS,
+    n_questions: int | None = None,
+    source: QuestionSource = MUSIQUE_SOURCE,
 ) -> Path:
     """S7 (D9, exploratory): Phase 14's 330-point grid re-fused from the stored rankings.
 
@@ -8563,13 +8634,15 @@ def cmd_p15_refit(
     P14's stored Dense, BM25 and hop-at-`alpha` lists with `fuse_lists` and replays them
     through `_p10_replay_records`. Before the grid, the frozen P14 point (`alpha = 0.75`,
     0.5 / 0.3 / 0.2) must reproduce P14's recorded outcomes and `alpha = 0` at 0.5 / 0.3 / 0.2
-    P10-C's, question by question; otherwise nothing is written.
+    P10-C's, question by question; otherwise nothing is written. `source` names the
+    questions (MuSiQue's by default; `n_questions` defaults to its count).
     """
     target_dir = Path(target_dir)
+    n_questions = source.n_questions if n_questions is None else n_questions
     outcome_path = target_dir / phase15.OUTCOME_FILENAME
     target = target_dir / phase15.REFIT_FILENAME
     if not outcome_path.exists():
-        _die(f"{outcome_path} is missing: D9 runs only after 'p15-outcome'")
+        _die(f"{outcome_path} is missing: the refit runs only after '{source.command}-outcome'")
     if target.exists():
         _die(f"{target} already exists; the refit is written once")
     outcome_text = outcome_path.read_text(encoding="utf-8")
@@ -8578,7 +8651,7 @@ def cmd_p15_refit(
         _die(f"outcome.json records {outcome.get('terminal_state')}: no pass to refit")
 
     started = time.perf_counter()
-    checked = _p15_recorded_pass(target_dir, n_questions)
+    checked = _p15_recorded_pass(target_dir, n_questions, source=source)
     for key in ("outcomes_digests", "rankings_digests"):
         if checked["integrity"][key] != outcome["integrity"][key]:
             _die(f"the pass on disk is not the one outcome.json read ({key})")
@@ -8646,16 +8719,16 @@ def cmd_p15_refit(
         _die("the grid's frozen points do not give the counts the consistency check gave")
     best = phase14.choose_point(curve)
     body = {
-        "phase": 15,
+        "phase": source.phase,
         "exploratory": True,
-        "caution": P15_REFIT_CAUTION,
-        "set": musique.VALIDATION_SPLIT,
+        "caution": source.refit_caution,
+        "set": source.split,
         "n_questions": len(questions),
         "grid": "alpha in (0, 0.25, 0.5, 0.75, 1) x convex triples (dense, bm25, relevance-hop) "
         "in tenths: Phase 14's grid",
         "n_points": len(curve),
         "objective": f"full_support@{config.PHASE_9_PRIMARY_BUDGET}_tokens over the "
-        f"{len(questions)} validation questions",
+        f"{len(questions)} {source.question_noun}",
         "tie_rule": (
             "gold_recall@2048 sum; then the smaller alpha (closest to P10-C); "
             "then the larger w_dense; then the larger w_bm25 (phase14.choose_point)"
@@ -8694,6 +8767,29 @@ def cmd_p15_refit(
 
 
 # --- Phase 16: the frozen systems on MultiHop-RAG ------------------------------------------
+
+P16_REFIT_CAUTION = (
+    "exploratory: fitted and measured on the same MultiHop-RAG answerable queries, so the "
+    "best point is an optimistic upper bound on what fitting could give; it is never reported "
+    "as a system's result (D10)"
+)
+
+# The Phase 15 stages' question source for Phase 16: the 2,255 answerable queries, and the
+# 301 `null` queries as the D4 live path.
+MULTIHOP_RAG_SOURCE = QuestionSource(
+    phase=16,
+    command="p16",
+    name="MultiHop-RAG",
+    split=multihop_rag.ANSWERABLE_SPLIT,
+    question_noun="answerable queries",
+    n_questions=config.PHASE_16_ANSWERABLE_QUERIES,
+    live_path_split=multihop_rag.LIVE_PATH_SPLIT,
+    questions_filename=multihop_rag.QUESTIONS_FILENAME,
+    load_questions=multihop_rag.load_questions,
+    live_path_questions=multihop_rag.live_path_questions,
+    error=multihop_rag.MultiHopRagError,
+    refit_caution=P16_REFIT_CAUTION,
+)
 
 
 def _p16_expected_counts() -> dict[str, Any]:
@@ -8848,6 +8944,28 @@ def cmd_p16_data(
         f"{body['n_questions']} questions, {tokens['total_tokens']} tokens -> {target_dir}"
     )
     return {"corpus": corpus, "questions": path, "token_counts": tokens, "seconds": seconds}
+
+
+def cmd_p16_build(
+    stage: str,
+    *,
+    hourly_rate_usd: float = 0.0,
+    smoke: int | None = None,
+    target_dir: Path = config.PHASE_16_DIR,
+) -> dict[str, Any]:
+    """S3 (HU-2): one build step over the Phase 16 corpus: Phase 15's `cmd_p15_build` with
+    MultiHop-RAG's questions. Writes only under `target_dir` (`bm25/`, `cache/`,
+    `cache/questions/`, `nodes/`, `models/gliner`; `smoke/` for a smoke build). `embed`
+    encodes the 2,255 answerable queries, then the 301 live-path queries, into
+    `cache/questions/`, never a shared question cache (`question_cache_key` does not include
+    the corpus). `extract` records GLiNER's configuration digest with `phase = 16`."""
+    return cmd_p15_build(
+        stage,
+        hourly_rate_usd=hourly_rate_usd,
+        smoke=smoke,
+        target_dir=target_dir,
+        source=MULTIHOP_RAG_SOURCE,
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -9206,6 +9324,24 @@ def build_parser() -> argparse.ArgumentParser:
         "p16-data",
         help="Phase 16: pinned MultiHop-RAG source, newline-paragraph corpus, queries, tokens",
     )
+    p16_build = subparsers.add_parser(
+        "p16-build",
+        help="Phase 16: one build step over the MultiHop-RAG corpus (embed and extract on the pod)",
+    )
+    p16_build.add_argument("--stage", choices=P15_BUILD_STAGES, required=True)
+    p16_build.add_argument(
+        "--hourly-rate-usd",
+        type=float,
+        default=0.0,
+        dest="hourly_rate_usd",
+        help="contracted hourly rate, for the attributable cost of GPU steps",
+    )
+    p16_build.add_argument(
+        "--smoke",
+        type=int,
+        default=None,
+        help="build over the first N units into data/phase16/smoke/ (a code check, not a figure)",
+    )
     p15_build.add_argument("--stage", choices=P15_BUILD_STAGES, required=True)
     p15_build.add_argument(
         "--hourly-rate-usd",
@@ -9384,6 +9520,8 @@ def main(argv: list[str] | None = None) -> int:
         cmd_p15_refit()
     elif args.command == "p16-data":
         cmd_p16_data()
+    elif args.command == "p16-build":
+        cmd_p16_build(args.stage, hourly_rate_usd=args.hourly_rate_usd, smoke=args.smoke)
     return 0
 
 

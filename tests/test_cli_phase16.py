@@ -1,5 +1,7 @@
 """Phase 16 CLI, S2: `p16-data` turns the two pinned MultiHop-RAG files into the corpus, the
-answerable queries with their gold, the live-path set and the token counts.
+answerable queries with their gold, the live-path set and the token counts. S3: `p16-build`
+is Phase 15's build over them, writing only under the Phase 16 directory, with the question
+vectors in its own cache (the `question_cache_key` trap).
 
 What can change a Phase 16 result here: which bytes are parsed (the pin), which units and gold
 come out of them, what the live path carries (the `null` queries, text only), and the check of
@@ -14,12 +16,14 @@ import json
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pytest
 
-from concept_embeddings_rag import cli
+from concept_embeddings_rag import cli, config
 from concept_embeddings_rag.corpus import fullwiki as fullwiki_corpus
 from concept_embeddings_rag.corpus import multihop_rag
 from concept_embeddings_rag.corpus.pool import IndexingUnit, unit_id_for
+from concept_embeddings_rag.embeddings.cache import EmbeddingCache
 from concept_embeddings_rag.evaluation import fullwiki as phase9
 
 ALPHA = "Alpha wins the cup"
@@ -255,3 +259,67 @@ def test_the_stage_refuses_a_second_run(tmp_path: Path, monkeypatch: pytest.Monk
 def test_the_p16_data_stage_is_registered():
     parser = cli.build_parser()
     assert parser.parse_args(["p16-data"]).command == "p16-data"
+
+
+# --- S3: `p16-build` -----------------------------------------------------------------------
+
+
+class StubBGE:
+    """The pinned BGE-small's identity, with constant unit vectors."""
+
+    name = config.EMBEDDING_MODEL
+    revision = config.EMBEDDING_REVISION
+    normalize = True
+    query_prompt = ""
+
+    def encode(self, texts: list[str]) -> np.ndarray:
+        vectors = np.ones((len(texts), 4), dtype=np.float32)
+        return vectors / np.linalg.norm(vectors, axis=1, keepdims=True)
+
+
+def files_under(root: Path) -> set[Path]:
+    return {path for path in root.rglob("*") if path.is_file()}
+
+
+def test_embed_and_bm25_write_only_under_the_phase_16_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    target = tmp_path / "phase16"
+    run(target, source(monkeypatch))
+    corpus = json.loads((target / "corpus.json").read_text(encoding="utf-8"))
+    elsewhere = tmp_path / "elsewhere"
+    for name in ("DATA_DIR", "CACHE_DIR", "QUESTION_CACHE_DIR", "PHASE_9_DIR", "PHASE_15_DIR"):
+        monkeypatch.setattr(config, name, elsewhere / name)
+    snapshot = tmp_path / "hub" / config.EMBEDDING_REVISION
+    snapshot.mkdir(parents=True)
+    (snapshot / "model.safetensors").write_bytes(b"bge")
+    monkeypatch.setattr(cli, "snapshot_directory", lambda name, revision: snapshot)
+    monkeypatch.setattr(cli, "SentenceTransformerBackend", StubBGE)
+    before = files_under(tmp_path)
+
+    embedding = cli.cmd_p16_build("embed", target_dir=target, hourly_rate_usd=0.74)
+    bm25 = cli.cmd_p16_build("bm25", target_dir=target)
+
+    written = files_under(tmp_path) - before
+    cache = target / "cache"
+    assert all(path.is_relative_to(cache) or path.parent == target / "bm25" for path in written)
+    assert any(path.parent == cache / "questions" for path in written)
+    assert not elsewhere.exists()
+    assert embedding["unit_set_hash"] == bm25["unit_set_hash"] == corpus["unit_set_hash"]
+
+    # The question vectors cover the answerable queries, then the null (live-path) ones.
+    questions, body = multihop_rag.load_questions(
+        target, corpus_unit_set_hash=corpus["unit_set_hash"]
+    )
+    qids = [q.qid for q in questions] + [q.qid for q in multihop_rag.live_path_questions(body)]
+    assert qids == ["mhr-0000", "mhr-0002", "mhr-0001"]
+    assert embedding["n_questions"] == 3
+    loaded = EmbeddingCache(cache / "questions").load(
+        embedding["question_cache_key"], expected_unit_ids=qids
+    )
+    assert loaded is not None
+
+
+def test_the_p16_build_stage_is_registered():
+    args = cli.build_parser().parse_args(["p16-build", "--stage", "extract", "--smoke", "200"])
+    assert (args.command, args.stage, args.smoke) == ("p16-build", "extract", 200)
