@@ -558,9 +558,16 @@ CORPUS_NAME = "corpus.jsonl.gz"
 CORPUS_MANIFEST = "corpus.json"
 
 
-def _corpus_line(unit: IndexingUnit) -> str:
+def _corpus_line(unit: IndexingUnit, extra: Mapping[str, Any] | None = None) -> str:
+    """One corpus line. `extra` adds keys `load_corpus` ignores (Phase 16's article metadata);
+    it can never replace the three the unit is read back from."""
     return json.dumps(
-        {"unit_id": unit.unit_id, "title": unit.title, "sentences": list(unit.sentences)},
+        {
+            **(extra or {}),
+            "unit_id": unit.unit_id,
+            "title": unit.title,
+            "sentences": list(unit.sentences),
+        },
         ensure_ascii=False,
         sort_keys=True,
     )

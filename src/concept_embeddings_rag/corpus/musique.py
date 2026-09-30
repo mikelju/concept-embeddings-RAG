@@ -202,24 +202,39 @@ def corpus_identity(units: Sequence[IndexingUnit]) -> dict[str, str]:
     return {"unit_set_hash": _unit_set_hash(unit_ids), "ordered_unit_digest": digest_of(*unit_ids)}
 
 
+UNIT_CONTRACT = (
+    "one MuSiQue paragraph per unit, sentences = (paragraph_text,), indexable_text = "
+    'f"{title}. {paragraph_text}"; deduplicated by title and text, sorted by unit id'
+)
+
+
 def write_corpus(
     units: Sequence[IndexingUnit],
     directory: Path | str,
     *,
     paragraphs_read: int,
     extra: Mapping[str, Any] | None = None,
+    phase: int = 15,
+    source: Mapping[str, Any] | None = None,
+    unit_contract: str = UNIT_CONTRACT,
+    line_extra: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """`corpus.jsonl.gz` and `corpus.json`, written once, in the form `load_corpus` reads.
 
     `extra` adds recorded fields to the manifest (S2's near-duplicate and long-unit counts).
+    The keyword defaults are Phase 15's; Phase 16 passes its phase, its source pin, its unit
+    contract and, per unit id, the keys its corpus line adds (the article metadata).
     """
     directory = Path(directory)
     target = directory / CORPUS_MANIFEST
     corpus_path = directory / CORPUS_NAME
     if target.exists() or corpus_path.exists():
-        raise MusiqueError(f"{directory} already holds a corpus; a Phase 15 corpus is written once")
+        raise MusiqueError(
+            f"{directory} already holds a corpus; a Phase {phase} corpus is written once"
+        )
     directory.mkdir(parents=True, exist_ok=True)
-    text = "".join(_corpus_line(unit) + "\n" for unit in units)
+    lines = line_extra or {}
+    text = "".join(_corpus_line(unit, lines.get(unit.unit_id)) + "\n" for unit in units)
     temporary = corpus_path.with_name(corpus_path.name + ".tmp")
     # mtime=0 so the same units always compress to the same bytes.
     with temporary.open("wb") as raw, gzip.GzipFile(fileobj=raw, mode="wb", mtime=0) as packed:
@@ -227,8 +242,8 @@ def write_corpus(
     temporary.replace(corpus_path)
     manifest: dict[str, Any] = {
         **(extra or {}),
-        "phase": 15,
-        "source": source_pin(),
+        "phase": phase,
+        "source": source_pin() if source is None else dict(source),
         "n_units": len(units),
         "paragraphs_read": paragraphs_read,
         "duplicate_paragraphs_collapsed": paragraphs_read - len(units),
@@ -237,10 +252,7 @@ def write_corpus(
         **corpus_identity(units),
         "corpus_file": CORPUS_NAME,
         "corpus_file_bytes": corpus_path.stat().st_size,
-        "unit_contract": (
-            "one MuSiQue paragraph per unit, sentences = (paragraph_text,), indexable_text = "
-            'f"{title}. {paragraph_text}"; deduplicated by title and text, sorted by unit id'
-        ),
+        "unit_contract": unit_contract,
         "created_at": datetime.now(UTC).isoformat(timespec="seconds"),
     }
     write_text_atomic(target, json.dumps(manifest, indent=2, ensure_ascii=False, sort_keys=True))
@@ -410,15 +422,15 @@ def _counts(values: Iterable[int]) -> dict[str, int]:
 # --- The live-path questions (D4) --------------------------------------------------------
 
 
-def _live_question(qid: str, text: str) -> Question:
-    """A train question as the live path sees it: its text, and no gold or answer."""
+def _live_question(qid: str, text: str, split: str = LIVE_PATH_SPLIT) -> Question:
+    """A live-path question as the live path sees it: its text, and no gold or answer."""
     return Question(
         qid=qid,
         question=text,
         answer="",
         gold_unit_ids=(),
         supporting_facts=(),
-        split=LIVE_PATH_SPLIT,
+        split=split,
     )
 
 
@@ -439,23 +451,31 @@ def live_path_block(train: Iterable[tuple[str, str]], *, size: int) -> dict[str,
 
 
 def live_path_questions(body: Mapping[str, Any]) -> list[Question]:
-    """The live-path questions of a loaded `questions.json`, their digest recomputed."""
+    """The live-path questions of a loaded `questions.json`, their digest recomputed. The
+    split is the block's own (Phase 15's is `LIVE_PATH_SPLIT`); the digest covers it."""
     block = body["live_path"]
-    questions = [_live_question(str(e["qid"]), str(e["question"])) for e in block["questions"]]
+    split = str(block["split"])
+    questions = [
+        _live_question(str(e["qid"]), str(e["question"]), split) for e in block["questions"]
+    ]
     if question_digest(questions) != block["question_digest"]:
         raise MusiqueError("the live-path questions do not match their recorded digest")
     return questions
 
 
 def write_questions(
-    directory: Path | str, body: Mapping[str, Any], *, live_path: Mapping[str, Any]
+    directory: Path | str,
+    body: Mapping[str, Any],
+    *,
+    live_path: Mapping[str, Any],
+    phase: int = 15,
 ) -> Path:
     """Freeze the validation questions and the live-path block once. A second write over an
     existing file is refused."""
     directory = Path(directory)
     target = directory / QUESTIONS_FILENAME
     if target.exists():
-        raise MusiqueError(f"{target} already freezes the Phase 15 questions")
+        raise MusiqueError(f"{target} already freezes the Phase {phase} questions")
     directory.mkdir(parents=True, exist_ok=True)
     frozen = {**body, "live_path": dict(live_path)}
     write_text_atomic(target, json.dumps(frozen, indent=2, ensure_ascii=False, sort_keys=True))

@@ -1177,6 +1177,62 @@ PHASE_15_TERMINAL_STATES: Final[tuple[str, ...]] = (
     "DATA_STOP",
 )
 
+# --- Phase 16: the frozen systems on MultiHop-RAG ---------------------------------------
+# Fixed by `16.spec.md` (approved and frozen 2026-09-30) and `16.0_multihop_rag_validation.md`
+# (approved the same day). Nothing is fitted on MultiHop-RAG (D3). The split names and the
+# source file names live in `corpus/multihop_rag.py`, for the same reason as Phase 15's.
+
+PHASE_16_DIR: Final[Path] = DATA_DIR / "phase16"
+# Own caches, never a Phase 9-15 one: `question_cache_key` does not include the corpus.
+PHASE_16_CACHE_DIR: Final[Path] = PHASE_16_DIR / "cache"
+PHASE_16_QUESTION_CACHE_DIR: Final[Path] = PHASE_16_CACHE_DIR / "questions"
+PHASE_16_BM25_DIR: Final[Path] = PHASE_16_DIR / "bm25"
+PHASE_16_NODES_DIR: Final[Path] = PHASE_16_DIR / "nodes"
+PHASE_16_MODELS_DIR: Final[Path] = PHASE_16_DIR / "models"
+
+# D1: the corpus as measured on 2026-09-30. A newline paragraph of at most
+# `PHASE_16_BOILERPLATE_MAX_WORDS` whitespace words is boilerplate, kept and counted; the
+# over-window count is whitespace words of the paragraph text past `GLINER_MAX_LEN`.
+PHASE_16_ARTICLES: Final[int] = 609
+PHASE_16_NEWLINE_PARAGRAPHS: Final[int] = 28_711
+PHASE_16_BOILERPLATE_MAX_WORDS: Final[int] = 5
+PHASE_16_BOILERPLATE_PARAGRAPHS: Final[int] = 4_538
+PHASE_16_OVER_WINDOW_PARAGRAPHS: Final[int] = 29
+
+# D2: the queries, the facts and the gold as measured on 2026-09-30. Types are keyed by the
+# source's own `question_type` values; gold counts are after deduplication within a query.
+PHASE_16_QUERIES: Final[int] = 2_556
+PHASE_16_NULL_QUERIES: Final[int] = 301
+PHASE_16_ANSWERABLE_QUERIES: Final[int] = 2_255
+PHASE_16_TYPE_COUNTS: Final[dict[str, int]] = {
+    "comparison_query": 856,
+    "inference_query": 816,
+    "temporal_query": 583,
+}
+PHASE_16_FACTS: Final[int] = 6_084
+PHASE_16_FACTS_INSIDE: Final[int] = 6_055
+PHASE_16_FACTS_STRADDLING: Final[int] = 29
+PHASE_16_GOLD_COUNTS: Final[dict[int, int]] = {2: 1_079, 3: 780, 4: 396}
+PHASE_16_DISTINCT_GOLD_UNITS: Final[int] = 962
+# D8 context: queries in which at least two facts name the same article.
+PHASE_16_SAME_ARTICLE_FACT_QUERIES: Final[int] = 168
+# D2: more than this share of the facts (not of the queries) unmapped is DATA_STOP.
+PHASE_16_UNMAPPED_FACT_SHARE: Final[float] = 0.01
+# D9: Hits@k over units, reported beside the paper's, never compared.
+PHASE_16_HITS_K: Final[tuple[int, ...]] = (4, 10)
+
+# D4 and the frozen systems: Phase 15's values, unchanged.
+PHASE_16_DEV_QUESTIONS: Final[int] = PHASE_15_DEV_QUESTIONS
+PHASE_16_P10C_DEV_SUPPORTED: Final[int] = PHASE_15_P10C_DEV_SUPPORTED
+PHASE_16_P14_DEV_SUPPORTED: Final[int] = PHASE_15_P14_DEV_SUPPORTED
+PHASE_16_SYSTEMS: Final[tuple[str, ...]] = PHASE_15_SYSTEMS
+PHASE_16_SYSTEM_LABELS: Final[dict[str, str]] = PHASE_15_SYSTEM_LABELS
+PHASE_16_P10B_WEIGHTS: Final[tuple[float, ...]] = PHASE_15_P10B_WEIGHTS
+PHASE_16_P10C_WEIGHTS: Final[tuple[float, ...]] = PHASE_15_P10C_WEIGHTS
+PHASE_16_P14_ALPHA: Final[float] = PHASE_15_P14_ALPHA
+PHASE_16_P14_WEIGHTS: Final[tuple[float, ...]] = PHASE_15_P14_WEIGHTS
+PHASE_16_TERMINAL_STATES: Final[tuple[str, ...]] = PHASE_15_TERMINAL_STATES
+
 
 def ensure_directories() -> None:
     """Create the data directories if they do not exist yet."""
