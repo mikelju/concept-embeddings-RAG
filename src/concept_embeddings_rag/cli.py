@@ -58,6 +58,7 @@
     p15-eval        the single authorized pass on MuSiQue validation, rankings included
     p15-outcome     exact McNemar against P10-B (the label) and P10-C, the ladder, D7, D8, D10
     p15-refit       D9, exploratory: the 330-point grid re-fused from the stored rankings
+    p16-data        the pinned MultiHop-RAG source, newline-paragraph corpus, queries, token counts
 
 Each stage is idempotent and refuses to run if its input is missing, saying which
 stage to run first rather than failing somewhere deep inside numpy.
@@ -123,7 +124,7 @@ from concept_embeddings_rag.concepts.labeling import (
     read_api_key,
     save_labels,
 )
-from concept_embeddings_rag.corpus import fullwiki, hf_source, musique, scale_corpus
+from concept_embeddings_rag.corpus import fullwiki, hf_source, multihop_rag, musique, scale_corpus
 from concept_embeddings_rag.corpus.download import (
     CorpusIntegrityError,
     Fetcher,
@@ -7422,13 +7423,22 @@ def _p15_gliner_words() -> Callable[[str], int]:
     return count
 
 
-def _p15_source(source_dir: Path, fetcher: Fetcher | None) -> dict[str, Path]:
-    """The two pinned files, downloaded once, SHA-256 then bytes checked before any parse."""
+def _p15_source(
+    source_dir: Path,
+    fetcher: Fetcher | None,
+    *,
+    files: Mapping[str, Mapping[str, Any]] | None = None,
+    url_of: Callable[[str], str] | None = None,
+) -> dict[str, Path]:
+    """The pinned files, downloaded once, SHA-256 then bytes checked before any parse. The
+    pin table and URL builder default to MuSiQue's (Phase 16 passes MultiHop-RAG's)."""
+    files = musique.SOURCE_FILES if files is None else files
+    url_of = musique.source_url if url_of is None else url_of
     paths: dict[str, Path] = {}
-    for name, pin in musique.SOURCE_FILES.items():
+    for name, pin in files.items():
         path = source_dir / name
         try:
-            ensure_corpus(musique.source_url(name), path, str(pin["sha256"]), fetcher)
+            ensure_corpus(url_of(name), path, str(pin["sha256"]), fetcher)
         except CorpusIntegrityError as error:
             _die(f"{name}: {error}; nothing was parsed")
         size = path.stat().st_size
@@ -8683,6 +8693,158 @@ def cmd_p15_refit(
     return path
 
 
+# --- Phase 16: the frozen systems on MultiHop-RAG ------------------------------------------
+
+
+def _p16_expected_counts() -> dict[str, Any]:
+    """Every count of C1 and C2 measured on 2026-09-30, from `config.PHASE_16_*`."""
+    return {
+        "articles": config.PHASE_16_ARTICLES,
+        "newline_paragraphs": config.PHASE_16_NEWLINE_PARAGRAPHS,
+        "boilerplate_paragraphs": config.PHASE_16_BOILERPLATE_PARAGRAPHS,
+        "over_window_paragraphs": config.PHASE_16_OVER_WINDOW_PARAGRAPHS,
+        "queries": config.PHASE_16_QUERIES,
+        "null_queries": config.PHASE_16_NULL_QUERIES,
+        "answerable_queries": config.PHASE_16_ANSWERABLE_QUERIES,
+        "type_counts": dict(config.PHASE_16_TYPE_COUNTS),
+        "facts": config.PHASE_16_FACTS,
+        "facts_straddling": config.PHASE_16_FACTS_STRADDLING,
+        "gold_counts": dict(config.PHASE_16_GOLD_COUNTS),
+        "distinct_gold_units": config.PHASE_16_DISTINCT_GOLD_UNITS,
+        "same_article_fact_queries": config.PHASE_16_SAME_ARTICLE_FACT_QUERIES,
+    }
+
+
+def cmd_p16_data(
+    target_dir: Path = config.PHASE_16_DIR,
+    *,
+    fetcher: Fetcher | None = None,
+    counter: Any = None,
+    expected: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """S2: the pinned MultiHop-RAG source, the corpus of newline paragraphs, the answerable
+    queries and their gold, the D4 live-path set (the `null` queries) and the token counts,
+    each written once, before any retrieval exists.
+
+    A source other than the one measured on 2026-09-30 (bytes, SHA-256, or any count of C1
+    and C2) is refused before anything is written. A `DATA_STOP` (more than 1 % of the facts
+    unmapped, D2) is written with its evidence and the stage exits non-zero. The GLiNER-word
+    count past the window is recorded and declared only: the spec sets no ceiling.
+    """
+    target_dir = Path(target_dir)
+    expected = _p16_expected_counts() if expected is None else dict(expected)
+    for name in (fullwiki.CORPUS_MANIFEST, multihop_rag.QUESTIONS_FILENAME):
+        if (target_dir / name).exists():
+            _die(f"{target_dir / name} already exists; the Phase 16 data is written once")
+    started = time.perf_counter()
+    paths = _p15_source(
+        target_dir / P15_SOURCE_DIRNAME,
+        fetcher,
+        files=multihop_rag.SOURCE_FILES,
+        url_of=multihop_rag.source_url,
+    )
+    articles, queries = multihop_rag.read_source(
+        paths[multihop_rag.CORPUS_FILE], paths[multihop_rag.QUERIES_FILE]
+    )
+    profile = multihop_rag.corpus_profile(articles)
+    try:
+        units, article_of = multihop_rag.pool_units(articles)
+    except multihop_rag.MultiHopRagError as error:
+        _die(str(error))
+    identity = musique.corpus_identity(units)
+    questions, body = multihop_rag.answerable_questions(queries, articles, units, corpus=identity)
+    live_path = multihop_rag.live_path_block(queries)
+    measured: dict[str, Any] = {
+        "articles": profile["articles"],
+        "newline_paragraphs": profile["newline_paragraphs"],
+        "boilerplate_paragraphs": profile["boilerplate_paragraphs"],
+        "over_window_paragraphs": profile["over_window_paragraphs"],
+        "queries": len(queries),
+        "null_queries": live_path["n_questions"],
+        "answerable_queries": body["n_questions"],
+        "type_counts": body["type_counts"],
+        "facts": body["facts"],
+        "facts_straddling": len(body["straddling"]),
+        "gold_counts": body["gold_counts"],
+        "distinct_gold_units": body["distinct_gold_units"],
+        "same_article_fact_queries": body["context"]["queries_with_two_facts_from_one_article"],
+    }
+    wanted = {
+        key: {str(k): v for k, v in sorted(value.items())} if isinstance(value, Mapping) else value
+        for key, value in expected.items()
+    }
+    problems = [
+        f"{key} {measured[key]}, not {wanted[key]}"
+        for key in wanted
+        if measured[key] != wanted[key]
+    ]
+    if problems:
+        _die(f"the source is not the one measured on 2026-09-30: {'; '.join(problems)}")
+    print(
+        f"[INFO] {profile['articles']} articles; {len(units)} units from "
+        f"{profile['newline_paragraphs']} newline paragraphs; {len(queries)} queries, "
+        f"{body['n_questions']} answerable, {live_path['n_questions']} null"
+    )
+
+    window = musique.units_over_window(
+        units,
+        _p15_gliner_words(),
+        max_len=config.GLINER_MAX_LEN,
+        share=1.0,
+        splitter=(
+            f"gliner {importlib.metadata.version('gliner')} WordsSplitter({P15_WORDS_SPLITTER!r})"
+        ),
+    )
+    try:
+        corpus = multihop_rag.write_corpus(
+            units,
+            target_dir,
+            articles=articles,
+            article_of=article_of,
+            paragraphs_read=profile["newline_paragraphs"],
+            extra={"corpus_profile": profile, "gliner_window": window},
+        )
+        body["expected_counts"] = wanted
+        body["measured_counts"] = measured
+        path = multihop_rag.write_questions(target_dir, body, live_path=live_path)
+    except musique.MusiqueError as error:
+        _die(str(error))
+    print(
+        f"[INFO] corpus {corpus['unit_set_hash']}: {corpus['duplicate_paragraphs_collapsed']} "
+        f"repeats collapsed, {profile['boilerplate_paragraphs']} boilerplate, "
+        f"{profile['over_window_paragraphs']} paragraphs over {profile['window_words']} words"
+    )
+    print(
+        f"[INFO] questions: types {body['type_counts']}, gold {body['gold_counts']}, "
+        f"{body['distinct_gold_units']} distinct gold; {body['facts']} facts, "
+        f"{body['facts_inside']} inside, {len(body['straddling'])} straddling, "
+        f"{body['unmapped_facts']} unmapped (ceiling share {body['unmapped_ceiling_share']})"
+    )
+    print(
+        f"[INFO] context: {measured['same_article_fact_queries']} queries with two facts from "
+        f"one article, {body['context']['queries_gold_in_one_article']} with all gold in one"
+    )
+    print(
+        f"[INFO] GLiNER window: {window['units_over']} of {window['n_units']} units over "
+        f"{window['max_len']} of its words (declared, no ceiling)"
+    )
+    if body["terminal_state"] is not None:
+        _die(f"{body['terminal_state']} recorded in {path}")
+
+    tokens = phase9.build_token_counts(
+        units,
+        TokenCounter() if counter is None else counter,
+        target_dir,
+        unit_set_hash=str(corpus["unit_set_hash"]),
+    )
+    seconds = time.perf_counter() - started
+    print(
+        f"[OK] Phase 16 data frozen in {seconds:.0f} s: {corpus['n_units']} units, "
+        f"{body['n_questions']} questions, {tokens['total_tokens']} tokens -> {target_dir}"
+    )
+    return {"corpus": corpus, "questions": path, "token_counts": tokens, "seconds": seconds}
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="cer",
@@ -9035,6 +9197,10 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser(
         "p15-refit", help="Phase 15: D9, the exploratory refit on the stored rankings"
     )
+    subparsers.add_parser(
+        "p16-data",
+        help="Phase 16: pinned MultiHop-RAG source, newline-paragraph corpus, queries, tokens",
+    )
     p15_build.add_argument("--stage", choices=P15_BUILD_STAGES, required=True)
     p15_build.add_argument(
         "--hourly-rate-usd",
@@ -9211,6 +9377,8 @@ def main(argv: list[str] | None = None) -> int:
         cmd_p15_outcome()
     elif args.command == "p15-refit":
         cmd_p15_refit()
+    elif args.command == "p16-data":
+        cmd_p16_data()
     return 0
 
 
