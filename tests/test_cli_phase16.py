@@ -13,6 +13,7 @@ stub. Nothing reaches the network or `data/`.
 
 import hashlib
 import json
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +26,9 @@ from concept_embeddings_rag.corpus import multihop_rag
 from concept_embeddings_rag.corpus.pool import IndexingUnit, unit_id_for
 from concept_embeddings_rag.embeddings.cache import EmbeddingCache
 from concept_embeddings_rag.evaluation import fullwiki as phase9
+from concept_embeddings_rag.evaluation import phase15
+from concept_embeddings_rag.nodes import local_extraction
+from concept_embeddings_rag.nodes.local_extraction import LocalExtractor
 
 ALPHA = "Alpha wins the cup"
 GAMMA = "Gamma opens a stadium"
@@ -339,3 +343,221 @@ def test_the_p16_pass_refuses_without_the_flag_or_integrity_json(tmp_path: Path)
 def test_the_p16_build_stage_is_registered():
     args = cli.build_parser().parse_args(["p16-build", "--stage", "extract", "--smoke", "200"])
     assert (args.command, args.stage, args.smoke) == ("p16-build", "extract", 200)
+
+
+# --- S6: `p16-outcome` ---------------------------------------------------------------------
+
+P10A, P10B, P10C, P14 = config.PHASE_16_SYSTEMS
+PINNED = config.PHASE_9_GLINER_CONFIGURATION_DIGEST
+N_TOY = 2  # the synthetic answerable queries
+FROZEN = {
+    "weights": {
+        P10B: {"dense": 0.5, "bm25": 0.5},
+        P10C: {"dense": 0.5, "bm25": 0.3, "entity-hop": 0.2},
+        P14: {"dense": 0.5, "bm25": 0.3, "seeded-hop": 0.2},
+    },
+    "alpha": 0.75,
+    "sources": {},
+    "fit_digests": {P10C: "c" * 16, P14: "d" * 16},
+}
+HOTPOTQA_TEST_11 = {P10A: 2852, P10B: 3079, P10C: 3285, P14: 3530}
+MUSIQUE_VALIDATION = {P10A: 436, P10B: 524, P10C: 669, P14: 761}
+STOP_KEYS = {
+    "phase",
+    "primary_comparison",
+    "primary_metric",
+    "terminal_state",
+    "stop_reasons",
+    "code_commit",
+    "created_at",
+}
+
+
+class VariedBGE(StubBGE):
+    """The pinned BGE-small's identity, with a distinct unit vector per text."""
+
+    def encode(self, texts: list[str]) -> np.ndarray:
+        rows = [
+            np.frombuffer(hashlib.sha256(text.encode("utf-8")).digest()[:8], dtype=np.uint8)
+            for text in texts
+        ]
+        vectors = np.asarray(rows, dtype=np.float32).reshape(len(texts), 8) - 127.5
+        return vectors / np.linalg.norm(vectors, axis=1, keepdims=True)
+
+
+def shared_spans(texts: Sequence[str]) -> list[list[str]]:
+    """A stub GLiNER: each unit's title, and one entity every unit shares."""
+    return [[text.split(".")[0], "the shared city"] for text in texts]
+
+
+def serve_extractor(monkeypatch: pytest.MonkeyPatch) -> None:
+    extractor = LocalExtractor(
+        extractor_id=config.GLINER_EXTRACTOR,
+        model=config.GLINER_MODEL,
+        revision=config.GLINER_REVISION,
+        labels=config.GLINER_LABELS,
+        parameters={},
+        library_versions={"gliner": "stub"},
+        spans=shared_spans,
+        _digest=[PINNED],
+    )
+    monkeypatch.setattr(local_extraction, "gliner_extractor", lambda directory: (extractor, 0.5))
+
+
+def phase9_extraction(tmp_path: Path) -> Path:
+    """The Phase 9 pod manifest the extractor identity is compared against."""
+    directory = tmp_path / "phase9"
+    (directory / phase9.GLINER_DIRNAME).mkdir(parents=True)
+    body = {"configuration_digest": PINNED, "library_versions": {"gliner": "stub"}}
+    (directory / phase9.GLINER_DIRNAME / local_extraction.MANIFEST_NAME).write_text(
+        json.dumps(body), encoding="utf-8"
+    )
+    return directory
+
+
+def measured(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """The synthetic Phase 16 pass: data, the four builds, integrity and the single pass."""
+    target = tmp_path / "phase16"
+    run(target, source(monkeypatch))
+    snapshot = tmp_path / "hub" / config.EMBEDDING_REVISION
+    snapshot.mkdir(parents=True)
+    (snapshot / "model.safetensors").write_bytes(b"bge")
+    monkeypatch.setattr(cli, "snapshot_directory", lambda name, revision: snapshot)
+    monkeypatch.setattr(cli, "SentenceTransformerBackend", VariedBGE)
+    model_dir = target / "models" / config.GLINER_EXTRACTOR
+    model_dir.mkdir(parents=True)
+    (model_dir / config.PHASE_9_GLINER_WEIGHTS_FILE).write_bytes(b"weights")
+    serve_extractor(monkeypatch)
+    for stage in ("embed", "bm25", "extract", "index"):
+        cli.cmd_p16_build(stage, target_dir=target)
+    monkeypatch.setattr(phase15, "frozen_weights", lambda **kwargs: FROZEN)
+    monkeypatch.setattr(cli, "_p15_code_identity", lambda *a, **k: {"passed": True, "checks": {}})
+    cli.cmd_p16_integrity(target, phase9_dir=phase9_extraction(tmp_path))
+    monkeypatch.setattr(cli, "_p10_fit_is_committed", lambda path: True)
+    cli.cmd_p15_eval(
+        authorized=True, target_dir=target, n_questions=N_TOY, source=cli.MULTIHOP_RAG_SOURCE
+    )
+    return target
+
+
+def earlier_phases(tmp_path: Path, musique: dict[str, int] = MUSIQUE_VALIDATION) -> dict[str, Path]:
+    """The Phase 14 `test-11` run files and the Phase 15 outcome the ladder reads, reduced to
+    what it reads."""
+    phase14_dir, phase15_dir = tmp_path / "p14", tmp_path / "p15"
+    phase14_dir.mkdir(exist_ok=True)
+    phase15_dir.mkdir(exist_ok=True)
+    for name, supported in HOTPOTQA_TEST_11.items():
+        body = {
+            "system": name,
+            "set": config.PHASE_14_TEST,
+            "metrics": {"n_questions": 5000, "supported_at_primary_budget": supported},
+        }
+        (phase14_dir / f"run-{name}.json").write_text(json.dumps(body), encoding="utf-8")
+    rungs = [
+        {"system": name, "musique": {"supported": s, "n_questions": 2417}}
+        for name, s in musique.items()
+    ]
+    (phase15_dir / "outcome.json").write_text(
+        json.dumps({"d6_ladder": {"rungs": rungs}}), encoding="utf-8"
+    )
+    return {"phase14_dir": phase14_dir, "phase15_dir": phase15_dir}
+
+
+def test_the_outcome_labels_the_pass_and_writes_every_phase_16_report(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    target = measured(tmp_path, monkeypatch)
+
+    path = cli.cmd_p16_outcome(target, n_questions=N_TOY, **earlier_phases(tmp_path))
+
+    body = json.loads(path.read_text(encoding="utf-8"))
+    assert path == target / "outcome.json" and body["phase"] == 16
+    primary = body["d5_primary_p14_vs_p10b"]
+    assert (primary["control"], primary["candidate"], primary["n_questions"]) == (
+        "P10-B",
+        "P14",
+        N_TOY,
+    )
+    assert body["terminal_state"] == phase15.label(
+        primary["wins"], primary["losses"], primary["exact_two_sided_p"]
+    )
+    assert set(body["d6_secondary"]) == {"p14_vs_p10c", "p10c_vs_p10b", "p10b_vs_p10a"}
+    ladder = body["d6_ladder"]
+    assert ladder["columns"] == ["hotpotqa_test_11", "musique_validation", "multihop_rag"]
+    assert [r["musique_validation"]["supported"] for r in ladder["rungs"]] == [436, 524, 669, 761]
+    assert [r["multihop_rag"]["n_questions"] for r in ladder["rungs"]] == [N_TOY] * 4
+    assert set(body["d7_by_gold_count"]["groups"]) == {"2", "3", "4"}
+    assert body["d7_by_gold_count"]["groups"]["4"] == {"n_questions": 0}
+    by_type = body["d7_by_question_type"]["groups"]
+    assert by_type["comparison_query"]["n_questions"] == 1
+    assert by_type["temporal_query"] == {"n_questions": 0}
+    assert set(body["d8_reach"]["dense_rank_split"]) == {"p14_vs_p10b", "p14_vs_p10c"}
+    same = body["d8_same_article"]
+    assert set(same) == {"p10c_vs_p10b", "p14_vs_p10b"}
+    assert same["p10c_vs_p10b"]["hop_component"] == "entity-hop"
+    assert same["p14_vs_p10b"]["hop_component"] == "relevance-hop"
+    assert same["p14_vs_p10b"]["all"]["queries"] == N_TOY
+    context = body["d8_article_context"]
+    assert context["n_queries"] == N_TOY and context["gold_in_one_article"] == 0
+    assert context["queries_with_two_facts_from_one_article"] == 1
+    assert body["d2_repeated_facts"]["n_facts"] == 0
+    hits = body["d9_hits"]
+    assert set(hits["systems"]) == set(config.PHASE_16_SYSTEMS)
+    assert set(hits["systems"][P14]["hits"]) == {"4", "10"}
+    assert hits["systems"][P10A]["hits"]["10"]["gold_units"] == 5
+    assert body["d11_latency"]["run_order"] == list(config.PHASE_16_SYSTEMS)
+    assert "D11" in body["d11_latency"]["note"]
+    assert body["integrity"]["n_questions"] == N_TOY
+
+    with pytest.raises(SystemExit, match="already"):
+        cli.cmd_p16_outcome(target, n_questions=N_TOY, **earlier_phases(tmp_path))
+
+
+def test_the_outcome_refuses_musique_figures_other_than_the_recorded_ones(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    target = measured(tmp_path, monkeypatch)
+    moved = earlier_phases(tmp_path, {**MUSIQUE_VALIDATION, P14: 760})
+
+    with pytest.raises(SystemExit, match="MuSiQue"):
+        cli.cmd_p16_outcome(target, n_questions=N_TOY, **moved)
+
+    assert not (target / "outcome.json").exists()
+
+
+def test_a_facts_data_stop_writes_the_phase_16_stop_only_outcome(tmp_path: Path):
+    stop = {
+        "terminal_state": phase9.DATA_STOP,
+        "unmapped_facts": 70,
+        "facts": 6084,
+        "unmapped_ceiling_share": 0.01,
+    }
+    (tmp_path / multihop_rag.QUESTIONS_FILENAME).write_text(json.dumps(stop), encoding="utf-8")
+
+    body = json.loads(cli.cmd_p16_outcome(tmp_path).read_text(encoding="utf-8"))
+
+    assert set(body) == STOP_KEYS
+    assert (body["phase"], body["terminal_state"]) == (16, phase9.DATA_STOP)
+    assert body["stop_reasons"] == ["questions: 70 of 6084 facts unmapped, past the share of 0.01"]
+
+
+def test_an_integrity_data_stop_writes_the_phase_16_stop_only_outcome(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    run(tmp_path, source(monkeypatch))
+    integrity = {"terminal_state": phase9.DATA_STOP, "stop_reasons": ["live path: ['dense']"]}
+    (tmp_path / phase15.INTEGRITY_FILENAME).write_text(json.dumps(integrity), encoding="utf-8")
+
+    body = json.loads(cli.cmd_p16_outcome(tmp_path).read_text(encoding="utf-8"))
+
+    assert set(body) == STOP_KEYS and body["phase"] == 16
+    assert body["stop_reasons"] == ["integrity: live path: ['dense']"]
+
+
+def test_the_outcome_refuses_without_questions_json(tmp_path: Path):
+    with pytest.raises(SystemExit, match="run 'p16-data'"):
+        cli.cmd_p16_outcome(tmp_path)
+
+
+def test_the_p16_outcome_stage_is_registered():
+    assert cli.build_parser().parse_args(["p16-outcome"]).command == "p16-outcome"

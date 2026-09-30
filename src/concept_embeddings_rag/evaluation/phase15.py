@@ -718,6 +718,32 @@ def ladder(
     }
 
 
+def group_summary(
+    members: Collection[str], runs: Mapping[str, Sequence[Mapping[str, Any]]]
+) -> dict[str, Any]:
+    """One group of questions (`members`, by qid): each system's Full Support and mean gold
+    recall @2,048 and the four paired comparisons over the group, `{"n_questions": 0}` for an
+    empty group. The per-group body of `by_supporting` (D7) and of Phase 16's groupings."""
+    if not members:
+        return {"n_questions": 0}
+    subset = {
+        system: [r for r in records if r["qid"] in members] for system, records in runs.items()
+    }
+    systems: dict[str, Any] = {}
+    for system in config.PHASE_15_SYSTEMS:
+        records = subset[system]
+        supported = _supported(records)
+        systems[system] = {
+            "label": config.PHASE_15_SYSTEM_LABELS[system],
+            "full_support": supported,
+            "full_support_share": supported / len(records),
+            "mean_gold_recall": float(
+                sum(r["budgets"][BUDGET]["gold_recall"] for r in records) / len(records)
+            ),
+        }
+    return {"n_questions": len(members), "systems": systems, "comparisons": comparisons(subset)}
+
+
 def by_supporting(
     questions: Sequence[Question],
     runs: Mapping[str, Sequence[Mapping[str, Any]]],
@@ -736,32 +762,11 @@ def by_supporting(
     body: dict[str, Any] = {}
     for n in groups:
         members = {qid for qid, count in size.items() if count == n}
-        if not members:
-            body[str(n)] = {"n_questions": 0}
-            continue
-        subset = {
-            system: [r for r in records if r["qid"] in members] for system, records in runs.items()
-        }
-        systems: dict[str, Any] = {}
-        for system in config.PHASE_15_SYSTEMS:
-            records = subset[system]
-            supported = _supported(records)
-            systems[system] = {
-                "label": config.PHASE_15_SYSTEM_LABELS[system],
-                "full_support": supported,
-                "full_support_share": supported / len(records),
-                "mean_gold_recall": float(
-                    sum(r["budgets"][BUDGET]["gold_recall"] for r in records) / len(records)
-                ),
-            }
-        body[str(n)] = {
-            "n_questions": len(members),
-            "gold_counts": {
+        body[str(n)] = group_summary(members, runs)
+        if members:
+            body[str(n)]["gold_counts"] = {
                 str(k): v for k, v in sorted(Counter(gold[qid] for qid in members).items())
-            },
-            "systems": systems,
-            "comparisons": comparisons(subset),
-        }
+            }
     return {
         "grouping": "the question's number of supporting paragraphs (is_supporting)",
         "budget": int(BUDGET),

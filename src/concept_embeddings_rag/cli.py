@@ -62,6 +62,9 @@
     p16-build       one build step over the MultiHop-RAG corpus (bm25, embed, extract, index)
     p16-integrity   D4 once: HotpotQA dev code identity, the pod extractor, the null-query live path
     p16-eval        the single authorized pass on the 2,255 answerable MultiHop-RAG queries
+    p16-outcome     exact McNemar against P10-B (the label), the 3-column ladder, D7-D9, D11
+    p16-outcome     exact McNemar against P10-B (the label), the 3-column ladder, D7-D9, D11
+    p16-refit       D10, exploratory: the 330-point grid re-fused from the stored rankings
 
 Each stage is idempotent and refuses to run if its input is missing, saying which
 stage to run first rather than failing somewhere deep inside numpy.
@@ -173,6 +176,7 @@ from concept_embeddings_rag.evaluation import (
     phase13,
     phase14,
     phase15,
+    phase16,
     scale_sensitivity,
     strong_dense,
 )
@@ -8415,6 +8419,7 @@ def _p15_recorded_pass(
     }
     return {
         "questions": questions,
+        "question_body": question_body,
         "token_counts": token_counts,
         "runs": runs,
         "rankings": rankings,
@@ -8453,11 +8458,17 @@ def _p15_hotpotqa_test_11(phase14_dir: Path) -> dict[str, Any]:
     return {"counts": counts, "run_file_digests": digests, "source": str(phase14_dir)}
 
 
-def _p15_stop_outcome(target_dir: Path) -> dict[str, Any] | None:
-    """A recorded `DATA_STOP` (S2's questions or S4's integrity) as the stop-only outcome."""
-    questions_path = target_dir / musique.QUESTIONS_FILENAME
+def _p15_stop_outcome(
+    target_dir: Path, *, source: QuestionSource = MUSIQUE_SOURCE
+) -> dict[str, Any] | None:
+    """A recorded `DATA_STOP` (S2's questions or S4's integrity) as the stop-only outcome.
+
+    `source` names the questions file and the phase (MuSiQue's by default). Phase 16 counts
+    its ceiling over facts, not questions (its D2), and its reason says so.
+    """
+    questions_path = target_dir / source.questions_filename
     if not questions_path.exists():
-        _die(f"{questions_path} is missing: run 'p15-data' first")
+        _die(f"{questions_path} is missing: run '{source.command}-data' first")
     questions = json.loads(questions_path.read_text(encoding="utf-8"))
     integrity_path = target_dir / phase15.INTEGRITY_FILENAME
     integrity = (
@@ -8467,23 +8478,95 @@ def _p15_stop_outcome(target_dir: Path) -> dict[str, Any] | None:
     stop: str | None = None
     if questions.get("terminal_state") is not None:
         stop = str(questions["terminal_state"])
-        reasons.append(
-            f"questions: {questions['questions_with_unmapped_gold']} questions with an "
-            f"unmapped gold paragraph, past the share of {questions['unmapped_ceiling_share']}"
-        )
+        if "unmapped_facts" in questions:
+            reasons.append(
+                f"questions: {questions['unmapped_facts']} of {questions['facts']} facts "
+                f"unmapped, past the share of {questions['unmapped_ceiling_share']}"
+            )
+        else:
+            reasons.append(
+                f"questions: {questions['questions_with_unmapped_gold']} questions with an "
+                f"unmapped gold paragraph, past the share of {questions['unmapped_ceiling_share']}"
+            )
     elif integrity is not None and integrity.get("terminal_state") is not None:
         stop = str(integrity["terminal_state"])
         reasons.extend(f"integrity: {reason}" for reason in integrity["stop_reasons"])
     if stop is None:
         return None
     return {
-        "phase": 15,
+        "phase": source.phase,
         "primary_comparison": "P14 against P10-B",
         "primary_metric": f"full_support@{config.PHASE_9_PRIMARY_BUDGET}_tokens",
         "terminal_state": stop,
         "stop_reasons": reasons,
         "code_commit": _git_commit(),
         "created_at": datetime.now(UTC).isoformat(timespec="seconds"),
+    }
+
+
+def _p15_rank_splits(
+    questions: Sequence[Question],
+    rankings: Mapping[str, Sequence[Mapping[str, Any]]],
+    contexts: Mapping[str, Mapping[str, Sequence[str]]],
+    compared: Mapping[str, Mapping[str, Any]],
+) -> dict[str, Any]:
+    """D8's Dense-rank split of P14 against P10-B and against P10-C, each checked to count
+    the paired wins and losses."""
+    _p10a, p10b, p10c, p14 = config.PHASE_15_SYSTEMS
+    splits: dict[str, Any] = {}
+    for key, control in ((phase15.PRIMARY, p10b), ("p14_vs_p10c", p10c)):
+        split = phase15.rank_split(questions, rankings[p14], contexts[p14], contexts[control])
+        paired = compared[key]
+        if (split["won"]["questions"], split["lost"]["questions"]) != (
+            paired["wins"],
+            paired["losses"],
+        ):
+            _die(f"the D8 split of {key} does not count the paired wins and losses")
+        splits[key] = {
+            "candidate": config.PHASE_15_SYSTEM_LABELS[p14],
+            "control": config.PHASE_15_SYSTEM_LABELS[control],
+            "budget": config.PHASE_9_PRIMARY_BUDGET,
+            "dense_rank_source": "P14's stored Dense component (depth 100)",
+            "contexts": "budget.fill_context over the stored fused lists, checked per "
+            "question against the recorded Full Support",
+            **split,
+        }
+    return splits
+
+
+def _p15_latency(
+    runs: Mapping[str, Sequence[Mapping[str, Any]]],
+    bodies: Mapping[str, Mapping[str, Any]],
+    *,
+    note: str,
+) -> dict[str, Any]:
+    """The recorded latency, run order and memory before each system, and P14's `sim`."""
+    p14 = config.PHASE_15_SYSTEMS[3]
+    order = sorted(bodies, key=lambda name: int(bodies[name]["order"]))
+    total_ms = [float(r["latency_ms"]) for r in runs[p14]]
+    sim_ms = [1000.0 * float(r["sim_seconds"]) for r in runs[p14]]
+    return {
+        "boundary": (
+            "Retriever.retrieve wall time per question from the recorded latency_ms, laptop, "
+            "one pass; for P14 sim is 1000 * sim_seconds, inside retrieve"
+        ),
+        "note": note,
+        "run_order": order,
+        "systems": {
+            name: {
+                "label": config.PHASE_15_SYSTEM_LABELS[name],
+                "order": bodies[name]["order"],
+                "retrieve": phase9.latency_summary(runs[name]),
+                "memory_before": bodies[name]["memory_before"],
+                "peak_memory_mb_after": bodies[name]["peak_memory_mb"],
+                "seconds": bodies[name]["seconds"],
+            }
+            for name in order
+        },
+        "p14_sim": _p14_sim_summary([r["sim_seconds"] for r in runs[p14]]),
+        "p14_retrieve_without_sim": _p14_latency_stats(
+            [t - s for t, s in zip(total_ms, sim_ms, strict=True)]
+        ),
     }
 
 
@@ -8519,7 +8602,6 @@ def cmd_p15_outcome(
     questions: list[Question] = checked["questions"]
     runs, rankings, bodies = checked["runs"], checked["rankings"], checked["bodies"]
     contexts = checked["contexts"]
-    p10a, p10b, p10c, p14 = config.PHASE_15_SYSTEMS
     try:
         compared = phase15.comparisons(runs)
         by_supporting = phase15.by_supporting(questions, runs)
@@ -8531,55 +8613,15 @@ def cmd_p15_outcome(
     if by_supporting["other"]:
         _die(f"{by_supporting['other']} questions have a supporting count outside 2 / 3 / 4")
 
-    splits: dict[str, Any] = {}
-    for key, control in ((phase15.PRIMARY, p10b), ("p14_vs_p10c", p10c)):
-        split = phase15.rank_split(questions, rankings[p14], contexts[p14], contexts[control])
-        paired = compared[key]
-        if (split["won"]["questions"], split["lost"]["questions"]) != (
-            paired["wins"],
-            paired["losses"],
-        ):
-            _die(f"the D8 split of {key} does not count the paired wins and losses")
-        splits[key] = {
-            "candidate": config.PHASE_15_SYSTEM_LABELS[p14],
-            "control": config.PHASE_15_SYSTEM_LABELS[control],
-            "budget": config.PHASE_9_PRIMARY_BUDGET,
-            "dense_rank_source": "P14's stored Dense component (depth 100)",
-            "contexts": "budget.fill_context over the stored fused lists, checked per "
-            "question against the recorded Full Support",
-            **split,
-        }
-    reach["dense_rank_split"] = splits
-
-    order = sorted(bodies, key=lambda name: int(bodies[name]["order"]))
-    total_ms = [float(r["latency_ms"]) for r in runs[p14]]
-    sim_ms = [1000.0 * float(r["sim_seconds"]) for r in runs[p14]]
-    latency = {
-        "boundary": (
-            "Retriever.retrieve wall time per question from the recorded latency_ms, laptop, "
-            "one pass; for P14 sim is 1000 * sim_seconds, inside retrieve"
-        ),
-        "note": (
+    reach["dense_rank_split"] = _p15_rank_splits(questions, rankings, contexts, compared)
+    latency = _p15_latency(
+        runs,
+        bodies,
+        note=(
             "the MuSiQue corpus is about 60 times smaller than FullWiki: these figures do not "
             "compare with earlier phases (D10)"
         ),
-        "run_order": order,
-        "systems": {
-            name: {
-                "label": config.PHASE_15_SYSTEM_LABELS[name],
-                "order": bodies[name]["order"],
-                "retrieve": phase9.latency_summary(runs[name]),
-                "memory_before": bodies[name]["memory_before"],
-                "peak_memory_mb_after": bodies[name]["peak_memory_mb"],
-                "seconds": bodies[name]["seconds"],
-            }
-            for name in order
-        },
-        "p14_sim": _p14_sim_summary([r["sim_seconds"] for r in runs[p14]]),
-        "p14_retrieve_without_sim": _p14_latency_stats(
-            [t - s for t, s in zip(total_ms, sim_ms, strict=True)]
-        ),
-    }
+    )
 
     terminal_state = phase15.outcome_label(compared)
     body = {
@@ -9015,6 +9057,186 @@ def cmd_p16_eval(
     )
 
 
+def _p16_musique_column(phase15_dir: Path) -> dict[str, Any]:
+    """D6's MuSiQue column: the four systems' validation Full Support @2,048 from the
+    committed Phase 15 `outcome.json` `d6_ladder`, which must still record the figures
+    Phase 15 reported (436 / 524 / 669 / 761 of 2,417)."""
+    path = Path(phase15_dir) / phase15.OUTCOME_FILENAME
+    if not path.exists():
+        _die(f"{path} is missing: the ladder reads the Phase 15 outcome")
+    if not _p10_fit_is_committed(path):
+        _die(f"{path} is not committed unmodified; the ladder reads only the committed one")
+    text = path.read_text(encoding="utf-8")
+    rungs = {rung["system"]: rung["musique"] for rung in json.loads(text)["d6_ladder"]["rungs"]}
+    counts: dict[str, dict[str, int]] = {}
+    for name in config.PHASE_16_SYSTEMS:
+        column = rungs.get(name, {})
+        observed = (int(column.get("n_questions", -1)), int(column.get("supported", -1)))
+        expected = (
+            phase16.MUSIQUE_VALIDATION_QUESTIONS,
+            phase16.MUSIQUE_VALIDATION_SUPPORTED[name],
+        )
+        if observed != expected:
+            _die(
+                f"{path.name} records {observed} for {name} on MuSiQue, not the reported {expected}"
+            )
+        counts[name] = {"supported": observed[1], "n_questions": observed[0]}
+    return {"counts": counts, "outcome_digest": digest_of(text), "source": str(path)}
+
+
+def cmd_p16_outcome(
+    target_dir: Path = config.PHASE_16_DIR,
+    *,
+    phase14_dir: Path = config.PHASE_14_DIR,
+    phase15_dir: Path = config.PHASE_15_DIR,
+    n_questions: int = config.PHASE_16_ANSWERABLE_QUERIES,
+) -> Path:
+    """S6 (D5-D9, D11 and deviation 16.1): the label, the comparisons and the descriptive
+    reports on MultiHop-RAG, written once.
+
+    Phase 15's pieces, function by function: the stop-only form on a recorded `DATA_STOP`
+    (`_p15_stop_outcome`); the pass read back and checked whole (`_p15_recorded_pass`); D5
+    and D6 through `phase15.comparisons`, the label from P14 against P10-B only
+    (`phase15.outcome_label`); the reach and the Dense-rank split (`phase15.reach`,
+    `_p15_rank_splits`); latency, run order and memory (`_p15_latency`). What Phase 16 adds
+    is in `evaluation.phase16`: the ladder beside HotpotQA `test-11` and MuSiQue validation;
+    D7 by gold count and by `question_type`; D8's same-article tally for P10-C and P14
+    against P10-B, with P1's article from `multihop_rag.load_articles`, and its two context
+    shares; deviation 16.1's other-paragraph count; D9's Hits@4 and Hits@10.
+    """
+    target_dir = Path(target_dir)
+    target = target_dir / phase15.OUTCOME_FILENAME
+    if target.exists():
+        _die(f"{target} already exists; the Phase 16 outcome is written once")
+    stopped = _p15_stop_outcome(target_dir, source=MULTIHOP_RAG_SOURCE)
+    if stopped is not None:
+        path = write_text_atomic(target, json.dumps(stopped, indent=2, sort_keys=True))
+        print(f"[OK] {stopped['terminal_state']}: {'; '.join(stopped['stop_reasons'])} -> {path}")
+        return path
+
+    started = time.perf_counter()
+    hotpotqa = _p15_hotpotqa_test_11(Path(phase14_dir))
+    musique_column = _p16_musique_column(Path(phase15_dir))
+    checked = _p15_recorded_pass(target_dir, n_questions, source=MULTIHOP_RAG_SOURCE)
+    questions: list[Question] = checked["questions"]
+    question_body: dict[str, Any] = checked["question_body"]
+    runs, rankings, bodies = checked["runs"], checked["rankings"], checked["bodies"]
+    contexts = checked["contexts"]
+    p10a, p10b, p10c, p14 = config.PHASE_16_SYSTEMS
+    types = {str(e["qid"]): str(e["question_type"]) for e in question_body["questions"]}
+    try:
+        articles = multihop_rag.load_articles(target_dir)
+    except multihop_rag.MultiHopRagError as error:
+        _die(str(error))
+    try:
+        compared = phase15.comparisons(runs)
+        reach = phase15.reach(
+            questions, rankings, {name: bodies[name]["ranking_components"] for name in bodies}
+        )
+        by_gold = phase16.by_gold_count(questions, runs)
+        by_type = phase16.by_question_type(questions, types, runs)
+        same_article = {
+            f"{name}_vs_p10b": {
+                "candidate": config.PHASE_16_SYSTEM_LABELS[system],
+                "control": config.PHASE_16_SYSTEM_LABELS[p10b],
+                **phase16.same_article(
+                    questions,
+                    rankings[system],
+                    hop_component=str(bodies[system]["ranking_components"][-1]),
+                    candidate=contexts[system],
+                    control=contexts[p10b],
+                    articles=articles,
+                    types=types,
+                ),
+            }
+            for name, system in (("p10c", p10c), ("p14", p14))
+        }
+        context = phase16.article_context(questions, rankings[p10a], articles)
+        repeated = phase16.repeated_other(question_body["repeated_facts"], contexts)
+        hits = phase16.hits_report(rankings, questions)
+    except (phase15.Phase15Error, phase16.Phase16Error) as error:
+        _die(str(error))
+    for name, split in (("gold count", by_gold), ("question type", by_type)):
+        if split["other"]:
+            _die(f"{split['other']} queries have a {name} outside the spec's groups")
+    recorded_one_article = question_body["context"]["queries_gold_in_one_article"]
+    if context["gold_in_one_article"] != recorded_one_article:
+        _die(
+            f"{context['gold_in_one_article']} queries have their gold in one article, not the "
+            f"{recorded_one_article} questions.json records"
+        )
+    context["queries_with_two_facts_from_one_article"] = question_body["context"][
+        "queries_with_two_facts_from_one_article"
+    ]
+
+    reach["dense_rank_split"] = _p15_rank_splits(questions, rankings, contexts, compared)
+    latency = _p15_latency(
+        runs,
+        bodies,
+        note=(
+            "the MultiHop-RAG corpus is under 30,000 units: these figures do not compare with "
+            "earlier phases (D11)"
+        ),
+    )
+    ladder = phase16.ladder(
+        {
+            phase16.HOTPOTQA: hotpotqa["counts"],
+            phase16.MUSIQUE: musique_column["counts"],
+            phase16.MULTIHOP_RAG: phase16.counts(runs),
+        }
+    )
+
+    terminal_state = phase15.outcome_label(compared)
+    body = {
+        "phase": 16,
+        "set": MULTIHOP_RAG_SOURCE.split,
+        "n_questions": len(questions),
+        "primary_comparison": "P14 against P10-B",
+        "primary_metric": f"full_support@{config.PHASE_9_PRIMARY_BUDGET}_tokens",
+        "test": "exact two-sided McNemar (binomial on discordant queries, p = 1/2)",
+        "alpha": config.PHASE_9_ALPHA,
+        "terminal_state": terminal_state,
+        "label_rule": (
+            "TRANSFER_SUPPORTED wins > losses and p < 0.05; TRANSFER_REGRESSION losses > wins "
+            "and p < 0.05; TRANSFER_NOT_SUPPORTED otherwise; from P14 against P10-B only (D5)"
+        ),
+        # A recorded DATA_STOP writes the stop-only form above, and every integrity miss
+        # stops the stage before this file is written, so none can reach here.
+        "stop_reasons": [],
+        "d5_primary_p14_vs_p10b": compared[phase15.PRIMARY],
+        "d6_secondary": {key: compared[key] for key, _a, _b in phase15.COMPARISONS[1:]},
+        "d6_note": "preregistered secondary comparisons; none can change the label (D6)",
+        "d6_ladder": {
+            **ladder,
+            "hotpotqa_source": hotpotqa,
+            "musique_source": {k: v for k, v in musique_column.items() if k != "counts"},
+        },
+        "d7_by_gold_count": by_gold,
+        "d7_by_question_type": by_type,
+        "d8_reach": reach,
+        "d8_same_article": same_article,
+        "d8_article_context": context,
+        "d2_repeated_facts": repeated,
+        "d9_hits": hits,
+        "d11_latency": latency,
+        "integrity": checked["integrity"],
+        "code_commit": _git_commit(),
+        "created_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        "seconds": time.perf_counter() - started,
+    }
+    if target.exists():
+        _die(f"{target} already exists; the Phase 16 outcome is written once")
+    path = write_text_atomic(target, json.dumps(body, indent=2, sort_keys=True))
+    primary, secondary = compared[phase15.PRIMARY], compared["p14_vs_p10c"]
+    print(
+        f"[OK] {terminal_state}: against P10-B wins {primary['wins']}, losses "
+        f"{primary['losses']}, p = {primary['exact_two_sided_p']:.4g}; against P10-C wins "
+        f"{secondary['wins']}, losses {secondary['losses']}, "
+        f"p = {secondary['exact_two_sided_p']:.4g} -> {path}"
+    )
+    return path
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="cer",
@@ -9384,6 +9606,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="Phase 16: the single authorized pass on the answerable MultiHop-RAG queries",
     )
     p16_eval.add_argument("--authorized-pass", action="store_true", dest="authorized")
+    subparsers.add_parser(
+        "p16-outcome",
+        help="Phase 16: exact McNemar against P10-B (the label), the ladder, D7-D9 and D11",
+    )
     p16_build.add_argument("--stage", choices=P15_BUILD_STAGES, required=True)
     p16_build.add_argument(
         "--hourly-rate-usd",
@@ -9582,6 +9808,8 @@ def main(argv: list[str] | None = None) -> int:
         cmd_p16_integrity()
     elif args.command == "p16-eval":
         cmd_p16_eval(authorized=args.authorized)
+    elif args.command == "p16-outcome":
+        cmd_p16_outcome()
     return 0
 
 
