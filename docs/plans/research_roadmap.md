@@ -486,6 +486,13 @@ setting), then **LegalBench-RAG** (contracts and policies, character spans, CC B
 single-evidence: a domain-transfer test). Each is a phase of its own, systems frozen, nothing
 fitted, results reported by number of gold paragraphs as they are.
 
+**MultiHop-RAG measured in Phase 16 (2026-09-30): `TRANSFER_REGRESSION`**
+([`phase_16/16.results.md`](phase_16/16.results.md)). Frozen, P14 loses to Dense + BM25 by
+−3.28 pp Full Support @2,048 (31 wins / 105 losses) on the 2,255 answerable queries; P10-C by
+−2.88 pp; BM25 adds +11.04 pp over Dense. The first non-Wikipedia corpus of the queue does not
+carry the gain. QASPER and LegalBench-RAG stay queued; whether and when they run is the author's
+decision with this result in view.
+
 **Set queries with a large context (deferred, author 2026-09-30).** The author wants to see how
 the Entity Hop behaves when a query needs many paragraphs (summaries, "all the causes of X") and
 the context window is much larger (16k-32k). The literature's metric for it is QUEST's

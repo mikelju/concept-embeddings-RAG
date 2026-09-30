@@ -1,6 +1,6 @@
 # Research summary — minimum structure for multi-hop retrieval
 
-> Status on 2026-09-29: the planned research line (Phases 1-9) is complete, and Phases 10-15 of
+> Status on 2026-09-30: the planned research line (Phases 1-9) is complete, and Phases 10-16 of
 > the next line are measured. This page summarises
 > what was asked, what was measured and what it establishes. Every figure links back to the
 > phase document that records it with its artifact; nothing here is new measurement.
@@ -24,7 +24,9 @@ has a baseline it must justify itself against.
   19,366 whole Wikipedia intro paragraphs (Phases 1-8), then the full HotpotQA processed Wikipedia,
   5,233,329 paragraphs, with all 7,405 validation questions (Phase 9). Phase 15 adds MuSiQue: its
   2,417 validation questions (2-4 supporting paragraphs) over 101,962 pooled MuSiQue paragraphs,
-  with every weight frozen at its HotpotQA value.
+  with every weight frozen at its HotpotQA value. Phase 16 adds MultiHop-RAG, a corpus that is
+  not Wikipedia: 2,255 news queries (2-4 gold paragraphs) over the 27,989 paragraphs of 609
+  articles, again with every weight frozen.
 - **Unit.** One complete paragraph, never a fixed-length window.
 - **Metric of record.** Full Support @2,048 tokens: the share of questions for which **every** gold
   paragraph fits in a 2,048-token context built from the ranking. It measures what a reader model
@@ -48,6 +50,7 @@ has a baseline it must justify itself against.
 | [11](plans/phase_11/11.results.md)-[13](plans/phase_13/13.results.md) | Can the question choose which of P1's entities to hop from (DF cap, question entities, sentence or mention-window similarity)? | **`DEV_STOP` three times.** Every hard filter on the seeds loses on dev; `test-11` stayed unopened |
 | [14](plans/phase_14/14.results.md) | Does ordering the hop's candidates by their similarity to the question help? | **`CANDIDATE_RELEVANCE_SUPPORTED`**: +4.90 pp over Dense + BM25 + Entity Hop on 5,000 new held-out train questions |
 | [15](plans/phase_15/15.results.md) | Do the Entity Hop systems still beat Dense + BM25 on MuSiQue, with nothing refitted? | **`TRANSFER_SUPPORTED`**: P14 +9.81 pp over Dense + BM25 and +3.81 pp over the Entity Hop system; the gain is on 2-paragraph questions |
+| [16](plans/phase_16/16.results.md) | And on news articles (MultiHop-RAG), a corpus that is not Wikipedia? | **`TRANSFER_REGRESSION`**: P14 −3.28 pp against Dense + BM25 (31 wins / 105 losses); both hop steps lose; BM25 alone adds +11.04 pp over Dense |
 
 ## The mechanism that worked
 
@@ -160,6 +163,29 @@ after the label: MuSiQue mined its distractor paragraphs with BM25, so its hard 
 against lexical retrieval in particular; the comparison against P10-C, where both arms hold BM25,
 is not exposed to that, and the near-duplicate gold measured post hoc moves no comparison.
 
+**8. It does not transfer to news: on MultiHop-RAG the frozen hop costs questions.** Phase 16 ran
+the same four systems once, nothing refitted, on the 2,255 answerable MultiHop-RAG queries (English
+news; evidence in 2-4 paragraphs, always from two or more articles) over the 609 articles cut at
+their own paragraph breaks (27,989 units, the title prefixed to each). Full Support @2,048, beside
+the two Wikipedia benchmarks:
+
+| System | MultiHop-RAG | MuSiQue validation | HotpotQA `test-11` |
+|---|---:|---:|---:|
+| Dense | 14.99 % | 18.04 % | 57.04 % |
+| Dense + BM25 | **26.03 %** | 21.68 % | 61.58 % |
+| Dense + BM25 + Entity Hop | 23.15 % (−2.88 pp; 25 wins / 90 losses) | 27.68 % | 65.70 % |
+| P14 | 22.75 % (−3.28 pp against Dense + BM25, 31 wins / 105 losses, p = 1.3e-10; −0.40 pp against the Entity Hop system, p = 0.29) | 31.49 % | 70.60 % |
+
+BM25's step is the largest the line has measured (+11.04 pp); both hop steps are negative. The
+loss is mostly on two-gold queries and largest on comparison queries, which the spec expected to
+suit a shared-entity hop best. Three measured facts frame it, read as hypotheses and not as
+established causes: Dense's first paragraph is a gold one for only 17 % of the queries (57 % on
+MuSiQue), though its article holds gold for 62 %; refitting the weights on the same queries
+(exploratory) puts the hop's weight at 0 and BM25's at 0.7; and the frozen weights take 0.2 from
+BM25, which found at least 59 of the 114 gold paragraphs P14 lost. The hop's few gains came about
+two thirds from another article, not from the rest of P1's. One tiny corpus of one kind of text,
+with questions written by an LLM: it bounds the claim, it does not settle why.
+
 ## What did not work, and what is not established
 
 - **Concepts, in two operationalizations**, add nothing. The first used concepts induced from
@@ -202,9 +228,12 @@ second held-out set, which is now spent. P14 is the line's best system. Phase 15
 the gain was not only an artifact of how HotpotQA was built: frozen, P14 and the Entity Hop system still
 beat Dense + BM25 on MuSiQue, on two-paragraph questions. That is a second Wikipedia benchmark, a
 small corpus and a one-hop design against 2-4 hop questions: evidence, not proof, of generality.
-Next, by the author's decision, Phase 16 runs the same frozen systems on a corpus that is not
-Wikipedia, and Phase 17 tests an untrained second-hop query, the vector of "question + P1",
-against Dense ([`plans/0_master_plan.md`](plans/0_master_plan.md)).
+Phase 16 then ran the same frozen systems on news articles (MultiHop-RAG), and there they lose
+to Dense + BM25: the gain is not a default for any corpus, and one news corpus is not enough to
+say where its boundary lies (hypothesis: the configuration fitted on HotpotQA, not the hop itself). P14 remains the best system on the two Wikipedia benchmarks. The next
+step is the author's to decide with that result in view; the master plan had Phase 17 (an
+untrained second-hop query, the vector of "question + P1") after the corpus validations, and the
+roadmap queues QASPER and LegalBench-RAG ([`plans/0_master_plan.md`](plans/0_master_plan.md)).
 
 ## Reproducibility
 

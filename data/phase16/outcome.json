@@ -1,0 +1,3738 @@
+{
+  "alpha": 0.05,
+  "code_commit": "7aa0bb45c2c2fc3d241ffcd5c18dec93e128ed78",
+  "created_at": "2026-09-30T12:26:08+00:00",
+  "d11_latency": {
+    "boundary": "Retriever.retrieve wall time per question from the recorded latency_ms, laptop, one pass; for P14 sim is 1000 * sim_seconds, inside retrieve",
+    "note": "the MultiHop-RAG corpus is under 30,000 units: these figures do not compare with earlier phases (D11)",
+    "p14_retrieve_without_sim": {
+      "max_ms": 338.54620018973947,
+      "mean_ms": 3.0556519722314075,
+      "median_ms": 2.646500011906028,
+      "p95_ms": 3.4033400705084187
+    },
+    "p14_sim": {
+      "boundary": "seconds of the one phase14.candidate_similarity call per question (gathering the C(q) rows and their dot products with the question vector), inside retrieve: latency_ms includes it; 0.0 when C(q) is empty",
+      "max_ms": 1.1123998556286097,
+      "mean_ms": 0.10745835959283581,
+      "median_ms": 0.07360009476542473,
+      "n_questions": 2255,
+      "p95_ms": 0.4123198799788945,
+      "total_seconds": 0.24231860088184476
+    },
+    "run_order": [
+      "dense",
+      "hybrid-bm25",
+      "hybrid-bm25-entity-hop",
+      "hybrid-bm25-seeded-hop"
+    ],
+    "systems": {
+      "dense": {
+        "label": "P10-A",
+        "memory_before": {
+          "peak_memory_mb": 375.40234375,
+          "working_set_mb": 355.25
+        },
+        "order": 0,
+        "peak_memory_mb_after": 411.88671875,
+        "retrieve": {
+          "boundary": "Retriever.retrieve wall time per question, question vector served from a cache; includes dense scoring, the second component and fusion; excludes question encoding",
+          "max_ms": 6.528099998831749,
+          "mean_ms": 1.2652195994215636,
+          "median_ms": 1.172899967059493,
+          "p95_ms": 1.6736300196498624
+        },
+        "seconds": 3.125674699898809
+      },
+      "hybrid-bm25": {
+        "label": "P10-B",
+        "memory_before": {
+          "peak_memory_mb": 411.890625,
+          "working_set_mb": 411.890625
+        },
+        "order": 1,
+        "peak_memory_mb_after": 537.0,
+        "retrieve": {
+          "boundary": "Retriever.retrieve wall time per question, question vector served from a cache; includes dense scoring, the second component and fusion; excludes question encoding",
+          "max_ms": 73.66480003111064,
+          "mean_ms": 1.9174602675662602,
+          "median_ms": 1.8074000254273415,
+          "p95_ms": 2.440979960374534
+        },
+        "seconds": 4.600629299879074
+      },
+      "hybrid-bm25-entity-hop": {
+        "label": "P10-C",
+        "memory_before": {
+          "peak_memory_mb": 537.02734375,
+          "working_set_mb": 537.01171875
+        },
+        "order": 2,
+        "peak_memory_mb_after": 763.80859375,
+        "retrieve": {
+          "boundary": "Retriever.retrieve wall time per question, question vector served from a cache; includes dense scoring, the second component and fusion; excludes question encoding",
+          "max_ms": 188.61999991349876,
+          "mean_ms": 2.831864745424288,
+          "median_ms": 2.498599933460355,
+          "p95_ms": 3.2611101167276497
+        },
+        "seconds": 6.660562900127843
+      },
+      "hybrid-bm25-seeded-hop": {
+        "label": "P14",
+        "memory_before": {
+          "peak_memory_mb": 763.82421875,
+          "working_set_mb": 763.8203125
+        },
+        "order": 3,
+        "peak_memory_mb_after": 992.78515625,
+        "retrieve": {
+          "boundary": "Retriever.retrieve wall time per question, question vector served from a cache; includes dense scoring, the second component and fusion; excludes question encoding",
+          "max_ms": 339.098600205034,
+          "mean_ms": 3.1631103318242433,
+          "median_ms": 2.7425000444054604,
+          "p95_ms": 3.6334800766780964
+        },
+        "seconds": 7.41847649984993
+      }
+    }
+  },
+  "d2_repeated_facts": {
+    "budget": 2048,
+    "n_facts": 29,
+    "n_queries": 29,
+    "note": "reported, deciding nothing: bounds the possible false misses of option A",
+    "rule": "a repeated fact's gold is its first occurrence; counted: queries where one of the fact's other paragraphs is in the system's 2,048-token context and its gold unit is not (deviation 16.1, option A)",
+    "systems": {
+      "dense": {
+        "label": "P10-A",
+        "qids": [
+          "mhr-0099",
+          "mhr-0111",
+          "mhr-0278",
+          "mhr-0548",
+          "mhr-1179",
+          "mhr-1437",
+          "mhr-1905"
+        ],
+        "queries": 7
+      },
+      "hybrid-bm25": {
+        "label": "P10-B",
+        "qids": [
+          "mhr-0099",
+          "mhr-0548",
+          "mhr-1060",
+          "mhr-1179",
+          "mhr-1331",
+          "mhr-1905"
+        ],
+        "queries": 6
+      },
+      "hybrid-bm25-entity-hop": {
+        "label": "P10-C",
+        "qids": [
+          "mhr-0099",
+          "mhr-0548",
+          "mhr-1060",
+          "mhr-1179",
+          "mhr-1331",
+          "mhr-1905"
+        ],
+        "queries": 6
+      },
+      "hybrid-bm25-seeded-hop": {
+        "label": "P14",
+        "qids": [
+          "mhr-1060",
+          "mhr-1331",
+          "mhr-1905"
+        ],
+        "queries": 3
+      }
+    }
+  },
+  "d5_primary_p14_vs_p10b": {
+    "candidate": "P14",
+    "candidate_successes": 513,
+    "control": "P10-B",
+    "control_successes": 587,
+    "delta_percentage_points": -3.2815964523281598,
+    "exact_two_sided_p": 1.3263433165240426e-10,
+    "losses": 105,
+    "n_questions": 2255,
+    "ties": 2119,
+    "wins": 31
+  },
+  "d6_ladder": {
+    "columns": [
+      "hotpotqa_test_11",
+      "musique_validation",
+      "multihop_rag"
+    ],
+    "hotpotqa_source": {
+      "counts": {
+        "dense": {
+          "n_questions": 5000,
+          "supported": 2852
+        },
+        "hybrid-bm25": {
+          "n_questions": 5000,
+          "supported": 3079
+        },
+        "hybrid-bm25-entity-hop": {
+          "n_questions": 5000,
+          "supported": 3285
+        },
+        "hybrid-bm25-seeded-hop": {
+          "n_questions": 5000,
+          "supported": 3530
+        }
+      },
+      "run_file_digests": {
+        "dense": "0a69d3889f9c9840d720956be9322a5061c428b19d75f54a96c91f0c5f3b3410",
+        "hybrid-bm25": "e7b6e640c96b1b8774e5bc87f63729508bc106bad4983328d2a11dfa88f4cff7",
+        "hybrid-bm25-entity-hop": "851017508b8299ae82fab689a68447be9b3ac317ccfe329676a73004cf8ec6ad",
+        "hybrid-bm25-seeded-hop": "b317b977ba9a9310b080df08128f42956cc6219ae1b912421153b1daf7b1fdef"
+      },
+      "source": "C:\\Python Projects\\concept-embeddings-RAG\\data\\phase14"
+    },
+    "metric": "full_support@2048_tokens",
+    "musique_source": {
+      "outcome_digest": "52647f2f3684bbc98a385e9994a146ea34803ad634eb9e05815c473f8a18348c",
+      "source": "C:\\Python Projects\\concept-embeddings-RAG\\data\\phase15\\outcome.json"
+    },
+    "new_column": "multihop_rag",
+    "note": "the columns differ in corpus, questions and size: they compare the direction and order of the gains, not their size (D6)",
+    "rungs": [
+      {
+        "hotpotqa_test_11": {
+          "full_support_percent": 57.04,
+          "n_questions": 5000,
+          "supported": 2852
+        },
+        "label": "P10-A",
+        "multihop_rag": {
+          "full_support_percent": 14.98891352549889,
+          "n_questions": 2255,
+          "supported": 338
+        },
+        "musique_validation": {
+          "full_support_percent": 18.038891187422426,
+          "n_questions": 2417,
+          "supported": 436
+        },
+        "system": "dense"
+      },
+      {
+        "hotpotqa_test_11": {
+          "full_support_percent": 61.58,
+          "n_questions": 5000,
+          "supported": 3079
+        },
+        "label": "P10-B",
+        "multihop_rag": {
+          "full_support_percent": 26.031042128603104,
+          "n_questions": 2255,
+          "supported": 587
+        },
+        "musique_validation": {
+          "full_support_percent": 21.67976830781961,
+          "n_questions": 2417,
+          "supported": 524
+        },
+        "system": "hybrid-bm25"
+      },
+      {
+        "hotpotqa_test_11": {
+          "full_support_percent": 65.7,
+          "n_questions": 5000,
+          "supported": 3285
+        },
+        "label": "P10-C",
+        "multihop_rag": {
+          "full_support_percent": 23.148558758314856,
+          "n_questions": 2255,
+          "supported": 522
+        },
+        "musique_validation": {
+          "full_support_percent": 27.678940835746793,
+          "n_questions": 2417,
+          "supported": 669
+        },
+        "system": "hybrid-bm25-entity-hop"
+      },
+      {
+        "hotpotqa_test_11": {
+          "full_support_percent": 70.6,
+          "n_questions": 5000,
+          "supported": 3530
+        },
+        "label": "P14",
+        "multihop_rag": {
+          "full_support_percent": 22.749445676274945,
+          "n_questions": 2255,
+          "supported": 513
+        },
+        "musique_validation": {
+          "full_support_percent": 31.48531237070749,
+          "n_questions": 2417,
+          "supported": 761
+        },
+        "system": "hybrid-bm25-seeded-hop"
+      }
+    ],
+    "steps": [
+      {
+        "all_same_sign": true,
+        "from": "P10-A",
+        "gain_pp": {
+          "hotpotqa_test_11": 4.539999999999999,
+          "multihop_rag": 11.042128603104214,
+          "musique_validation": 3.6408771203971853
+        },
+        "new_column_agrees_with": {
+          "hotpotqa_test_11": true,
+          "musique_validation": true
+        },
+        "signs": {
+          "hotpotqa_test_11": 1,
+          "multihop_rag": 1,
+          "musique_validation": 1
+        },
+        "to": "P10-B"
+      },
+      {
+        "all_same_sign": false,
+        "from": "P10-B",
+        "gain_pp": {
+          "hotpotqa_test_11": 4.1200000000000045,
+          "multihop_rag": -2.8824833702882486,
+          "musique_validation": 5.999172527927183
+        },
+        "new_column_agrees_with": {
+          "hotpotqa_test_11": false,
+          "musique_validation": false
+        },
+        "signs": {
+          "hotpotqa_test_11": 1,
+          "multihop_rag": -1,
+          "musique_validation": 1
+        },
+        "to": "P10-C"
+      },
+      {
+        "all_same_sign": false,
+        "from": "P10-C",
+        "gain_pp": {
+          "hotpotqa_test_11": 4.8999999999999915,
+          "multihop_rag": -0.3991130820399107,
+          "musique_validation": 3.8063715349606966
+        },
+        "new_column_agrees_with": {
+          "hotpotqa_test_11": false,
+          "musique_validation": false
+        },
+        "signs": {
+          "hotpotqa_test_11": 1,
+          "multihop_rag": -1,
+          "musique_validation": 1
+        },
+        "to": "P14"
+      }
+    ]
+  },
+  "d6_note": "preregistered secondary comparisons; none can change the label (D6)",
+  "d6_secondary": {
+    "p10b_vs_p10a": {
+      "candidate": "P10-B",
+      "candidate_successes": 587,
+      "control": "P10-A",
+      "control_successes": 338,
+      "delta_percentage_points": 11.042128603104214,
+      "exact_two_sided_p": 3.774062884589043e-53,
+      "losses": 27,
+      "n_questions": 2255,
+      "ties": 1952,
+      "wins": 276
+    },
+    "p10c_vs_p10b": {
+      "candidate": "P10-C",
+      "candidate_successes": 522,
+      "control": "P10-B",
+      "control_successes": 587,
+      "delta_percentage_points": -2.882483370288248,
+      "exact_two_sided_p": 8.369029836303408e-10,
+      "losses": 90,
+      "n_questions": 2255,
+      "ties": 2140,
+      "wins": 25
+    },
+    "p14_vs_p10c": {
+      "candidate": "P14",
+      "candidate_successes": 513,
+      "control": "P10-C",
+      "control_successes": 522,
+      "delta_percentage_points": -0.3991130820399113,
+      "exact_two_sided_p": 0.2892437471090205,
+      "losses": 33,
+      "n_questions": 2255,
+      "ties": 2198,
+      "wins": 24
+    }
+  },
+  "d7_by_gold_count": {
+    "budget": 2048,
+    "grouping": "the query's number of gold units after deduplication (len(gold_unit_ids))",
+    "groups": {
+      "2": {
+        "comparisons": {
+          "p10b_vs_p10a": {
+            "candidate": "P10-B",
+            "candidate_successes": 513,
+            "control": "P10-A",
+            "control_successes": 312,
+            "delta_percentage_points": 18.628359592215013,
+            "exact_two_sided_p": 4.419603297728872e-45,
+            "losses": 18,
+            "n_questions": 1079,
+            "ties": 842,
+            "wins": 219
+          },
+          "p10c_vs_p10b": {
+            "candidate": "P10-C",
+            "candidate_successes": 464,
+            "control": "P10-B",
+            "control_successes": 513,
+            "delta_percentage_points": -4.541241890639481,
+            "exact_two_sided_p": 1.235163189015002e-07,
+            "losses": 68,
+            "n_questions": 1079,
+            "ties": 992,
+            "wins": 19
+          },
+          "p14_vs_p10b": {
+            "candidate": "P14",
+            "candidate_successes": 458,
+            "control": "P10-B",
+            "control_successes": 513,
+            "delta_percentage_points": -5.097312326227989,
+            "exact_two_sided_p": 3.552056811614334e-08,
+            "losses": 78,
+            "n_questions": 1079,
+            "ties": 978,
+            "wins": 23
+          },
+          "p14_vs_p10c": {
+            "candidate": "P14",
+            "candidate_successes": 458,
+            "control": "P10-C",
+            "control_successes": 464,
+            "delta_percentage_points": -0.5560704355885079,
+            "exact_two_sided_p": 0.42959050784338615,
+            "losses": 23,
+            "n_questions": 1079,
+            "ties": 1039,
+            "wins": 17
+          }
+        },
+        "n_questions": 1079,
+        "systems": {
+          "dense": {
+            "full_support": 312,
+            "full_support_share": 0.2891566265060241,
+            "label": "P10-A",
+            "mean_gold_recall": 0.5389249304911955
+          },
+          "hybrid-bm25": {
+            "full_support": 513,
+            "full_support_share": 0.47544022242817424,
+            "label": "P10-B",
+            "mean_gold_recall": 0.6816496756255792
+          },
+          "hybrid-bm25-entity-hop": {
+            "full_support": 464,
+            "full_support_share": 0.43002780352177944,
+            "label": "P10-C",
+            "mean_gold_recall": 0.6496756255792401
+          },
+          "hybrid-bm25-seeded-hop": {
+            "full_support": 458,
+            "full_support_share": 0.42446709916589437,
+            "label": "P14",
+            "mean_gold_recall": 0.6459684893419834
+          }
+        }
+      },
+      "3": {
+        "comparisons": {
+          "p10b_vs_p10a": {
+            "candidate": "P10-B",
+            "candidate_successes": 67,
+            "control": "P10-A",
+            "control_successes": 24,
+            "delta_percentage_points": 5.512820512820513,
+            "exact_two_sided_p": 1.802802378388091e-08,
+            "losses": 9,
+            "n_questions": 780,
+            "ties": 719,
+            "wins": 52
+          },
+          "p10c_vs_p10b": {
+            "candidate": "P10-C",
+            "candidate_successes": 52,
+            "control": "P10-B",
+            "control_successes": 67,
+            "delta_percentage_points": -1.9230769230769231,
+            "exact_two_sided_p": 0.005924612283706665,
+            "losses": 21,
+            "n_questions": 780,
+            "ties": 753,
+            "wins": 6
+          },
+          "p14_vs_p10b": {
+            "candidate": "P14",
+            "candidate_successes": 49,
+            "control": "P10-B",
+            "control_successes": 67,
+            "delta_percentage_points": -2.3076923076923075,
+            "exact_two_sided_p": 0.0029350556433200836,
+            "losses": 26,
+            "n_questions": 780,
+            "ties": 746,
+            "wins": 8
+          },
+          "p14_vs_p10c": {
+            "candidate": "P14",
+            "candidate_successes": 49,
+            "control": "P10-C",
+            "control_successes": 52,
+            "delta_percentage_points": -0.38461538461538464,
+            "exact_two_sided_p": 0.629058837890625,
+            "losses": 10,
+            "n_questions": 780,
+            "ties": 763,
+            "wins": 7
+          }
+        },
+        "n_questions": 780,
+        "systems": {
+          "dense": {
+            "full_support": 24,
+            "full_support_share": 0.03076923076923077,
+            "label": "P10-A",
+            "mean_gold_recall": 0.33418803418803417
+          },
+          "hybrid-bm25": {
+            "full_support": 67,
+            "full_support_share": 0.0858974358974359,
+            "label": "P10-B",
+            "mean_gold_recall": 0.4653846153846154
+          },
+          "hybrid-bm25-entity-hop": {
+            "full_support": 52,
+            "full_support_share": 0.06666666666666667,
+            "label": "P10-C",
+            "mean_gold_recall": 0.4145299145299145
+          },
+          "hybrid-bm25-seeded-hop": {
+            "full_support": 49,
+            "full_support_share": 0.06282051282051282,
+            "label": "P14",
+            "mean_gold_recall": 0.41068376068376067
+          }
+        }
+      },
+      "4": {
+        "comparisons": {
+          "p10b_vs_p10a": {
+            "candidate": "P10-B",
+            "candidate_successes": 7,
+            "control": "P10-A",
+            "control_successes": 2,
+            "delta_percentage_points": 1.2626262626262625,
+            "exact_two_sided_p": 0.0625,
+            "losses": 0,
+            "n_questions": 396,
+            "ties": 391,
+            "wins": 5
+          },
+          "p10c_vs_p10b": {
+            "candidate": "P10-C",
+            "candidate_successes": 6,
+            "control": "P10-B",
+            "control_successes": 7,
+            "delta_percentage_points": -0.25252525252525254,
+            "exact_two_sided_p": 1.0,
+            "losses": 1,
+            "n_questions": 396,
+            "ties": 395,
+            "wins": 0
+          },
+          "p14_vs_p10b": {
+            "candidate": "P14",
+            "candidate_successes": 6,
+            "control": "P10-B",
+            "control_successes": 7,
+            "delta_percentage_points": -0.25252525252525254,
+            "exact_two_sided_p": 1.0,
+            "losses": 1,
+            "n_questions": 396,
+            "ties": 395,
+            "wins": 0
+          },
+          "p14_vs_p10c": {
+            "candidate": "P14",
+            "candidate_successes": 6,
+            "control": "P10-C",
+            "control_successes": 6,
+            "delta_percentage_points": 0.0,
+            "exact_two_sided_p": 1.0,
+            "losses": 0,
+            "n_questions": 396,
+            "ties": 396,
+            "wins": 0
+          }
+        },
+        "n_questions": 396,
+        "systems": {
+          "dense": {
+            "full_support": 2,
+            "full_support_share": 0.005050505050505051,
+            "label": "P10-A",
+            "mean_gold_recall": 0.23232323232323232
+          },
+          "hybrid-bm25": {
+            "full_support": 7,
+            "full_support_share": 0.017676767676767676,
+            "label": "P10-B",
+            "mean_gold_recall": 0.38636363636363635
+          },
+          "hybrid-bm25-entity-hop": {
+            "full_support": 6,
+            "full_support_share": 0.015151515151515152,
+            "label": "P10-C",
+            "mean_gold_recall": 0.3421717171717172
+          },
+          "hybrid-bm25-seeded-hop": {
+            "full_support": 6,
+            "full_support_share": 0.015151515151515152,
+            "label": "P14",
+            "mean_gold_recall": 0.3409090909090909
+          }
+        }
+      }
+    },
+    "note": "descriptive, deciding nothing (D7); every comparison is exact McNemar",
+    "other": 0
+  },
+  "d7_by_question_type": {
+    "budget": 2048,
+    "grouping": "the query's question_type in MultiHopRAG.json",
+    "groups": {
+      "comparison_query": {
+        "comparisons": {
+          "p10b_vs_p10a": {
+            "candidate": "P10-B",
+            "candidate_successes": 360,
+            "control": "P10-A",
+            "control_successes": 203,
+            "delta_percentage_points": 18.3411214953271,
+            "exact_two_sided_p": 1.2478252186982293e-36,
+            "losses": 12,
+            "n_questions": 856,
+            "ties": 675,
+            "wins": 169
+          },
+          "p10c_vs_p10b": {
+            "candidate": "P10-C",
+            "candidate_successes": 320,
+            "control": "P10-B",
+            "control_successes": 360,
+            "delta_percentage_points": -4.672897196261682,
+            "exact_two_sided_p": 4.5666107004454105e-07,
+            "losses": 52,
+            "n_questions": 856,
+            "ties": 792,
+            "wins": 12
+          },
+          "p14_vs_p10b": {
+            "candidate": "P14",
+            "candidate_successes": 318,
+            "control": "P10-B",
+            "control_successes": 360,
+            "delta_percentage_points": -4.906542056074766,
+            "exact_two_sided_p": 1.9730209111390334e-06,
+            "losses": 60,
+            "n_questions": 856,
+            "ties": 778,
+            "wins": 18
+          },
+          "p14_vs_p10c": {
+            "candidate": "P14",
+            "candidate_successes": 318,
+            "control": "P10-C",
+            "control_successes": 320,
+            "delta_percentage_points": -0.2336448598130841,
+            "exact_two_sided_p": 0.8679394004284404,
+            "losses": 19,
+            "n_questions": 856,
+            "ties": 820,
+            "wins": 17
+          }
+        },
+        "n_questions": 856,
+        "systems": {
+          "dense": {
+            "full_support": 203,
+            "full_support_share": 0.2371495327102804,
+            "label": "P10-A",
+            "mean_gold_recall": 0.5110981308411215
+          },
+          "hybrid-bm25": {
+            "full_support": 360,
+            "full_support_share": 0.4205607476635514,
+            "label": "P10-B",
+            "mean_gold_recall": 0.6651090342679128
+          },
+          "hybrid-bm25-entity-hop": {
+            "full_support": 320,
+            "full_support_share": 0.37383177570093457,
+            "label": "P10-C",
+            "mean_gold_recall": 0.623442367601246
+          },
+          "hybrid-bm25-seeded-hop": {
+            "full_support": 318,
+            "full_support_share": 0.37149532710280375,
+            "label": "P14",
+            "mean_gold_recall": 0.6228582554517134
+          }
+        }
+      },
+      "inference_query": {
+        "comparisons": {
+          "p10b_vs_p10a": {
+            "candidate": "P10-B",
+            "candidate_successes": 94,
+            "control": "P10-A",
+            "control_successes": 28,
+            "delta_percentage_points": 8.088235294117647,
+            "exact_two_sided_p": 2.6371947296289014e-17,
+            "losses": 3,
+            "n_questions": 816,
+            "ties": 744,
+            "wins": 69
+          },
+          "p10c_vs_p10b": {
+            "candidate": "P10-C",
+            "candidate_successes": 79,
+            "control": "P10-B",
+            "control_successes": 94,
+            "delta_percentage_points": -1.838235294117647,
+            "exact_two_sided_p": 0.005924612283706665,
+            "losses": 21,
+            "n_questions": 816,
+            "ties": 789,
+            "wins": 6
+          },
+          "p14_vs_p10b": {
+            "candidate": "P14",
+            "candidate_successes": 73,
+            "control": "P10-B",
+            "control_successes": 94,
+            "delta_percentage_points": -2.573529411764706,
+            "exact_two_sided_p": 0.00019219517707824707,
+            "losses": 26,
+            "n_questions": 816,
+            "ties": 785,
+            "wins": 5
+          },
+          "p14_vs_p10c": {
+            "candidate": "P14",
+            "candidate_successes": 73,
+            "control": "P10-C",
+            "control_successes": 79,
+            "delta_percentage_points": -0.7352941176470589,
+            "exact_two_sided_p": 0.14599609375,
+            "losses": 9,
+            "n_questions": 816,
+            "ties": 804,
+            "wins": 3
+          }
+        },
+        "n_questions": 816,
+        "systems": {
+          "dense": {
+            "full_support": 28,
+            "full_support_share": 0.03431372549019608,
+            "label": "P10-A",
+            "mean_gold_recall": 0.29963235294117646
+          },
+          "hybrid-bm25": {
+            "full_support": 94,
+            "full_support_share": 0.11519607843137254,
+            "label": "P10-B",
+            "mean_gold_recall": 0.4810049019607843
+          },
+          "hybrid-bm25-entity-hop": {
+            "full_support": 79,
+            "full_support_share": 0.09681372549019608,
+            "label": "P10-C",
+            "mean_gold_recall": 0.42790032679738566
+          },
+          "hybrid-bm25-seeded-hop": {
+            "full_support": 73,
+            "full_support_share": 0.08946078431372549,
+            "label": "P14",
+            "mean_gold_recall": 0.42177287581699346
+          }
+        }
+      },
+      "temporal_query": {
+        "comparisons": {
+          "p10b_vs_p10a": {
+            "candidate": "P10-B",
+            "candidate_successes": 133,
+            "control": "P10-A",
+            "control_successes": 107,
+            "delta_percentage_points": 4.459691252144082,
+            "exact_two_sided_p": 0.00030586400160359517,
+            "losses": 12,
+            "n_questions": 583,
+            "ties": 533,
+            "wins": 38
+          },
+          "p10c_vs_p10b": {
+            "candidate": "P10-C",
+            "candidate_successes": 123,
+            "control": "P10-B",
+            "control_successes": 133,
+            "delta_percentage_points": -1.7152658662092624,
+            "exact_two_sided_p": 0.06391465663909912,
+            "losses": 17,
+            "n_questions": 583,
+            "ties": 559,
+            "wins": 7
+          },
+          "p14_vs_p10b": {
+            "candidate": "P14",
+            "candidate_successes": 122,
+            "control": "P10-B",
+            "control_successes": 133,
+            "delta_percentage_points": -1.8867924528301887,
+            "exact_two_sided_p": 0.052238985896110535,
+            "losses": 19,
+            "n_questions": 583,
+            "ties": 556,
+            "wins": 8
+          },
+          "p14_vs_p10c": {
+            "candidate": "P14",
+            "candidate_successes": 122,
+            "control": "P10-C",
+            "control_successes": 123,
+            "delta_percentage_points": -0.17152658662092624,
+            "exact_two_sided_p": 1.0,
+            "losses": 5,
+            "n_questions": 583,
+            "ties": 574,
+            "wins": 4
+          }
+        },
+        "n_questions": 583,
+        "systems": {
+          "dense": {
+            "full_support": 107,
+            "full_support_share": 0.1835334476843911,
+            "label": "P10-A",
+            "mean_gold_recall": 0.43253287592910233
+          },
+          "hybrid-bm25": {
+            "full_support": 133,
+            "full_support_share": 0.2281303602058319,
+            "label": "P10-B",
+            "mean_gold_recall": 0.49685534591194974
+          },
+          "hybrid-bm25-entity-hop": {
+            "full_support": 123,
+            "full_support_share": 0.2109777015437393,
+            "label": "P10-C",
+            "mean_gold_recall": 0.4751286449399657
+          },
+          "hybrid-bm25-seeded-hop": {
+            "full_support": 122,
+            "full_support_share": 0.20926243567753003,
+            "label": "P14",
+            "mean_gold_recall": 0.4716981132075472
+          }
+        }
+      }
+    },
+    "note": "descriptive, deciding nothing (D7); every comparison is exact McNemar",
+    "other": 0
+  },
+  "d8_article_context": {
+    "gold_in_one_article": 0,
+    "gold_in_one_article_share": 0.0,
+    "n_queries": 2255,
+    "p1_article_holds_gold": 1408,
+    "p1_article_holds_gold_share": 0.624390243902439,
+    "p1_source": "the first unit of P10-A's stored Dense list",
+    "queries_with_two_facts_from_one_article": 168
+  },
+  "d8_reach": {
+    "dense_rank_split": {
+      "p14_vs_p10b": {
+        "budget": 2048,
+        "candidate": "P14",
+        "contexts": "budget.fill_context over the stored fused lists, checked per question against the recorded Full Support",
+        "control": "P10-B",
+        "dense_rank_source": "P14's stored Dense component (depth 100)",
+        "lost": {
+          "gold_changed": {
+            "1-10": 3,
+            "11-100": 52,
+            "beyond-100": 59
+          },
+          "gold_changed_total": 114,
+          "questions": 105
+        },
+        "per_question": [
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "5adc4edff7e82927"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-0006"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "344a9491e07d537e"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0055"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "73e9a412dbdb5adb"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0059"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "ba0c16c95bf84131"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0067"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "11-100",
+                "dense_rank": 52,
+                "unit_id": "ada97c7eb90f31d6"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-0071"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 68,
+                "unit_id": "e39737b108e41465"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0072"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "c8438a7ccf7b993a"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0076"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "11-100",
+                "dense_rank": 47,
+                "unit_id": "8ac52258a1fc0f93"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-0186"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "dadb2f789e0c9be0"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0214"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "11-100",
+                "dense_rank": 23,
+                "unit_id": "82a4f9fbf6c3739f"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-0247"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 53,
+                "unit_id": "923e89b5a2ae8eee"
+              },
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 87,
+                "unit_id": "abbf7f3c56b1a27a"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0254"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "da04732a846417c5"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0258"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 51,
+                "unit_id": "808a4fe490770ccb"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0293"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "d98a9acecc18030b"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-0301"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 84,
+                "unit_id": "160079b8616d630c"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0353"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "11-100",
+                "dense_rank": 57,
+                "unit_id": "c445a8d96a52d1bd"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-0364"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "d214e24d6d27b771"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0375"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "e3e80a2be7d8487b"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0378"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 23,
+                "unit_id": "b67c67d912bd2cc8"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0430"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "bc119fd64259a6c6"
+              },
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "3b52a4018df84d75"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0441"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 19,
+                "unit_id": "7975a52534303383"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0445"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "f4bba600b75ba0a9"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0458"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "7c21178bdbf1b544"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0483"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "11-100",
+                "dense_rank": 29,
+                "unit_id": "9676486132b4513e"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-0494"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "11-100",
+                "dense_rank": 77,
+                "unit_id": "b4fdc0e7b7069068"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-0495"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "609f201e706158e1"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0518"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 68,
+                "unit_id": "f6653f03ab05556b"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0519"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "11-100",
+                "dense_rank": 26,
+                "unit_id": "82a4f9fbf6c3739f"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-0566"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "95c0c8a40b79d517"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0586"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "2800b3cb98181730"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0603"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 74,
+                "unit_id": "16e53591d39b0e9a"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0630"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "1-10",
+                "dense_rank": 4,
+                "unit_id": "16e40826d34cbd62"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0692"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "b5ebff14b48202d9"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0733"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 47,
+                "unit_id": "bba98b7d76aab027"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0745"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "853fb51e6bcd00c2"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0780"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "923e89b5a2ae8eee"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0829"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 65,
+                "unit_id": "6a2d1faab0c38446"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0853"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 70,
+                "unit_id": "8e8b9e1e08788ce1"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0855"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "2f226fd523c32dd0"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0863"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "912c05f3ae0bbd1c"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0866"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 50,
+                "unit_id": "cf16b8f902cabcd4"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0871"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "11-100",
+                "dense_rank": 12,
+                "unit_id": "240277301a148a03"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-0921"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "11-100",
+                "dense_rank": 81,
+                "unit_id": "504f0a2aae3c3d99"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-0950"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 72,
+                "unit_id": "45130fa9a900a070"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0959"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 54,
+                "unit_id": "16e53591d39b0e9a"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0961"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 94,
+                "unit_id": "2343cd2405cb9ee3"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0964"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "01636eb1ea481589"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-0986"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 85,
+                "unit_id": "141e2593e39ec11f"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0987"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 89,
+                "unit_id": "f49e552829003276"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0988"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 38,
+                "unit_id": "9e817313680b9055"
+              },
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "60e42f4b0276dc2f"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1020"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 89,
+                "unit_id": "73aa111eec582cf8"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1033"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "b504f66238d5afd9"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1061"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "4465f9322a7622e2"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1068"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "1508ce29a6ca320e"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1078"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "11-100",
+                "dense_rank": 83,
+                "unit_id": "8b41f0c7679eb26c"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-1104"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "11-100",
+                "dense_rank": 66,
+                "unit_id": "390e403d82de3480"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-1157"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "1-10",
+                "dense_rank": 9,
+                "unit_id": "69c82d9b3103ba3d"
+              },
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 50,
+                "unit_id": "270589b11d09b531"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1175"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 43,
+                "unit_id": "d58f1afd2841ec9c"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1195"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "e3e80a2be7d8487b"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1211"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 40,
+                "unit_id": "920414c4903d1f74"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1243"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "c8438a7ccf7b993a"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1259"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 80,
+                "unit_id": "828922056cc6e0a7"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1268"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "abbf7f3c56b1a27a"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1283"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 63,
+                "unit_id": "caded2eab0d1113e"
+              },
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "0c4ba4555fa9d039"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1288"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 72,
+                "unit_id": "b8a36c449d4ff97e"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1297"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 63,
+                "unit_id": "c1264d0fbb58ff8d"
+              },
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 97,
+                "unit_id": "808a4fe490770ccb"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1304"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "0da6dc182dc7cd12"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1320"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "0c4d02c32413520e"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1322"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "11-100",
+                "dense_rank": 21,
+                "unit_id": "9059a104d3410c17"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-1334"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "b4fdc0e7b7069068"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1337"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "11-100",
+                "dense_rank": 13,
+                "unit_id": "d2ecf464fe2b8452"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-1373"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "11-100",
+                "dense_rank": 23,
+                "unit_id": "35e07476ad23a04d"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-1393"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "66946015eee0b597"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1414"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "66a0142ef3d03fd5"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1432"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 62,
+                "unit_id": "aa5be71cb017b2ed"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1439"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "f8a51cca97068c5f"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1471"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 54,
+                "unit_id": "dac95f7573a5f7c7"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1472"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "1f3197f116a62eb3"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1473"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "95c0c8a40b79d517"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1490"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 80,
+                "unit_id": "853fb51e6bcd00c2"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1500"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 95,
+                "unit_id": "e39737b108e41465"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1509"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "69017abb81076b29"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1551"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "11-100",
+                "dense_rank": 29,
+                "unit_id": "bfa111616a37dc58"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-1581"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "562ba26d20a1c0d3"
+              },
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "bba98b7d76aab027"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1594"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "bba98b7d76aab027"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1596"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 79,
+                "unit_id": "3d28b53825c040fe"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1619"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 47,
+                "unit_id": "16e53591d39b0e9a"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1623"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 99,
+                "unit_id": "609f201e706158e1"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1700"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 71,
+                "unit_id": "34184afcaa4020ec"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1703"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "a37a231f511ddc78"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1707"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 18,
+                "unit_id": "50dd32822f5db998"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1710"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 87,
+                "unit_id": "b39f7402d61d76cc"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1717"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "11-100",
+                "dense_rank": 58,
+                "unit_id": "108680da25cc353f"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-1733"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 51,
+                "unit_id": "cc9298e7313377b6"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1744"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 47,
+                "unit_id": "55dc4d0ac1962365"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1749"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "11-100",
+                "dense_rank": 20,
+                "unit_id": "fc4ce9a4ef567fe8"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-1750"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "889aa527d9e81ee5"
+              },
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "808a4fe490770ccb"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1775"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 51,
+                "unit_id": "c19b541a7d45023c"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1782"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "1f3197f116a62eb3"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1791"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "1-10",
+                "dense_rank": 6,
+                "unit_id": "1b057c7dc5791aeb"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1802"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "5646ea58f19f1f01"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1828"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "96a844564d2f82de"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1877"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 90,
+                "unit_id": "d447a5c5313e5955"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1913"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 31,
+                "unit_id": "10301f0ea89937e1"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1916"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "73e9a412dbdb5adb"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1942"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 71,
+                "unit_id": "367c5415829c8999"
+              },
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 60,
+                "unit_id": "64236d046823bb42"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1945"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "949ff1d800687c2e"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1950"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "11-100",
+                "dense_rank": 16,
+                "unit_id": "fc4ce9a4ef567fe8"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-1958"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 67,
+                "unit_id": "6ea1c226d89ca42e"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1988"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "11-100",
+                "dense_rank": 15,
+                "unit_id": "597c42200f85fe1d"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-2004"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "1-10",
+                "dense_rank": 6,
+                "unit_id": "806fff2a9338560f"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-2010"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 40,
+                "unit_id": "3407d0d4ba5eca37"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-2022"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "d98a9acecc18030b"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-2033"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "a493076188cffefa"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-2044"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "93e70c97a8cf47bc"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-2047"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 30,
+                "unit_id": "c4b9356397b8628e"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-2063"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "bba98b7d76aab027"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-2079"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 88,
+                "unit_id": "b8a36c449d4ff97e"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-2092"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "b504f66238d5afd9"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-2093"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 92,
+                "unit_id": "c4fe34d064db9e2d"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-2098"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "8fedddc3b5ef6b0e"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-2144"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "11-100",
+                "dense_rank": 20,
+                "unit_id": "bbaa9c4db2fa2f4c"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-2189"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "3b52a4018df84d75"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-2200"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "93e70c97a8cf47bc"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-2227"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "808a4fe490770ccb"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-2234"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 85,
+                "unit_id": "808a4fe490770ccb"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-2236"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "d98a9acecc18030b"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-2259"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 69,
+                "unit_id": "877087f6221316a7"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-2270"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "11-100",
+                "dense_rank": 13,
+                "unit_id": "597c42200f85fe1d"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-2297"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "0cb240da5c1603b4"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-2316"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "11-100",
+                "dense_rank": 41,
+                "unit_id": "62de048b653ca148"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-2334"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "11-100",
+                "dense_rank": 20,
+                "unit_id": "fc4ce9a4ef567fe8"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-2418"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "11-100",
+                "dense_rank": 29,
+                "unit_id": "53315f454f60e126"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-2443"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "96a844564d2f82de"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-2464"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "0da6dc182dc7cd12"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-2498"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "923e89b5a2ae8eee"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-2521"
+          }
+        ],
+        "total": {
+          "gold_changed": {
+            "1-10": 4,
+            "11-100": 76,
+            "beyond-100": 65
+          },
+          "gold_changed_total": 145,
+          "questions": 136
+        },
+        "won": {
+          "gold_changed": {
+            "1-10": 1,
+            "11-100": 24,
+            "beyond-100": 6
+          },
+          "gold_changed_total": 31,
+          "questions": 31
+        }
+      },
+      "p14_vs_p10c": {
+        "budget": 2048,
+        "candidate": "P14",
+        "contexts": "budget.fill_context over the stored fused lists, checked per question against the recorded Full Support",
+        "control": "P10-C",
+        "dense_rank_source": "P14's stored Dense component (depth 100)",
+        "lost": {
+          "gold_changed": {
+            "1-10": 1,
+            "11-100": 18,
+            "beyond-100": 14
+          },
+          "gold_changed_total": 33,
+          "questions": 33
+        },
+        "per_question": [
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "5adc4edff7e82927"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-0006"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "73e9a412dbdb5adb"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0059"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "c8438a7ccf7b993a"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0076"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "11-100",
+                "dense_rank": 32,
+                "unit_id": "0fc563346f09aaa7"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-0081"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "11-100",
+                "dense_rank": 23,
+                "unit_id": "82a4f9fbf6c3739f"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-0247"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "da04732a846417c5"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0258"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 51,
+                "unit_id": "808a4fe490770ccb"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0293"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "d98a9acecc18030b"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-0301"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 19,
+                "unit_id": "7975a52534303383"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0445"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "11-100",
+                "dense_rank": 38,
+                "unit_id": "a596d848b129ed9f"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-0465"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 18,
+                "unit_id": "722b4a087f85dcfa"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0477"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "7c21178bdbf1b544"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0483"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "11-100",
+                "dense_rank": 77,
+                "unit_id": "b4fdc0e7b7069068"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-0495"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 68,
+                "unit_id": "f6653f03ab05556b"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0519"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "11-100",
+                "dense_rank": 26,
+                "unit_id": "82a4f9fbf6c3739f"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-0566"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 15,
+                "unit_id": "2f226fd523c32dd0"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0575"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "95c0c8a40b79d517"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0586"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "11-100",
+                "dense_rank": 19,
+                "unit_id": "a5092b684f4f9b39"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-0591"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "2800b3cb98181730"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0603"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "1-10",
+                "dense_rank": 6,
+                "unit_id": "a5092b684f4f9b39"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0623"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "94ad0d1cc68ad54d"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-0724"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 47,
+                "unit_id": "bba98b7d76aab027"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0745"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "625716bbd32f1f25"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-0782"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 50,
+                "unit_id": "cf16b8f902cabcd4"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-0871"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "11-100",
+                "dense_rank": 81,
+                "unit_id": "504f0a2aae3c3d99"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-0950"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "4465f9322a7622e2"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1068"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "11-100",
+                "dense_rank": 19,
+                "unit_id": "a5092b684f4f9b39"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-1074"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "11-100",
+                "dense_rank": 83,
+                "unit_id": "8b41f0c7679eb26c"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-1104"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 26,
+                "unit_id": "b827599eaa1605d3"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1222"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 40,
+                "unit_id": "920414c4903d1f74"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1243"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "c8438a7ccf7b993a"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1259"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "66946015eee0b597"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1414"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 62,
+                "unit_id": "aa5be71cb017b2ed"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1439"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 15,
+                "unit_id": "e5e21b0b30da93a4"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1453"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "f8a51cca97068c5f"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1471"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "69017abb81076b29"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1551"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 79,
+                "unit_id": "3d28b53825c040fe"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1619"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 74,
+                "unit_id": "808a4fe490770ccb"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1655"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 71,
+                "unit_id": "34184afcaa4020ec"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1703"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "a37a231f511ddc78"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1707"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 18,
+                "unit_id": "50dd32822f5db998"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1710"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "11-100",
+                "dense_rank": 24,
+                "unit_id": "b67c67d912bd2cc8"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-1727"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 51,
+                "unit_id": "cc9298e7313377b6"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1744"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 31,
+                "unit_id": "10301f0ea89937e1"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-1916"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "11-100",
+                "dense_rank": 13,
+                "unit_id": "73a1285f8c7d1428"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-1958"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "625716bbd32f1f25"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-2018"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "d98a9acecc18030b"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-2033"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "bba98b7d76aab027"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-2079"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "8fedddc3b5ef6b0e"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-2144"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "11-100",
+                "dense_rank": 40,
+                "unit_id": "bb0a2a41b51db123"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-2195"
+          },
+          {
+            "changes": [
+              {
+                "change": "lost",
+                "dense_class": "11-100",
+                "dense_rank": 41,
+                "unit_id": "ada97c7eb90f31d6"
+              }
+            ],
+            "outcome": "lost",
+            "qid": "mhr-2215"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "d98a9acecc18030b"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-2253"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "d98a9acecc18030b"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-2259"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "beyond-100",
+                "dense_rank": null,
+                "unit_id": "0cb240da5c1603b4"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-2316"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "11-100",
+                "dense_rank": 41,
+                "unit_id": "62de048b653ca148"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-2334"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "11-100",
+                "dense_rank": 29,
+                "unit_id": "53315f454f60e126"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-2443"
+          },
+          {
+            "changes": [
+              {
+                "change": "gained",
+                "dense_class": "11-100",
+                "dense_rank": 36,
+                "unit_id": "a596d848b129ed9f"
+              }
+            ],
+            "outcome": "won",
+            "qid": "mhr-2467"
+          }
+        ],
+        "total": {
+          "gold_changed": {
+            "1-10": 1,
+            "11-100": 33,
+            "beyond-100": 23
+          },
+          "gold_changed_total": 57,
+          "questions": 57
+        },
+        "won": {
+          "gold_changed": {
+            "1-10": 0,
+            "11-100": 15,
+            "beyond-100": 9
+          },
+          "gold_changed_total": 24,
+          "questions": 24
+        }
+      }
+    },
+    "dense_top": 10,
+    "depth": 100,
+    "note": "'gold' counts supporting paragraphs outside the system's own Dense first 10 that the list holds at depth 100; 'questions' the questions with at least one. Descriptive, deciding nothing (D8).",
+    "systems": {
+      "dense": {
+        "gold_outside_dense_top_10": 4523,
+        "label": "P10-A",
+        "listed": {
+          "dense": {
+            "gold": 2412,
+            "questions": 1593
+          },
+          "fused": {
+            "gold": 2412,
+            "questions": 1593
+          }
+        }
+      },
+      "hybrid-bm25": {
+        "gold_outside_dense_top_10": 4523,
+        "label": "P10-B",
+        "listed": {
+          "bm25": {
+            "gold": 2920,
+            "questions": 1781
+          },
+          "dense": {
+            "gold": 2412,
+            "questions": 1593
+          },
+          "fused": {
+            "gold": 3002,
+            "questions": 1826
+          }
+        }
+      },
+      "hybrid-bm25-entity-hop": {
+        "candidate_set": {
+          "empty": 26,
+          "empty_share": 0.011529933481152993,
+          "max": 2671,
+          "median": 303.0,
+          "p90": 847.0,
+          "questions": 2255
+        },
+        "gold_outside_dense_top_10": 4523,
+        "label": "P10-C",
+        "listed": {
+          "bm25": {
+            "gold": 2920,
+            "questions": 1781
+          },
+          "dense": {
+            "gold": 2412,
+            "questions": 1593
+          },
+          "entity-hop": {
+            "gold": 1102,
+            "questions": 819
+          },
+          "fused": {
+            "gold": 2901,
+            "questions": 1798
+          }
+        },
+        "p1": {
+          "p1_absent": 0,
+          "p1_supporting": 385,
+          "p1_supporting_share": 0.17073170731707318,
+          "questions": 2255
+        }
+      },
+      "hybrid-bm25-seeded-hop": {
+        "candidate_set": {
+          "empty": 26,
+          "empty_share": 0.011529933481152993,
+          "max": 2671,
+          "median": 303.0,
+          "p90": 847.0,
+          "questions": 2255
+        },
+        "gold_outside_dense_top_10": 4523,
+        "label": "P14",
+        "listed": {
+          "bm25": {
+            "gold": 2920,
+            "questions": 1781
+          },
+          "dense": {
+            "gold": 2412,
+            "questions": 1593
+          },
+          "fused": {
+            "gold": 2968,
+            "questions": 1817
+          },
+          "relevance-hop": {
+            "gold": 1871,
+            "questions": 1266
+          }
+        },
+        "p1": {
+          "p1_absent": 0,
+          "p1_supporting": 385,
+          "p1_supporting_share": 0.17073170731707318,
+          "questions": 2255
+        }
+      }
+    }
+  },
+  "d8_same_article": {
+    "p10c_vs_p10b": {
+      "all": {
+        "p1_article_share": 0.39344262295081966,
+        "queries": 2255,
+        "queries_with_hop_entered_gold": 60,
+        "through_hop": 61,
+        "through_hop_other_article": 37,
+        "through_hop_p1_article": 24,
+        "without_hop": 20
+      },
+      "budget": 2048,
+      "by_question_type": {
+        "comparison_query": {
+          "all": {
+            "p1_article_share": 0.3157894736842105,
+            "queries": 856,
+            "queries_with_hop_entered_gold": 19,
+            "through_hop": 19,
+            "through_hop_other_article": 13,
+            "through_hop_p1_article": 6,
+            "without_hop": 5
+          },
+          "won": {
+            "p1_article_share": 0.3333333333333333,
+            "queries": 12,
+            "queries_with_hop_entered_gold": 9,
+            "through_hop": 9,
+            "through_hop_other_article": 6,
+            "through_hop_p1_article": 3,
+            "without_hop": 3
+          }
+        },
+        "inference_query": {
+          "all": {
+            "p1_article_share": 0.43478260869565216,
+            "queries": 816,
+            "queries_with_hop_entered_gold": 22,
+            "through_hop": 23,
+            "through_hop_other_article": 13,
+            "through_hop_p1_article": 10,
+            "without_hop": 9
+          },
+          "won": {
+            "p1_article_share": 0.2,
+            "queries": 6,
+            "queries_with_hop_entered_gold": 5,
+            "through_hop": 5,
+            "through_hop_other_article": 4,
+            "through_hop_p1_article": 1,
+            "without_hop": 1
+          }
+        },
+        "temporal_query": {
+          "all": {
+            "p1_article_share": 0.42105263157894735,
+            "queries": 583,
+            "queries_with_hop_entered_gold": 19,
+            "through_hop": 19,
+            "through_hop_other_article": 11,
+            "through_hop_p1_article": 8,
+            "without_hop": 6
+          },
+          "won": {
+            "p1_article_share": 0.5,
+            "queries": 7,
+            "queries_with_hop_entered_gold": 4,
+            "through_hop": 4,
+            "through_hop_other_article": 2,
+            "through_hop_p1_article": 2,
+            "without_hop": 3
+          }
+        }
+      },
+      "candidate": "P10-C",
+      "control": "P10-B",
+      "hop_component": "entity-hop",
+      "note": "descriptive, deciding nothing (D8)",
+      "rule": "a gold unit entered through the hop if it is in the system's 2,048-token context, not in P10-B's, and listed in the system's stored hop component (depth 100); it is tallied by whether its article is P1's; gold entering without the hop listing it is counted apart (without_hop) and not attributed; 'won' = the system's Full Support and not P10-B's",
+      "won": {
+        "p1_article_share": 0.3333333333333333,
+        "queries": 25,
+        "queries_with_hop_entered_gold": 18,
+        "through_hop": 18,
+        "through_hop_other_article": 12,
+        "through_hop_p1_article": 6,
+        "without_hop": 7
+      }
+    },
+    "p14_vs_p10b": {
+      "all": {
+        "p1_article_share": 0.3564356435643564,
+        "queries": 2255,
+        "queries_with_hop_entered_gold": 98,
+        "through_hop": 101,
+        "through_hop_other_article": 65,
+        "through_hop_p1_article": 36,
+        "without_hop": 9
+      },
+      "budget": 2048,
+      "by_question_type": {
+        "comparison_query": {
+          "all": {
+            "p1_article_share": 0.375,
+            "queries": 856,
+            "queries_with_hop_entered_gold": 32,
+            "through_hop": 32,
+            "through_hop_other_article": 20,
+            "through_hop_p1_article": 12,
+            "without_hop": 1
+          },
+          "won": {
+            "p1_article_share": 0.29411764705882354,
+            "queries": 18,
+            "queries_with_hop_entered_gold": 17,
+            "through_hop": 17,
+            "through_hop_other_article": 12,
+            "through_hop_p1_article": 5,
+            "without_hop": 1
+          }
+        },
+        "inference_query": {
+          "all": {
+            "p1_article_share": 0.4146341463414634,
+            "queries": 816,
+            "queries_with_hop_entered_gold": 39,
+            "through_hop": 41,
+            "through_hop_other_article": 24,
+            "through_hop_p1_article": 17,
+            "without_hop": 6
+          },
+          "won": {
+            "p1_article_share": 0.2,
+            "queries": 5,
+            "queries_with_hop_entered_gold": 5,
+            "through_hop": 5,
+            "through_hop_other_article": 4,
+            "through_hop_p1_article": 1,
+            "without_hop": 0
+          }
+        },
+        "temporal_query": {
+          "all": {
+            "p1_article_share": 0.25,
+            "queries": 583,
+            "queries_with_hop_entered_gold": 27,
+            "through_hop": 28,
+            "through_hop_other_article": 21,
+            "through_hop_p1_article": 7,
+            "without_hop": 2
+          },
+          "won": {
+            "p1_article_share": 0.2857142857142857,
+            "queries": 8,
+            "queries_with_hop_entered_gold": 7,
+            "through_hop": 7,
+            "through_hop_other_article": 5,
+            "through_hop_p1_article": 2,
+            "without_hop": 1
+          }
+        }
+      },
+      "candidate": "P14",
+      "control": "P10-B",
+      "hop_component": "relevance-hop",
+      "note": "descriptive, deciding nothing (D8)",
+      "rule": "a gold unit entered through the hop if it is in the system's 2,048-token context, not in P10-B's, and listed in the system's stored hop component (depth 100); it is tallied by whether its article is P1's; gold entering without the hop listing it is counted apart (without_hop) and not attributed; 'won' = the system's Full Support and not P10-B's",
+      "won": {
+        "p1_article_share": 0.27586206896551724,
+        "queries": 31,
+        "queries_with_hop_entered_gold": 29,
+        "through_hop": 29,
+        "through_hop_other_article": 21,
+        "through_hop_p1_article": 8,
+        "without_hop": 2
+      }
+    }
+  },
+  "d9_hits": {
+    "differences": [
+      "unit: whole newline paragraphs of the article, not the paper's 256-token chunks",
+      "corpus cut: every newline paragraph of the 609 articles, boilerplate kept and verbatim repeats within an article collapsed, not the paper's chunked corpus",
+      "metric: gold units found in the first k of the stored fused list, micro-averaged over all gold units of the 2,255 answerable queries with unmapped gold in the denominator, not the paper's evaluation script"
+    ],
+    "note": "reported, not comparable with the paper's figures and deciding nothing (D9); never a comparison of systems with the paper",
+    "paper": {
+      "10": 0.7467,
+      "4": 0.6625
+    },
+    "paper_source": "Tang & Yang 2024, MultiHop-RAG, Table 5: best reported pipeline",
+    "systems": {
+      "dense": {
+        "hits": {
+          "10": {
+            "gold_found": 1559,
+            "gold_units": 6082,
+            "hits": 0.2563301545544229,
+            "k": 10
+          },
+          "4": {
+            "gold_found": 1018,
+            "gold_units": 6082,
+            "hits": 0.1673791515948701,
+            "k": 4
+          }
+        },
+        "label": "P10-A"
+      },
+      "hybrid-bm25": {
+        "hits": {
+          "10": {
+            "gold_found": 2326,
+            "gold_units": 6082,
+            "hits": 0.3824399868464321,
+            "k": 10
+          },
+          "4": {
+            "gold_found": 1664,
+            "gold_units": 6082,
+            "hits": 0.27359421243012166,
+            "k": 4
+          }
+        },
+        "label": "P10-B"
+      },
+      "hybrid-bm25-entity-hop": {
+        "hits": {
+          "10": {
+            "gold_found": 2028,
+            "gold_units": 6082,
+            "hits": 0.3334429463992108,
+            "k": 10
+          },
+          "4": {
+            "gold_found": 1435,
+            "gold_units": 6082,
+            "hits": 0.2359421243012167,
+            "k": 4
+          }
+        },
+        "label": "P10-C"
+      },
+      "hybrid-bm25-seeded-hop": {
+        "hits": {
+          "10": {
+            "gold_found": 2010,
+            "gold_units": 6082,
+            "hits": 0.33048339362051954,
+            "k": 10
+          },
+          "4": {
+            "gold_found": 1458,
+            "gold_units": 6082,
+            "hits": 0.23972377507398882,
+            "k": 4
+          }
+        },
+        "label": "P14"
+      }
+    }
+  },
+  "integrity": {
+    "contexts_match_recorded_full_support": true,
+    "corpus_unit_set_hash": "4aa1f9aab57fd101",
+    "integrity_digest": "c7b577f77f6157f4ef4aff61f5d8e5815931f4a9f50ec66a861bd0de2d9956bc",
+    "n_questions": 2255,
+    "outcomes_digests": {
+      "dense": "e7d9e2597354ff1c3a87569060abc0d1dba3eaaeaa017828fee63947d115c9e9",
+      "hybrid-bm25": "788e8fc115d8f5b3339552091d5b5eab400429ca77274a017fc57ef483f18433",
+      "hybrid-bm25-entity-hop": "f68ad8f007196a1994b5c33954f8b867bcccd1cda3e9d4db022784a895af07e4",
+      "hybrid-bm25-seeded-hop": "47c1bf78b871e2403f1d333418947393a1e65eb317785d8a9f7a3b115e76f88d"
+    },
+    "pass_code_commit": "7aa0bb45c2c2fc3d241ffcd5c18dec93e128ed78",
+    "pass_started_at": "2026-09-30T12:25:07+00:00",
+    "question_digest": "b97acfd62b1ed2af8f15eebb3cd56d5c932de8ec43a2db01bcfb940523cb35ce",
+    "rankings_digests": {
+      "dense": "054e396103df7c57c0abd46ed16c8097d959a56fd51c29ebc87f532edd3dd945",
+      "hybrid-bm25": "562944b4b69077bd620900285189896f6757a57e75897ec945a958095a37b8e9",
+      "hybrid-bm25-entity-hop": "81dc18f1f7acb52d7aa417b940e813d63a4d56caa24fd9e4f75f2f370a7d8eae",
+      "hybrid-bm25-seeded-hop": "42c1afb685b6bbd0cdd1b9c7c0becf7e6e3fb7c07f51623878723f31eeee908e"
+    },
+    "refusion_consistent": true,
+    "same_qid_order": true,
+    "systems": [
+      "dense",
+      "hybrid-bm25",
+      "hybrid-bm25-entity-hop",
+      "hybrid-bm25-seeded-hop"
+    ]
+  },
+  "label_rule": "TRANSFER_SUPPORTED wins > losses and p < 0.05; TRANSFER_REGRESSION losses > wins and p < 0.05; TRANSFER_NOT_SUPPORTED otherwise; from P14 against P10-B only (D5)",
+  "n_questions": 2255,
+  "phase": 16,
+  "primary_comparison": "P14 against P10-B",
+  "primary_metric": "full_support@2048_tokens",
+  "seconds": 6.4317634999752045,
+  "set": "multihop-rag-answerable",
+  "stop_reasons": [],
+  "terminal_state": "TRANSFER_REGRESSION",
+  "test": "exact two-sided McNemar (binomial on discordant queries, p = 1/2)"
+}
