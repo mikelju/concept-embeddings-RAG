@@ -320,6 +320,22 @@ def test_embed_and_bm25_write_only_under_the_phase_16_directory(
     assert loaded is not None
 
 
+def test_the_p16_integrity_and_eval_stages_are_registered():
+    parser = cli.build_parser()
+    assert parser.parse_args(["p16-integrity"]).command == "p16-integrity"
+    args = parser.parse_args(["p16-eval", "--authorized-pass"])
+    assert (args.command, args.authorized) == ("p16-eval", True)
+    assert parser.parse_args(["p16-eval"]).authorized is False
+
+
+def test_the_p16_pass_refuses_without_the_flag_or_integrity_json(tmp_path: Path):
+    with pytest.raises(SystemExit, match="MultiHop-RAG pass needs --authorized-pass"):
+        cli.cmd_p16_eval(authorized=False, target_dir=tmp_path)
+    with pytest.raises(SystemExit, match="run 'p16-integrity'"):
+        cli.cmd_p16_eval(authorized=True, target_dir=tmp_path)
+    assert list(tmp_path.iterdir()) == []
+
+
 def test_the_p16_build_stage_is_registered():
     args = cli.build_parser().parse_args(["p16-build", "--stage", "extract", "--smoke", "200"])
     assert (args.command, args.stage, args.smoke) == ("p16-build", "extract", 200)

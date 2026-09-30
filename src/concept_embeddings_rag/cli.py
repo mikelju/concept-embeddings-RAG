@@ -60,6 +60,8 @@
     p15-refit       D9, exploratory: the 330-point grid re-fused from the stored rankings
     p16-data        the pinned MultiHop-RAG source, newline-paragraph corpus, queries, token counts
     p16-build       one build step over the MultiHop-RAG corpus (bm25, embed, extract, index)
+    p16-integrity   D4 once: HotpotQA dev code identity, the pod extractor, the null-query live path
+    p16-eval        the single authorized pass on the 2,255 answerable MultiHop-RAG queries
 
 Each stage is idempotent and refuses to run if its input is missing, saying which
 stage to run first rather than failing somewhere deep inside numpy.
@@ -8968,6 +8970,51 @@ def cmd_p16_build(
     )
 
 
+def cmd_p16_integrity(
+    target_dir: Path = config.PHASE_16_DIR,
+    *,
+    phase9_dir: Path = config.PHASE_9_DIR,
+    phase10_dir: Path = config.PHASE_10_DIR,
+    phase14_dir: Path = config.PHASE_14_DIR,
+) -> Path:
+    """S4 (D4): Phase 15's `cmd_p15_integrity` over the Phase 16 inputs, no new logic.
+
+    Code identity on HotpotQA dev (P10-C 4,801 and P14 5,224 of 7,405, from the recorded dev
+    lists); the pod extractor's configuration digest against Phase 9's
+    `data/phase9/gliner/extraction.json`; the four live systems over the 301 `null` queries,
+    no metric. `integrity.json` is written once under `target_dir`; any miss is `DATA_STOP`.
+    """
+    return cmd_p15_integrity(
+        target_dir,
+        phase9_dir=phase9_dir,
+        phase10_dir=phase10_dir,
+        phase14_dir=phase14_dir,
+        source=MULTIHOP_RAG_SOURCE,
+    )
+
+
+def cmd_p16_eval(
+    *,
+    authorized: bool,
+    target_dir: Path = config.PHASE_16_DIR,
+    phase10_dir: Path = config.PHASE_10_DIR,
+    phase14_dir: Path = config.PHASE_14_DIR,
+) -> list[Path]:
+    """S5 (HU-3): the single authorized pass on the 2,255 answerable MultiHop-RAG queries:
+    Phase 15's `cmd_p15_eval` with the same refusals (no flag, no committed passing
+    `integrity.json`, uncommitted fits, an existing `pass.json`) and the same `pass.json`,
+    `run-<system>.json`, `outcomes-<system>.jsonl.gz` and `rankings-<system>.jsonl.gz`,
+    P14's rankings carrying the hop at the five Phase 14 `alpha` (D10). No metric printed.
+    """
+    return cmd_p15_eval(
+        authorized=authorized,
+        target_dir=target_dir,
+        phase10_dir=phase10_dir,
+        phase14_dir=phase14_dir,
+        source=MULTIHOP_RAG_SOURCE,
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="cer",
@@ -9328,6 +9375,15 @@ def build_parser() -> argparse.ArgumentParser:
         "p16-build",
         help="Phase 16: one build step over the MultiHop-RAG corpus (embed and extract on the pod)",
     )
+    subparsers.add_parser(
+        "p16-integrity",
+        help="Phase 16: D4 once - HotpotQA dev code identity, the pod extractor, the live path",
+    )
+    p16_eval = subparsers.add_parser(
+        "p16-eval",
+        help="Phase 16: the single authorized pass on the answerable MultiHop-RAG queries",
+    )
+    p16_eval.add_argument("--authorized-pass", action="store_true", dest="authorized")
     p16_build.add_argument("--stage", choices=P15_BUILD_STAGES, required=True)
     p16_build.add_argument(
         "--hourly-rate-usd",
@@ -9522,6 +9578,10 @@ def main(argv: list[str] | None = None) -> int:
         cmd_p16_data()
     elif args.command == "p16-build":
         cmd_p16_build(args.stage, hourly_rate_usd=args.hourly_rate_usd, smoke=args.smoke)
+    elif args.command == "p16-integrity":
+        cmd_p16_integrity()
+    elif args.command == "p16-eval":
+        cmd_p16_eval(authorized=args.authorized)
     return 0
 
 
