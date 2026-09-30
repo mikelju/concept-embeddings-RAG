@@ -201,8 +201,8 @@ adds, as on HotpotQA `test-11`, in a different order. The gain is a 2-paragraph 
 net 237 questions over Dense + BM25 come from the 1,252 questions with 2 supporting paragraphs; it
 is small on 3-paragraph questions, and on the 405 4-paragraph questions no system fully supports
 more than 2. Refitting the weights on the same questions (exploratory, an upper bound) reaches 806.
-The GPU steps took 59.6 s and 618.2 s, 0.14 USD attributable; the invoiced session total is
-pending. Still Wikipedia and a small corpus. See [`phase_15/15.results.md`](phase_15/15.results.md),
+The GPU steps took 59.6 s and 618.2 s, 0.14 USD attributable; the session invoiced 0.356 USD.
+Still Wikipedia and a small corpus, and MuSiQue's distractors were mined with BM25. See [`phase_15/15.results.md`](phase_15/15.results.md),
 the spec [`phase_15/15.spec.md`](phase_15/15.spec.md) and the plan
 [`phase_15/15.0_musique_validation.md`](phase_15/15.0_musique_validation.md). Next, by the author's
 decision: Phase 16 (a corpus that is not Wikipedia), then Phase 17.

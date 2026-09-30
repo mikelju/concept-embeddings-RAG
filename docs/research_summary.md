@@ -154,8 +154,11 @@ direction and order of the gains compare. The gain is a two-paragraph gain: 211 
 questions over Dense + BM25 come from the 1,252 questions with two supporting paragraphs. It is
 small on three-paragraph questions, and on the 405 four-paragraph questions no system retrieves
 the full evidence for more than 2. Refitting the weights on the same questions, an exploratory
-figure, adds 45 questions at the best of a 330-point grid. The GLiNER extraction took 10.3 min on one rented
-RTX 4090 (0.13 USD attributable).
+figure, adds 45 questions at the best of a 330-point grid. The GLiNER extraction took 10.3 min on
+one rented RTX 4090 (0.13 USD attributable; the session invoiced 0.356 USD). One caveat found
+after the label: MuSiQue mined its distractor paragraphs with BM25, so its hard negatives work
+against lexical retrieval in particular; the comparison against P10-C, where both arms hold BM25,
+is not exposed to that, and the near-duplicate gold measured post hoc moves no comparison.
 
 ## What did not work, and what is not established
 

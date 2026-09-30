@@ -43,7 +43,7 @@ What is established (figures and full records in each phase's `X.results.md`):
   `TRANSFER_SUPPORTED`). The gain is on 2-paragraph questions; none on 4-paragraph ones.
 
 **Current state (2026-09-29):** Phase 15 closed `TRANSFER_SUPPORTED`
-(`phase_15/15.results.md`; invoiced pod total pending): P14 (Dense + BM25 + relevance-ordered
+(`phase_15/15.results.md`): P14 (Dense + BM25 + relevance-ordered
 hop) stays the best system and the bar to beat; `test-11` is spent. Next, by the author's
 decision: Phase 16 validates the frozen systems on a corpus that is not Wikipedia, then Phase 17
 is the untrained query reformulation (question + P1). If this line and the master plan disagree,
