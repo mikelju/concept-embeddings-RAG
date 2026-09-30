@@ -229,8 +229,8 @@ the gain was not only an artifact of how HotpotQA was built: frozen, P14 and the
 beat Dense + BM25 on MuSiQue, on two-paragraph questions. That is a second Wikipedia benchmark, a
 small corpus and a one-hop design against 2-4 hop questions: evidence, not proof, of generality.
 Phase 16 then ran the same frozen systems on news articles (MultiHop-RAG), and there they lose
-to Dense + BM25: the gain is a property of the configuration on Wikipedia-like text, not a
-default for any corpus. P14 remains the best system on the two Wikipedia benchmarks. The next
+to Dense + BM25: the gain is not a default for any corpus, and one news corpus is not enough to
+say where its boundary lies (hypothesis: the configuration fitted on HotpotQA, not the hop itself). P14 remains the best system on the two Wikipedia benchmarks. The next
 step is the author's to decide with that result in view; the master plan had Phase 17 (an
 untrained second-hop query, the vector of "question + P1") after the corpus validations, and the
 roadmap queues QASPER and LegalBench-RAG ([`plans/0_master_plan.md`](plans/0_master_plan.md)).
