@@ -83,7 +83,7 @@ From Phase 7 onward:
 | 14 | Ordering the hop's candidates by their similarity to the question | [Approved](phase_14/14.spec.md) | **Complete — CANDIDATE_RELEVANCE_SUPPORTED** |
 | 15 | Validation on MuSiQue: Dense, P10-B, P10-C and P14 with nothing refitted (author decision 2026-09-29) | [Approved](phase_15/15.spec.md) | **Complete — TRANSFER_SUPPORTED** |
 | 16 | Validation on a corpus that is not Wikipedia: MultiHop-RAG news, the same frozen systems | [Approved](phase_16/16.spec.md) | **Complete — TRANSFER_REGRESSION** |
-| 17 | Second-hop query reformulation: the vector of "question + P1 text" against Dense, untrained | [Draft](phase_17/17.spec.md), to revise after Phases 15-16 | **Planned** |
+| 17 | Two zero-shot cross-encoder judges over the four frozen systems on HotpotQA dev, MuSiQue and MultiHop-RAG; the literature's metrics; the paper | [Spec](phase_17/17.spec.md), approved 2026-09-30 | **Specified**, plan pending |
 
 **The first research line is closed** (2026-09-15): concepts induced from pooled embeddings, tested through Phases 2-4, gave a negative and bounded result. The original Phase 5 — a comparative evaluation of that method — was not run; the plan was renumbered so Phase 5 tests the representation the proposal actually described. See [`phase_4/4.1_research_line_closure.md`](phase_4/4.1_research_line_closure.md).
 
@@ -183,9 +183,12 @@ validation phases come before any new component:
 - **Phase 16** does the same on a corpus that is not Wikipedia. The candidate examined is
   MultiHop-RAG (609 news articles, 2,556 queries, evidence marked as sentences); its spec
   decides.
-- **Phase 17** is the query reformulation the author chose on 2026-09-29 (written first as
-  Phase 15 in the review note and in `phase_14/14.results.md`, which keep that number as
-  historical records). Its draft spec is revised with what Phases 15 and 16 measure.
+- **Phase 17**, redefined by the author on 2026-09-30 after Phase 16: two zero-shot
+  cross-encoder judges over the four frozen systems on the three measured corpora, the
+  literature's metrics beside this line's, and a paper ([`phase_17/17.spec.md`](phase_17/17.spec.md)).
+  The query reformulation chosen on 2026-09-29 (written first as Phase 15 in the review note and
+  in `phase_14/14.results.md`, which keep that number as historical records) moves to the
+  successor project ([`successor_project_charter.md`](successor_project_charter.md)).
 - Both validation phases extract entities with the pinned GLiNER on a rented RunPod GPU, which
   the author authorized on 2026-09-29.
 
@@ -229,8 +232,9 @@ benchmarks; it does not transfer to MultiHop-RAG news.** See
 [`phase_16/16.results.md`](phase_16/16.results.md), the spec
 [`phase_16/16.spec.md`](phase_16/16.spec.md) and the plan
 [`phase_16/16.0_multihop_rag_validation.md`](phase_16/16.0_multihop_rag_validation.md). The next
-step is to be decided by the author with this result in view: Phase 17 (the query reformulation)
-was scheduled after the corpus validations, and the roadmap queues QASPER and LegalBench-RAG.
+step, decided by the author on 2026-09-30: Phase 17 is the judge over the frozen systems and the
+paper ([`phase_17/17.spec.md`](phase_17/17.spec.md), approved and frozen 2026-09-30); further corpora
+and new components move to a successor project ([`successor_project_charter.md`](successor_project_charter.md)).
 
 Up to Phase 14, the remaining scheduled work deliberately did **not** try to improve the Entity Hop with canonicalization, relations, multiple seeds or additional hops. Phase 9 asks whether the simple mechanism already discovered survives **corpus scale** with BGE-small as the validated primary Dense candidate. The separate question of Entity Hop beside a substantially stronger Dense retriever remains open.
 

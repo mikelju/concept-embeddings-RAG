@@ -47,10 +47,12 @@ What is established (figures and full records in each phase's `X.results.md`):
 
 **Current state (2026-09-30):** Phase 16 closed `TRANSFER_REGRESSION`
 (`phase_16/16.results.md`): P14 remains the best system on Wikipedia benchmarks but does not
-transfer to MultiHop-RAG news; `test-11` is spent; the pod invoice is still to be copied. Next
-step: to be decided by the author with Phase 16's result in view (the master plan had Phase 17,
-query reformulation, next; the roadmap queues QASPER and LegalBench-RAG). If this line and the
-master plan disagree, the master plan wins; fix this line.
+transfer to MultiHop-RAG news; `test-11` is spent; the pod invoice is still to be copied. Next,
+by the author's decision (2026-09-30): Phase 17 measures two zero-shot cross-encoder judges over
+the four frozen systems on the three corpora and writes the paper (`phase_17/17.spec.md`,
+approved); new components and corpora go to a successor project
+(`docs/plans/successor_project_charter.md`). If this line and the master plan disagree, the
+master plan wins; fix this line.
 
 ## Where things live
 
