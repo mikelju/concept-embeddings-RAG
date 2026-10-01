@@ -312,3 +312,40 @@ def test_the_file_names_carry_the_set_judge_and_line():
         phase17.reordered_name(STRONG, "hotpotqa", config.PHASE_17_UNION)
         == "reordered-strong-hotpotqa-union.jsonl.gz"
     )
+
+
+# --- D3: the counts and the verdict ----------------------------------------------------------
+
+
+def test_the_count_checks_and_the_d3_verdict():
+    expected = {"musique": {P10B: 524, P14: 761}}
+    observed = {"musique": {P10B: 524, P14: 760}}
+
+    checks = phase17.count_checks(observed, expected, {"musique": 2417})
+
+    assert checks["musique"][P10B] == {
+        "label": "P10-B",
+        "observed": 524,
+        "expected": 524,
+        "n_questions": 2417,
+        "passed": True,
+    }
+    assert checks["musique"][P14]["passed"] is False
+    verdict = phase17.d3_verdict(checks)
+    assert verdict["terminal_state"] == "DATA_STOP"
+    assert verdict["stop_reasons"] == ["musique P14: 760 of 2417, recorded 761"]
+    passing = phase17.count_checks({"musique": {P10B: 524, P14: 761}}, expected, {"musique": 2417})
+    assert phase17.d3_verdict(passing) == {"terminal_state": None, "stop_reasons": []}
+    assert phase17.d3_verdict(passing, extra_reasons=["moved"])["stop_reasons"] == ["moved"]
+
+
+def test_a_missing_system_is_a_miss_not_a_pass():
+    checks = phase17.count_checks({"musique": {}}, {"musique": {P14: 761}}, {"musique": 2417})
+    assert checks["musique"][P14]["observed"] is None
+    assert phase17.d3_verdict(checks)["terminal_state"] == "DATA_STOP"
+
+
+def test_supported_counts_contexts_holding_every_gold_unit():
+    questions = toy_questions()
+    contexts = {"q1": ["g1", "g2", "z"], "q2": ["h1"], "q3": ["k1"]}
+    assert phase17.supported_in(questions, contexts) == 2

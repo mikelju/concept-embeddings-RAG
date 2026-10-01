@@ -30,11 +30,13 @@ import numpy as np
 
 from concept_embeddings_rag import config
 from concept_embeddings_rag.corpus.pool import Question
+from concept_embeddings_rag.evaluation import fullwiki as phase9
 from concept_embeddings_rag.evaluation import phase14, phase15
 from concept_embeddings_rag.evaluation.metrics import full_support, ndcg_at_k, recall_at_k
 
 P10A, P10B, P10C, P14 = config.PHASE_17_SYSTEMS
 HOP_ADDS, HOP_HURTS, HOP_NEUTRAL = config.PHASE_17_LABELS
+DATA_STOP = phase9.DATA_STOP
 BUDGET = phase15.BUDGET
 
 INTEGRITY_FILENAME = "integrity.json"
@@ -332,6 +334,54 @@ def hop_label(result: Mapping[str, Any]) -> str:
         regression=HOP_HURTS,
         not_supported=HOP_NEUTRAL,
     )
+
+
+# --- D3: the reproduced counts and the verdict ----------------------------------------------
+
+
+def supported_in(questions: Sequence[Question], contexts: Mapping[str, Sequence[str]]) -> int:
+    """Questions whose packed context holds every gold unit (Full Support), from the contexts
+    `phase15.recorded_contexts` packed and checked against the recorded outcomes."""
+    return sum(
+        1 for question in questions if set(question.gold_unit_ids) <= set(contexts[question.qid])
+    )
+
+
+def count_checks(
+    observed: Mapping[str, Mapping[str, int]],
+    expected: Mapping[str, Mapping[str, int]],
+    n_questions: Mapping[str, int],
+) -> dict[str, dict[str, dict[str, Any]]]:
+    """Each expected count beside the observed one, per set and system; a system with no
+    observed count is a miss."""
+    checks: dict[str, dict[str, dict[str, Any]]] = {}
+    for set_name, systems in expected.items():
+        checks[set_name] = {}
+        for system, count in systems.items():
+            seen = observed.get(set_name, {}).get(system)
+            checks[set_name][system] = {
+                "label": config.PHASE_17_SYSTEM_LABELS[system],
+                "observed": None if seen is None else int(seen),
+                "expected": int(count),
+                "n_questions": int(n_questions[set_name]),
+                "passed": seen is not None and int(seen) == int(count),
+            }
+    return checks
+
+
+def d3_verdict(
+    checks: Mapping[str, Mapping[str, Mapping[str, Any]]], *, extra_reasons: Sequence[str] = ()
+) -> dict[str, Any]:
+    """`DATA_STOP` on any miss, each reason naming the set, the system and both counts."""
+    reasons = [
+        f"{set_name} {check['label']}: {check['observed']} of {check['n_questions']}, "
+        f"recorded {check['expected']}"
+        for set_name, systems in checks.items()
+        for check in systems.values()
+        if not check["passed"]
+    ]
+    reasons.extend(extra_reasons)
+    return {"terminal_state": DATA_STOP if reasons else None, "stop_reasons": reasons}
 
 
 # --- Shards ----------------------------------------------------------------------------------
