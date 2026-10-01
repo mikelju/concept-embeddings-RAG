@@ -108,8 +108,12 @@ def test_truncations_count_pairs_longer_than_the_maximum_with_special_tokens():
 
 
 def test_the_pins_are_full_revisions_and_weight_digests():
-    for key, pin in config.PHASE_17_JUDGES.items():
-        assert key in (config.PHASE_17_LIGHT, config.PHASE_17_STRONG)
+    assert list(config.PHASE_17_JUDGES) == [
+        config.PHASE_17_LIGHT,
+        config.PHASE_17_STRONG,
+        config.PHASE_17_DECISION,
+    ]
+    for pin in config.PHASE_17_JUDGES.values():
         assert len(pin["revision"]) == 40 and int(pin["revision"], 16) >= 0
         assert len(pin["weights_sha256"]) == 64 and int(pin["weights_sha256"], 16) >= 0
     light = config.PHASE_17_JUDGES[config.PHASE_17_LIGHT]
@@ -123,6 +127,42 @@ def test_the_pins_are_full_revisions_and_weight_digests():
     assert strong["weights_sha256"].endswith("5286")
     assert (light["max_length"], light["batch_size"]) == (512, 256)
     assert (strong["max_length"], strong["batch_size"]) == (8192, 32)
+    for pin in (light, strong):
+        assert (pin["kind"], pin["dtype"]) == ("cross-encoder", "float32")
+
+
+def test_the_decision_judge_pins_its_heads_and_every_encoder_shard():
+    """Deviation 17.1: CLM-8B's heads file and Qwen3-8B's five shards, read from the Hub
+    metadata on 2026-10-01; a bi-encoder in bfloat16."""
+    pin = config.PHASE_17_JUDGES[config.PHASE_17_DECISION]
+    assert (pin["label"], pin["kind"], pin["dtype"]) == ("J-decision", "bi-encoder", "bfloat16")
+    assert pin["name"] == "Contrastive-LM/CLM-v0.1-8B"
+    assert pin["revision"].startswith("e939398d") and pin["revision"].endswith("2b0a")
+    assert pin["weights_file"] == "CLM_v0.1-8B.pt"
+    assert pin["weights_sha256"].startswith("b2b4a8c9")
+    assert pin["weights_bytes"] == 75_557_149
+    assert (pin["max_length"], pin["batch_size"]) == (2048, 400)
+    # Every pool fits one `rank` call: four systems' top-100 at most.
+    assert pin["batch_size"] >= len(config.PHASE_17_SYSTEMS) * config.PHASE_17_DEPTH
+    encoder = pin["encoder"]
+    assert encoder["name"] == "Qwen/Qwen3-8B"
+    assert len(encoder["revision"]) == 40 and encoder["revision"].startswith("b968826d")
+    shards = encoder["shards"]
+    assert sorted(shards) == [f"model-0000{i}-of-00005.safetensors" for i in range(1, 6)]
+    for shard in shards.values():
+        assert len(shard["sha256"]) == 64 and int(shard["sha256"], 16) >= 0
+        assert shard["bytes"] > 0
+    assert sum(shard["bytes"] for shard in shards.values()) == encoder["total_bytes"]
+    assert encoder["total_bytes"] == 16_381_516_776
+
+
+def test_a_bi_encoder_pin_is_refused_before_anything_is_fetched():
+    def no_fetch(*args, **kwargs):
+        raise AssertionError("nothing may be fetched for a bi-encoder pin")
+
+    with pytest.raises(judge.JudgeError, match="bi-encoder"):
+        judge.load(config.PHASE_17_DECISION, resolve_snapshot=no_fetch)
+    assert judge.cross_encoder_pin(config.PHASE_17_LIGHT)["label"] == "J-light"
 
 
 def test_a_served_snapshot_other_than_the_pin_refuses_before_any_model_loads(tmp_path: Path):

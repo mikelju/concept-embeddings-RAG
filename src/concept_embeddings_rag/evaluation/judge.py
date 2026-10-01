@@ -1,10 +1,12 @@
 """Phase 17 (D2): a pinned zero-shot cross-encoder, its identity, its truncations and its
-scores.
+scores. J-light and J-strong only: J-decision (deviation 17.1) is a bi-encoder served another
+way, and `cross_encoder_pin` refuses its pin here.
 
 The judge is `sentence_transformers.CrossEncoder` at the pinned revision, its raw logit as
 the score (`activation_fn = Identity`: the sigmoid is monotone but saturates in float32 and
-would manufacture ties), float32 weights from `model.safetensors` only, matmuls at
-`highest` precision, no `trust_remote_code`, the maximum length left to the model. Before
+would manufacture ties), weights in the pin's dtype (float32 for both) from
+`model.safetensors` only, matmuls at `highest` precision, no `trust_remote_code`, the maximum
+length left to the model. Before
 any pair is scored, the snapshot the Hub served must carry the pinned revision as its
 directory name and the pinned SHA-256 as its weights' digest.
 
@@ -67,6 +69,18 @@ def check_snapshot(pin: Mapping[str, Any], snapshot: Path) -> dict[str, str]:
     return {"served_revision": served, "weights_sha256": digest}
 
 
+def cross_encoder_pin(key: str) -> Mapping[str, Any]:
+    """The pin of judge `key`, refused unless it is a cross-encoder: this module loads
+    `CrossEncoder` checkpoints only, and J-decision (deviation 17.1) is a bi-encoder."""
+    pin = config.PHASE_17_JUDGES[key]
+    if pin["kind"] != config.PHASE_17_CROSS_ENCODER:
+        raise JudgeError(
+            f"{pin['name']} is a {pin['kind']} judge; evaluation/judge.py loads "
+            f"{config.PHASE_17_CROSS_ENCODER} judges only"
+        )
+    return pin
+
+
 def load(
     key: str,
     *,
@@ -74,7 +88,7 @@ def load(
     resolve_snapshot: Callable[..., Path] = snapshot_directory,
 ) -> LoadedJudge:
     """The pinned judge `key` (`light` or `strong`), checked before any pair is scored."""
-    pin = config.PHASE_17_JUDGES[key]
+    pin = cross_encoder_pin(key)
     snapshot = resolve_snapshot(pin["name"], pin["revision"], allow_patterns=SNAPSHOT_PATTERNS)
     served = check_snapshot(pin, Path(snapshot))
 
@@ -89,7 +103,7 @@ def load(
         revision=pin["revision"],
         device=device,
         activation_fn=torch.nn.Identity(),
-        model_kwargs={"dtype": torch.float32, "use_safetensors": True},
+        model_kwargs={"dtype": getattr(torch, pin["dtype"]), "use_safetensors": True},
     )
     max_length = int(model.max_length)
     if max_length != int(pin["max_length"]):
@@ -123,6 +137,7 @@ def identity(loaded: LoadedJudge) -> dict[str, Any]:
     return {
         "key": loaded.key,
         "label": loaded.pin["label"],
+        "kind": loaded.pin["kind"],
         "name": loaded.pin["name"],
         "revision_requested": loaded.pin["revision"],
         "revision_served": loaded.served_revision,

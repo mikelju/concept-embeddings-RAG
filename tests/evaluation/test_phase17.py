@@ -15,6 +15,8 @@ from concept_embeddings_rag.evaluation.entity_diagnostics import RecordingRetrie
 
 P10A, P10B, P10C, P14 = config.PHASE_17_SYSTEMS
 LIGHT, STRONG = config.PHASE_17_LIGHT, config.PHASE_17_STRONG
+DECISION = config.PHASE_17_DECISION
+JUDGES = (LIGHT, STRONG, DECISION)
 
 
 # --- The pool (D1) -------------------------------------------------------------------------
@@ -170,7 +172,7 @@ def test_the_ceiling_counts_questions_with_every_gold_inside_and_the_failures_am
     }
 
 
-# --- D5: the eleven comparisons and the label -----------------------------------------------
+# --- D5: the seventeen comparisons and the label (deviation 17.1) ----------------------------
 
 
 def runs_for(lines: dict[str, list[float]]) -> dict[str, list[dict]]:
@@ -180,22 +182,28 @@ def runs_for(lines: dict[str, list[float]]) -> dict[str, list[dict]]:
     }
 
 
-def test_the_eleven_comparisons_are_oriented_control_then_candidate():
-    base = [0.0, 0.0, 0.0, 0.0]
+def test_the_seventeen_comparisons_are_oriented_control_then_candidate():
+    base = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
     lines: dict[str, list[float]] = {name: list(base) for name in config.PHASE_17_SYSTEMS}
-    for judge in (LIGHT, STRONG):
+    for judge in JUDGES:
         for name in config.PHASE_17_SYSTEMS:
             lines[phase17.line_key(judge, name)] = list(base)
     # Each candidate wins exactly one question over its control, on a distinct question set.
-    lines[phase17.line_key(LIGHT, P14)] = [1.0, 0.0, 0.0, 0.0]
-    lines[phase17.line_key(STRONG, P14)] = [1.0, 1.0, 0.0, 0.0]
-    lines[phase17.line_key(LIGHT, P10B)] = [0.0, 0.0, 1.0, 0.0]
-    lines[phase17.line_key(STRONG, P10B)] = [0.0, 0.0, 1.0, 1.0]
+    lines[phase17.line_key(LIGHT, P14)] = [1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    lines[phase17.line_key(STRONG, P14)] = [1.0, 1.0, 0.0, 0.0, 0.0, 0.0]
+    lines[phase17.line_key(LIGHT, P10B)] = [0.0, 0.0, 1.0, 0.0, 0.0, 0.0]
+    lines[phase17.line_key(STRONG, P10B)] = [0.0, 0.0, 1.0, 1.0, 0.0, 0.0]
+    # J-decision(P10-B) wins two questions J-strong(P10-B) loses and loses both of its wins.
+    lines[phase17.line_key(DECISION, P10B)] = [0.0, 0.0, 0.0, 0.0, 1.0, 1.0]
+    lines[phase17.line_key(DECISION, P10A)] = [0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
 
     compared = phase17.comparisons(runs_for(lines))
 
-    assert sorted(compared) == sorted([LIGHT, STRONG, phase17.STRONG_VS_LIGHT])
-    assert sum(len(compared[j]) for j in (LIGHT, STRONG)) + 1 == 11
+    assert sorted(compared) == sorted(
+        [*JUDGES, phase17.STRONG_VS_LIGHT, phase17.DECISION_VS_STRONG]
+    )
+    assert all(len(compared[j]) == 5 for j in JUDGES)
+    assert sum(len(compared[j]) for j in JUDGES) + 2 == 17
     first = compared[LIGHT][phase17.PRIMARY]
     assert (first["control"], first["candidate"]) == ("J-light(P10-B)", "J-light(P14)")
     assert (first["wins"], first["losses"]) == (1, 1)
@@ -213,6 +221,15 @@ def test_the_eleven_comparisons_are_oriented_control_then_candidate():
     step = compared[phase17.STRONG_VS_LIGHT]
     assert (step["control"], step["candidate"]) == ("J-light(P10-B)", "J-strong(P10-B)")
     assert (step["wins"], step["losses"]) == (1, 0)
+    decided = compared[phase17.DECISION_VS_STRONG]
+    assert (decided["control"], decided["candidate"]) == ("J-strong(P10-B)", "J-decision(P10-B)")
+    assert (decided["wins"], decided["losses"]) == (2, 2)
+    own = compared[DECISION][phase17.PRIMARY]
+    assert (own["control"], own["candidate"]) == ("J-decision(P10-B)", "J-decision(P14)")
+    assert (own["wins"], own["losses"]) == (0, 2)
+    p10a_decided = compared[DECISION]["j_p10a_vs_p10a"]
+    assert (p10a_decided["control"], p10a_decided["candidate"]) == ("P10-A", "J-decision(P10-A)")
+    assert (p10a_decided["wins"], p10a_decided["losses"]) == (1, 0)
 
 
 @pytest.mark.parametrize(
@@ -312,6 +329,7 @@ def test_the_file_names_carry_the_set_judge_and_line():
         phase17.reordered_name(STRONG, "hotpotqa", config.PHASE_17_UNION)
         == "reordered-strong-hotpotqa-union.jsonl.gz"
     )
+    assert phase17.scores_name(DECISION, "hotpotqa") == "scores-decision-hotpotqa.jsonl.gz"
 
 
 # --- D3: the counts and the verdict ----------------------------------------------------------

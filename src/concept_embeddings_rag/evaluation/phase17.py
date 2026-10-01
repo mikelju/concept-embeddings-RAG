@@ -270,8 +270,10 @@ def ceiling(
 
 PRIMARY = "j_p14_vs_j_p10b"
 STRONG_VS_LIGHT = "strong_vs_light_p10b"
+DECISION_VS_STRONG = "decision_vs_strong_p10b"
 # Per judge, as (key, control, candidate), each side `(judged, system)`; the first decides
-# the label. Then J-strong(P10-B) against J-light(P10-B), once per set.
+# the label. Then, once per set, J-strong(P10-B) against J-light(P10-B) and, by deviation
+# 17.1, J-decision(P10-B) against J-strong(P10-B).
 JUDGE_COMPARISONS: tuple[tuple[str, tuple[bool, str], tuple[bool, str]], ...] = (
     (PRIMARY, (True, P10B), (True, P14)),
     ("j_p10b_vs_p10b", (False, P10B), (True, P10B)),
@@ -305,10 +307,15 @@ def _compared(
 
 def comparisons(
     runs: Mapping[str, Sequence[Mapping[str, Any]]],
-    judges: Sequence[str] = (config.PHASE_17_LIGHT, config.PHASE_17_STRONG),
+    judges: Sequence[str] = (
+        config.PHASE_17_LIGHT,
+        config.PHASE_17_STRONG,
+        config.PHASE_17_DECISION,
+    ),
 ) -> dict[str, Any]:
-    """D5 on one set: five comparisons per judge and the step from J-light to J-strong on
-    P10-B. `runs` maps every `line_key` to its replay records."""
+    """D5 on one set: five comparisons per judge, then the two cross-judge comparisons on
+    P10-B, J-strong against J-light and J-decision against J-strong (deviation 17.1).
+    `runs` maps every `line_key` to its replay records."""
     compared: dict[str, Any] = {}
     for judge in judges:
         compared[judge] = {
@@ -320,7 +327,9 @@ def comparisons(
             for key, control, candidate in JUDGE_COMPARISONS
         }
     light, strong = config.PHASE_17_LIGHT, config.PHASE_17_STRONG
+    decision = config.PHASE_17_DECISION
     compared[STRONG_VS_LIGHT] = _compared(runs, (light, P10B), (strong, P10B))
+    compared[DECISION_VS_STRONG] = _compared(runs, (strong, P10B), (decision, P10B))
     return compared
 
 

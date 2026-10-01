@@ -1121,3 +1121,9 @@ def test_the_phase_9_endpoint_and_envelope_are_the_ones_the_spec_freezes():
     assert config.PHASE_9_SPEND_CEILING_USD == 25.0
     gliner_digest = "2f7864661b8ce7ff"  # pragma: allowlist secret
     assert gliner_digest == config.PHASE_9_GLINER_CONFIGURATION_DIGEST
+
+
+def test_the_phase_17_cost_cap_is_the_one_deviation_17_1_raised():
+    """D8: the rented session stops at 10 USD, raised from 5 by deviation 17.1."""
+    assert config.PHASE_17_COST_CAP_USD == 10.0
+    assert set(config.PHASE_17_JUDGES) == {"light", "strong", "decision"}
