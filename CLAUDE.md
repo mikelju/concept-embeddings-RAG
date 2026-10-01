@@ -51,8 +51,9 @@ What is established (figures and full records in each phase's `X.results.md`):
 
 **Current state (2026-10-01):** Phase 17 closed (`phase_17/17.results.md`): the three judges are
 measured and the paper (`docs/paper/`, 25 pages) is built; the author chooses the venue
-(`docs/paper/venues.md`) and confirms the full name in `main.tex`; the Phase 17 pod
-invoice is still to be copied from Billing; `test-11` is spent. Next step: the author's, with the
+(`docs/paper/venues.md`; journals and online publications only; PR 28 merged and the paper
+approved on 2026-10-01); the pod session invoiced 5.257 USD; `test-11` is spent. The
+research line of this repository is closed. Next step: the author's, with the
 successor project in view (`docs/plans/successor_project_charter.md`; query reformulation moved
 there). If this line and the master plan disagree, the master plan wins; fix this line.
 
