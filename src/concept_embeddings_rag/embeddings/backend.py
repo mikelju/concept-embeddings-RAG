@@ -89,15 +89,21 @@ def weights_sha256(directory: Path | str, filename: str = config.PHASE_8_WEIGHTS
     return hasher.hexdigest()
 
 
-def snapshot_directory(name: str, revision: str) -> Path:
+def snapshot_directory(
+    name: str, revision: str, *, allow_patterns: Sequence[str] | None = None
+) -> Path:
     """The local snapshot the Hub serves for `name` at `revision`.
 
     Its directory name is the commit actually served, which is what makes the pin
-    checkable instead of merely stated.
+    checkable instead of merely stated. `allow_patterns` limits the files fetched (Phase 17's
+    judges: not the ONNX and OpenVINO copies a repository also carries); the default fetches
+    the whole snapshot, as every earlier caller does.
     """
     from huggingface_hub import snapshot_download
 
-    return Path(snapshot_download(name, revision=revision))
+    if allow_patterns is None:
+        return Path(snapshot_download(name, revision=revision))
+    return Path(snapshot_download(name, revision=revision, allow_patterns=list(allow_patterns)))
 
 
 class SentenceTransformerBackend:

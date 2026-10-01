@@ -6,7 +6,7 @@ in this project may hardcode a budget, a seed or a model name inline.
 """
 
 from pathlib import Path
-from typing import Final
+from typing import Any, Final
 
 # --- Paths -----------------------------------------------------------------
 # Resolved from this file, never from the working directory: the CLI must behave
@@ -1236,6 +1236,109 @@ PHASE_16_P10C_WEIGHTS: Final[tuple[float, ...]] = PHASE_15_P10C_WEIGHTS
 PHASE_16_P14_ALPHA: Final[float] = PHASE_15_P14_ALPHA
 PHASE_16_P14_WEIGHTS: Final[tuple[float, ...]] = PHASE_15_P14_WEIGHTS
 PHASE_16_TERMINAL_STATES: Final[tuple[str, ...]] = PHASE_15_TERMINAL_STATES
+
+# --- Phase 17: two zero-shot judges over the frozen systems -----------------------------
+# Fixed by `17.spec.md` (approved and frozen 2026-09-30) and `17.0_judge_and_paper.md`
+# (approved 2026-10-01). Nothing is fitted (D4). The file names live in
+# `evaluation/phase17.py`: this module is on the selection path's import closure.
+
+PHASE_17_DIR: Final[Path] = DATA_DIR / "phase17"
+PHASE_17_SMOKE_DIR: Final[Path] = PHASE_17_DIR / "smoke"
+PHASE_17_SHARDS_DIR: Final[Path] = PHASE_17_DIR / "shards"
+PHASE_17_LOGS_DIR: Final[Path] = PHASE_17_DIR / "logs"
+
+# D3: the three sets, keyed by corpus, and their question counts.
+PHASE_17_HOTPOTQA: Final[str] = "hotpotqa"
+PHASE_17_MUSIQUE: Final[str] = "musique"
+PHASE_17_MULTIHOP_RAG: Final[str] = "multihop-rag"
+PHASE_17_SETS: Final[dict[str, int]] = {
+    PHASE_17_HOTPOTQA: PHASE_15_DEV_QUESTIONS,
+    PHASE_17_MUSIQUE: PHASE_15_VALIDATION_ROWS,
+    PHASE_17_MULTIHOP_RAG: PHASE_16_ANSWERABLE_QUERIES,
+}
+
+# D1: the four frozen systems by their Phase 14 names, and the union pool's fifth line.
+PHASE_17_SYSTEMS: Final[tuple[str, ...]] = PHASE_15_SYSTEMS
+PHASE_17_SYSTEM_LABELS: Final[dict[str, str]] = PHASE_15_SYSTEM_LABELS
+PHASE_17_UNION: Final[str] = "union"
+PHASE_17_DEPTH: Final[int] = PHASE_9_RANKING_DEPTH
+
+# D3: the seven Full Support @2,048 counts reproduced before any pair is scored, keyed by
+# set then system; a miss is DATA_STOP.
+PHASE_17_D3_SUPPORTED: Final[dict[str, dict[str, int]]] = {
+    PHASE_17_HOTPOTQA: {
+        "hybrid-bm25-entity-hop": PHASE_15_P10C_DEV_SUPPORTED,
+        "hybrid-bm25-seeded-hop": PHASE_15_P14_DEV_SUPPORTED,
+    },
+    PHASE_17_MUSIQUE: {
+        "hybrid-bm25": 524,
+        "hybrid-bm25-entity-hop": 669,
+        "hybrid-bm25-seeded-hop": 761,
+    },
+    PHASE_17_MULTIHOP_RAG: {
+        "hybrid-bm25": 587,
+        "hybrid-bm25-entity-hop": 522,
+        "hybrid-bm25-seeded-hop": 513,
+    },
+}
+# Author decision 3: the four recorded replays outside D3. A miss stops the stage for the
+# author, without a label.
+PHASE_17_REPLAYS_SUPPORTED: Final[dict[str, dict[str, int]]] = {
+    PHASE_17_HOTPOTQA: {
+        "dense": PHASE_10_DEV_REFERENCE_SUPPORTED["dense"],
+        "hybrid-bm25": PHASE_10_DEV_REFERENCE_SUPPORTED["hybrid-bm25"],
+    },
+    PHASE_17_MUSIQUE: {"dense": 436},
+    PHASE_17_MULTIHOP_RAG: {"dense": 338},
+}
+
+# D2: the two judges, pinned. Revision and `model.safetensors` SHA-256 read from the Hugging
+# Face Hub on 2026-10-01 (`HfApi().model_info(name, files_metadata=True)`).
+PHASE_17_LIGHT: Final[str] = "light"
+PHASE_17_STRONG: Final[str] = "strong"
+PHASE_17_WEIGHTS_FILE: Final[str] = "model.safetensors"
+PHASE_17_JUDGES: Final[dict[str, dict[str, Any]]] = {
+    PHASE_17_LIGHT: {
+        "label": "J-light",
+        "name": "cross-encoder/ms-marco-MiniLM-L-6-v2",
+        "revision": "233902d25c440f23af6f7d6e94d2946bac0bee0a",
+        "weights_sha256": "821d1aa69520101d6e0737f78a042ae25b19e5cb9160701909d10434f4aeb0ae",
+        "weights_bytes": 90_870_598,
+        "max_length": 512,
+        "batch_size": 256,
+    },
+    PHASE_17_STRONG: {
+        "label": "J-strong",
+        "name": "BAAI/bge-reranker-v2-m3",
+        "revision": "953dc6f6f85a1b2dbfca4c34a2796e7dde08d41e",
+        "weights_sha256": "d9e3e081faff1eefb84019509b2f5558fd74c1a05a2c7db22f74174fcedb5286",
+        "weights_bytes": 2_271_071_852,
+        "max_length": 8192,
+        "batch_size": 32,
+    },
+}
+# Author decision 1: float32 weights and activations, no TF32 matmuls.
+PHASE_17_DTYPE: Final[str] = "float32"
+PHASE_17_MATMUL_PRECISION: Final[str] = "highest"
+# One `predict` call per shard of this many questions; the first this-many questions of each
+# set are re-scored at batch size 1 for the determinism record (deciding nothing).
+PHASE_17_SHARD_QUESTIONS: Final[int] = 250
+PHASE_17_DETERMINISM_QUESTIONS: Final[int] = 20
+
+# D6: the comparable metrics.
+PHASE_17_KS: Final[tuple[int, ...]] = (2, 5, 10, 20, 100)
+PHASE_17_NDCG_K: Final[int] = 10
+PHASE_17_BUDGETS: Final[tuple[int, ...]] = PHASE_9_BUDGETS
+
+# D5: the label of J(P14) against J(P10-B), per set and judge, written by code.
+PHASE_17_LABELS: Final[tuple[str, ...]] = (
+    "HOP_ADDS_UNDER_JUDGE",
+    "HOP_HURTS_UNDER_JUDGE",
+    "HOP_NEUTRAL_UNDER_JUDGE",
+)
+
+# D8: the rented session stops and the author is asked at this total.
+PHASE_17_COST_CAP_USD: Final[float] = 5.0
 
 
 def ensure_directories() -> None:
