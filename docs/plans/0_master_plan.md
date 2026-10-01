@@ -244,7 +244,7 @@ though its article holds gold for 62.44 %; the hop's few gains are about two thi
 article. Refitting on the same queries (exploratory, an upper bound) reaches 662 with the hop's
 weight at 0 (Dense 0.3 / BM25 0.7). The pod, created and driven by the agent through the RunPod
 API (the first phase run so), took 13 min at 0.74 USD/h; the GPU steps took 41.2 s and 154.8 s,
-0.04 USD attributable; the account balance moved 0.1029 USD; the invoice is pending. A tiny
+0.04 USD attributable; the session invoiced 0.165 USD (GPU 0.163, storage 0.002). A tiny
 corpus, one kind of text, LLM-written questions. **P14 stays the best system on Wikipedia
 benchmarks; it does not transfer to MultiHop-RAG news.** See
 [`phase_16/16.results.md`](phase_16/16.results.md), the spec
