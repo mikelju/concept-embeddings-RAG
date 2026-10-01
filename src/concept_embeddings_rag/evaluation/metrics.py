@@ -7,6 +7,7 @@ the easy paragraph while never finding the second one - which is precisely the
 failure mode this project claims to fix.
 """
 
+import math
 from collections.abc import Sequence
 
 
@@ -39,3 +40,23 @@ def recall_at_k(
 ) -> float:
     """Gold recall considering only the first `k` hits of the ranking."""
     return gold_recall(list(ranked_unit_ids)[:k], gold_unit_ids)
+
+
+def ndcg_at_k(ranked_unit_ids: Sequence[str], gold_unit_ids: Sequence[str], k: int) -> float:
+    """nDCG over the first `k` hits with binary relevance, the BEIR metric (Phase 17, D6).
+
+    A gold id counts once, at its first rank. The ideal DCG places min(|gold|, k) distinct
+    gold ids first; a sentinel gold, which no unit carries, counts in it as in every recall of
+    the line, so a question with unreachable gold cannot score 1. No gold scores 0.
+    """
+    gold = set(gold_unit_ids)
+    if not gold:
+        return 0.0
+    seen: set[str] = set()
+    dcg = 0.0
+    for position, unit_id in enumerate(list(ranked_unit_ids)[:k], start=1):
+        if unit_id in gold and unit_id not in seen:
+            seen.add(unit_id)
+            dcg += 1.0 / math.log2(position + 1)
+    ideal = sum(1.0 / math.log2(position + 1) for position in range(1, min(len(gold), k) + 1))
+    return dcg / ideal

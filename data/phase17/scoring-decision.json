@@ -1,0 +1,388 @@
+{
+  "allocation": {
+    "cgroup_cpu_max": null,
+    "cgroup_memory_max": null,
+    "cpu_affinity": 128
+  },
+  "code_commit": "6aa111bee54f2e52fd14c5a504b17f48d3ff028c",
+  "created_at": "2026-10-01T11:25:49+00:00",
+  "encoder": {
+    "dtype": "bfloat16",
+    "name": "Qwen/Qwen3-8B",
+    "revision": "b968826d9c46dd6066d109eabc6255188de91218",
+    "shards_verified": {
+      "model-00001-of-00005.safetensors": {
+        "bytes": 3996250744,
+        "sha256": "31d6a825ae35f11fb85b195b4c42c146c051e446433125a215336abdf95cbf5f"
+      },
+      "model-00002-of-00005.safetensors": {
+        "bytes": 3993160032,
+        "sha256": "5991236cea6fe21f3d43cab0f0e84448734fbbe0789816202989f2ddc9d18282"
+      },
+      "model-00003-of-00005.safetensors": {
+        "bytes": 3959604768,
+        "sha256": "c5185c4794be2d8a9784d5753c9922db38df478ce11f9ed0b415b7304d896836"
+      },
+      "model-00004-of-00005.safetensors": {
+        "bytes": 3187841392,
+        "sha256": "b5ee7de71fbf17db3d5704e0c8f2bc7d005ca9e1d7ca2aeb19827b0cfcaa917a"
+      },
+      "model-00005-of-00005.safetensors": {
+        "bytes": 1244659840,
+        "sha256": "20c2d6366ab85c90786ccdd829cd2b9e7d30ef3b2ebbb998280e7e4014b542ff"
+      }
+    },
+    "snapshot_directory": "b968826d9c46dd6066d109eabc6255188de91218",
+    "total_bytes": 16381516776
+  },
+  "heads": {
+    "bytes": 75557149,
+    "cfg": {
+      "activation": "gelu",
+      "depth": 3,
+      "hidden_size": 4096,
+      "layernorm": true,
+      "model": "Qwen/Qwen3-8B",
+      "projection_dim": 512,
+      "residual": false,
+      "width": 1536
+    },
+    "file": "CLM_v0.1-8B.pt",
+    "parameters": 18887680,
+    "revision": "e939398d4556fcd9400c76fa8c5a513202f42b0a",
+    "sha256": "b2b4a8c9c2d39263eff78a351eb909a342ce9b3bf21a3f07c1d1bf15f1c4eda5"
+  },
+  "host": {
+    "cpu_count": 128,
+    "device": "cuda",
+    "gpu": "NVIDIA GeForce RTX 4090",
+    "machine": "x86_64",
+    "platform": "Linux-6.8.0-139-generic-x86_64-with-glibc2.35",
+    "processor": "x86_64",
+    "python": "3.12.14",
+    "ram_bytes": 540844707840,
+    "release": "6.8.0-139-generic",
+    "system": "Linux",
+    "torch_threads": 64,
+    "torch_version": "2.13.0+cu126"
+  },
+  "hourly_rate_usd": 0.74,
+  "judge": {
+    "architecture": "state head and action head over a frozen Qwen3-8B (bi-encoder)",
+    "batch_size": 32,
+    "batch_unit": "texts per embedding request",
+    "dtype": {
+      "encoder": "bfloat16",
+      "heads": "float32"
+    },
+    "encoder": {
+      "dtype": "bfloat16",
+      "name": "Qwen/Qwen3-8B",
+      "revision": "b968826d9c46dd6066d109eabc6255188de91218",
+      "shards_verified": {
+        "model-00001-of-00005.safetensors": {
+          "bytes": 3996250744,
+          "sha256": "31d6a825ae35f11fb85b195b4c42c146c051e446433125a215336abdf95cbf5f"
+        },
+        "model-00002-of-00005.safetensors": {
+          "bytes": 3993160032,
+          "sha256": "5991236cea6fe21f3d43cab0f0e84448734fbbe0789816202989f2ddc9d18282"
+        },
+        "model-00003-of-00005.safetensors": {
+          "bytes": 3959604768,
+          "sha256": "c5185c4794be2d8a9784d5753c9922db38df478ce11f9ed0b415b7304d896836"
+        },
+        "model-00004-of-00005.safetensors": {
+          "bytes": 3187841392,
+          "sha256": "b5ee7de71fbf17db3d5704e0c8f2bc7d005ca9e1d7ca2aeb19827b0cfcaa917a"
+        },
+        "model-00005-of-00005.safetensors": {
+          "bytes": 1244659840,
+          "sha256": "20c2d6366ab85c90786ccdd829cd2b9e7d30ef3b2ebbb998280e7e4014b542ff"
+        }
+      },
+      "snapshot_directory": "b968826d9c46dd6066d109eabc6255188de91218",
+      "total_bytes": 16381516776
+    },
+    "heads": {
+      "cfg": {
+        "activation": "gelu",
+        "depth": 3,
+        "hidden_size": 4096,
+        "layernorm": true,
+        "model": "Qwen/Qwen3-8B",
+        "projection_dim": 512,
+        "residual": false,
+        "width": 1536
+      },
+      "device": "cuda",
+      "dtype": "float32",
+      "parameters": 18887680,
+      "scale": 100.0,
+      "scale_ceiling": 100.0
+    },
+    "key": "decision",
+    "kind": "bi-encoder",
+    "label": "J-decision",
+    "library_versions": {
+      "contrastive-lm": "0.1.0",
+      "huggingface-hub": "1.33.0",
+      "safetensors": "0.8.0",
+      "torch": "2.13.0+cu126",
+      "transformers": "5.16.1",
+      "vllm": "0.30.0"
+    },
+    "max_length": 2048,
+    "name": "Contrastive-LM/CLM-v0.1-8B",
+    "parameters": 18887680,
+    "revision_requested": "e939398d4556fcd9400c76fa8c5a513202f42b0a",
+    "revision_served": "e939398d4556fcd9400c76fa8c5a513202f42b0a",
+    "score": "logit",
+    "trust_remote_code": false,
+    "weights_bytes": 75557149,
+    "weights_file": "CLM_v0.1-8B.pt",
+    "weights_sha256": "b2b4a8c9c2d39263eff78a351eb909a342ce9b3bf21a3f07c1d1bf15f1c4eda5"
+  },
+  "kind": "bi-encoder",
+  "library_versions": {
+    "contrastive-lm": "0.1.0",
+    "huggingface-hub": "1.33.0",
+    "safetensors": "0.8.0",
+    "torch": "2.13.0+cu126",
+    "transformers": "5.16.1",
+    "vllm": "0.30.0"
+  },
+  "phase": 17,
+  "scale": 100.0,
+  "score": "logit",
+  "serving": {
+    "cache_size": 0,
+    "max_tokens": 2048,
+    "model": "qwen3-8b",
+    "pooler": "Resolved pooling config: pooling_type=LAST(source=model_default), tok_pooling_type=ALL(source=model_default), use_activation=True(source=pooler_default), supported_tasks=('embed', 'token_embed')",
+    "request_size": 32,
+    "url": "http://127.0.0.1:8090/v1/embeddings",
+    "vllm_command": "vllm serve Qwen/Qwen3-8B --revision b968826d9c46dd6066d109eabc6255188de91218 --served-model-name qwen3-8b --runner pooling --max-model-len 2048 --port 8090 --dtype bfloat16"
+  },
+  "sets": {
+    "hotpotqa": {
+      "code_commit": "6aa111bee54f2e52fd14c5a504b17f48d3ff028c",
+      "determinism": {
+        "max_abs_difference": 0.3725757598876953,
+        "note": "vLLM schedules sequences into GPU batches itself; batch composition below the request is outside the stage's control",
+        "order": "by score, descending; ties by the pool's own position",
+        "questions": 20,
+        "questions_order_changed": 20,
+        "request_size": 1
+      },
+      "finished_at": "2026-10-01T14:15:08+00:00",
+      "hourly_rate_usd": 0.74,
+      "label": "HotpotQA dev",
+      "offline": {
+        "distinct_units": 841339,
+        "passes": 1,
+        "seconds": 8709.873205784941,
+        "tokens_expected": 74850323,
+        "tokens_reported": 74850323,
+        "units_embedded": 841339,
+        "units_per_second": 96.59601008212127
+      },
+      "pairs": 1295224,
+      "pairs_per_second": 148.18664566229748,
+      "pairs_sha256_read": "a82185054cadb4ace32d757a7e55a9cf398a029242a115c8e4d206f54368dff3",
+      "peak_rss_mb": 5558.15625,
+      "peak_vram_mb": 97.1796875,
+      "query": {
+        "note": "the question's embedding plus the logits against the held unit vectors",
+        "questions": 7405,
+        "questions_per_second": 241.85510197029336,
+        "seconds": 30.617505852365866,
+        "state_tokens_expected": 154842,
+        "state_tokens_reported": 154842
+      },
+      "questions": 7405,
+      "restarts": 0,
+      "scores_file": {
+        "bytes": 24947462,
+        "digest": "a765fa3ea5b1623156361cd411bfda3cfc26d45658b6a06d1a065a3b5453a10e",
+        "file": "scores-decision-hotpotqa.jsonl.gz",
+        "rows": 7405,
+        "sha256": "487cf31f00de925dd1702378dfdcc98ac8e3f1bba9e0f86be0bfe264818ec582"
+      },
+      "set": "hotpotqa",
+      "shards": {
+        "count": 30,
+        "questions": 250,
+        "scored_now": 30
+      },
+      "tag": null,
+      "tokenize_seconds": 38.39923195098527,
+      "truncations": {
+        "count": 0,
+        "longest": 1226,
+        "max_length": 2048,
+        "share": 0.0,
+        "states": {
+          "longest": 74,
+          "share": 0.0,
+          "texts": 7405,
+          "truncated": 0
+        },
+        "units": {
+          "longest": 1226,
+          "share": 0.0,
+          "texts": 841339,
+          "truncated": 0
+        }
+      },
+      "usd": 1.7966564240587797,
+      "wall_seconds": 8740.490711637307
+    },
+    "multihop-rag": {
+      "code_commit": "6aa111bee54f2e52fd14c5a504b17f48d3ff028c",
+      "determinism": {
+        "max_abs_difference": 0.3347797393798828,
+        "note": "vLLM schedules sequences into GPU batches itself; batch composition below the request is outside the stage's control",
+        "order": "by score, descending; ties by the pool's own position",
+        "questions": 20,
+        "questions_order_changed": 20,
+        "request_size": 1
+      },
+      "finished_at": "2026-10-01T11:25:49+00:00",
+      "hourly_rate_usd": 0.74,
+      "label": "MultiHop-RAG answerable",
+      "offline": {
+        "distinct_units": 23116,
+        "passes": 1,
+        "seconds": 180.80433332314715,
+        "tokens_expected": 1643474,
+        "tokens_reported": 1643474,
+        "units_embedded": 23116,
+        "units_per_second": 127.85091803461005
+      },
+      "pairs": 317776,
+      "pairs_per_second": 1610.4843041705935,
+      "pairs_sha256_read": "939132e93e0da3a604caf9569bdd94d1e8e7584f32c9d6f7335dae62baf3db71",
+      "peak_rss_mb": 1591.44140625,
+      "peak_vram_mb": 97.1796875,
+      "query": {
+        "note": "the question's embedding plus the logits against the held unit vectors",
+        "questions": 2255,
+        "questions_per_second": 136.56147920113622,
+        "seconds": 16.512709244154394,
+        "state_tokens_expected": 135302,
+        "state_tokens_reported": 135302
+      },
+      "questions": 2255,
+      "restarts": 0,
+      "scores_file": {
+        "bytes": 5666889,
+        "digest": "4d84f9bfe5773e8d5d87f1d032830fa89639713e69fb1665781e4952768f8bec",
+        "file": "scores-decision-multihop-rag.jsonl.gz",
+        "rows": 2255,
+        "sha256": "f4d127083cbbdd3534e79e5fb6825157953881712a63c6b5b6cfffa1b52c461e"
+      },
+      "set": "multihop-rag",
+      "shards": {
+        "count": 10,
+        "questions": 250,
+        "scored_now": 10
+      },
+      "tag": null,
+      "tokenize_seconds": 0.7529119970276952,
+      "truncations": {
+        "count": 0,
+        "longest": 1698,
+        "max_length": 2048,
+        "share": 0.0,
+        "states": {
+          "longest": 165,
+          "share": 0.0,
+          "texts": 2255,
+          "truncated": 0
+        },
+        "units": {
+          "longest": 1698,
+          "share": 0.0,
+          "texts": 23116,
+          "truncated": 0
+        }
+      },
+      "usd": 0.040559614305500875,
+      "wall_seconds": 197.31704256730154
+    },
+    "musique": {
+      "code_commit": "6aa111bee54f2e52fd14c5a504b17f48d3ff028c",
+      "determinism": {
+        "max_abs_difference": 0.3864898681640625,
+        "note": "vLLM schedules sequences into GPU batches itself; batch composition below the request is outside the stage's control",
+        "order": "by score, descending; ties by the pool's own position",
+        "questions": 20,
+        "questions_order_changed": 20,
+        "request_size": 1
+      },
+      "finished_at": "2026-10-01T11:45:27+00:00",
+      "hourly_rate_usd": 0.74,
+      "label": "MuSiQue validation",
+      "offline": {
+        "distinct_units": 76148,
+        "passes": 1,
+        "seconds": 987.7424110609572,
+        "tokens_expected": 8851540,
+        "tokens_reported": 8851540,
+        "units_embedded": 76148,
+        "units_per_second": 77.09297398519888
+      },
+      "pairs": 400745,
+      "pairs_per_second": 401.8120147448576,
+      "pairs_sha256_read": "fef878aeba159afd159305804675a144d111459b22c8b186a523d0a4e79863a1",
+      "peak_rss_mb": 1881.17578125,
+      "peak_vram_mb": 97.1796875,
+      "query": {
+        "note": "the question's embedding plus the logits against the held unit vectors",
+        "questions": 2417,
+        "questions_per_second": 251.71625225810973,
+        "seconds": 9.602081622928381,
+        "state_tokens_expected": 52318,
+        "state_tokens_reported": 52244
+      },
+      "questions": 2417,
+      "restarts": 0,
+      "scores_file": {
+        "bytes": 6667795,
+        "digest": "1f533e2dcdf55065e4f16b6af6bc3e7d07e3703a312b82565c3e1d47f1fc4be0",
+        "file": "scores-decision-musique.jsonl.gz",
+        "rows": 2417,
+        "sha256": "e067eb56ad9e448052ffdbaacbd15a12dc671ab8d32c9ec4d42f028589dfb45e"
+      },
+      "set": "musique",
+      "shards": {
+        "count": 10,
+        "questions": 250,
+        "scored_now": 10
+      },
+      "tag": null,
+      "tokenize_seconds": 3.4803452019114047,
+      "truncations": {
+        "count": 0,
+        "longest": 1396,
+        "max_length": 2048,
+        "share": 0.0,
+        "states": {
+          "longest": 57,
+          "share": 0.0,
+          "texts": 2417,
+          "truncated": 0
+        },
+        "units": {
+          "longest": 1396,
+          "share": 0.0,
+          "texts": 76148,
+          "truncated": 0
+        }
+      },
+      "usd": 0.20500970127390983,
+      "wall_seconds": 997.3444926838856
+    }
+  }
+}

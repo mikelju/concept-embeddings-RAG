@@ -1,0 +1,69 @@
+\section{Setup}
+\label{sec:setup}
+
+\paragraph{Corpora and questions.} Three benchmarks, each with its own corpus, all of whole
+paragraphs. \textbf{HotpotQA}~\citep{yang2018hotpotqa}: the official FullWiki development
+set of \nQuestionsHotpot{} questions over the processed Wikipedia of \hopCostNineUnits{} paragraphs;
+for the held-out comparisons of earlier phases, questions from the training split that no
+choice had used. \textbf{MuSiQue}~\citep{trivedi2022musique}: \nQuestionsMusique{} validation
+questions needing two to four paragraphs, over the \hopCostFifteenUnits{} paragraphs of its answerable
+train and validation files. \textbf{MultiHop-RAG}~\citep{tang2024multihoprag}: \nQuestionsMultihop{}
+answerable news queries with evidence in two to four paragraphs from two or more articles,
+over \hopCostSixteenUnits{} paragraphs cut at the articles' own breaks. The judge phase uses the
+three sets above; where a pool is meant to be read it is the union of candidates in
+Section~\ref{sec:judges}.
+
+\paragraph{Metric of record.} \FS: the share of questions for which \emph{every} gold paragraph
+fits in a 2048-token context built from the ranking by whole paragraphs. It measures what a
+reader would actually receive. The budget curve (Appendix~\ref{app:more}) also reports four token
+budgets.
+
+\paragraph{Comparable metrics.} The literature reports other things, so we also compute, for
+every system with and without a judge, gold recall and full support at $k$ units for several
+$k$, and nDCG@10 with binary relevance over gold units. The unit of $k$ is the corpus unit,
+a whole paragraph, never a token or a fixed-size chunk, and Section~\ref{sec:published} says
+wherever a published figure uses another unit.
+
+\paragraph{The judges.} Table~\ref{tab:judges} lists the three declared judges; all are used
+zero-shot, with no fitting, threshold or calibration, and no fourth was tried. J-light and
+J-strong are cross-encoders that read the question and one candidate together:
+MiniLM-L6~\citep{wang2020minilm,reimers2021msmarcominilm}, trained on MS~MARCO, and
+\texttt{bge-reranker-v2-m3}~\citep{bge2024rerankerv2m3,chen2024m3}. J-decision is CLM-8B, an
+open decision model~\citep{kwok2026clm}: two small projection heads over a frozen
+Qwen3-8B~\citep{yang2025qwen3} encoder, a \emph{bi-encoder} that embeds the question and each
+candidate separately and scores their similarity. Its input is the question alone as the state,
+with no instruction. Each unit is embedded once per set and reused across the questions that
+list it.
+
+\begin{table*}[t]
+\centering
+\small
+\caption{\capJudges}
+\label{tab:judges}
+\pagetable{tables/judges}
+\end{table*}
+
+\paragraph{Pool and reorder rule.} For every question the pool is the union of the four systems'
+fused top-100. Each judge scores every (question, unit) pair of the pool once. A system under a
+judge is that system's \emph{own} top-100, sorted by the judge's score, descending, ties broken
+by the system's original rank; units beyond the system's top-100 never enter. The test is what
+each system's pool contains, and the judge only reorders it. The pool as a whole under a judge
+is a fifth, descriptive line (the union line, marked in the tables): it is the best pool any of
+the four systems can offer and enters no preregistered comparison. The pool averaged
+\poolMeanHotpot{} units per question on HotpotQA, \poolMeanMusique{} on MuSiQue and
+\poolMeanMultihop{} on MultiHop-RAG, \pairsTotal{} pairs in all (Table~\ref{tab:judgecost}).
+
+\paragraph{Test.} Every comparison is on \FS, paired by question, two-sided exact McNemar at
+the five-percent level~\citep{mcnemar1947note}, reported with wins, losses, ties, the difference in
+points and the exact $p$. The hop question has a label, written by code: \texttt{HOP\_ADDS\_UNDER\_JUDGE}
+when J(P14) beats J(P10-B) at that level, \texttt{HOP\_HURTS\_UNDER\_JUDGE} when it loses,
+\texttt{HOP\_NEUTRAL\_UNDER\_JUDGE} otherwise. There is no gate: the phase publishes whatever it finds.
+
+\paragraph{What was fitted where.} Nothing is fitted in the judge phase. The weights of P10-C and
+P14 were fitted on HotpotQA development questions in earlier phases, so every HotpotQA figure for
+those two systems, with or without a judge, is \emph{in-sample} for their weights; the judges
+are fitted on nothing, which keeps the judge figures informative. MuSiQue and MultiHop-RAG are the
+frozen transfer. Before any pair was scored the code replayed the stored lists and reproduced
+P10-C at \dThreePTenCHotpot{} and P14 at \dThreePFourteenHotpot{} on HotpotQA, and P10-B, P10-C and P14 at
+\dThreePTenBMusique{}, \dThreePTenCMusique{} and \dThreePFourteenMusique{} on MuSiQue and \dThreePTenBMultihop{},
+\dThreePTenCMultihop{} and \dThreePFourteenMultihop{} on MultiHop-RAG, as the spec required.

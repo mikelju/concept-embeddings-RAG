@@ -917,6 +917,15 @@ fusion beats Dense + BM25 by 3.92 pp Full Support @2,048 on 5,000 held-out Hotpo
 
 ## Zero-shot cross-encoder reranking of the fused list
 
+**Done in Phase 17 (2026-10-01)** ([`phase_17/17.results.md`](phase_17/17.results.md)): J-light
+(MiniLM-L6) and J-strong (`bge-reranker-v2-m3`) reordered the four frozen systems' fused top-100;
+J-strong lifts every system on every set (P10-B 4,536 to 5,198 of 7,405 on HotpotQA dev, 524 to 704
+on MuSiQue, 587 to 822 on MultiHop-RAG), J-light lifts on Wikipedia and hurts on news. A decision
+model as judge (CLM-8B, bi-encoder, zero-shot, question alone as state) is **negative, Phase 17**:
+it lowers every system on every set. Not tried: another state or instruction for the decision
+model, a cross-encoder fine-tuned on this line, fusing a judge's score with the first stage, and a
+cross-encoder applied to a pool deeper than 100. The original rationale is kept below.
+
 **Selected by the author on 2026-09-29 as a future phase with its own spec**
 ([`review_2026-09-29.md`](review_2026-09-29.md), §7-8). The three components compare the question
 and each paragraph separately; a cross-encoder reads the question and one candidate together,

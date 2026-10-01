@@ -1,0 +1,62 @@
+\section{The Entity Hop and its indexing cost}
+\label{sec:hop}
+
+\paragraph{Indexing unit and first stage.} The unit is one whole article paragraph, with its title
+prefixed; never a fixed-size window. Dense is BGE-small~\citep{xiao2024cpack} over
+L2-normalized embeddings, and BM25~\citep{robertson2009bm25} is the lexical complement. Two
+hybrids are fused by min-max normalizing each component's scores per question and taking a
+weighted sum, with the weights fitted on HotpotQA development questions and then frozen.
+
+\paragraph{The hop.} Let $D(q)$ be the Dense ranking for question $q$. We read the first
+ten units of $D(q)$ and call the first unit $p_1(q)$. The candidates are the paragraphs
+\emph{outside} the units read that share at least one raw entity node with $p_1(q)$. The score
+of a candidate is the sum, over the entity nodes it shares with $p_1(q)$, of the rarity
+\begin{equation}
+  \log\!\Bigl(1+\tfrac{N}{1+\mathrm{df}}\Bigr),
+\end{equation}
+where $N$ is the number of units and $\mathrm{df}$ the number of units holding the entity.
+Candidates are ranked by score, then by unit id; the list is not padded. The hop never looks at
+the question after the first Dense call, uses one seed and one hop, and has no relations, no
+canonicalization and no language model at query time. Entities are read once, at indexing,
+by GLiNER~\citep{zaratiana2024gliner} (the medium model, zero-shot, five entity
+labels).
+
+\paragraph{Four systems.} Throughout, \textbf{P10-A} is Dense, \textbf{P10-B} is Dense plus BM25,
+\textbf{P10-C} is Dense plus BM25 plus the Entity Hop as a third fused component, and
+\textbf{P14} is P10-C with a single change: the hop scores its candidates by
+$(1-\alpha)\cdot\text{rarity}+\alpha\cdot\cos(q,c)$, both terms min-max normalized per question,
+with $\alpha=\phFourteenAlpha$ fitted on development questions. The seed, the candidate set and
+the fusion weights of P14 are P10-C's; only the order of the hop's candidates changes. The
+similarity is Dense's own signal, so part of P14's gain may re-weight what Dense already ranks;
+on development data, among the gold paragraphs whose coverage changed in the questions P14 won
+against P10-C, about half were in Dense's ranks 11 to 100 and about half were beyond its first
+hundred (derived, Phase~14); the split cannot separate the two causes.
+
+\paragraph{What did not work as a refinement.} Three attempts to make the hop choose which of
+$p_1$'s entities to follow, with a hard filter (a document-frequency cap, entities named in the
+question, a window around each mention), each lost to P10-C on development questions and stopped
+at their gate, so the held-out split was never opened for them. Phase~14 then kept all of the
+hop's reach and changed only its order, and that is the version that held. The reading we take
+from this is a hypothesis, not an established cause: the hard filter, not the signal, is what
+fails.
+
+\begin{table}[t]
+\centering
+\small
+\caption{\capHopCost}
+\label{tab:hopcost}
+\coltable{tables/hop-cost}
+\end{table}
+
+\paragraph{Indexing cost.} Table~\ref{tab:hopcost} gives the cost of one entity-extraction
+pass. Over the whole HotpotQA Wikipedia (\hopCostNineUnits{} paragraphs) GLiNER took
+\hopCostNineHours{} hours on one rented RTX~4090, for an attributable \hopCostNineUsd{} USD
+(derived from the measured time and the hourly rate), plus \hopCostNineEmbedUsd{} USD to embed
+the same paragraphs. The same extractor over the MuSiQue and MultiHop-RAG corpora took
+\hopCostFifteenUsd{} and \hopCostSixteenUsd{} USD. On the small pool where both were run,
+the language-model extractor (the Claude row) cost \phSevenClaudeUsd{} USD against \phSevenGlinerUsd{}
+USD for GLiNER, a ratio of about \phSevenCostRatio{} (derived), and GLiNER kept \phSevenRetention{}
+of the language-model extractor's gain. Extracting the full corpus with the language model would
+cost on the order of \phSevenClaudeProjectedUsd{} USD; that is a \emph{projection} from linear
+scaling, not a measurement. At query time the hop adds a lookup and a fusion; on the laptop,
+P10-C's mean latency was \phTenLatencyRatio{} times that of Dense plus BM25 (measured, Phase~10).

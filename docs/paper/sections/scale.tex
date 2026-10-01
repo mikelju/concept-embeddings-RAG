@@ -1,0 +1,65 @@
+\section{Results at full scale and in transfer}
+\label{sec:scale}
+
+This section summarizes Phases~9 to~16, all measured earlier and read here from their own outcome
+files. Table~\ref{tab:earlier} lists each paired comparison with its wins, losses and exact $p$;
+Table~\ref{tab:ladder} sets the four systems side by side on the three benchmarks. The columns of
+the ladder differ in corpus, questions and size, so only the direction and order of the steps
+compare.
+
+\paragraph{Full HotpotQA scale (Phases 9 and 10).} On \nPhNineHop{} questions that no earlier phase had
+used, over the whole corpus, the Entity Hop added to Dense: \winsPhNineHop{} questions won against
+\lossesPhNineHop{} lost, \deltaPhNineHop\pp. Against Dense plus BM25 the hop alone did
+\emph{not} win: it stood at \deltaPhNineBm\pp{} ($p=$~\pPhNineBm{}), so \textbf{the frozen hop is
+not, as it stands, a better replacement for BM25}. The two signals are not redundant, though:
+used as a third fused component (P10-C) the hop added \deltaPhTenThree\pp{} to Dense plus BM25 on
+\nPhTenThree{} held-out training questions (\winsPhTenThree{} wins, \lossesPhTenThree{} losses). Those
+training questions belong to BGE-small's fine-tuning data~\citep{xiao2024cpack}, which may leave less for a
+complement to add (an interpretation; the contamination probe of Phase~10 bounded the effect and argued that
+it works against the hop).
+
+\paragraph{The candidate side (Phase 14).} P14 changes only the order of the hop's candidates.
+On a second held-out draw of \nPhFourteenPTenC{} training questions it beat P10-C by
+\deltaPhFourteenPTenC\pp{} (\winsPhFourteenPTenC{} wins, \lossesPhFourteenPTenC{} losses) and Dense plus BM25 by
+\deltaPhFourteenPTenB\pp. The hop's reach was unchanged: the order was a bottleneck. This split is
+now spent; the HotpotQA development questions that serve in Section~\ref{sec:judges} are in-sample
+for P14's weights.
+
+\paragraph{MuSiQue (Phase 15).} Frozen at their HotpotQA values, P10-C beat Dense plus BM25 by
+\deltaPhFifteenTenCvsB\pp{} and P14 beat it by \deltaPhFifteenPFourteen\pp{} (\winsPhFifteenPFourteen{} wins,
+\lossesPhFifteenPFourteen{} losses), and P14 beat P10-C by \deltaPhFifteenFourteenvsC\pp. The gain is on
+questions with two supporting paragraphs; it is small on three-paragraph questions and absent on
+four-paragraph ones, where in Phase~15 at most a handful of questions were fully supported by any system (measured).
+MuSiQue's authors mined its distractor paragraphs with BM25~\citep{trivedi2022musique}, which may work against
+lexical retrieval in particular (an interpretation, not measured here); the comparison between P10-C
+and P14 is not exposed to that.
+
+\paragraph{News (Phase 16): a regression.} On MultiHop-RAG the same frozen systems \emph{lose}
+to Dense plus BM25: P10-C stands at \deltaPhSixteenTenCvsB\pp{} and P14 at \deltaPhSixteenPFourteen\pp{}
+(\winsPhSixteenPFourteen{} wins, \lossesPhSixteenPFourteen{} losses, $p=$~\pPhSixteenPFourteen{}), while BM25 alone adds \deltaPhSixteenBvsA\pp{}
+to Dense. The first Dense paragraph is gold for less than a fifth of the queries, against more than half on
+MuSiQue (measured, Phase~16), which would undercut a one-hop design anchored on it (the cause is a hypothesis).
+In an exploratory refit on the same queries, so an in-sample upper bound, the best point of the grid gave the
+hop zero weight; it was not applied. This is one small corpus of one kind of text with questions written by a language
+model: it bounds the claim, it does not settle why the hop fails there.
+
+\begin{table}[t]
+\centering
+\small
+\caption{\capLadder}
+\label{tab:ladder}
+\coltable{tables/ladder}
+\end{table}
+
+\paragraph{Not established.} No substantially stronger Dense retriever was tested: the one
+candidate (a Qwen3-Embedding model of the smallest size) was weaker on this task than BGE-small at every corpus size up
+to half a million paragraphs, so whether the hop adds beside a much stronger Dense is open. No
+relation-based graph system was compared; the line measures a floor, not a ceiling.
+
+\begin{table*}[t]
+\centering
+\small
+\caption{\capEarlierComparisons}
+\label{tab:earlier}
+\input{tables/earlier-comparisons}
+\end{table*}

@@ -37,6 +37,14 @@ phase7 = [
     "protobuf>=4.25",
     "spacy==3.8.16",
 ]
+# Deviation 17.1 (J-decision, CLM-8B): synced on the rented Linux x86_64 pod only, never on the laptop.
+pod = [
+    "contrastive-lm==0.1.0 ; sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "vllm>=0.6 ; sys_platform == 'linux' and platform_machine == 'x86_64'",
+    # Declared so that `tool.uv.sources` can route them to the cu126 index (vllm's own pins).
+    "torchvision==0.28.0 ; sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "torchaudio==2.11.0 ; sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
 security = [
     "detect-secrets>=1.5.0",
     "pip-audit>=2.10.1",
@@ -54,10 +62,25 @@ name = "pytorch-cu126"
 url = "https://download.pytorch.org/whl/cu126"
 explicit = true
 
+[tool.uv]
+# pip-audit on CI (PR 28) flagged urllib3 2.7.0 (CVE-2026-97687/97688/97689): a patched
+# floor only. setuptools 80.10.2 (PYSEC-2026-3447, sdist building on macOS) cannot be raised
+# while vllm pins setuptools<81; CI ignores that one id, see .github/workflows/security.yml.
+constraint-dependencies = ["urllib3>=2.8.0"]
+
 [tool.uv.sources]
 torch = [
     { index = "pytorch-cu126", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
     { index = "pytorch-cpu", marker = "sys_platform != 'linux' or platform_machine != 'x86_64'" },
+]
+# vllm 0.30.0 (group `pod`) pulls torchvision and torchaudio from PyPI, built for CUDA 13;
+# torchvision refuses to import next to torch cu126 (Phase 17 pod, 2026-10-01). Same index
+# as torch on the pod platform; nothing resolves them elsewhere.
+torchvision = [
+    { index = "pytorch-cu126", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
+]
+torchaudio = [
+    { index = "pytorch-cu126", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
 ]
 en-core-web-sm = { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" }
 

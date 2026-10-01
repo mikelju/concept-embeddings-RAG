@@ -1060,7 +1060,11 @@ def exact_two_sided_p(wins: int, losses: int) -> float:
     if n == 0:
         return 1.0
     tail = sum(math.comb(n, i) for i in range(min(wins, losses) + 1))
-    return min(1.0, 2.0 * tail / 2**n)
+    # Integer true division: correctly rounded for any n. `2.0 * tail / 2**n` converts both
+    # sides to float first and overflows past 1,024 discordant questions (found in Phase 17,
+    # where a judge against its own system leaves thousands); for smaller n both forms give
+    # the same float, since 2**n is a power of two and float(2 * tail) is exact or rounds once.
+    return min(1.0, 2 * tail / 2**n)
 
 
 def primary_outcome(
