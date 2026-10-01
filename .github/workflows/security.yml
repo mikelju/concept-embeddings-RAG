@@ -82,11 +82,14 @@ jobs:
         # would leave the `labeling` dependencies - the ones that actually open a
         # network connection - out of the environment being scanned. `phase7` joined
         # them when the local extractors arrived: they download models and load
-        # weights, which is exactly the surface a dependency scan is for.
+        # weights, which is exactly the surface a dependency scan is for. `pod`
+        # (Phase 17, deviation 17.1) holds vllm and contrastive-lm, which serve a
+        # model over HTTP on the rented GPU: Linux x86_64 only, so this runner is
+        # the one place outside the pod where they can be audited.
         run: |
           if [ -f uv.lock ]; then
             pip install uv
-            uv sync --group security --group labeling --group phase7
+            uv sync --group security --group labeling --group phase7 --group pod
             uv run pip-audit --desc
           elif [ -f requirements.txt ]; then
             pip install pip-audit
