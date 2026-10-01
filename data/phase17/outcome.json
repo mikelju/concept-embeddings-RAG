@@ -1,0 +1,1461 @@
+{
+  "alpha": 0.05,
+  "code_commit": "9a9ad3fcf501093351d58031921d7a37336ba859",
+  "created_at": "2026-10-01T15:36:05+00:00",
+  "gate": null,
+  "judges": {
+    "decision": {
+      "batch_size": 32,
+      "dtype": "bfloat16",
+      "encoder": {
+        "max_position_embeddings": 40960,
+        "name": "Qwen/Qwen3-8B",
+        "revision": "b968826d9c46dd6066d109eabc6255188de91218",
+        "shards": {
+          "model-00001-of-00005.safetensors": {
+            "bytes": 3996250744,
+            "sha256": "31d6a825ae35f11fb85b195b4c42c146c051e446433125a215336abdf95cbf5f"
+          },
+          "model-00002-of-00005.safetensors": {
+            "bytes": 3993160032,
+            "sha256": "5991236cea6fe21f3d43cab0f0e84448734fbbe0789816202989f2ddc9d18282"
+          },
+          "model-00003-of-00005.safetensors": {
+            "bytes": 3959604768,
+            "sha256": "c5185c4794be2d8a9784d5753c9922db38df478ce11f9ed0b415b7304d896836"
+          },
+          "model-00004-of-00005.safetensors": {
+            "bytes": 3187841392,
+            "sha256": "b5ee7de71fbf17db3d5704e0c8f2bc7d005ca9e1d7ca2aeb19827b0cfcaa917a"
+          },
+          "model-00005-of-00005.safetensors": {
+            "bytes": 1244659840,
+            "sha256": "20c2d6366ab85c90786ccdd829cd2b9e7d30ef3b2ebbb998280e7e4014b542ff"
+          }
+        },
+        "total_bytes": 16381516776
+      },
+      "kind": "bi-encoder",
+      "label": "J-decision",
+      "max_length": 2048,
+      "name": "Contrastive-LM/CLM-v0.1-8B",
+      "revision": "e939398d4556fcd9400c76fa8c5a513202f42b0a",
+      "weights_bytes": 75557149,
+      "weights_file": "CLM_v0.1-8B.pt",
+      "weights_sha256": "b2b4a8c9c2d39263eff78a351eb909a342ce9b3bf21a3f07c1d1bf15f1c4eda5"
+    },
+    "light": {
+      "batch_size": 256,
+      "dtype": "float32",
+      "kind": "cross-encoder",
+      "label": "J-light",
+      "max_length": 512,
+      "name": "cross-encoder/ms-marco-MiniLM-L-6-v2",
+      "revision": "233902d25c440f23af6f7d6e94d2946bac0bee0a",
+      "weights_bytes": 90870598,
+      "weights_sha256": "821d1aa69520101d6e0737f78a042ae25b19e5cb9160701909d10434f4aeb0ae"
+    },
+    "strong": {
+      "batch_size": 32,
+      "dtype": "float32",
+      "kind": "cross-encoder",
+      "label": "J-strong",
+      "max_length": 8192,
+      "name": "BAAI/bge-reranker-v2-m3",
+      "revision": "953dc6f6f85a1b2dbfca4c34a2796e7dde08d41e",
+      "weights_bytes": 2271071852,
+      "weights_sha256": "d9e3e081faff1eefb84019509b2f5558fd74c1a05a2c7db22f74174fcedb5286"
+    }
+  },
+  "label_rule": "HOP_ADDS_UNDER_JUDGE wins > losses and p < 0.05; HOP_HURTS_UNDER_JUDGE losses > wins and p < 0.05; HOP_NEUTRAL_UNDER_JUDGE otherwise; from the first comparison of each judge only (D5)",
+  "labels": [
+    "HOP_ADDS_UNDER_JUDGE",
+    "HOP_HURTS_UNDER_JUDGE",
+    "HOP_NEUTRAL_UNDER_JUDGE"
+  ],
+  "phase": 17,
+  "primary_comparison": "J(P14) against J(P10-B), per judge",
+  "primary_metric": "full_support@2048_tokens",
+  "provenance": {
+    "integrity_digest": "3fb0b513d7dee81eb12ddaee372266a707fcf43aecacf7ac94809426d05c1f35",
+    "metrics_file_sha256": "b4891d8776a3d48e61731781c61cd9e83f9571c6fc90cf660fa7034f97ae6624",
+    "reordered_files": {
+      "hotpotqa": {
+        "decision:dense": {
+          "bytes": 15520882,
+          "digest": "5e59609e70dc8464b8004f922e44a77fa4854e330c498c5291cad1a1a0ae0303",
+          "file": "reordered-decision-hotpotqa-dense.jsonl.gz",
+          "rows": 7405,
+          "sha256": "5892cea81fd9939dcde9589effaa75566dba34512529c632375c6490f0f67b7c"
+        },
+        "decision:hybrid-bm25": {
+          "bytes": 15550862,
+          "digest": "0f896c5788088a7f5eb68c383e83fc7bab302a298783836e341b2a0209b45e03",
+          "file": "reordered-decision-hotpotqa-hybrid-bm25.jsonl.gz",
+          "rows": 7405,
+          "sha256": "81f359f2d8db8fd1da22346e897ed34b2ee451f54eb5d14602d5b00d0ff67fa4"
+        },
+        "decision:hybrid-bm25-entity-hop": {
+          "bytes": 15555028,
+          "digest": "32ff333bb00d88fe4264dc679e9d822b9a5cd717956ccd8db380d5e383a81f77",
+          "file": "reordered-decision-hotpotqa-hybrid-bm25-entity-hop.jsonl.gz",
+          "rows": 7405,
+          "sha256": "9d749824d23da42117859fcc1401f79620a1c81c9999b0a5ae3718dcadb139b3"
+        },
+        "decision:hybrid-bm25-seeded-hop": {
+          "bytes": 15543803,
+          "digest": "857e7b4df5e2282883a18b738cd477d7a2181da4517fc227ce671663d7fb8bf1",
+          "file": "reordered-decision-hotpotqa-hybrid-bm25-seeded-hop.jsonl.gz",
+          "rows": 7405,
+          "sha256": "bd907961b4cf76793ccdc21eaf4a5d93ee164b98ce6478605918f6ad5c6f3a3a"
+        },
+        "decision:union": {
+          "bytes": 27024226,
+          "digest": "7d7fa883f537b1aa720edafed8a8243a498dd34ca0c59959fd144ea70ca15ada",
+          "file": "reordered-decision-hotpotqa-union.jsonl.gz",
+          "rows": 7405,
+          "sha256": "18a70843d9d4897c9c3ef8dafa2438914d187bf6ccfb712f9745104551b85d93"
+        },
+        "light:dense": {
+          "bytes": 16295909,
+          "digest": "75aea338bf75d7dec8b8eadc10eebd50af1fb6971f4d8a1a869ce5715b00307e",
+          "file": "reordered-light-hotpotqa-dense.jsonl.gz",
+          "rows": 7405,
+          "sha256": "0c23d70e3dd51c8d0e3f244e6f1c152ca4b3354ba9e4e12ba2d688655a1f1419"
+        },
+        "light:hybrid-bm25": {
+          "bytes": 16366976,
+          "digest": "642753b1ee5735001283b40a7bbe4df8a1e59a95175787649b6d69190c320fb8",
+          "file": "reordered-light-hotpotqa-hybrid-bm25.jsonl.gz",
+          "rows": 7405,
+          "sha256": "39b9e80b66c72a6c5a42636a68a429f7c54c1b4dd299402fd9aa257a11faca5e"
+        },
+        "light:hybrid-bm25-entity-hop": {
+          "bytes": 16335064,
+          "digest": "a68a51cf7429c64439f65785b7f11b35d7e11821627a4333a8474a05081cddf8",
+          "file": "reordered-light-hotpotqa-hybrid-bm25-entity-hop.jsonl.gz",
+          "rows": 7405,
+          "sha256": "8b60ff7f3a3ba418868284b71f194b7a662594d097291125c8973fae105d15ec"
+        },
+        "light:hybrid-bm25-seeded-hop": {
+          "bytes": 16347153,
+          "digest": "c8c7caa30819c9af456556d46e997e91643173e157e6bf1c9b620030ae6eca30",
+          "file": "reordered-light-hotpotqa-hybrid-bm25-seeded-hop.jsonl.gz",
+          "rows": 7405,
+          "sha256": "863a8aab2542b2acc43d2a059b5db643523da2b396a97c57375a421e43679023"
+        },
+        "light:union": {
+          "bytes": 28301440,
+          "digest": "a4c973aa70da7ec01cfa5c86d580dd633893e5c720fed5d894f3e9808fba9d7d",
+          "file": "reordered-light-hotpotqa-union.jsonl.gz",
+          "rows": 7405,
+          "sha256": "e0898944b04f707df8ade549cdee25912009f6d7275587047f4b067b25440dbc"
+        },
+        "strong:dense": {
+          "bytes": 16153030,
+          "digest": "06b530b33e7905fb2fb94ba1076fd88973a2a6a8475a1b26face76d018c2a250",
+          "file": "reordered-strong-hotpotqa-dense.jsonl.gz",
+          "rows": 7405,
+          "sha256": "9603ffeb4469f8e997ee1fb90ce93945955337333104c8a1fc6a032ac7d948cd"
+        },
+        "strong:hybrid-bm25": {
+          "bytes": 16154692,
+          "digest": "6313f4d62c65fa2b17986e048dcf6af345d2eef894a1b45af7a6245a7d63527f",
+          "file": "reordered-strong-hotpotqa-hybrid-bm25.jsonl.gz",
+          "rows": 7405,
+          "sha256": "8f200803e3f9af60daa3b1988e0a608c99acdd4a85d0597af3376aad0ebf166a"
+        },
+        "strong:hybrid-bm25-entity-hop": {
+          "bytes": 16155185,
+          "digest": "b524a3fad46b602f07b3d50c4d27dc9cd7a1e76bbfcf1ac28cdc246b2726cebe",
+          "file": "reordered-strong-hotpotqa-hybrid-bm25-entity-hop.jsonl.gz",
+          "rows": 7405,
+          "sha256": "cabe97965c8fb478fb4db7d93a45b2b3db048cece5f6eef625552070e46c2a32"
+        },
+        "strong:hybrid-bm25-seeded-hop": {
+          "bytes": 16169387,
+          "digest": "cc816b8919ce75ec6b7a4295c4c034cfbe9557300794cb463ef93bea69c37996",
+          "file": "reordered-strong-hotpotqa-hybrid-bm25-seeded-hop.jsonl.gz",
+          "rows": 7405,
+          "sha256": "5310deeb0a4853fe6ba8a471c05cb24c7a79dc0e91f95974651158595fd3f0e3"
+        },
+        "strong:union": {
+          "bytes": 28007876,
+          "digest": "66c20bc8da6918eee0d7985a502dfa46e43ed2f29b4cf356f321734e15742534",
+          "file": "reordered-strong-hotpotqa-union.jsonl.gz",
+          "rows": 7405,
+          "sha256": "e52ed3824497613f1b3e98ab8c5a198e03b962acf54e8938f884a0988d76e60d"
+        }
+      },
+      "multihop-rag": {
+        "decision:dense": {
+          "bytes": 4338480,
+          "digest": "6361dbe662c5de322b0eaf9ad892198cc29284ddcc6726b58034a876b0f1d53e",
+          "file": "reordered-decision-multihop-rag-dense.jsonl.gz",
+          "rows": 2255,
+          "sha256": "ed14e692fb98fa8bc25aa66cfe0f92b6a735fd20cd63f36414ea36110f96a1bf"
+        },
+        "decision:hybrid-bm25": {
+          "bytes": 4399861,
+          "digest": "bf265e3e4f5bc1b99917a52a1e8e5b6509aec0eff7274eb46d3ec36f72a11e79",
+          "file": "reordered-decision-multihop-rag-hybrid-bm25.jsonl.gz",
+          "rows": 2255,
+          "sha256": "8f1b40fd27294c9b2006a072e1551b5c8118f84670f726499486fe47231234d6"
+        },
+        "decision:hybrid-bm25-entity-hop": {
+          "bytes": 4392490,
+          "digest": "7151080044df55279242edf0525d0fe54f007a2b1e49bb8792aacd21864c88a2",
+          "file": "reordered-decision-multihop-rag-hybrid-bm25-entity-hop.jsonl.gz",
+          "rows": 2255,
+          "sha256": "a9db35d6949e132ebcd45616592e4599f289669fe9878585b25826fbf74aaf1c"
+        },
+        "decision:hybrid-bm25-seeded-hop": {
+          "bytes": 4381342,
+          "digest": "ee09190999e03601699455afd6bcfe7a3b391e47f17e3091ba8aa6b3f6e3649e",
+          "file": "reordered-decision-multihop-rag-hybrid-bm25-seeded-hop.jsonl.gz",
+          "rows": 2255,
+          "sha256": "842d8e4b3a2aed9b10cd336528a74e7b1bc72cd90c3e0586b40ffa691c988988"
+        },
+        "decision:union": {
+          "bytes": 6240714,
+          "digest": "2c2c411ce4ceaaec2e91a61a2287a139f3b5cff5ce6324b14a9f4713f0047722",
+          "file": "reordered-decision-multihop-rag-union.jsonl.gz",
+          "rows": 2255,
+          "sha256": "02582585b6d2279b3cdd454d76f47374614c48f04d5a419cc88ea0ba8d99bb55"
+        },
+        "light:dense": {
+          "bytes": 4561997,
+          "digest": "dd4c9346a5229fadb0f7b9723163a82e27d1d4cfe551a3dc6c6d82d36dfebba7",
+          "file": "reordered-light-multihop-rag-dense.jsonl.gz",
+          "rows": 2255,
+          "sha256": "ea35f9a831de03b3c828dd365bbe711f3b52c0b0b9de3101d16887d130ec2355"
+        },
+        "light:hybrid-bm25": {
+          "bytes": 4624731,
+          "digest": "144455b1b61a360afaba2702f958146f68c231763b946079faba856b875e74a7",
+          "file": "reordered-light-multihop-rag-hybrid-bm25.jsonl.gz",
+          "rows": 2255,
+          "sha256": "bb2bae72f8166fde98e6e319cd340079235009d09f00f141e20b7eb912e0ca61"
+        },
+        "light:hybrid-bm25-entity-hop": {
+          "bytes": 4617773,
+          "digest": "b15f0c53b6c9718c8a05497998bb623767fde5b39d8d734c7491cc35c3a5d9d9",
+          "file": "reordered-light-multihop-rag-hybrid-bm25-entity-hop.jsonl.gz",
+          "rows": 2255,
+          "sha256": "29ccd120e67c6899255c2f549bcacda5a048228775c57e98b0b510184cd28c69"
+        },
+        "light:hybrid-bm25-seeded-hop": {
+          "bytes": 4608183,
+          "digest": "06a3362c5e0b4ed67b3bf4e19000ad44fa684aee7f8ed6745d52c3f1701fa5fb",
+          "file": "reordered-light-multihop-rag-hybrid-bm25-seeded-hop.jsonl.gz",
+          "rows": 2255,
+          "sha256": "f715780c7dc9c8c7e498453ed6f5ab4c4b7e723d7673aaa603b5fdac44fc255d"
+        },
+        "light:union": {
+          "bytes": 6530898,
+          "digest": "a1aa70d15f84bdc44e9331244580c48db21beeedc37f22f9fdd99ce1dff9116d",
+          "file": "reordered-light-multihop-rag-union.jsonl.gz",
+          "rows": 2255,
+          "sha256": "c8c234085f518ce0ce78d01adc519ecf7561c2c7e95a168bb6a5e9ed0c902f4a"
+        },
+        "strong:dense": {
+          "bytes": 4565657,
+          "digest": "3f05fbbcb6251e9ed9faf66a75391792c61f6b4b45639210aa06f000671c5ffd",
+          "file": "reordered-strong-multihop-rag-dense.jsonl.gz",
+          "rows": 2255,
+          "sha256": "0f126cc58489392a6833e7d868c842764c5a17ab4aa09338830da17e001a0513"
+        },
+        "strong:hybrid-bm25": {
+          "bytes": 4627738,
+          "digest": "a24d77eab2c5be345b544db6e97b762c5d8d325a97de41db9fa5ac91d2dac6b0",
+          "file": "reordered-strong-multihop-rag-hybrid-bm25.jsonl.gz",
+          "rows": 2255,
+          "sha256": "90878a8f5ff27315ae978ef8526a5a24f6e62ec346fa09c3efe8268a015c5aaa"
+        },
+        "strong:hybrid-bm25-entity-hop": {
+          "bytes": 4621641,
+          "digest": "612e10b512b31b58751e7d55067a579c25315540454d8453ee666c501e8ce0ae",
+          "file": "reordered-strong-multihop-rag-hybrid-bm25-entity-hop.jsonl.gz",
+          "rows": 2255,
+          "sha256": "8005e3970183b798e0b52dcfa5c4635591e3482a393706e54e01372787cbbc70"
+        },
+        "strong:hybrid-bm25-seeded-hop": {
+          "bytes": 4612286,
+          "digest": "7dada7d45113dfe2090491b3858209e68f690f2ddbcd578956923d7b58127bd3",
+          "file": "reordered-strong-multihop-rag-hybrid-bm25-seeded-hop.jsonl.gz",
+          "rows": 2255,
+          "sha256": "97c381507cc349a6557cde01246e2b788adfa531458f02f0d8f345efa974c5bb"
+        },
+        "strong:union": {
+          "bytes": 6535090,
+          "digest": "fa438a48561e4940a3e93e0000d604b750b675323177d58d288ba69728e4b1d2",
+          "file": "reordered-strong-multihop-rag-union.jsonl.gz",
+          "rows": 2255,
+          "sha256": "ff2fdb455efed234b475af99a58c2a128dcacd530a683cf7c4f66de588303fd1"
+        }
+      },
+      "musique": {
+        "decision:dense": {
+          "bytes": 4382017,
+          "digest": "2f2b99d6044608986bc967bd3f1284eaa3762726e928ee7e7e2cc0ade478f48b",
+          "file": "reordered-decision-musique-dense.jsonl.gz",
+          "rows": 2417,
+          "sha256": "fbeb6f5f2a4a8a49ef31c12502c7875b32b1340234f3c12e53854eccc560be16"
+        },
+        "decision:hybrid-bm25": {
+          "bytes": 4406916,
+          "digest": "39e0ecf3dbe6dcd56dae14e59c6cbf8664c5da4c6bd9d6af02d7beaa2e4ee380",
+          "file": "reordered-decision-musique-hybrid-bm25.jsonl.gz",
+          "rows": 2417,
+          "sha256": "31b9078a377caeede02630c5097e26bdd230acef6e3878b1583ac3a3c50ac2c5"
+        },
+        "decision:hybrid-bm25-entity-hop": {
+          "bytes": 4411367,
+          "digest": "a3cae2ae8f5bc8228253d1aebaa5481d86ded7d0420f4084fedf8c009d42e186",
+          "file": "reordered-decision-musique-hybrid-bm25-entity-hop.jsonl.gz",
+          "rows": 2417,
+          "sha256": "e739dc86ea0be0bb868713abd4473f5f8a17bf164680e7d627d28f6d00919fef"
+        },
+        "decision:hybrid-bm25-seeded-hop": {
+          "bytes": 4398023,
+          "digest": "0a79973088721e6227c1b8d64dfc5cb8fdb9155b4ce50fdf83eaa9a563c64483",
+          "file": "reordered-decision-musique-hybrid-bm25-seeded-hop.jsonl.gz",
+          "rows": 2417,
+          "sha256": "9fb762338cb1297e138b921ba690ba504ac9037ccd6a316d2cee3e762affac1d"
+        },
+        "decision:union": {
+          "bytes": 7392851,
+          "digest": "9935311940e1fcce15ac0d84dc64c9ae4f24b8515a4036b0eea6404cde9586d5",
+          "file": "reordered-decision-musique-union.jsonl.gz",
+          "rows": 2417,
+          "sha256": "e45a39e31a2b5303e3034f5a9aba8bcc8e9b30307d9c28db600c1339fea4d8e0"
+        },
+        "light:dense": {
+          "bytes": 4518293,
+          "digest": "fc0d61d4de010536009ba336de42f389d5268f07a2333c7d2e5ad10eaf3e5271",
+          "file": "reordered-light-musique-dense.jsonl.gz",
+          "rows": 2417,
+          "sha256": "201a59ffc8fec2c95f8b345634f44d8a4baa00df7f465a2165490c555f6b270f"
+        },
+        "light:hybrid-bm25": {
+          "bytes": 4541182,
+          "digest": "9625a42f986c7e3d09611f11d4a9906f76d098b801b1058ab1563d8fd4db6735",
+          "file": "reordered-light-musique-hybrid-bm25.jsonl.gz",
+          "rows": 2417,
+          "sha256": "f12e4f65791fff438c302d9b0bc8313ff61fd46e08017adfcff21d379b855703"
+        },
+        "light:hybrid-bm25-entity-hop": {
+          "bytes": 4543322,
+          "digest": "9a33ac1c8656d312c08387db27d6d7f9fc4933ba8665a57a59397e3364a3278e",
+          "file": "reordered-light-musique-hybrid-bm25-entity-hop.jsonl.gz",
+          "rows": 2417,
+          "sha256": "b76dc34e671eec9323ca68d1fdb1898e57a4dea68eb251b5fde88bd576868b9e"
+        },
+        "light:hybrid-bm25-seeded-hop": {
+          "bytes": 4531251,
+          "digest": "472c3f30af83735dc3f4afe762597e142eeb23277c657354241c0442955a278d",
+          "file": "reordered-light-musique-hybrid-bm25-seeded-hop.jsonl.gz",
+          "rows": 2417,
+          "sha256": "cf2adac435d760a4dc563e9dcab8bf6715f40846c6531d71c25db0958c6ae367"
+        },
+        "light:union": {
+          "bytes": 7578531,
+          "digest": "fed13145d7ff3a2db84e8be50e5e30d9599e65651259ec396bb09be2cd0e814c",
+          "file": "reordered-light-musique-union.jsonl.gz",
+          "rows": 2417,
+          "sha256": "823c676c4e1e1e766d5144e34334ad0a2dd9270dc619c412d1666e4f55160de7"
+        },
+        "strong:dense": {
+          "bytes": 4547085,
+          "digest": "7558d6c1d248cf899bed4070648a063699c70d27afb96e52c84325581d2ff572",
+          "file": "reordered-strong-musique-dense.jsonl.gz",
+          "rows": 2417,
+          "sha256": "55216d614a31336b7b0cfbf749d9e291ba24b7b3f7173168f3c1ed6b66887626"
+        },
+        "strong:hybrid-bm25": {
+          "bytes": 4558647,
+          "digest": "d076d8b47925ad9a73305ff90f5b277ff87fe83991daa1097cd844eca50a97bf",
+          "file": "reordered-strong-musique-hybrid-bm25.jsonl.gz",
+          "rows": 2417,
+          "sha256": "77bb51bc615dfde79abd259527ff878b14d4d46e8e4899326144a909b3502edb"
+        },
+        "strong:hybrid-bm25-entity-hop": {
+          "bytes": 4563808,
+          "digest": "dfc005ccf5e56ffe46638506cb2b2e97df27aa37641f3ea134c0ec7e91e3388e",
+          "file": "reordered-strong-musique-hybrid-bm25-entity-hop.jsonl.gz",
+          "rows": 2417,
+          "sha256": "dd10f73b98079e3cb1be50d0de3164c8ec64fb91b5d57c1769cd92e85f95bc3a"
+        },
+        "strong:hybrid-bm25-seeded-hop": {
+          "bytes": 4553834,
+          "digest": "cdc379bfaf4fa65869dda2f0c2307d4d96cdd2d22dffa6a428862adec88de280",
+          "file": "reordered-strong-musique-hybrid-bm25-seeded-hop.jsonl.gz",
+          "rows": 2417,
+          "sha256": "56c1437fa88db26c3db9df6c393bf7c1b3d7966669a8afd5fc4e0c9b859db360"
+        },
+        "strong:union": {
+          "bytes": 7627533,
+          "digest": "1ef6eeccd019660bc8531ce9036036ce8fbbb13a8f1d9319d29fc00750c0e040",
+          "file": "reordered-strong-musique-union.jsonl.gz",
+          "rows": 2417,
+          "sha256": "ebd5b33f5dc9e7fc87c72077ac2e2443b383561c533505882dddcbec2462515c"
+        }
+      }
+    },
+    "scores_files": {
+      "decision": {
+        "hotpotqa": {
+          "bytes": 24947462,
+          "digest": "a765fa3ea5b1623156361cd411bfda3cfc26d45658b6a06d1a065a3b5453a10e",
+          "file": "scores-decision-hotpotqa.jsonl.gz",
+          "rows": 7405,
+          "sha256": "487cf31f00de925dd1702378dfdcc98ac8e3f1bba9e0f86be0bfe264818ec582"
+        },
+        "multihop-rag": {
+          "bytes": 5666889,
+          "digest": "4d84f9bfe5773e8d5d87f1d032830fa89639713e69fb1665781e4952768f8bec",
+          "file": "scores-decision-multihop-rag.jsonl.gz",
+          "rows": 2255,
+          "sha256": "f4d127083cbbdd3534e79e5fb6825157953881712a63c6b5b6cfffa1b52c461e"
+        },
+        "musique": {
+          "bytes": 6667795,
+          "digest": "1f533e2dcdf55065e4f16b6af6bc3e7d07e3703a312b82565c3e1d47f1fc4be0",
+          "file": "scores-decision-musique.jsonl.gz",
+          "rows": 2417,
+          "sha256": "e067eb56ad9e448052ffdbaacbd15a12dc671ab8d32c9ec4d42f028589dfb45e"
+        }
+      },
+      "light": {
+        "hotpotqa": {
+          "bytes": 26043457,
+          "digest": "1ff776941662ed17a24fa00bc2604927f235fbc6ce80485e39cb5b47e3662567",
+          "file": "scores-light-hotpotqa.jsonl.gz",
+          "rows": 7405,
+          "sha256": "e41d6c4007973df5bc6e58bd35b67f5f1ec526d85eb2b9efd36e84645200022f"
+        },
+        "multihop-rag": {
+          "bytes": 5925135,
+          "digest": "6f4f9ba22c8f8e8a0fbcdeca5234edeb94230771787f993b1dbc8852ca2a2e10",
+          "file": "scores-light-multihop-rag.jsonl.gz",
+          "rows": 2255,
+          "sha256": "4ab0c847dd674b4770598493342f28c947fff30aaf30f77e9240c360c53fe29d"
+        },
+        "musique": {
+          "bytes": 6848972,
+          "digest": "8a1b5cfa0e51687bd3ae9934287336ae56c706d6e8f7fa6a5dc07ae5dbc059e5",
+          "file": "scores-light-musique.jsonl.gz",
+          "rows": 2417,
+          "sha256": "a23dbfff86aae6d161367414d75d791e98021963d8fbb9d69eed7a30bcc2af0d"
+        }
+      },
+      "strong": {
+        "hotpotqa": {
+          "bytes": 25789768,
+          "digest": "d37040faa3f10174cdd9546e8d292e84ea28e01a2cbcf618c8bfbe57597557e4",
+          "file": "scores-strong-hotpotqa.jsonl.gz",
+          "rows": 7405,
+          "sha256": "62e892bfd9b3444bd26ea4b1cd534aaba4c85ae5a8514cb284a4bcd6c4da5f7b"
+        },
+        "multihop-rag": {
+          "bytes": 5928536,
+          "digest": "609554e4a8056cf096dd0e3b1b2036a6cc332cb42f68f06c5feaec7b8adff50b",
+          "file": "scores-strong-multihop-rag.jsonl.gz",
+          "rows": 2255,
+          "sha256": "d5a7af5b2922543f98cc96aaaaa77e052922c83df6c23bbe634c2d32c3873cb0"
+        },
+        "musique": {
+          "bytes": 6899293,
+          "digest": "7352c635fd35683e627e97e6e295ca4e87b3541017437cfcb90ae833a407159c",
+          "file": "scores-strong-musique.jsonl.gz",
+          "rows": 2417,
+          "sha256": "a9e744f973a29445ca7a10e495d4e60851cf82cffece7cd6cca5e79badaef0f9"
+        }
+      }
+    },
+    "sha256": {
+      "integrity": "8688436817d04d79a6ec4207545e295dea3ff68d6dd65e1d47192afed5c0dcc8",
+      "pool": "ac6a12397e20b9adb7a49cc1d9fdfb3bcb3878dc5a4d4aa4674ad1b2a49dc5f2",
+      "scoring-decision": "73b21f1d8772c1f019803e4fde4f3d67a213e057ca610e7e60c0c0303a9efc3f",
+      "scoring-light": "6266b676f21c582841032a4cdf4862965cd048c3ef74d8476ed5b2b7b449b7ee",
+      "scoring-strong": "89651fac93f0d4686e8b91eae4e1cc683d0e2127bcd8ebff0110179b8382cadb"
+    }
+  },
+  "seconds": 258.7143576000817,
+  "sets": {
+    "hotpotqa": {
+      "cross_judge": {
+        "decision_vs_strong_p10b": {
+          "candidate": "J-decision(P10-B)",
+          "candidate_successes": 1882,
+          "control": "J-strong(P10-B)",
+          "control_successes": 5198,
+          "delta_percentage_points": -44.78055367994598,
+          "exact_two_sided_p": 0.0,
+          "losses": 3328,
+          "n_questions": 7405,
+          "ties": 4065,
+          "wins": 12
+        },
+        "strong_vs_light_p10b": {
+          "candidate": "J-strong(P10-B)",
+          "candidate_successes": 5198,
+          "control": "J-light(P10-B)",
+          "control_successes": 4730,
+          "delta_percentage_points": 6.320054017555705,
+          "exact_two_sided_p": 3.336536282424375e-113,
+          "losses": 26,
+          "n_questions": 7405,
+          "ties": 6885,
+          "wins": 494
+        }
+      },
+      "full_support_2048": {
+        "decision:dense": {
+          "descriptive": false,
+          "n_questions": 7405,
+          "supported": 1558
+        },
+        "decision:hybrid-bm25": {
+          "descriptive": false,
+          "n_questions": 7405,
+          "supported": 1882
+        },
+        "decision:hybrid-bm25-entity-hop": {
+          "descriptive": false,
+          "n_questions": 7405,
+          "supported": 1983
+        },
+        "decision:hybrid-bm25-seeded-hop": {
+          "descriptive": false,
+          "n_questions": 7405,
+          "supported": 1890
+        },
+        "decision:union": {
+          "descriptive": true,
+          "n_questions": 7405,
+          "supported": 1210
+        },
+        "dense": {
+          "descriptive": false,
+          "n_questions": 7405,
+          "supported": 4125
+        },
+        "hybrid-bm25": {
+          "descriptive": false,
+          "n_questions": 7405,
+          "supported": 4536
+        },
+        "hybrid-bm25-entity-hop": {
+          "descriptive": false,
+          "n_questions": 7405,
+          "supported": 4801
+        },
+        "hybrid-bm25-seeded-hop": {
+          "descriptive": false,
+          "n_questions": 7405,
+          "supported": 5224
+        },
+        "light:dense": {
+          "descriptive": false,
+          "n_questions": 7405,
+          "supported": 4562
+        },
+        "light:hybrid-bm25": {
+          "descriptive": false,
+          "n_questions": 7405,
+          "supported": 4730
+        },
+        "light:hybrid-bm25-entity-hop": {
+          "descriptive": false,
+          "n_questions": 7405,
+          "supported": 4914
+        },
+        "light:hybrid-bm25-seeded-hop": {
+          "descriptive": false,
+          "n_questions": 7405,
+          "supported": 5054
+        },
+        "light:union": {
+          "descriptive": true,
+          "n_questions": 7405,
+          "supported": 4921
+        },
+        "strong:dense": {
+          "descriptive": false,
+          "n_questions": 7405,
+          "supported": 4964
+        },
+        "strong:hybrid-bm25": {
+          "descriptive": false,
+          "n_questions": 7405,
+          "supported": 5198
+        },
+        "strong:hybrid-bm25-entity-hop": {
+          "descriptive": false,
+          "n_questions": 7405,
+          "supported": 5569
+        },
+        "strong:hybrid-bm25-seeded-hop": {
+          "descriptive": false,
+          "n_questions": 7405,
+          "supported": 5911
+        },
+        "strong:union": {
+          "descriptive": true,
+          "n_questions": 7405,
+          "supported": 5922
+        }
+      },
+      "hop_label": {
+        "decision": "HOP_NEUTRAL_UNDER_JUDGE",
+        "light": "HOP_ADDS_UNDER_JUDGE",
+        "strong": "HOP_ADDS_UNDER_JUDGE"
+      },
+      "in_sample_weights": true,
+      "label": "HotpotQA dev",
+      "n_questions": 7405,
+      "per_judge": {
+        "decision": {
+          "j_p10a_vs_p10a": {
+            "candidate": "J-decision(P10-A)",
+            "candidate_successes": 1558,
+            "control": "P10-A",
+            "control_successes": 4125,
+            "delta_percentage_points": -34.66576637407157,
+            "exact_two_sided_p": 0.0,
+            "losses": 2749,
+            "n_questions": 7405,
+            "ties": 4474,
+            "wins": 182
+          },
+          "j_p10b_vs_p10b": {
+            "candidate": "J-decision(P10-B)",
+            "candidate_successes": 1882,
+            "control": "P10-B",
+            "control_successes": 4536,
+            "delta_percentage_points": -35.84064821066847,
+            "exact_two_sided_p": 0.0,
+            "losses": 2802,
+            "n_questions": 7405,
+            "ties": 4455,
+            "wins": 148
+          },
+          "j_p10c_vs_p10c": {
+            "candidate": "J-decision(P10-C)",
+            "candidate_successes": 1983,
+            "control": "P10-C",
+            "control_successes": 4801,
+            "delta_percentage_points": -38.05536799459824,
+            "exact_two_sided_p": 0.0,
+            "losses": 3012,
+            "n_questions": 7405,
+            "ties": 4199,
+            "wins": 194
+          },
+          "j_p14_vs_j_p10b": {
+            "candidate": "J-decision(P14)",
+            "candidate_successes": 1890,
+            "control": "J-decision(P10-B)",
+            "control_successes": 1882,
+            "delta_percentage_points": 0.10803511141120864,
+            "exact_two_sided_p": 0.7588999938839628,
+            "losses": 256,
+            "n_questions": 7405,
+            "ties": 6885,
+            "wins": 264
+          },
+          "j_p14_vs_p14": {
+            "candidate": "J-decision(P14)",
+            "candidate_successes": 1890,
+            "control": "P14",
+            "control_successes": 5224,
+            "delta_percentage_points": -45.023632680621205,
+            "exact_two_sided_p": 0.0,
+            "losses": 3489,
+            "n_questions": 7405,
+            "ties": 3761,
+            "wins": 155
+          }
+        },
+        "light": {
+          "j_p10a_vs_p10a": {
+            "candidate": "J-light(P10-A)",
+            "candidate_successes": 4562,
+            "control": "P10-A",
+            "control_successes": 4125,
+            "delta_percentage_points": 5.901417960837272,
+            "exact_two_sided_p": 2.9727510812828315e-50,
+            "losses": 228,
+            "n_questions": 7405,
+            "ties": 6512,
+            "wins": 665
+          },
+          "j_p10b_vs_p10b": {
+            "candidate": "J-light(P10-B)",
+            "candidate_successes": 4730,
+            "control": "P10-B",
+            "control_successes": 4536,
+            "delta_percentage_points": 2.6198514517218094,
+            "exact_two_sided_p": 1.7985592887555077e-13,
+            "losses": 251,
+            "n_questions": 7405,
+            "ties": 6709,
+            "wins": 445
+          },
+          "j_p10c_vs_p10c": {
+            "candidate": "J-light(P10-C)",
+            "candidate_successes": 4914,
+            "control": "P10-C",
+            "control_successes": 4801,
+            "delta_percentage_points": 1.5259959486833221,
+            "exact_two_sided_p": 0.00024554139357913917,
+            "losses": 411,
+            "n_questions": 7405,
+            "ties": 6470,
+            "wins": 524
+          },
+          "j_p14_vs_j_p10b": {
+            "candidate": "J-light(P14)",
+            "candidate_successes": 5054,
+            "control": "J-light(P10-B)",
+            "control_successes": 4730,
+            "delta_percentage_points": 4.37542201215395,
+            "exact_two_sided_p": 3.127209714420629e-59,
+            "losses": 59,
+            "n_questions": 7405,
+            "ties": 6963,
+            "wins": 383
+          },
+          "j_p14_vs_p14": {
+            "candidate": "J-light(P14)",
+            "candidate_successes": 5054,
+            "control": "P14",
+            "control_successes": 5224,
+            "delta_percentage_points": -2.2957461174881835,
+            "exact_two_sided_p": 1.7758690877699356e-07,
+            "losses": 611,
+            "n_questions": 7405,
+            "ties": 6353,
+            "wins": 441
+          }
+        },
+        "strong": {
+          "j_p10a_vs_p10a": {
+            "candidate": "J-strong(P10-A)",
+            "candidate_successes": 4964,
+            "control": "P10-A",
+            "control_successes": 4125,
+            "delta_percentage_points": 11.330182309250507,
+            "exact_two_sided_p": 5.606835874888588e-210,
+            "losses": 36,
+            "n_questions": 7405,
+            "ties": 6494,
+            "wins": 875
+          },
+          "j_p10b_vs_p10b": {
+            "candidate": "J-strong(P10-B)",
+            "candidate_successes": 5198,
+            "control": "P10-B",
+            "control_successes": 4536,
+            "delta_percentage_points": 8.939905469277516,
+            "exact_two_sided_p": 1.4722696713488793e-170,
+            "losses": 23,
+            "n_questions": 7405,
+            "ties": 6697,
+            "wins": 685
+          },
+          "j_p10c_vs_p10c": {
+            "candidate": "J-strong(P10-C)",
+            "candidate_successes": 5569,
+            "control": "P10-C",
+            "control_successes": 4801,
+            "delta_percentage_points": 10.37137069547603,
+            "exact_two_sided_p": 1.0161317885910618e-163,
+            "losses": 78,
+            "n_questions": 7405,
+            "ties": 6481,
+            "wins": 846
+          },
+          "j_p14_vs_j_p10b": {
+            "candidate": "J-strong(P14)",
+            "candidate_successes": 5911,
+            "control": "J-strong(P10-B)",
+            "control_successes": 5198,
+            "delta_percentage_points": 9.62862930452397,
+            "exact_two_sided_p": 6.4444331735187485e-155,
+            "losses": 67,
+            "n_questions": 7405,
+            "ties": 6558,
+            "wins": 780
+          },
+          "j_p14_vs_p14": {
+            "candidate": "J-strong(P14)",
+            "candidate_successes": 5911,
+            "control": "P14",
+            "control_successes": 5224,
+            "delta_percentage_points": 9.277515192437543,
+            "exact_two_sided_p": 6.937712978647837e-129,
+            "losses": 111,
+            "n_questions": 7405,
+            "ties": 6496,
+            "wins": 798
+          }
+        }
+      },
+      "replayed_lines": 19
+    },
+    "multihop-rag": {
+      "cross_judge": {
+        "decision_vs_strong_p10b": {
+          "candidate": "J-decision(P10-B)",
+          "candidate_successes": 208,
+          "control": "J-strong(P10-B)",
+          "control_successes": 822,
+          "delta_percentage_points": -27.228381374722836,
+          "exact_two_sided_p": 2.6486680652743036e-154,
+          "losses": 640,
+          "n_questions": 2255,
+          "ties": 1589,
+          "wins": 26
+        },
+        "strong_vs_light_p10b": {
+          "candidate": "J-strong(P10-B)",
+          "candidate_successes": 822,
+          "control": "J-light(P10-B)",
+          "control_successes": 352,
+          "delta_percentage_points": 20.84257206208426,
+          "exact_two_sided_p": 2.5245121555240614e-104,
+          "losses": 41,
+          "n_questions": 2255,
+          "ties": 1703,
+          "wins": 511
+        }
+      },
+      "full_support_2048": {
+        "decision:dense": {
+          "descriptive": false,
+          "n_questions": 2255,
+          "supported": 167
+        },
+        "decision:hybrid-bm25": {
+          "descriptive": false,
+          "n_questions": 2255,
+          "supported": 208
+        },
+        "decision:hybrid-bm25-entity-hop": {
+          "descriptive": false,
+          "n_questions": 2255,
+          "supported": 174
+        },
+        "decision:hybrid-bm25-seeded-hop": {
+          "descriptive": false,
+          "n_questions": 2255,
+          "supported": 185
+        },
+        "decision:union": {
+          "descriptive": true,
+          "n_questions": 2255,
+          "supported": 117
+        },
+        "dense": {
+          "descriptive": false,
+          "n_questions": 2255,
+          "supported": 338
+        },
+        "hybrid-bm25": {
+          "descriptive": false,
+          "n_questions": 2255,
+          "supported": 587
+        },
+        "hybrid-bm25-entity-hop": {
+          "descriptive": false,
+          "n_questions": 2255,
+          "supported": 522
+        },
+        "hybrid-bm25-seeded-hop": {
+          "descriptive": false,
+          "n_questions": 2255,
+          "supported": 513
+        },
+        "light:dense": {
+          "descriptive": false,
+          "n_questions": 2255,
+          "supported": 310
+        },
+        "light:hybrid-bm25": {
+          "descriptive": false,
+          "n_questions": 2255,
+          "supported": 352
+        },
+        "light:hybrid-bm25-entity-hop": {
+          "descriptive": false,
+          "n_questions": 2255,
+          "supported": 344
+        },
+        "light:hybrid-bm25-seeded-hop": {
+          "descriptive": false,
+          "n_questions": 2255,
+          "supported": 339
+        },
+        "light:union": {
+          "descriptive": true,
+          "n_questions": 2255,
+          "supported": 319
+        },
+        "strong:dense": {
+          "descriptive": false,
+          "n_questions": 2255,
+          "supported": 613
+        },
+        "strong:hybrid-bm25": {
+          "descriptive": false,
+          "n_questions": 2255,
+          "supported": 822
+        },
+        "strong:hybrid-bm25-entity-hop": {
+          "descriptive": false,
+          "n_questions": 2255,
+          "supported": 793
+        },
+        "strong:hybrid-bm25-seeded-hop": {
+          "descriptive": false,
+          "n_questions": 2255,
+          "supported": 797
+        },
+        "strong:union": {
+          "descriptive": true,
+          "n_questions": 2255,
+          "supported": 846
+        }
+      },
+      "hop_label": {
+        "decision": "HOP_HURTS_UNDER_JUDGE",
+        "light": "HOP_NEUTRAL_UNDER_JUDGE",
+        "strong": "HOP_HURTS_UNDER_JUDGE"
+      },
+      "in_sample_weights": false,
+      "label": "MultiHop-RAG answerable",
+      "n_questions": 2255,
+      "per_judge": {
+        "decision": {
+          "j_p10a_vs_p10a": {
+            "candidate": "J-decision(P10-A)",
+            "candidate_successes": 167,
+            "control": "P10-A",
+            "control_successes": 338,
+            "delta_percentage_points": -7.583148558758315,
+            "exact_two_sided_p": 1.0744619292331985e-21,
+            "losses": 251,
+            "n_questions": 2255,
+            "ties": 1924,
+            "wins": 80
+          },
+          "j_p10b_vs_p10b": {
+            "candidate": "J-decision(P10-B)",
+            "candidate_successes": 208,
+            "control": "P10-B",
+            "control_successes": 587,
+            "delta_percentage_points": -16.80709534368071,
+            "exact_two_sided_p": 3.2414583272672045e-72,
+            "losses": 439,
+            "n_questions": 2255,
+            "ties": 1756,
+            "wins": 60
+          },
+          "j_p10c_vs_p10c": {
+            "candidate": "J-decision(P10-C)",
+            "candidate_successes": 174,
+            "control": "P10-C",
+            "control_successes": 522,
+            "delta_percentage_points": -15.432372505543237,
+            "exact_two_sided_p": 5.194547282227741e-65,
+            "losses": 407,
+            "n_questions": 2255,
+            "ties": 1789,
+            "wins": 59
+          },
+          "j_p14_vs_j_p10b": {
+            "candidate": "J-decision(P14)",
+            "candidate_successes": 185,
+            "control": "J-decision(P10-B)",
+            "control_successes": 208,
+            "delta_percentage_points": -1.0199556541019956,
+            "exact_two_sided_p": 0.005918433252619309,
+            "losses": 44,
+            "n_questions": 2255,
+            "ties": 2190,
+            "wins": 21
+          },
+          "j_p14_vs_p14": {
+            "candidate": "J-decision(P14)",
+            "candidate_successes": 185,
+            "control": "P14",
+            "control_successes": 513,
+            "delta_percentage_points": -14.545454545454545,
+            "exact_two_sided_p": 1.863158857137292e-56,
+            "losses": 399,
+            "n_questions": 2255,
+            "ties": 1785,
+            "wins": 71
+          }
+        },
+        "light": {
+          "j_p10a_vs_p10a": {
+            "candidate": "J-light(P10-A)",
+            "candidate_successes": 310,
+            "control": "P10-A",
+            "control_successes": 338,
+            "delta_percentage_points": -1.2416851441241685,
+            "exact_two_sided_p": 0.10394641780910101,
+            "losses": 152,
+            "n_questions": 2255,
+            "ties": 1979,
+            "wins": 124
+          },
+          "j_p10b_vs_p10b": {
+            "candidate": "J-light(P10-B)",
+            "candidate_successes": 352,
+            "control": "P10-B",
+            "control_successes": 587,
+            "delta_percentage_points": -10.42128603104213,
+            "exact_two_sided_p": 1.8505959322083745e-32,
+            "losses": 324,
+            "n_questions": 2255,
+            "ties": 1842,
+            "wins": 89
+          },
+          "j_p10c_vs_p10c": {
+            "candidate": "J-light(P10-C)",
+            "candidate_successes": 344,
+            "control": "P10-C",
+            "control_successes": 522,
+            "delta_percentage_points": -7.893569844789357,
+            "exact_two_sided_p": 5.555220242791488e-20,
+            "losses": 283,
+            "n_questions": 2255,
+            "ties": 1867,
+            "wins": 105
+          },
+          "j_p14_vs_j_p10b": {
+            "candidate": "J-light(P14)",
+            "candidate_successes": 339,
+            "control": "J-light(P10-B)",
+            "control_successes": 352,
+            "delta_percentage_points": -0.5764966740576497,
+            "exact_two_sided_p": 0.05958388801809633,
+            "losses": 27,
+            "n_questions": 2255,
+            "ties": 2214,
+            "wins": 14
+          },
+          "j_p14_vs_p14": {
+            "candidate": "J-light(P14)",
+            "candidate_successes": 339,
+            "control": "P14",
+            "control_successes": 513,
+            "delta_percentage_points": -7.716186252771618,
+            "exact_two_sided_p": 4.7280071700164083e-20,
+            "losses": 272,
+            "n_questions": 2255,
+            "ties": 1885,
+            "wins": 98
+          }
+        },
+        "strong": {
+          "j_p10a_vs_p10a": {
+            "candidate": "J-strong(P10-A)",
+            "candidate_successes": 613,
+            "control": "P10-A",
+            "control_successes": 338,
+            "delta_percentage_points": 12.195121951219512,
+            "exact_two_sided_p": 6.249722983754754e-55,
+            "losses": 38,
+            "n_questions": 2255,
+            "ties": 1904,
+            "wins": 313
+          },
+          "j_p10b_vs_p10b": {
+            "candidate": "J-strong(P10-B)",
+            "candidate_successes": 822,
+            "control": "P10-B",
+            "control_successes": 587,
+            "delta_percentage_points": 10.42128603104213,
+            "exact_two_sided_p": 5.822395718739495e-40,
+            "losses": 54,
+            "n_questions": 2255,
+            "ties": 1912,
+            "wins": 289
+          },
+          "j_p10c_vs_p10c": {
+            "candidate": "J-strong(P10-C)",
+            "candidate_successes": 793,
+            "control": "P10-C",
+            "control_successes": 522,
+            "delta_percentage_points": 12.017738359201774,
+            "exact_two_sided_p": 1.4965102743099303e-49,
+            "losses": 50,
+            "n_questions": 2255,
+            "ties": 1884,
+            "wins": 321
+          },
+          "j_p14_vs_j_p10b": {
+            "candidate": "J-strong(P14)",
+            "candidate_successes": 797,
+            "control": "J-strong(P10-B)",
+            "control_successes": 822,
+            "delta_percentage_points": -1.1086474501108647,
+            "exact_two_sided_p": 0.004626293921895511,
+            "losses": 49,
+            "n_questions": 2255,
+            "ties": 2182,
+            "wins": 24
+          },
+          "j_p14_vs_p14": {
+            "candidate": "J-strong(P14)",
+            "candidate_successes": 797,
+            "control": "P14",
+            "control_successes": 513,
+            "delta_percentage_points": 12.594235033259423,
+            "exact_two_sided_p": 2.41846556482275e-51,
+            "losses": 54,
+            "n_questions": 2255,
+            "ties": 1863,
+            "wins": 338
+          }
+        }
+      },
+      "replayed_lines": 19
+    },
+    "musique": {
+      "cross_judge": {
+        "decision_vs_strong_p10b": {
+          "candidate": "J-decision(P10-B)",
+          "candidate_successes": 174,
+          "control": "J-strong(P10-B)",
+          "control_successes": 704,
+          "delta_percentage_points": -21.928009929664874,
+          "exact_two_sided_p": 9.901525337297973e-134,
+          "losses": 552,
+          "n_questions": 2417,
+          "ties": 1843,
+          "wins": 22
+        },
+        "strong_vs_light_p10b": {
+          "candidate": "J-strong(P10-B)",
+          "candidate_successes": 704,
+          "control": "J-light(P10-B)",
+          "control_successes": 644,
+          "delta_percentage_points": 2.4824162184526273,
+          "exact_two_sided_p": 1.0283512362603832e-05,
+          "losses": 61,
+          "n_questions": 2417,
+          "ties": 2235,
+          "wins": 121
+        }
+      },
+      "full_support_2048": {
+        "decision:dense": {
+          "descriptive": false,
+          "n_questions": 2417,
+          "supported": 155
+        },
+        "decision:hybrid-bm25": {
+          "descriptive": false,
+          "n_questions": 2417,
+          "supported": 174
+        },
+        "decision:hybrid-bm25-entity-hop": {
+          "descriptive": false,
+          "n_questions": 2417,
+          "supported": 221
+        },
+        "decision:hybrid-bm25-seeded-hop": {
+          "descriptive": false,
+          "n_questions": 2417,
+          "supported": 222
+        },
+        "decision:union": {
+          "descriptive": true,
+          "n_questions": 2417,
+          "supported": 149
+        },
+        "dense": {
+          "descriptive": false,
+          "n_questions": 2417,
+          "supported": 436
+        },
+        "hybrid-bm25": {
+          "descriptive": false,
+          "n_questions": 2417,
+          "supported": 524
+        },
+        "hybrid-bm25-entity-hop": {
+          "descriptive": false,
+          "n_questions": 2417,
+          "supported": 669
+        },
+        "hybrid-bm25-seeded-hop": {
+          "descriptive": false,
+          "n_questions": 2417,
+          "supported": 761
+        },
+        "light:dense": {
+          "descriptive": false,
+          "n_questions": 2417,
+          "supported": 595
+        },
+        "light:hybrid-bm25": {
+          "descriptive": false,
+          "n_questions": 2417,
+          "supported": 644
+        },
+        "light:hybrid-bm25-entity-hop": {
+          "descriptive": false,
+          "n_questions": 2417,
+          "supported": 670
+        },
+        "light:hybrid-bm25-seeded-hop": {
+          "descriptive": false,
+          "n_questions": 2417,
+          "supported": 697
+        },
+        "light:union": {
+          "descriptive": true,
+          "n_questions": 2417,
+          "supported": 683
+        },
+        "strong:dense": {
+          "descriptive": false,
+          "n_questions": 2417,
+          "supported": 642
+        },
+        "strong:hybrid-bm25": {
+          "descriptive": false,
+          "n_questions": 2417,
+          "supported": 704
+        },
+        "strong:hybrid-bm25-entity-hop": {
+          "descriptive": false,
+          "n_questions": 2417,
+          "supported": 804
+        },
+        "strong:hybrid-bm25-seeded-hop": {
+          "descriptive": false,
+          "n_questions": 2417,
+          "supported": 871
+        },
+        "strong:union": {
+          "descriptive": true,
+          "n_questions": 2417,
+          "supported": 809
+        }
+      },
+      "hop_label": {
+        "decision": "HOP_ADDS_UNDER_JUDGE",
+        "light": "HOP_ADDS_UNDER_JUDGE",
+        "strong": "HOP_ADDS_UNDER_JUDGE"
+      },
+      "in_sample_weights": false,
+      "label": "MuSiQue validation",
+      "n_questions": 2417,
+      "per_judge": {
+        "decision": {
+          "j_p10a_vs_p10a": {
+            "candidate": "J-decision(P10-A)",
+            "candidate_successes": 155,
+            "control": "P10-A",
+            "control_successes": 436,
+            "delta_percentage_points": -11.62598262308647,
+            "exact_two_sided_p": 5.254844097485466e-50,
+            "losses": 337,
+            "n_questions": 2417,
+            "ties": 2024,
+            "wins": 56
+          },
+          "j_p10b_vs_p10b": {
+            "candidate": "J-decision(P10-B)",
+            "candidate_successes": 174,
+            "control": "P10-B",
+            "control_successes": 524,
+            "delta_percentage_points": -14.480761274306992,
+            "exact_two_sided_p": 4.131335793285468e-70,
+            "losses": 397,
+            "n_questions": 2417,
+            "ties": 1973,
+            "wins": 47
+          },
+          "j_p10c_vs_p10c": {
+            "candidate": "J-decision(P10-C)",
+            "candidate_successes": 221,
+            "control": "P10-C",
+            "control_successes": 669,
+            "delta_percentage_points": -18.53537443111295,
+            "exact_two_sided_p": 3.854438545918704e-91,
+            "losses": 504,
+            "n_questions": 2417,
+            "ties": 1857,
+            "wins": 56
+          },
+          "j_p14_vs_j_p10b": {
+            "candidate": "J-decision(P14)",
+            "candidate_successes": 222,
+            "control": "J-decision(P10-B)",
+            "control_successes": 174,
+            "delta_percentage_points": 1.9859329747621017,
+            "exact_two_sided_p": 5.348143171041869e-07,
+            "losses": 22,
+            "n_questions": 2417,
+            "ties": 2325,
+            "wins": 70
+          },
+          "j_p14_vs_p14": {
+            "candidate": "J-decision(P14)",
+            "candidate_successes": 222,
+            "control": "P14",
+            "control_successes": 761,
+            "delta_percentage_points": -22.300372362432768,
+            "exact_two_sided_p": 2.5039792679889365e-122,
+            "losses": 581,
+            "n_questions": 2417,
+            "ties": 1794,
+            "wins": 42
+          }
+        },
+        "light": {
+          "j_p10a_vs_p10a": {
+            "candidate": "J-light(P10-A)",
+            "candidate_successes": 595,
+            "control": "P10-A",
+            "control_successes": 436,
+            "delta_percentage_points": 6.5784029788994625,
+            "exact_two_sided_p": 4.615077623735372e-26,
+            "losses": 42,
+            "n_questions": 2417,
+            "ties": 2174,
+            "wins": 201
+          },
+          "j_p10b_vs_p10b": {
+            "candidate": "J-light(P10-B)",
+            "candidate_successes": 644,
+            "control": "P10-B",
+            "control_successes": 524,
+            "delta_percentage_points": 4.9648324369052546,
+            "exact_two_sided_p": 1.246595574356328e-15,
+            "losses": 56,
+            "n_questions": 2417,
+            "ties": 2185,
+            "wins": 176
+          },
+          "j_p10c_vs_p10c": {
+            "candidate": "J-light(P10-C)",
+            "candidate_successes": 670,
+            "control": "P10-C",
+            "control_successes": 669,
+            "delta_percentage_points": 0.04137360364087712,
+            "exact_two_sided_p": 1.0,
+            "losses": 172,
+            "n_questions": 2417,
+            "ties": 2072,
+            "wins": 173
+          },
+          "j_p14_vs_j_p10b": {
+            "candidate": "J-light(P14)",
+            "candidate_successes": 697,
+            "control": "J-light(P10-B)",
+            "control_successes": 644,
+            "delta_percentage_points": 2.1928009929664873,
+            "exact_two_sided_p": 3.1961254620309685e-09,
+            "losses": 15,
+            "n_questions": 2417,
+            "ties": 2334,
+            "wins": 68
+          },
+          "j_p14_vs_p14": {
+            "candidate": "J-light(P14)",
+            "candidate_successes": 697,
+            "control": "P14",
+            "control_successes": 761,
+            "delta_percentage_points": -2.6479106330161355,
+            "exact_two_sided_p": 0.0017806358924166478,
+            "losses": 236,
+            "n_questions": 2417,
+            "ties": 2009,
+            "wins": 172
+          }
+        },
+        "strong": {
+          "j_p10a_vs_p10a": {
+            "candidate": "J-strong(P10-A)",
+            "candidate_successes": 642,
+            "control": "P10-A",
+            "control_successes": 436,
+            "delta_percentage_points": 8.522962350020686,
+            "exact_two_sided_p": 4.944368301472808e-37,
+            "losses": 41,
+            "n_questions": 2417,
+            "ties": 2129,
+            "wins": 247
+          },
+          "j_p10b_vs_p10b": {
+            "candidate": "J-strong(P10-B)",
+            "candidate_successes": 704,
+            "control": "P10-B",
+            "control_successes": 524,
+            "delta_percentage_points": 7.447248655357882,
+            "exact_two_sided_p": 9.322064111693176e-29,
+            "losses": 50,
+            "n_questions": 2417,
+            "ties": 2137,
+            "wins": 230
+          },
+          "j_p10c_vs_p10c": {
+            "candidate": "J-strong(P10-C)",
+            "candidate_successes": 804,
+            "control": "P10-C",
+            "control_successes": 669,
+            "delta_percentage_points": 5.585436491518411,
+            "exact_two_sided_p": 5.932581426604982e-12,
+            "losses": 126,
+            "n_questions": 2417,
+            "ties": 2030,
+            "wins": 261
+          },
+          "j_p14_vs_j_p10b": {
+            "candidate": "J-strong(P14)",
+            "candidate_successes": 871,
+            "control": "J-strong(P10-B)",
+            "control_successes": 704,
+            "delta_percentage_points": 6.909391808026479,
+            "exact_two_sided_p": 6.953017068842087e-34,
+            "losses": 23,
+            "n_questions": 2417,
+            "ties": 2204,
+            "wins": 190
+          },
+          "j_p14_vs_p14": {
+            "candidate": "J-strong(P14)",
+            "candidate_successes": 871,
+            "control": "P14",
+            "control_successes": 761,
+            "delta_percentage_points": 4.551096400496483,
+            "exact_two_sided_p": 1.4461326336359006e-07,
+            "losses": 162,
+            "n_questions": 2417,
+            "ties": 1983,
+            "wins": 272
+          }
+        }
+      },
+      "replayed_lines": 19
+    }
+  },
+  "systems": {
+    "dense": "P10-A",
+    "hybrid-bm25": "P10-B",
+    "hybrid-bm25-entity-hop": "P10-C",
+    "hybrid-bm25-seeded-hop": "P14"
+  },
+  "terminal_state": null,
+  "test": "exact two-sided McNemar (binomial on discordant questions, p = 1/2)"
+}

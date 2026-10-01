@@ -1,0 +1,3018 @@
+{
+  "budgets": [
+    512,
+    1024,
+    2048,
+    4096
+  ],
+  "code_commit": "9a9ad3fcf501093351d58031921d7a37336ba859",
+  "created_at": "2026-10-01T15:36:05+00:00",
+  "depth": 100,
+  "judges": {
+    "decision": {
+      "batch_size": 32,
+      "dtype": "bfloat16",
+      "encoder": {
+        "max_position_embeddings": 40960,
+        "name": "Qwen/Qwen3-8B",
+        "revision": "b968826d9c46dd6066d109eabc6255188de91218",
+        "shards": {
+          "model-00001-of-00005.safetensors": {
+            "bytes": 3996250744,
+            "sha256": "31d6a825ae35f11fb85b195b4c42c146c051e446433125a215336abdf95cbf5f"
+          },
+          "model-00002-of-00005.safetensors": {
+            "bytes": 3993160032,
+            "sha256": "5991236cea6fe21f3d43cab0f0e84448734fbbe0789816202989f2ddc9d18282"
+          },
+          "model-00003-of-00005.safetensors": {
+            "bytes": 3959604768,
+            "sha256": "c5185c4794be2d8a9784d5753c9922db38df478ce11f9ed0b415b7304d896836"
+          },
+          "model-00004-of-00005.safetensors": {
+            "bytes": 3187841392,
+            "sha256": "b5ee7de71fbf17db3d5704e0c8f2bc7d005ca9e1d7ca2aeb19827b0cfcaa917a"
+          },
+          "model-00005-of-00005.safetensors": {
+            "bytes": 1244659840,
+            "sha256": "20c2d6366ab85c90786ccdd829cd2b9e7d30ef3b2ebbb998280e7e4014b542ff"
+          }
+        },
+        "total_bytes": 16381516776
+      },
+      "kind": "bi-encoder",
+      "label": "J-decision",
+      "max_length": 2048,
+      "name": "Contrastive-LM/CLM-v0.1-8B",
+      "revision": "e939398d4556fcd9400c76fa8c5a513202f42b0a",
+      "weights_bytes": 75557149,
+      "weights_file": "CLM_v0.1-8B.pt",
+      "weights_sha256": "b2b4a8c9c2d39263eff78a351eb909a342ce9b3bf21a3f07c1d1bf15f1c4eda5"
+    },
+    "light": {
+      "batch_size": 256,
+      "dtype": "float32",
+      "kind": "cross-encoder",
+      "label": "J-light",
+      "max_length": 512,
+      "name": "cross-encoder/ms-marco-MiniLM-L-6-v2",
+      "revision": "233902d25c440f23af6f7d6e94d2946bac0bee0a",
+      "weights_bytes": 90870598,
+      "weights_sha256": "821d1aa69520101d6e0737f78a042ae25b19e5cb9160701909d10434f4aeb0ae"
+    },
+    "strong": {
+      "batch_size": 32,
+      "dtype": "float32",
+      "kind": "cross-encoder",
+      "label": "J-strong",
+      "max_length": 8192,
+      "name": "BAAI/bge-reranker-v2-m3",
+      "revision": "953dc6f6f85a1b2dbfca4c34a2796e7dde08d41e",
+      "weights_bytes": 2271071852,
+      "weights_sha256": "d9e3e081faff1eefb84019509b2f5558fd74c1a05a2c7db22f74174fcedb5286"
+    }
+  },
+  "ks": [
+    2,
+    5,
+    10,
+    20,
+    100
+  ],
+  "ndcg_k": 10,
+  "phase": 17,
+  "sets": {
+    "hotpotqa": {
+      "label": "HotpotQA dev",
+      "lines": {
+        "decision:dense": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.10438892640108036,
+              "full_support_count": 773,
+              "gold_recall": 0.32856178257933827
+            },
+            "2048": {
+              "full_support": 0.21039837947332884,
+              "full_support_count": 1558,
+              "gold_recall": 0.4598919648885888
+            },
+            "4096": {
+              "full_support": 0.39581363943281567,
+              "full_support_count": 2931,
+              "gold_recall": 0.6274814314652262
+            },
+            "512": {
+              "full_support": 0.04523970290344362,
+              "full_support_count": 335,
+              "gold_recall": 0.22835921674544227
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 5070,
+            "failures_inside": 3512,
+            "full_support_2048": 1558,
+            "n_questions": 7405
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.07846049966239027,
+            "100": 0.6846725185685347,
+            "2": 0.005536799459824443,
+            "20": 0.1689399054692775,
+            "5": 0.032680621201890615
+          },
+          "gold_recall_at_k": {
+            "10": 0.29324780553679947,
+            "100": 0.8301147873058744,
+            "2": 0.11417960837272113,
+            "20": 0.4177582714382174,
+            "5": 0.20168804861580014
+          },
+          "harness_mismatches": [],
+          "judge": "decision",
+          "label": "J-decision(P10-A)",
+          "line": "dense",
+          "n_questions": 7405,
+          "ndcg_at_10": 0.20405896006406946
+        },
+        "decision:hybrid-bm25": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.12045914922349764,
+              "full_support_count": 892,
+              "gold_recall": 0.3573936529372046
+            },
+            "2048": {
+              "full_support": 0.25415259959486836,
+              "full_support_count": 1882,
+              "gold_recall": 0.5056718433490884
+            },
+            "4096": {
+              "full_support": 0.47819041188386224,
+              "full_support_count": 3541,
+              "gold_recall": 0.6918973666441594
+            },
+            "512": {
+              "full_support": 0.05145172180958812,
+              "full_support_count": 381,
+              "gold_recall": 0.24483457123565158
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 5267,
+            "failures_inside": 3385,
+            "full_support_2048": 1882,
+            "n_questions": 7405
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.0861580013504389,
+            "100": 0.7112761647535449,
+            "2": 0.006076975016880486,
+            "20": 0.18419986495611074,
+            "5": 0.03457123565158676
+          },
+          "gold_recall_at_k": {
+            "10": 0.3074949358541526,
+            "100": 0.8490209318028359,
+            "2": 0.11553004726536124,
+            "20": 0.4356515867656989,
+            "5": 0.2064821066846725
+          },
+          "harness_mismatches": [],
+          "judge": "decision",
+          "label": "J-decision(P10-B)",
+          "line": "hybrid-bm25",
+          "n_questions": 7405,
+          "ndcg_at_10": 0.211449991907182
+        },
+        "decision:hybrid-bm25-entity-hop": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.12694125590817015,
+              "full_support_count": 940,
+              "gold_recall": 0.3634706279540851
+            },
+            "2048": {
+              "full_support": 0.2677920324105334,
+              "full_support_count": 1983,
+              "gold_recall": 0.5170830519918974
+            },
+            "4096": {
+              "full_support": 0.4987170830519919,
+              "full_support_count": 3693,
+              "gold_recall": 0.7037137069547603
+            },
+            "512": {
+              "full_support": 0.05428764348413234,
+              "full_support_count": 402,
+              "gold_recall": 0.24848075624577987
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 5733,
+            "failures_inside": 3750,
+            "full_support_2048": 1983,
+            "n_questions": 7405
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.09318028359216746,
+            "100": 0.7742066171505739,
+            "2": 0.006076975016880486,
+            "20": 0.20391627278865632,
+            "5": 0.03659689399054693
+          },
+          "gold_recall_at_k": {
+            "10": 0.3184334908845375,
+            "100": 0.8811613774476705,
+            "2": 0.11917623227548954,
+            "20": 0.4548278190411884,
+            "5": 0.21181634031060095
+          },
+          "harness_mismatches": [],
+          "judge": "decision",
+          "label": "J-decision(P10-C)",
+          "line": "hybrid-bm25-entity-hop",
+          "n_questions": 7405,
+          "ndcg_at_10": 0.21818293733883865
+        },
+        "decision:hybrid-bm25-seeded-hop": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.12261985145172181,
+              "full_support_count": 908,
+              "gold_recall": 0.35584064821066846
+            },
+            "2048": {
+              "full_support": 0.25523295070898044,
+              "full_support_count": 1890,
+              "gold_recall": 0.5074274139095206
+            },
+            "4096": {
+              "full_support": 0.499797434166104,
+              "full_support_count": 3701,
+              "gold_recall": 0.7043214044564483
+            },
+            "512": {
+              "full_support": 0.05145172180958812,
+              "full_support_count": 381,
+              "gold_recall": 0.24186360567184334
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 6119,
+            "failures_inside": 4229,
+            "full_support_2048": 1890,
+            "n_questions": 7405
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.09061444969615125,
+            "100": 0.8263335584064821,
+            "2": 0.005536799459824443,
+            "20": 0.19594868332207968,
+            "5": 0.03551654287643484
+          },
+          "gold_recall_at_k": {
+            "10": 0.3115462525320729,
+            "100": 0.9074274139095206,
+            "2": 0.1162727886563133,
+            "20": 0.4471303173531398,
+            "5": 0.20790006752194462
+          },
+          "harness_mismatches": [],
+          "judge": "decision",
+          "label": "J-decision(P14)",
+          "line": "hybrid-bm25-seeded-hop",
+          "n_questions": 7405,
+          "ndcg_at_10": 0.21269088454043883
+        },
+        "decision:union": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.07994598244429439,
+              "full_support_count": 592,
+              "gold_recall": 0.28676569885212694
+            },
+            "2048": {
+              "full_support": 0.16340310600945307,
+              "full_support_count": 1210,
+              "gold_recall": 0.40702228224172854
+            },
+            "4096": {
+              "full_support": 0.32694125590817014,
+              "full_support_count": 2421,
+              "gold_recall": 0.5694800810263335
+            },
+            "512": {
+              "full_support": 0.034166103983794736,
+              "full_support_count": 253,
+              "gold_recall": 0.19459824442943957
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 6299,
+            "failures_inside": 5089,
+            "full_support_2048": 1210,
+            "n_questions": 7405
+          },
+          "descriptive": true,
+          "full_support_at_k": {
+            "10": 0.05712356515867657,
+            "100": 0.6112086428089128,
+            "2": 0.003511141120864281,
+            "20": 0.1237002025658339,
+            "5": 0.022552329507089804
+          },
+          "gold_recall_at_k": {
+            "10": 0.2474679270762998,
+            "100": 0.7796083727211344,
+            "2": 0.09135719108710331,
+            "20": 0.35773126266036465,
+            "5": 0.16482106684672518
+          },
+          "harness_mismatches": [],
+          "judge": "decision",
+          "label": "J-decision(union)",
+          "line": "union",
+          "n_questions": 7405,
+          "ndcg_at_10": 0.16808580204968487
+        },
+        "dense": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.4912896691424713,
+              "full_support_count": 3638,
+              "gold_recall": 0.7133018230925051
+            },
+            "2048": {
+              "full_support": 0.5570560432140446,
+              "full_support_count": 4125,
+              "gold_recall": 0.7550303848750844
+            },
+            "4096": {
+              "full_support": 0.6155300472653612,
+              "full_support_count": 4558,
+              "gold_recall": 0.7897366644159352
+            },
+            "512": {
+              "full_support": 0.4159351789331533,
+              "full_support_count": 3080,
+              "gold_recall": 0.661850101282917
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 5070,
+            "failures_inside": 945,
+            "full_support_2048": 4125,
+            "n_questions": 7405
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.4841323430114787,
+            "100": 0.6846725185685347,
+            "2": 0.25739365293720456,
+            "20": 0.549358541525996,
+            "5": 0.412018906144497
+          },
+          "gold_recall_at_k": {
+            "10": 0.7089804186360568,
+            "100": 0.8301147873058744,
+            "2": 0.5532748143146523,
+            "20": 0.7505739365293721,
+            "5": 0.6600945307224848
+          },
+          "harness_mismatches": [],
+          "judge": null,
+          "label": "P10-A",
+          "line": "dense",
+          "n_questions": 7405,
+          "ndcg_at_10": 0.6830043574553909
+        },
+        "hybrid-bm25": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.5466576637407158,
+              "full_support_count": 4048,
+              "gold_recall": 0.7548278190411883
+            },
+            "2048": {
+              "full_support": 0.612559081701553,
+              "full_support_count": 4536,
+              "gold_recall": 0.7935854152599595
+            },
+            "4096": {
+              "full_support": 0.6650911546252533,
+              "full_support_count": 4925,
+              "gold_recall": 0.8237677245104659
+            },
+            "512": {
+              "full_support": 0.4579338284942606,
+              "full_support_count": 3391,
+              "gold_recall": 0.7018906144496961
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 5267,
+            "failures_inside": 731,
+            "full_support_2048": 4536,
+            "n_questions": 7405
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.525050641458474,
+            "100": 0.7112761647535449,
+            "2": 0.26212018906144496,
+            "20": 0.5918973666441594,
+            "5": 0.4397029034436192
+          },
+          "gold_recall_at_k": {
+            "10": 0.7419986495611074,
+            "100": 0.8490209318028359,
+            "2": 0.5738014854827819,
+            "20": 0.7814314652261986,
+            "5": 0.6894665766374072
+          },
+          "harness_mismatches": [],
+          "judge": null,
+          "label": "P10-B",
+          "line": "hybrid-bm25",
+          "n_questions": 7405,
+          "ndcg_at_10": 0.7122829009613638
+        },
+        "hybrid-bm25-entity-hop": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.575692099932478,
+              "full_support_count": 4263,
+              "gold_recall": 0.7688723835246455
+            },
+            "2048": {
+              "full_support": 0.6483457123565158,
+              "full_support_count": 4801,
+              "gold_recall": 0.8112086428089129
+            },
+            "4096": {
+              "full_support": 0.7096556380823767,
+              "full_support_count": 5255,
+              "gold_recall": 0.8453747467927076
+            },
+            "512": {
+              "full_support": 0.47900067521944634,
+              "full_support_count": 3547,
+              "gold_recall": 0.7096556380823767
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 5733,
+            "failures_inside": 932,
+            "full_support_2048": 4801,
+            "n_questions": 7405
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.5611073598919649,
+            "100": 0.7742066171505739,
+            "2": 0.2834571235651587,
+            "20": 0.6333558406482107,
+            "5": 0.4706279540850776
+          },
+          "gold_recall_at_k": {
+            "10": 0.7602295746117488,
+            "100": 0.8811613774476705,
+            "2": 0.5863605671843349,
+            "20": 0.8024307900067522,
+            "5": 0.7044564483457123
+          },
+          "harness_mismatches": [],
+          "judge": null,
+          "label": "P10-C",
+          "line": "hybrid-bm25-entity-hop",
+          "n_questions": 7405,
+          "ndcg_at_10": 0.7271995412375272
+        },
+        "hybrid-bm25-seeded-hop": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.6121539500337609,
+              "full_support_count": 4533,
+              "gold_recall": 0.786765698852127
+            },
+            "2048": {
+              "full_support": 0.7054692775151924,
+              "full_support_count": 5224,
+              "gold_recall": 0.8401755570560432
+            },
+            "4096": {
+              "full_support": 0.7712356515867657,
+              "full_support_count": 5711,
+              "gold_recall": 0.8763673193787981
+            },
+            "512": {
+              "full_support": 0.499797434166104,
+              "full_support_count": 3701,
+              "gold_recall": 0.7191087103308575
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 6119,
+            "failures_inside": 895,
+            "full_support_2048": 5224,
+            "n_questions": 7405
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.5966239027683997,
+            "100": 0.8263335584064821,
+            "2": 0.28858879135719107,
+            "20": 0.6884537474679271,
+            "5": 0.4852126941255908
+          },
+          "gold_recall_at_k": {
+            "10": 0.7775151924375422,
+            "100": 0.9074274139095206,
+            "2": 0.588116137744767,
+            "20": 0.8305199189736664,
+            "5": 0.7105334233625928
+          },
+          "harness_mismatches": [],
+          "judge": null,
+          "label": "P14",
+          "line": "hybrid-bm25-seeded-hop",
+          "n_questions": 7405,
+          "ndcg_at_10": 0.7349667195366382
+        },
+        "light:dense": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.5586765698852127,
+              "full_support_count": 4137,
+              "gold_recall": 0.7609723160027009
+            },
+            "2048": {
+              "full_support": 0.6160702228224173,
+              "full_support_count": 4562,
+              "gold_recall": 0.7921674544226873
+            },
+            "4096": {
+              "full_support": 0.6591492234976367,
+              "full_support_count": 4881,
+              "gold_recall": 0.8158001350438893
+            },
+            "512": {
+              "full_support": 0.47305874409182985,
+              "full_support_count": 3503,
+              "gold_recall": 0.7116812964213369
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 5070,
+            "failures_inside": 508,
+            "full_support_2048": 4562,
+            "n_questions": 7405
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.549088453747468,
+            "100": 0.6846725185685347,
+            "2": 0.2902093180283592,
+            "20": 0.6086428089128967,
+            "5": 0.4638757596218771
+          },
+          "gold_recall_at_k": {
+            "10": 0.7548953409858203,
+            "100": 0.8301147873058744,
+            "2": 0.599864956110736,
+            "20": 0.7879135719108711,
+            "5": 0.7059419311276165
+          },
+          "harness_mismatches": [],
+          "judge": "light",
+          "label": "J-light(P10-A)",
+          "line": "dense",
+          "n_questions": 7405,
+          "ndcg_at_10": 0.7354948448688963
+        },
+        "light:hybrid-bm25": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.5738014854827819,
+              "full_support_count": 4249,
+              "gold_recall": 0.77474679270763
+            },
+            "2048": {
+              "full_support": 0.6387575962187712,
+              "full_support_count": 4730,
+              "gold_recall": 0.8101958136394328
+            },
+            "4096": {
+              "full_support": 0.6849426063470628,
+              "full_support_count": 5072,
+              "gold_recall": 0.8351789331532748
+            },
+            "512": {
+              "full_support": 0.48170155300472656,
+              "full_support_count": 3567,
+              "gold_recall": 0.7217420661715057
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 5267,
+            "failures_inside": 537,
+            "full_support_2048": 4730,
+            "n_questions": 7405
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.5566509115462526,
+            "100": 0.7112761647535449,
+            "2": 0.28764348413234303,
+            "20": 0.6218771100607697,
+            "5": 0.46846725185685345
+          },
+          "gold_recall_at_k": {
+            "10": 0.7642808912896691,
+            "100": 0.8490209318028359,
+            "2": 0.6020931802835922,
+            "20": 0.800810263335584,
+            "5": 0.713234301147873
+          },
+          "harness_mismatches": [],
+          "judge": "light",
+          "label": "J-light(P10-B)",
+          "line": "hybrid-bm25",
+          "n_questions": 7405,
+          "ndcg_at_10": 0.7416874413113341
+        },
+        "light:hybrid-bm25-entity-hop": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.5846049966239028,
+              "full_support_count": 4329,
+              "gold_recall": 0.7801485482781904
+            },
+            "2048": {
+              "full_support": 0.6636056718433491,
+              "full_support_count": 4914,
+              "gold_recall": 0.8228899392302498
+            },
+            "4096": {
+              "full_support": 0.7272113436866982,
+              "full_support_count": 5385,
+              "gold_recall": 0.8569885212694126
+            },
+            "512": {
+              "full_support": 0.4887238352464551,
+              "full_support_count": 3619,
+              "gold_recall": 0.7254557731262661
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 5733,
+            "failures_inside": 819,
+            "full_support_2048": 4914,
+            "n_questions": 7405
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.5678595543551654,
+            "100": 0.7742066171505739,
+            "2": 0.2891289669142471,
+            "20": 0.6424037812288994,
+            "5": 0.47508440243079003
+          },
+          "gold_recall_at_k": {
+            "10": 0.7703578663065497,
+            "100": 0.8811613774476705,
+            "2": 0.6024983119513841,
+            "20": 0.8114112086428089,
+            "5": 0.7169480081026334
+          },
+          "harness_mismatches": [],
+          "judge": "light",
+          "label": "J-light(P10-C)",
+          "line": "hybrid-bm25-entity-hop",
+          "n_questions": 7405,
+          "ndcg_at_10": 0.744770973258553
+        },
+        "light:hybrid-bm25-seeded-hop": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.5933828494260635,
+              "full_support_count": 4394,
+              "gold_recall": 0.7848750844024308
+            },
+            "2048": {
+              "full_support": 0.6825118163403106,
+              "full_support_count": 5054,
+              "gold_recall": 0.8326806212018906
+            },
+            "4096": {
+              "full_support": 0.761647535449021,
+              "full_support_count": 5640,
+              "gold_recall": 0.8742741390952059
+            },
+            "512": {
+              "full_support": 0.49074949358541525,
+              "full_support_count": 3634,
+              "gold_recall": 0.7266036461850102
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 6119,
+            "failures_inside": 1065,
+            "full_support_2048": 5054,
+            "n_questions": 7405
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.5771775827143821,
+            "100": 0.8263335584064821,
+            "2": 0.2898041863605672,
+            "20": 0.6571235651586765,
+            "5": 0.47697501688048616
+          },
+          "gold_recall_at_k": {
+            "10": 0.775016880486158,
+            "100": 0.9074274139095206,
+            "2": 0.6033085752869682,
+            "20": 0.8191762322754895,
+            "5": 0.7181634031060095
+          },
+          "harness_mismatches": [],
+          "judge": "light",
+          "label": "J-light(P14)",
+          "line": "hybrid-bm25-seeded-hop",
+          "n_questions": 7405,
+          "ndcg_at_10": 0.747251449408285
+        },
+        "light:union": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.5832545577312627,
+              "full_support_count": 4319,
+              "gold_recall": 0.7795408507765024
+            },
+            "2048": {
+              "full_support": 0.6645509790681972,
+              "full_support_count": 4921,
+              "gold_recall": 0.8239027683997299
+            },
+            "4096": {
+              "full_support": 0.7338284942606347,
+              "full_support_count": 5434,
+              "gold_recall": 0.8610398379473329
+            },
+            "512": {
+              "full_support": 0.4835921674544227,
+              "full_support_count": 3581,
+              "gold_recall": 0.7227548953409858
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 6299,
+            "failures_inside": 1378,
+            "full_support_2048": 4921,
+            "n_questions": 7405
+          },
+          "descriptive": true,
+          "full_support_at_k": {
+            "10": 0.5671843349088453,
+            "100": 0.8079675894665767,
+            "2": 0.28669817690749494,
+            "20": 0.6429439567859554,
+            "5": 0.4707629979743417
+          },
+          "gold_recall_at_k": {
+            "10": 0.7702903443619177,
+            "100": 0.8993923024983119,
+            "2": 0.6018230925050642,
+            "20": 0.812288993923025,
+            "5": 0.7147197839297772
+          },
+          "harness_mismatches": [],
+          "judge": "light",
+          "label": "J-light(union)",
+          "line": "union",
+          "n_questions": 7405,
+          "ndcg_at_10": 0.7441857716789887
+        },
+        "strong:dense": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.6509115462525321,
+              "full_support_count": 4820,
+              "gold_recall": 0.8105334233625928
+            },
+            "2048": {
+              "full_support": 0.6703578663065496,
+              "full_support_count": 4964,
+              "gold_recall": 0.8220121539500338
+            },
+            "4096": {
+              "full_support": 0.6806212018906145,
+              "full_support_count": 5040,
+              "gold_recall": 0.8276839972991222
+            },
+            "512": {
+              "full_support": 0.6079675894665766,
+              "full_support_count": 4502,
+              "gold_recall": 0.7856853477380149
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 5070,
+            "failures_inside": 106,
+            "full_support_2048": 4964,
+            "n_questions": 7405
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.6515867656988521,
+            "100": 0.6846725185685347,
+            "2": 0.4989871708305199,
+            "20": 0.6706279540850777,
+            "5": 0.6176907494935854
+          },
+          "gold_recall_at_k": {
+            "10": 0.8108035111411208,
+            "100": 0.8301147873058744,
+            "2": 0.724442943956786,
+            "20": 0.8219446320054018,
+            "5": 0.7912896691424713
+          },
+          "harness_mismatches": [],
+          "judge": "strong",
+          "label": "J-strong(P10-A)",
+          "line": "dense",
+          "n_questions": 7405,
+          "ndcg_at_10": 0.8134081099709041
+        },
+        "strong:hybrid-bm25": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.6814314652261985,
+              "full_support_count": 5046,
+              "gold_recall": 0.8320054017555706
+            },
+            "2048": {
+              "full_support": 0.7019581363943281,
+              "full_support_count": 5198,
+              "gold_recall": 0.8435516542876434
+            },
+            "4096": {
+              "full_support": 0.7087103308575287,
+              "full_support_count": 5248,
+              "gold_recall": 0.8476029709655638
+            },
+            "512": {
+              "full_support": 0.6390276839972991,
+              "full_support_count": 4732,
+              "gold_recall": 0.8074274139095206
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 5267,
+            "failures_inside": 69,
+            "full_support_2048": 5198,
+            "n_questions": 7405
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.6818365968939906,
+            "100": 0.7112761647535449,
+            "2": 0.5222147197839297,
+            "20": 0.7003376097231601,
+            "5": 0.6465901417960838
+          },
+          "gold_recall_at_k": {
+            "10": 0.8318703578663066,
+            "100": 0.8490209318028359,
+            "2": 0.7419311276164754,
+            "20": 0.8426738690074275,
+            "5": 0.8119513841998649
+          },
+          "harness_mismatches": [],
+          "judge": "strong",
+          "label": "J-strong(P10-B)",
+          "line": "hybrid-bm25",
+          "n_questions": 7405,
+          "ndcg_at_10": 0.8315982067818409
+        },
+        "strong:hybrid-bm25-entity-hop": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.7205941931127616,
+              "full_support_count": 5336,
+              "gold_recall": 0.8521944632005402
+            },
+            "2048": {
+              "full_support": 0.7520594193112762,
+              "full_support_count": 5569,
+              "gold_recall": 0.8695476029709656
+            },
+            "4096": {
+              "full_support": 0.7683997299122215,
+              "full_support_count": 5690,
+              "gold_recall": 0.8782579338284943
+            },
+            "512": {
+              "full_support": 0.6668467251856853,
+              "full_support_count": 4938,
+              "gold_recall": 0.8217420661715057
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 5733,
+            "failures_inside": 164,
+            "full_support_2048": 5569,
+            "n_questions": 7405
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.7207292370020256,
+            "100": 0.7742066171505739,
+            "2": 0.536934503713707,
+            "20": 0.750303848750844,
+            "5": 0.67440918298447
+          },
+          "gold_recall_at_k": {
+            "10": 0.8520594193112762,
+            "100": 0.8811613774476705,
+            "2": 0.749696151249156,
+            "20": 0.8685347738014855,
+            "5": 0.8264010803511141
+          },
+          "harness_mismatches": [],
+          "judge": "strong",
+          "label": "J-strong(P10-C)",
+          "line": "hybrid-bm25-entity-hop",
+          "n_questions": 7405,
+          "ndcg_at_10": 0.843548809051285
+        },
+        "strong:hybrid-bm25-seeded-hop": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.7586765698852127,
+              "full_support_count": 5618,
+              "gold_recall": 0.8712356515867657
+            },
+            "2048": {
+              "full_support": 0.7982444294395679,
+              "full_support_count": 5911,
+              "gold_recall": 0.8927076299797434
+            },
+            "4096": {
+              "full_support": 0.8195813639432815,
+              "full_support_count": 6069,
+              "gold_recall": 0.9039837947332883
+            },
+            "512": {
+              "full_support": 0.6948008102633356,
+              "full_support_count": 5145,
+              "gold_recall": 0.8360567184334908
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 6119,
+            "failures_inside": 208,
+            "full_support_2048": 5911,
+            "n_questions": 7405
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.7581363943281566,
+            "100": 0.8263335584064821,
+            "2": 0.550573936529372,
+            "20": 0.7972991222147198,
+            "5": 0.7024983119513842
+          },
+          "gold_recall_at_k": {
+            "10": 0.8707629979743416,
+            "100": 0.9074274139095206,
+            "2": 0.7565833896016205,
+            "20": 0.8922349763673194,
+            "5": 0.8404456448345712
+          },
+          "harness_mismatches": [],
+          "judge": "strong",
+          "label": "J-strong(P14)",
+          "line": "hybrid-bm25-seeded-hop",
+          "n_questions": 7405,
+          "ndcg_at_10": 0.8549241557307702
+        },
+        "strong:union": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.7593517893315328,
+              "full_support_count": 5623,
+              "gold_recall": 0.8727886563133018
+            },
+            "2048": {
+              "full_support": 0.7997299122214719,
+              "full_support_count": 5922,
+              "gold_recall": 0.8945982444294396
+            },
+            "4096": {
+              "full_support": 0.8295746117488184,
+              "full_support_count": 6143,
+              "gold_recall": 0.9101282916948008
+            },
+            "512": {
+              "full_support": 0.6946657663740716,
+              "full_support_count": 5144,
+              "gold_recall": 0.8364618501012829
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 6299,
+            "failures_inside": 377,
+            "full_support_2048": 5922,
+            "n_questions": 7405
+          },
+          "descriptive": true,
+          "full_support_at_k": {
+            "10": 0.7598919648885888,
+            "100": 0.8484807562457799,
+            "2": 0.5494935854152599,
+            "20": 0.7987846049966238,
+            "5": 0.7041188386225523
+          },
+          "gold_recall_at_k": {
+            "10": 0.8724510465901418,
+            "100": 0.9199864956110736,
+            "2": 0.7561782579338285,
+            "20": 0.8940580688723835,
+            "5": 0.8418636056718434
+          },
+          "harness_mismatches": [],
+          "judge": "strong",
+          "label": "J-strong(union)",
+          "line": "union",
+          "n_questions": 7405,
+          "ndcg_at_10": 0.8556370070185474
+        }
+      },
+      "n_questions": 7405
+    },
+    "multihop-rag": {
+      "label": "MultiHop-RAG answerable",
+      "lines": {
+        "decision:dense": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.022172949002217297,
+              "full_support_count": 50,
+              "gold_recall": 0.15698447893569845
+            },
+            "2048": {
+              "full_support": 0.07405764966740576,
+              "full_support_count": 167,
+              "gold_recall": 0.28059866962305985
+            },
+            "4096": {
+              "full_support": 0.17960088691796008,
+              "full_support_count": 405,
+              "gold_recall": 0.46208425720620844
+            },
+            "512": {
+              "full_support": 0.006208425720620843,
+              "full_support_count": 14,
+              "gold_recall": 0.08662232076866223
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 860,
+            "failures_inside": 693,
+            "full_support_2048": 167,
+            "n_questions": 2255
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.022172949002217297,
+            "100": 0.38137472283813745,
+            "2": 0.0,
+            "20": 0.05853658536585366,
+            "5": 0.005321507760532151
+          },
+          "gold_recall_at_k": {
+            "10": 0.14907612712490761,
+            "100": 0.679009608277901,
+            "2": 0.038433111603843315,
+            "20": 0.2539911308203991,
+            "5": 0.08296378418329638
+          },
+          "harness_mismatches": [],
+          "judge": "decision",
+          "label": "J-decision(P10-A)",
+          "line": "dense",
+          "n_questions": 2255,
+          "ndcg_at_10": 0.09461320075189363
+        },
+        "decision:hybrid-bm25": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.02616407982261641,
+              "full_support_count": 59,
+              "gold_recall": 0.18041389504804137
+            },
+            "2048": {
+              "full_support": 0.09223946784922395,
+              "full_support_count": 208,
+              "gold_recall": 0.316629711751663
+            },
+            "4096": {
+              "full_support": 0.2452328159645233,
+              "full_support_count": 553,
+              "gold_recall": 0.5303769401330377
+            },
+            "512": {
+              "full_support": 0.0066518847006651885,
+              "full_support_count": 15,
+              "gold_recall": 0.09674796747967479
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 1160,
+            "failures_inside": 952,
+            "full_support_2048": 208,
+            "n_questions": 2255
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.025720620842572064,
+            "100": 0.5144124168514412,
+            "2": 0.0,
+            "20": 0.07272727272727272,
+            "5": 0.004878048780487805
+          },
+          "gold_recall_at_k": {
+            "10": 0.16611234294161123,
+            "100": 0.7715816703621582,
+            "2": 0.04028085735402808,
+            "20": 0.28518107908351814,
+            "5": 0.09519586104951958
+          },
+          "harness_mismatches": [],
+          "judge": "decision",
+          "label": "J-decision(P10-B)",
+          "line": "hybrid-bm25",
+          "n_questions": 2255,
+          "ndcg_at_10": 0.10516686654022306
+        },
+        "decision:hybrid-bm25-entity-hop": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.020842572062084258,
+              "full_support_count": 47,
+              "gold_recall": 0.16936437546193644
+            },
+            "2048": {
+              "full_support": 0.07716186252771619,
+              "full_support_count": 174,
+              "gold_recall": 0.3048041389504804
+            },
+            "4096": {
+              "full_support": 0.22394678492239467,
+              "full_support_count": 505,
+              "gold_recall": 0.5077974870657798
+            },
+            "512": {
+              "full_support": 0.006208425720620843,
+              "full_support_count": 14,
+              "gold_recall": 0.09390243902439024
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 1111,
+            "failures_inside": 937,
+            "full_support_2048": 174,
+            "n_questions": 2255
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.019955654101995565,
+            "100": 0.4926829268292683,
+            "2": 0.0,
+            "20": 0.06297117516629712,
+            "5": 0.005321507760532151
+          },
+          "gold_recall_at_k": {
+            "10": 0.1580931263858093,
+            "100": 0.7561714708056172,
+            "2": 0.03991130820399113,
+            "20": 0.2746119733924612,
+            "5": 0.0918329637841833
+          },
+          "harness_mismatches": [],
+          "judge": "decision",
+          "label": "J-decision(P10-C)",
+          "line": "hybrid-bm25-entity-hop",
+          "n_questions": 2255,
+          "ndcg_at_10": 0.10076926286667624
+        },
+        "decision:hybrid-bm25-seeded-hop": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.020399113082039913,
+              "full_support_count": 46,
+              "gold_recall": 0.17184035476718404
+            },
+            "2048": {
+              "full_support": 0.082039911308204,
+              "full_support_count": 185,
+              "gold_recall": 0.30694752402069475
+            },
+            "4096": {
+              "full_support": 0.22439024390243903,
+              "full_support_count": 506,
+              "gold_recall": 0.5157427937915743
+            },
+            "512": {
+              "full_support": 0.005764966740576497,
+              "full_support_count": 13,
+              "gold_recall": 0.09235033259423503
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 1145,
+            "failures_inside": 960,
+            "full_support_2048": 185,
+            "n_questions": 2255
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.019955654101995565,
+            "100": 0.5077605321507761,
+            "2": 0.0,
+            "20": 0.06075388026607539,
+            "5": 0.004878048780487805
+          },
+          "gold_recall_at_k": {
+            "10": 0.15624538063562454,
+            "100": 0.7661123429416112,
+            "2": 0.04116777531411678,
+            "20": 0.2752771618625277,
+            "5": 0.09150036954915004
+          },
+          "harness_mismatches": [],
+          "judge": "decision",
+          "label": "J-decision(P14)",
+          "line": "hybrid-bm25-seeded-hop",
+          "n_questions": 2255,
+          "ndcg_at_10": 0.10061057504259217
+        },
+        "decision:union": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.013303769401330377,
+              "full_support_count": 30,
+              "gold_recall": 0.1408721359940872
+            },
+            "2048": {
+              "full_support": 0.05188470066518847,
+              "full_support_count": 117,
+              "gold_recall": 0.2608647450110865
+            },
+            "4096": {
+              "full_support": 0.17827050997782706,
+              "full_support_count": 402,
+              "gold_recall": 0.4545824094604582
+            },
+            "512": {
+              "full_support": 0.003991130820399113,
+              "full_support_count": 9,
+              "gold_recall": 0.07657058388765706
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 1298,
+            "failures_inside": 1181,
+            "full_support_2048": 117,
+            "n_questions": 2255
+          },
+          "descriptive": true,
+          "full_support_at_k": {
+            "10": 0.01197339246119734,
+            "100": 0.44390243902439025,
+            "2": 0.0,
+            "20": 0.04567627494456763,
+            "5": 0.0022172949002217295
+          },
+          "gold_recall_at_k": {
+            "10": 0.13300073909830007,
+            "100": 0.7191426459719144,
+            "2": 0.032815964523281595,
+            "20": 0.2360310421286031,
+            "5": 0.07634885439763488
+          },
+          "harness_mismatches": [],
+          "judge": "decision",
+          "label": "J-decision(union)",
+          "line": "union",
+          "n_questions": 2255,
+          "ndcg_at_10": 0.08395173745542725
+        },
+        "dense": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.09046563192904657,
+              "full_support_count": 204,
+              "gold_recall": 0.3169623059866962
+            },
+            "2048": {
+              "full_support": 0.14988913525498893,
+              "full_support_count": 338,
+              "gold_recall": 0.41426459719142644
+            },
+            "4096": {
+              "full_support": 0.24700665188470067,
+              "full_support_count": 557,
+              "gold_recall": 0.5406873614190687
+            },
+            "512": {
+              "full_support": 0.050110864745011086,
+              "full_support_count": 113,
+              "gold_recall": 0.2247228381374723
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 860,
+            "failures_inside": 522,
+            "full_support_2048": 338,
+            "n_questions": 2255
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.07671840354767184,
+            "100": 0.38137472283813745,
+            "2": 0.014190687361419069,
+            "20": 0.12594235033259424,
+            "5": 0.04656319290465632
+          },
+          "gold_recall_at_k": {
+            "10": 0.28340724316334076,
+            "100": 0.679009608277901,
+            "2": 0.11655580192165557,
+            "20": 0.37073170731707317,
+            "5": 0.20934959349593496
+          },
+          "harness_mismatches": [],
+          "judge": null,
+          "label": "P10-A",
+          "line": "dense",
+          "n_questions": 2255,
+          "ndcg_at_10": 0.21581845335897765
+        },
+        "hybrid-bm25": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.17738359201773837,
+              "full_support_count": 400,
+              "gold_recall": 0.4452328159645233
+            },
+            "2048": {
+              "full_support": 0.26031042128603105,
+              "full_support_count": 587,
+              "gold_recall": 0.5549889135254988
+            },
+            "4096": {
+              "full_support": 0.3858093126385809,
+              "full_support_count": 870,
+              "gold_recall": 0.6712490761271249
+            },
+            "512": {
+              "full_support": 0.10776053215077605,
+              "full_support_count": 243,
+              "gold_recall": 0.3481522542498152
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 1160,
+            "failures_inside": 573,
+            "full_support_2048": 587,
+            "n_questions": 2255
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.15875831485587583,
+            "100": 0.5144124168514412,
+            "2": 0.039467849223946784,
+            "20": 0.2279379157427938,
+            "5": 0.09800443458980045
+          },
+          "gold_recall_at_k": {
+            "10": 0.4124538063562454,
+            "100": 0.7715816703621582,
+            "2": 0.22095343680709534,
+            "20": 0.5118625277161862,
+            "5": 0.32472283813747227
+          },
+          "harness_mismatches": [],
+          "judge": null,
+          "label": "P10-B",
+          "line": "hybrid-bm25",
+          "n_questions": 2255,
+          "ndcg_at_10": 0.35284868225925964
+        },
+        "hybrid-bm25-entity-hop": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.13348115299334812,
+              "full_support_count": 301,
+              "gold_recall": 0.3964523281596452
+            },
+            "2048": {
+              "full_support": 0.23148558758314855,
+              "full_support_count": 522,
+              "gold_recall": 0.5143385070214338
+            },
+            "4096": {
+              "full_support": 0.35875831485587584,
+              "full_support_count": 809,
+              "gold_recall": 0.6464523281596453
+            },
+            "512": {
+              "full_support": 0.07716186252771619,
+              "full_support_count": 174,
+              "gold_recall": 0.30336289726533633
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 1111,
+            "failures_inside": 589,
+            "full_support_2048": 522,
+            "n_questions": 2255
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.11485587583148558,
+            "100": 0.4926829268292683,
+            "2": 0.030598669623059866,
+            "20": 0.18891352549889134,
+            "5": 0.06917960088691796
+          },
+          "gold_recall_at_k": {
+            "10": 0.362379896526238,
+            "100": 0.7561714708056172,
+            "2": 0.1942350332594235,
+            "20": 0.4666666666666666,
+            "5": 0.2818181818181818
+          },
+          "harness_mismatches": [],
+          "judge": null,
+          "label": "P10-C",
+          "line": "hybrid-bm25-entity-hop",
+          "n_questions": 2255,
+          "ndcg_at_10": 0.3098631867610026
+        },
+        "hybrid-bm25-seeded-hop": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.13259423503325943,
+              "full_support_count": 299,
+              "gold_recall": 0.39323725055432374
+            },
+            "2048": {
+              "full_support": 0.22749445676274946,
+              "full_support_count": 513,
+              "gold_recall": 0.5110125646711012
+            },
+            "4096": {
+              "full_support": 0.3529933481152993,
+              "full_support_count": 796,
+              "gold_recall": 0.6395787139689578
+            },
+            "512": {
+              "full_support": 0.07849223946784922,
+              "full_support_count": 177,
+              "gold_recall": 0.3025868440502587
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 1145,
+            "failures_inside": 632,
+            "full_support_2048": 513,
+            "n_questions": 2255
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.11618625277161862,
+            "100": 0.5077605321507761,
+            "2": 0.03015521064301552,
+            "20": 0.188470066518847,
+            "5": 0.06917960088691796
+          },
+          "gold_recall_at_k": {
+            "10": 0.35716925351071693,
+            "100": 0.7661123429416112,
+            "2": 0.19726533628972653,
+            "20": 0.4622690317812269,
+            "5": 0.2818551367331855
+          },
+          "harness_mismatches": [],
+          "judge": null,
+          "label": "P14",
+          "line": "hybrid-bm25-seeded-hop",
+          "n_questions": 2255,
+          "ndcg_at_10": 0.31004290496626363
+        },
+        "light:dense": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.07849223946784922,
+              "full_support_count": 177,
+              "gold_recall": 0.34988913525498894
+            },
+            "2048": {
+              "full_support": 0.13747228381374724,
+              "full_support_count": 310,
+              "gold_recall": 0.4433111603843311
+            },
+            "4096": {
+              "full_support": 0.2607538802660754,
+              "full_support_count": 588,
+              "gold_recall": 0.5708795269770879
+            },
+            "512": {
+              "full_support": 0.040798226164079826,
+              "full_support_count": 92,
+              "gold_recall": 0.2780487804878049
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 860,
+            "failures_inside": 550,
+            "full_support_2048": 310,
+            "n_questions": 2255
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.07139689578713969,
+            "100": 0.38137472283813745,
+            "2": 0.013303769401330377,
+            "20": 0.13170731707317074,
+            "5": 0.04212860310421286
+          },
+          "gold_recall_at_k": {
+            "10": 0.3468588322246859,
+            "100": 0.679009608277901,
+            "2": 0.2075018477457502,
+            "20": 0.4304878048780488,
+            "5": 0.2833333333333333
+          },
+          "harness_mismatches": [],
+          "judge": "light",
+          "label": "J-light(P10-A)",
+          "line": "dense",
+          "n_questions": 2255,
+          "ndcg_at_10": 0.3179761649336844
+        },
+        "light:hybrid-bm25": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.08159645232815965,
+              "full_support_count": 184,
+              "gold_recall": 0.373909830007391
+            },
+            "2048": {
+              "full_support": 0.15609756097560976,
+              "full_support_count": 352,
+              "gold_recall": 0.47442719881744266
+            },
+            "4096": {
+              "full_support": 0.3188470066518847,
+              "full_support_count": 719,
+              "gold_recall": 0.6272727272727273
+            },
+            "512": {
+              "full_support": 0.03680709534368071,
+              "full_support_count": 83,
+              "gold_recall": 0.2969327420546933
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 1160,
+            "failures_inside": 808,
+            "full_support_2048": 352,
+            "n_questions": 2255
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.07139689578713969,
+            "100": 0.5144124168514412,
+            "2": 0.011529933481152993,
+            "20": 0.13880266075388026,
+            "5": 0.041685144124168516
+          },
+          "gold_recall_at_k": {
+            "10": 0.36818181818181817,
+            "100": 0.7715816703621582,
+            "2": 0.22357723577235772,
+            "20": 0.45672579453067264,
+            "5": 0.3032150776053215
+          },
+          "harness_mismatches": [],
+          "judge": "light",
+          "label": "J-light(P10-B)",
+          "line": "hybrid-bm25",
+          "n_questions": 2255,
+          "ndcg_at_10": 0.3410624011253358
+        },
+        "light:hybrid-bm25-entity-hop": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.08337028824833703,
+              "full_support_count": 188,
+              "gold_recall": 0.3743532889874353
+            },
+            "2048": {
+              "full_support": 0.152549889135255,
+              "full_support_count": 344,
+              "gold_recall": 0.47409460458240943
+            },
+            "4096": {
+              "full_support": 0.3090909090909091,
+              "full_support_count": 697,
+              "gold_recall": 0.6192535107169254
+            },
+            "512": {
+              "full_support": 0.037694013303769404,
+              "full_support_count": 85,
+              "gold_recall": 0.29637841832963785
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 1111,
+            "failures_inside": 767,
+            "full_support_2048": 344,
+            "n_questions": 2255
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.07361419068736141,
+            "100": 0.4926829268292683,
+            "2": 0.011529933481152993,
+            "20": 0.13924611973392462,
+            "5": 0.042572062084257206
+          },
+          "gold_recall_at_k": {
+            "10": 0.37084257206208426,
+            "100": 0.7561714708056172,
+            "2": 0.22346637102734665,
+            "20": 0.4566518847006652,
+            "5": 0.30362158167036213
+          },
+          "harness_mismatches": [],
+          "judge": "light",
+          "label": "J-light(P10-C)",
+          "line": "hybrid-bm25-entity-hop",
+          "n_questions": 2255,
+          "ndcg_at_10": 0.3420669215710296
+        },
+        "light:hybrid-bm25-seeded-hop": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.08337028824833703,
+              "full_support_count": 188,
+              "gold_recall": 0.3733185513673319
+            },
+            "2048": {
+              "full_support": 0.15033259423503326,
+              "full_support_count": 339,
+              "gold_recall": 0.47453806356245376
+            },
+            "4096": {
+              "full_support": 0.3082039911308204,
+              "full_support_count": 695,
+              "gold_recall": 0.6205838876570584
+            },
+            "512": {
+              "full_support": 0.03592017738359202,
+              "full_support_count": 81,
+              "gold_recall": 0.29626755358462675
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 1145,
+            "failures_inside": 806,
+            "full_support_2048": 339,
+            "n_questions": 2255
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.07361419068736141,
+            "100": 0.5077605321507761,
+            "2": 0.011529933481152993,
+            "20": 0.13747228381374724,
+            "5": 0.041685144124168516
+          },
+          "gold_recall_at_k": {
+            "10": 0.36991869918699183,
+            "100": 0.7661123429416112,
+            "2": 0.22479674796747967,
+            "20": 0.4586844050258684,
+            "5": 0.3037324464153732
+          },
+          "harness_mismatches": [],
+          "judge": "light",
+          "label": "J-light(P14)",
+          "line": "hybrid-bm25-seeded-hop",
+          "n_questions": 2255,
+          "ndcg_at_10": 0.341892842833905
+        },
+        "light:union": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.07583148558758315,
+              "full_support_count": 171,
+              "gold_recall": 0.3692165558019217
+            },
+            "2048": {
+              "full_support": 0.14146341463414633,
+              "full_support_count": 319,
+              "gold_recall": 0.46382113821138216
+            },
+            "4096": {
+              "full_support": 0.28736141906873613,
+              "full_support_count": 648,
+              "gold_recall": 0.6041019955654102
+            },
+            "512": {
+              "full_support": 0.03592017738359202,
+              "full_support_count": 81,
+              "gold_recall": 0.29645232815964523
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 1298,
+            "failures_inside": 979,
+            "full_support_2048": 319,
+            "n_questions": 2255
+          },
+          "descriptive": true,
+          "full_support_at_k": {
+            "10": 0.070509977827051,
+            "100": 0.4722838137472284,
+            "2": 0.01197339246119734,
+            "20": 0.13126385809312638,
+            "5": 0.040354767184035474
+          },
+          "gold_recall_at_k": {
+            "10": 0.3692165558019217,
+            "100": 0.7504434589800444,
+            "2": 0.2247228381374723,
+            "20": 0.45339985218033996,
+            "5": 0.30347376201034737
+          },
+          "harness_mismatches": [],
+          "judge": "light",
+          "label": "J-light(union)",
+          "line": "union",
+          "n_questions": 2255,
+          "ndcg_at_10": 0.3417734917145357
+        },
+        "strong:dense": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.20842572062084258,
+              "full_support_count": 470,
+              "gold_recall": 0.5002586844050259
+            },
+            "2048": {
+              "full_support": 0.27184035476718404,
+              "full_support_count": 613,
+              "gold_recall": 0.5795639320029564
+            },
+            "4096": {
+              "full_support": 0.3343680709534368,
+              "full_support_count": 754,
+              "gold_recall": 0.6447893569844789
+            },
+            "512": {
+              "full_support": 0.15299334811529933,
+              "full_support_count": 345,
+              "gold_recall": 0.41659275683665925
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 860,
+            "failures_inside": 247,
+            "full_support_2048": 613,
+            "n_questions": 2255
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.22084257206208427,
+            "100": 0.38137472283813745,
+            "2": 0.07716186252771619,
+            "20": 0.2620842572062084,
+            "5": 0.16496674057649668
+          },
+          "gold_recall_at_k": {
+            "10": 0.5084626755358462,
+            "100": 0.679009608277901,
+            "2": 0.31966001478196604,
+            "20": 0.5726903178122691,
+            "5": 0.4302291204730229
+          },
+          "harness_mismatches": [],
+          "judge": "strong",
+          "label": "J-strong(P10-A)",
+          "line": "dense",
+          "n_questions": 2255,
+          "ndcg_at_10": 0.46753058458029423
+        },
+        "strong:hybrid-bm25": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.2722838137472284,
+              "full_support_count": 614,
+              "gold_recall": 0.5583148558758315
+            },
+            "2048": {
+              "full_support": 0.3645232815964523,
+              "full_support_count": 822,
+              "gold_recall": 0.653030303030303
+            },
+            "4096": {
+              "full_support": 0.46031042128603106,
+              "full_support_count": 1038,
+              "gold_recall": 0.7350702143385069
+            },
+            "512": {
+              "full_support": 0.19068736141906872,
+              "full_support_count": 430,
+              "gold_recall": 0.45846267553584624
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 1160,
+            "failures_inside": 338,
+            "full_support_2048": 822,
+            "n_questions": 2255
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.2824833702882483,
+            "100": 0.5144124168514412,
+            "2": 0.09667405764966741,
+            "20": 0.35388026607538803,
+            "5": 0.20532150776053215
+          },
+          "gold_recall_at_k": {
+            "10": 0.5675166297117517,
+            "100": 0.7715816703621582,
+            "2": 0.34977827050997784,
+            "20": 0.6444567627494456,
+            "5": 0.4747967479674797
+          },
+          "harness_mismatches": [],
+          "judge": "strong",
+          "label": "J-strong(P10-B)",
+          "line": "hybrid-bm25",
+          "n_questions": 2255,
+          "ndcg_at_10": 0.5145038348366581
+        },
+        "strong:hybrid-bm25-entity-hop": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.2620842572062084,
+              "full_support_count": 591,
+              "gold_recall": 0.5495565410199557
+            },
+            "2048": {
+              "full_support": 0.3516629711751663,
+              "full_support_count": 793,
+              "gold_recall": 0.6406134515890614
+            },
+            "4096": {
+              "full_support": 0.44168514412416854,
+              "full_support_count": 996,
+              "gold_recall": 0.7204360679970436
+            },
+            "512": {
+              "full_support": 0.188470066518847,
+              "full_support_count": 425,
+              "gold_recall": 0.4560606060606061
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 1111,
+            "failures_inside": 318,
+            "full_support_2048": 793,
+            "n_questions": 2255
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.2736141906873614,
+            "100": 0.4926829268292683,
+            "2": 0.09623059866962307,
+            "20": 0.34057649667405765,
+            "5": 0.19911308203991132
+          },
+          "gold_recall_at_k": {
+            "10": 0.5583518107908352,
+            "100": 0.7561714708056172,
+            "2": 0.3491869918699187,
+            "20": 0.6317073170731707,
+            "5": 0.4696230598669623
+          },
+          "harness_mismatches": [],
+          "judge": "strong",
+          "label": "J-strong(P10-C)",
+          "line": "hybrid-bm25-entity-hop",
+          "n_questions": 2255,
+          "ndcg_at_10": 0.508891251234106
+        },
+        "strong:hybrid-bm25-seeded-hop": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.2638580931263858,
+              "full_support_count": 595,
+              "gold_recall": 0.5522542498152254
+            },
+            "2048": {
+              "full_support": 0.3534368070953437,
+              "full_support_count": 797,
+              "gold_recall": 0.6459719142645972
+            },
+            "4096": {
+              "full_support": 0.447450110864745,
+              "full_support_count": 1009,
+              "gold_recall": 0.7280118255728012
+            },
+            "512": {
+              "full_support": 0.188470066518847,
+              "full_support_count": 425,
+              "gold_recall": 0.4575018477457502
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 1145,
+            "failures_inside": 348,
+            "full_support_2048": 797,
+            "n_questions": 2255
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.2771618625277162,
+            "100": 0.5077605321507761,
+            "2": 0.09490022172949002,
+            "20": 0.3463414634146341,
+            "5": 0.2017738359201774
+          },
+          "gold_recall_at_k": {
+            "10": 0.5619733924611974,
+            "100": 0.7661123429416112,
+            "2": 0.34944567627494455,
+            "20": 0.6367701404286771,
+            "5": 0.4722838137472284
+          },
+          "harness_mismatches": [],
+          "judge": "strong",
+          "label": "J-strong(P14)",
+          "line": "hybrid-bm25-seeded-hop",
+          "n_questions": 2255,
+          "ndcg_at_10": 0.5112884807954153
+        },
+        "strong:union": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.2745011086474501,
+              "full_support_count": 619,
+              "gold_recall": 0.5627494456762749
+            },
+            "2048": {
+              "full_support": 0.37516629711751664,
+              "full_support_count": 846,
+              "gold_recall": 0.6636733185513674
+            },
+            "4096": {
+              "full_support": 0.4815964523281596,
+              "full_support_count": 1086,
+              "gold_recall": 0.7529563932002957
+            },
+            "512": {
+              "full_support": 0.19379157427937915,
+              "full_support_count": 437,
+              "gold_recall": 0.46304508499630453
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 1298,
+            "failures_inside": 452,
+            "full_support_2048": 846,
+            "n_questions": 2255
+          },
+          "descriptive": true,
+          "full_support_at_k": {
+            "10": 0.29046563192904656,
+            "100": 0.5689578713968958,
+            "2": 0.09667405764966741,
+            "20": 0.36363636363636365,
+            "5": 0.20709534368070953
+          },
+          "gold_recall_at_k": {
+            "10": 0.5749815225424981,
+            "100": 0.8096452328159646,
+            "2": 0.3510347376201035,
+            "20": 0.654619364375462,
+            "5": 0.4777531411677753
+          },
+          "harness_mismatches": [],
+          "judge": "strong",
+          "label": "J-strong(union)",
+          "line": "union",
+          "n_questions": 2255,
+          "ndcg_at_10": 0.5190389870923008
+        }
+      },
+      "n_questions": 2255
+    },
+    "musique": {
+      "label": "MuSiQue validation",
+      "lines": {
+        "decision:dense": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.0273065784029789,
+              "full_support_count": 66,
+              "gold_recall": 0.18725003447800304
+            },
+            "2048": {
+              "full_support": 0.06412908564335953,
+              "full_support_count": 155,
+              "gold_recall": 0.27968556061232935
+            },
+            "4096": {
+              "full_support": 0.1220521307405875,
+              "full_support_count": 295,
+              "gold_recall": 0.3933940146186733
+            },
+            "512": {
+              "full_support": 0.012825817128671908,
+              "full_support_count": 31,
+              "gold_recall": 0.12994759343538823
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 832,
+            "failures_inside": 677,
+            "full_support_2048": 155,
+            "n_questions": 2417
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.028547786512205214,
+            "100": 0.3442283822920976,
+            "2": 0.0016549441456350847,
+            "20": 0.06909391808026479,
+            "5": 0.011170872983036822
+          },
+          "gold_recall_at_k": {
+            "10": 0.19655909529720036,
+            "100": 0.6605985381326714,
+            "2": 0.06733553992552752,
+            "20": 0.2933733278168529,
+            "5": 0.13249896565990898
+          },
+          "harness_mismatches": [],
+          "judge": "decision",
+          "label": "J-decision(P10-A)",
+          "line": "dense",
+          "n_questions": 2417,
+          "ndcg_at_10": 0.1385223823730577
+        },
+        "decision:hybrid-bm25": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.03103020273065784,
+              "full_support_count": 75,
+              "gold_recall": 0.20586815611639772
+            },
+            "2048": {
+              "full_support": 0.0719900703351262,
+              "full_support_count": 174,
+              "gold_recall": 0.302578954626948
+            },
+            "4096": {
+              "full_support": 0.15059991725279273,
+              "full_support_count": 364,
+              "gold_recall": 0.4398703627085919
+            },
+            "512": {
+              "full_support": 0.012825817128671908,
+              "full_support_count": 31,
+              "gold_recall": 0.13791201213625706
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 900,
+            "failures_inside": 726,
+            "full_support_2048": 174,
+            "n_questions": 2417
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.03144393876706661,
+            "100": 0.3723624327678941,
+            "2": 0.0008274720728175424,
+            "20": 0.07695490277203144,
+            "5": 0.011998345055854365
+          },
+          "gold_recall_at_k": {
+            "10": 0.2109019445593711,
+            "100": 0.6957316232243829,
+            "2": 0.0728520204109778,
+            "20": 0.31643911184664186,
+            "5": 0.13818783616052957
+          },
+          "harness_mismatches": [],
+          "judge": "decision",
+          "label": "J-decision(P10-B)",
+          "line": "hybrid-bm25",
+          "n_questions": 2417,
+          "ndcg_at_10": 0.15012029603491664
+        },
+        "decision:hybrid-bm25-entity-hop": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.03764997931319818,
+              "full_support_count": 91,
+              "gold_recall": 0.2109364225624052
+            },
+            "2048": {
+              "full_support": 0.09143566404633843,
+              "full_support_count": 221,
+              "gold_recall": 0.3186112260377879
+            },
+            "4096": {
+              "full_support": 0.19404220107571368,
+              "full_support_count": 469,
+              "gold_recall": 0.4626258447110744
+            },
+            "512": {
+              "full_support": 0.01696317749275962,
+              "full_support_count": 41,
+              "gold_recall": 0.1402220383395394
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 1131,
+            "failures_inside": 910,
+            "full_support_2048": 221,
+            "n_questions": 2417
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.03930492345883326,
+            "100": 0.46793545717832025,
+            "2": 0.0024824162184526274,
+            "20": 0.09598676044683492,
+            "5": 0.015308233347124535
+          },
+          "gold_recall_at_k": {
+            "10": 0.21559095297200387,
+            "100": 0.7450351675630947,
+            "2": 0.0744035305475107,
+            "20": 0.32971314301475657,
+            "5": 0.14239415253068544
+          },
+          "harness_mismatches": [],
+          "judge": "decision",
+          "label": "J-decision(P10-C)",
+          "line": "hybrid-bm25-entity-hop",
+          "n_questions": 2417,
+          "ndcg_at_10": 0.15290682900846744
+        },
+        "decision:hybrid-bm25-seeded-hop": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.04137360364087712,
+              "full_support_count": 100,
+              "gold_recall": 0.2126603227141084
+            },
+            "2048": {
+              "full_support": 0.09184940008274721,
+              "full_support_count": 222,
+              "gold_recall": 0.3171631499103572
+            },
+            "4096": {
+              "full_support": 0.20645428216797684,
+              "full_support_count": 499,
+              "gold_recall": 0.4710729554544201
+            },
+            "512": {
+              "full_support": 0.01985932974762102,
+              "full_support_count": 48,
+              "gold_recall": 0.14025651634257344
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 1317,
+            "failures_inside": 1095,
+            "full_support_2048": 222,
+            "n_questions": 2417
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.04261481175010343,
+            "100": 0.5448903599503516,
+            "2": 0.002068680182043856,
+            "20": 0.10508895324782788,
+            "5": 0.018204385601985933
+          },
+          "gold_recall_at_k": {
+            "10": 0.21907323127844436,
+            "100": 0.7813405047579645,
+            "2": 0.07340366845952281,
+            "20": 0.337436215694387,
+            "5": 0.1413598124396635
+          },
+          "harness_mismatches": [],
+          "judge": "decision",
+          "label": "J-decision(P14)",
+          "line": "hybrid-bm25-seeded-hop",
+          "n_questions": 2417,
+          "ndcg_at_10": 0.1530997316675142
+        },
+        "decision:union": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.0273065784029789,
+              "full_support_count": 66,
+              "gold_recall": 0.17083850503378845
+            },
+            "2048": {
+              "full_support": 0.06164666942490691,
+              "full_support_count": 149,
+              "gold_recall": 0.26079161494966213
+            },
+            "4096": {
+              "full_support": 0.13901530823334712,
+              "full_support_count": 336,
+              "gold_recall": 0.3868431940422011
+            },
+            "512": {
+              "full_support": 0.011998345055854365,
+              "full_support_count": 29,
+              "gold_recall": 0.1163632602399669
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 1410,
+            "failures_inside": 1261,
+            "full_support_2048": 149,
+            "n_questions": 2417
+          },
+          "descriptive": true,
+          "full_support_at_k": {
+            "10": 0.028547786512205214,
+            "100": 0.38891187422424495,
+            "2": 0.0012412081092263137,
+            "20": 0.06826644600744725,
+            "5": 0.009515928837401738
+          },
+          "gold_recall_at_k": {
+            "10": 0.1797683078196111,
+            "100": 0.6597021100537857,
+            "2": 0.05906081919735209,
+            "20": 0.2755482002482416,
+            "5": 0.1164666942490691
+          },
+          "harness_mismatches": [],
+          "judge": "decision",
+          "label": "J-decision(union)",
+          "line": "union",
+          "n_questions": 2417,
+          "ndcg_at_10": 0.1260436219339631
+        },
+        "dense": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.12577575506826644,
+              "full_support_count": 304,
+              "gold_recall": 0.45300648186457043
+            },
+            "2048": {
+              "full_support": 0.18038891187422423,
+              "full_support_count": 436,
+              "gold_recall": 0.5156874913804993
+            },
+            "4096": {
+              "full_support": 0.2341745966073645,
+              "full_support_count": 566,
+              "gold_recall": 0.572438284374569
+            },
+            "512": {
+              "full_support": 0.07447248655357881,
+              "full_support_count": 180,
+              "gold_recall": 0.38605019997241763
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 832,
+            "failures_inside": 396,
+            "full_support_2048": 436,
+            "n_questions": 2417
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.13984278030616468,
+            "100": 0.3442283822920976,
+            "2": 0.03144393876706661,
+            "20": 0.20024824162184526,
+            "5": 0.0906081919735209
+          },
+          "gold_recall_at_k": {
+            "10": 0.47231416356364636,
+            "100": 0.6605985381326714,
+            "2": 0.31333609157357606,
+            "20": 0.5349951730795752,
+            "5": 0.4076679078747759
+          },
+          "harness_mismatches": [],
+          "judge": null,
+          "label": "P10-A",
+          "line": "dense",
+          "n_questions": 2417,
+          "ndcg_at_10": 0.4554694255865748
+        },
+        "hybrid-bm25": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.15349606950765413,
+              "full_support_count": 371,
+              "gold_recall": 0.5098951868707765
+            },
+            "2048": {
+              "full_support": 0.2167976830781961,
+              "full_support_count": 524,
+              "gold_recall": 0.571403944283547
+            },
+            "4096": {
+              "full_support": 0.2709971038477451,
+              "full_support_count": 655,
+              "gold_recall": 0.6212936146738381
+            },
+            "512": {
+              "full_support": 0.1034340091021928,
+              "full_support_count": 250,
+              "gold_recall": 0.44352503103020274
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 900,
+            "failures_inside": 376,
+            "full_support_2048": 524,
+            "n_questions": 2417
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.17294166321886636,
+            "100": 0.3723624327678941,
+            "2": 0.046752172114191144,
+            "20": 0.22838229209764171,
+            "5": 0.11998345055854365
+          },
+          "gold_recall_at_k": {
+            "10": 0.5294442145910909,
+            "100": 0.6957316232243829,
+            "2": 0.3628809819335264,
+            "20": 0.5838160253758102,
+            "5": 0.4652806509446972
+          },
+          "harness_mismatches": [],
+          "judge": null,
+          "label": "P10-B",
+          "line": "hybrid-bm25",
+          "n_questions": 2417,
+          "ndcg_at_10": 0.5186466376076511
+        },
+        "hybrid-bm25-entity-hop": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.19735208936698387,
+              "full_support_count": 477,
+              "gold_recall": 0.5281685284788304
+            },
+            "2048": {
+              "full_support": 0.27678940835746796,
+              "full_support_count": 669,
+              "gold_recall": 0.599262170735071
+            },
+            "4096": {
+              "full_support": 0.34753827058336784,
+              "full_support_count": 840,
+              "gold_recall": 0.6596676320507516
+            },
+            "512": {
+              "full_support": 0.1307405875051717,
+              "full_support_count": 316,
+              "gold_recall": 0.44776582540339266
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 1131,
+            "failures_inside": 462,
+            "full_support_2048": 669,
+            "n_questions": 2417
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.2167976830781961,
+            "100": 0.46793545717832025,
+            "2": 0.05585436491518411,
+            "20": 0.29292511377741004,
+            "5": 0.14604882085229623
+          },
+          "gold_recall_at_k": {
+            "10": 0.5479589022203835,
+            "100": 0.7450351675630947,
+            "2": 0.36157081781823197,
+            "20": 0.6161219142187285,
+            "5": 0.4719004275272376
+          },
+          "harness_mismatches": [],
+          "judge": null,
+          "label": "P10-C",
+          "line": "hybrid-bm25-entity-hop",
+          "n_questions": 2417,
+          "ndcg_at_10": 0.5232389578797059
+        },
+        "hybrid-bm25-seeded-hop": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.22217625155151013,
+              "full_support_count": 537,
+              "gold_recall": 0.5365466832161081
+            },
+            "2048": {
+              "full_support": 0.3148531237070749,
+              "full_support_count": 761,
+              "gold_recall": 0.6167080402703076
+            },
+            "4096": {
+              "full_support": 0.41539098055440626,
+              "full_support_count": 1004,
+              "gold_recall": 0.6891118466418424
+            },
+            "512": {
+              "full_support": 0.15308233347124534,
+              "full_support_count": 370,
+              "gold_recall": 0.45562681009515926
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 1317,
+            "failures_inside": 556,
+            "full_support_2048": 761,
+            "n_questions": 2417
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.23955316508067853,
+            "100": 0.5448903599503516,
+            "2": 0.06495655771617707,
+            "20": 0.3396772858916012,
+            "5": 0.16259826230864707
+          },
+          "gold_recall_at_k": {
+            "10": 0.5564060129637292,
+            "100": 0.7813405047579645,
+            "2": 0.36419114604882086,
+            "20": 0.6366708040270307,
+            "5": 0.4767273479520066
+          },
+          "harness_mismatches": [],
+          "judge": null,
+          "label": "P14",
+          "line": "hybrid-bm25-seeded-hop",
+          "n_questions": 2417,
+          "ndcg_at_10": 0.5276084212130123
+        },
+        "light:dense": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.18866363260239966,
+              "full_support_count": 456,
+              "gold_recall": 0.5310302027306578
+            },
+            "2048": {
+              "full_support": 0.24617294166321887,
+              "full_support_count": 595,
+              "gold_recall": 0.5842297614122189
+            },
+            "4096": {
+              "full_support": 0.28837401737691354,
+              "full_support_count": 697,
+              "gold_recall": 0.6167769962763757
+            },
+            "512": {
+              "full_support": 0.12991311543235415,
+              "full_support_count": 314,
+              "gold_recall": 0.4589366983864295
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 832,
+            "failures_inside": 237,
+            "full_support_2048": 595,
+            "n_questions": 2417
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.2068680182043856,
+            "100": 0.3442283822920976,
+            "2": 0.06495655771617707,
+            "20": 0.26106743897393464,
+            "5": 0.14853123707074886
+          },
+          "gold_recall_at_k": {
+            "10": 0.5489242863053372,
+            "100": 0.6605985381326714,
+            "2": 0.3829471796993518,
+            "20": 0.596607364501448,
+            "5": 0.4832781685284788
+          },
+          "harness_mismatches": [],
+          "judge": "light",
+          "label": "J-light(P10-A)",
+          "line": "dense",
+          "n_questions": 2417,
+          "ndcg_at_10": 0.5385277288836944
+        },
+        "light:hybrid-bm25": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.20066197765825403,
+              "full_support_count": 485,
+              "gold_recall": 0.5554061508757413
+            },
+            "2048": {
+              "full_support": 0.26644600744724867,
+              "full_support_count": 644,
+              "gold_recall": 0.6141221900427527
+            },
+            "4096": {
+              "full_support": 0.31857674803475383,
+              "full_support_count": 770,
+              "gold_recall": 0.6537718935319267
+            },
+            "512": {
+              "full_support": 0.1336367397600331,
+              "full_support_count": 323,
+              "gold_recall": 0.4744862777547924
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 900,
+            "failures_inside": 256,
+            "full_support_2048": 644,
+            "n_questions": 2417
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.2230037236243277,
+            "100": 0.3723624327678941,
+            "2": 0.06619776582540339,
+            "20": 0.2805130326851469,
+            "5": 0.15597848572610673
+          },
+          "gold_recall_at_k": {
+            "10": 0.5735760584746931,
+            "100": 0.6957316232243829,
+            "2": 0.3922907185215832,
+            "20": 0.6263274031168115,
+            "5": 0.49793131981795613
+          },
+          "harness_mismatches": [],
+          "judge": "light",
+          "label": "J-light(P10-B)",
+          "line": "hybrid-bm25",
+          "n_questions": 2417,
+          "ndcg_at_10": 0.5551680747543885
+        },
+        "light:hybrid-bm25-entity-hop": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.20438560198593297,
+              "full_support_count": 494,
+              "gold_recall": 0.5571990070335127
+            },
+            "2048": {
+              "full_support": 0.2772031443938767,
+              "full_support_count": 670,
+              "gold_recall": 0.6193628465039305
+            },
+            "4096": {
+              "full_support": 0.34671079851055026,
+              "full_support_count": 838,
+              "gold_recall": 0.6666321886636326
+            },
+            "512": {
+              "full_support": 0.13694662805130328,
+              "full_support_count": 331,
+              "gold_recall": 0.4762791339125638
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 1131,
+            "failures_inside": 461,
+            "full_support_2048": 670,
+            "n_questions": 2417
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.22589987587918908,
+            "100": 0.46793545717832025,
+            "2": 0.06661150186181217,
+            "20": 0.2916839056681837,
+            "5": 0.1580471659081506
+          },
+          "gold_recall_at_k": {
+            "10": 0.5756792166597711,
+            "100": 0.7450351675630947,
+            "2": 0.39235967452765136,
+            "20": 0.631981795614398,
+            "5": 0.5002413460212384
+          },
+          "harness_mismatches": [],
+          "judge": "light",
+          "label": "J-light(P10-C)",
+          "line": "hybrid-bm25-entity-hop",
+          "n_questions": 2417,
+          "ndcg_at_10": 0.5564708666327174
+        },
+        "light:hybrid-bm25-seeded-hop": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.21224658667769963,
+              "full_support_count": 513,
+              "gold_recall": 0.5617156254309751
+            },
+            "2048": {
+              "full_support": 0.28837401737691354,
+              "full_support_count": 697,
+              "gold_recall": 0.6264997931319818
+            },
+            "4096": {
+              "full_support": 0.3744311129499379,
+              "full_support_count": 905,
+              "gold_recall": 0.6815266859743484
+            },
+            "512": {
+              "full_support": 0.1377741001241208,
+              "full_support_count": 333,
+              "gold_recall": 0.47679630395807476
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 1317,
+            "failures_inside": 620,
+            "full_support_2048": 697,
+            "n_questions": 2417
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.2329333884981382,
+            "100": 0.5448903599503516,
+            "2": 0.06702523789822093,
+            "20": 0.30533719486967315,
+            "5": 0.16259826230864707
+          },
+          "gold_recall_at_k": {
+            "10": 0.5798855330299268,
+            "100": 0.7813405047579645,
+            "2": 0.3924975865397876,
+            "20": 0.6407047303820163,
+            "5": 0.5018962901668735
+          },
+          "harness_mismatches": [],
+          "judge": "light",
+          "label": "J-light(P14)",
+          "line": "hybrid-bm25-seeded-hop",
+          "n_questions": 2417,
+          "ndcg_at_10": 0.5583359222480513
+        },
+        "light:union": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.20810922631361192,
+              "full_support_count": 503,
+              "gold_recall": 0.5592676872155565
+            },
+            "2048": {
+              "full_support": 0.28258171286719075,
+              "full_support_count": 683,
+              "gold_recall": 0.6251896290166873
+            },
+            "4096": {
+              "full_support": 0.3566404633843608,
+              "full_support_count": 862,
+              "gold_recall": 0.6780444076679079
+            },
+            "512": {
+              "full_support": 0.1365328920148945,
+              "full_support_count": 330,
+              "gold_recall": 0.4746931457729968
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 1410,
+            "failures_inside": 727,
+            "full_support_2048": 683,
+            "n_questions": 2417
+          },
+          "descriptive": true,
+          "full_support_at_k": {
+            "10": 0.2267273479520066,
+            "100": 0.48407116259826233,
+            "2": 0.06702523789822093,
+            "20": 0.2945800579230451,
+            "5": 0.15928837401737692
+          },
+          "gold_recall_at_k": {
+            "10": 0.5770238587780996,
+            "100": 0.7542063163701559,
+            "2": 0.3924975865397876,
+            "20": 0.6369811060543373,
+            "5": 0.5008964280788857
+          },
+          "harness_mismatches": [],
+          "judge": "light",
+          "label": "J-light(union)",
+          "line": "union",
+          "n_questions": 2417,
+          "ndcg_at_10": 0.5570022849105407
+        },
+        "strong:dense": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.21017790649565576,
+              "full_support_count": 508,
+              "gold_recall": 0.5587505171700455
+            },
+            "2048": {
+              "full_support": 0.2656185353744311,
+              "full_support_count": 642,
+              "gold_recall": 0.6010895048958764
+            },
+            "4096": {
+              "full_support": 0.3086470831609433,
+              "full_support_count": 746,
+              "gold_recall": 0.6329127016963177
+            },
+            "512": {
+              "full_support": 0.1452213487794787,
+              "full_support_count": 351,
+              "gold_recall": 0.49696593573300235
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 832,
+            "failures_inside": 190,
+            "full_support_2048": 642,
+            "n_questions": 2417
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.23665701282581714,
+            "100": 0.3442283822920976,
+            "2": 0.07074886222589988,
+            "20": 0.28837401737691354,
+            "5": 0.17294166321886636
+          },
+          "gold_recall_at_k": {
+            "10": 0.579988967039029,
+            "100": 0.6605985381326714,
+            "2": 0.4235967452765136,
+            "20": 0.6176044683491932,
+            "5": 0.5253068542270032
+          },
+          "harness_mismatches": [],
+          "judge": "strong",
+          "label": "J-strong(P10-A)",
+          "line": "dense",
+          "n_questions": 2417,
+          "ndcg_at_10": 0.5859074534637616
+        },
+        "strong:hybrid-bm25": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.23334712453454695,
+              "full_support_count": 564,
+              "gold_recall": 0.5876086057095573
+            },
+            "2048": {
+              "full_support": 0.29127016963177493,
+              "full_support_count": 704,
+              "gold_recall": 0.638394704178734
+            },
+            "4096": {
+              "full_support": 0.3376086057095573,
+              "full_support_count": 816,
+              "gold_recall": 0.6709074610398565
+            },
+            "512": {
+              "full_support": 0.1580471659081506,
+              "full_support_count": 382,
+              "gold_recall": 0.5195835057233484
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 900,
+            "failures_inside": 196,
+            "full_support_2048": 704,
+            "n_questions": 2417
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.258585022755482,
+            "100": 0.3723624327678941,
+            "2": 0.0761274306992139,
+            "20": 0.3131981795614398,
+            "5": 0.18866363260239966
+          },
+          "gold_recall_at_k": {
+            "10": 0.6119155978485726,
+            "100": 0.6957316232243829,
+            "2": 0.43887050062060406,
+            "20": 0.6535305475106882,
+            "5": 0.5508895324782789
+          },
+          "harness_mismatches": [],
+          "judge": "strong",
+          "label": "J-strong(P10-B)",
+          "line": "hybrid-bm25",
+          "n_questions": 2417,
+          "ndcg_at_10": 0.6099735343326671
+        },
+        "strong:hybrid-bm25-entity-hop": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.2577575506826645,
+              "full_support_count": 623,
+              "gold_recall": 0.6012618949110468
+            },
+            "2048": {
+              "full_support": 0.33264377327265204,
+              "full_support_count": 804,
+              "gold_recall": 0.6584953799475934
+            },
+            "4096": {
+              "full_support": 0.40215142738932563,
+              "full_support_count": 972,
+              "gold_recall": 0.7021100537856847
+            },
+            "512": {
+              "full_support": 0.1721141911460488,
+              "full_support_count": 416,
+              "gold_recall": 0.5266514963453317
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 1131,
+            "failures_inside": 327,
+            "full_support_2048": 804,
+            "n_questions": 2417
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.2829954489035995,
+            "100": 0.46793545717832025,
+            "2": 0.07654116673562267,
+            "20": 0.3595366156392222,
+            "5": 0.20066197765825403
+          },
+          "gold_recall_at_k": {
+            "10": 0.6247069369742105,
+            "100": 0.7450351675630947,
+            "2": 0.4392152806509447,
+            "20": 0.6756654254585575,
+            "5": 0.5565439249758655
+          },
+          "harness_mismatches": [],
+          "judge": "strong",
+          "label": "J-strong(P10-C)",
+          "line": "hybrid-bm25-entity-hop",
+          "n_questions": 2417,
+          "ndcg_at_10": 0.6160360802507101
+        },
+        "strong:hybrid-bm25-seeded-hop": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.27141083988415393,
+              "full_support_count": 656,
+              "gold_recall": 0.6086401875603364
+            },
+            "2048": {
+              "full_support": 0.3603640877120397,
+              "full_support_count": 871,
+              "gold_recall": 0.6725624051854916
+            },
+            "4096": {
+              "full_support": 0.45221348779478693,
+              "full_support_count": 1093,
+              "gold_recall": 0.726451523927734
+            },
+            "512": {
+              "full_support": 0.17376913529168392,
+              "full_support_count": 420,
+              "gold_recall": 0.5274100124120811
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 1317,
+            "failures_inside": 446,
+            "full_support_2048": 871,
+            "n_questions": 2417
+          },
+          "descriptive": false,
+          "full_support_at_k": {
+            "10": 0.30409598676044686,
+            "100": 0.5448903599503516,
+            "2": 0.07943731899048408,
+            "20": 0.394290442697559,
+            "5": 0.20810922631361192
+          },
+          "gold_recall_at_k": {
+            "10": 0.6340159977934078,
+            "100": 0.7813405047579645,
+            "2": 0.44011170872983035,
+            "20": 0.6928699489725555,
+            "5": 0.5595090332367949
+          },
+          "harness_mismatches": [],
+          "judge": "strong",
+          "label": "J-strong(P14)",
+          "line": "hybrid-bm25-seeded-hop",
+          "n_questions": 2417,
+          "ndcg_at_10": 0.6202082153128583
+        },
+        "strong:union": {
+          "budgets": {
+            "1024": {
+              "full_support": 0.2548613984278031,
+              "full_support_count": 616,
+              "gold_recall": 0.600330988829127
+            },
+            "2048": {
+              "full_support": 0.3347124534546959,
+              "full_support_count": 809,
+              "gold_recall": 0.662563784305613
+            },
+            "4096": {
+              "full_support": 0.43318163011998345,
+              "full_support_count": 1047,
+              "gold_recall": 0.7211419114604882
+            },
+            "512": {
+              "full_support": 0.17004551096400497,
+              "full_support_count": 411,
+              "gold_recall": 0.5246517721693559
+            }
+          },
+          "ceiling": {
+            "all_gold_inside": 1410,
+            "failures_inside": 601,
+            "full_support_2048": 809,
+            "n_questions": 2417
+          },
+          "descriptive": true,
+          "full_support_at_k": {
+            "10": 0.28630533719486967,
+            "100": 0.5465453040959868,
+            "2": 0.07736863880844022,
+            "20": 0.37318990484071163,
+            "5": 0.20314439387670666
+          },
+          "gold_recall_at_k": {
+            "10": 0.6250172390015171,
+            "100": 0.7878568473314026,
+            "2": 0.4391118466418425,
+            "20": 0.686663908426424,
+            "5": 0.5570955730244104
+          },
+          "harness_mismatches": [],
+          "judge": "strong",
+          "label": "J-strong(union)",
+          "line": "union",
+          "n_questions": 2417,
+          "ndcg_at_10": 0.6164271881023987
+        }
+      },
+      "n_questions": 2417
+    }
+  },
+  "systems": {
+    "dense": "P10-A",
+    "hybrid-bm25": "P10-B",
+    "hybrid-bm25-entity-hop": "P10-C",
+    "hybrid-bm25-seeded-hop": "P14"
+  },
+  "union_note": "union lines are descriptive; their units metrics read the first 100 of the whole pool, their ceiling the whole pool"
+}
