@@ -1,0 +1,278 @@
+{
+  "code_commit": "22060e664d86ac4e55f141cbdbad77c93305c83c",
+  "created_at": "2026-10-01T07:29:12+00:00",
+  "d3": {
+    "hotpotqa": {
+      "hybrid-bm25-entity-hop": {
+        "expected": 4801,
+        "label": "P10-C",
+        "n_questions": 7405,
+        "observed": 4801,
+        "passed": true
+      },
+      "hybrid-bm25-seeded-hop": {
+        "expected": 5224,
+        "label": "P14",
+        "n_questions": 7405,
+        "observed": 5224,
+        "passed": true
+      }
+    },
+    "multihop-rag": {
+      "hybrid-bm25": {
+        "expected": 587,
+        "label": "P10-B",
+        "n_questions": 2255,
+        "observed": 587,
+        "passed": true
+      },
+      "hybrid-bm25-entity-hop": {
+        "expected": 522,
+        "label": "P10-C",
+        "n_questions": 2255,
+        "observed": 522,
+        "passed": true
+      },
+      "hybrid-bm25-seeded-hop": {
+        "expected": 513,
+        "label": "P14",
+        "n_questions": 2255,
+        "observed": 513,
+        "passed": true
+      }
+    },
+    "musique": {
+      "hybrid-bm25": {
+        "expected": 524,
+        "label": "P10-B",
+        "n_questions": 2417,
+        "observed": 524,
+        "passed": true
+      },
+      "hybrid-bm25-entity-hop": {
+        "expected": 669,
+        "label": "P10-C",
+        "n_questions": 2417,
+        "observed": 669,
+        "passed": true
+      },
+      "hybrid-bm25-seeded-hop": {
+        "expected": 761,
+        "label": "P14",
+        "n_questions": 2417,
+        "observed": 761,
+        "passed": true
+      }
+    }
+  },
+  "evidence": {
+    "hotpotqa": {
+      "code_identity": {
+        "alpha": 0.75,
+        "checks": {
+          "hybrid-bm25-entity-hop": {
+            "differing_qids": [],
+            "expected": 4801,
+            "label": "P10-C",
+            "n_questions": 7405,
+            "observed": 4801,
+            "passed": true
+          },
+          "hybrid-bm25-seeded-hop": {
+            "differing_qids": [],
+            "expected": 5224,
+            "label": "P14",
+            "n_questions": 7405,
+            "observed": 5224,
+            "passed": true
+          }
+        },
+        "fit_digests": {
+          "hybrid-bm25-entity-hop": "66dfcec1c2b831ac580ee2257ce346b150a9ba5d9af4fc0955b4683bd46bdd96",
+          "hybrid-bm25-seeded-hop": "7ce07a171def50d85ca480383a978a2233cfa491ae048b9314a45850dabfe224"
+        },
+        "fusion": "fuse_lists at depth 100, replayed through _p10_replay_records (phase9.measure_system and the Phase 1 harness)",
+        "metric": "full_support@2048_tokens over the 7405 HotpotQA dev questions",
+        "passed": true,
+        "phase10_dev_lists_digest": "d2e5c2d65b9f032bbd892786f63acdac012cb261cb5ea10971d55756797eb7e9",
+        "phase14_dev_lists_digest": "006b2768a0c32e797084b9937ec0d1502b3abcc8c6be430ab82ac14416438ad2",
+        "routes": {
+          "hybrid-bm25-entity-hop": {
+            "observed": "Phase 10 dev lists: dense, bm25, entity-hop",
+            "reference": "Phase 14 dev lists: dense, bm25, relevance-hop@alpha=0.00"
+          },
+          "hybrid-bm25-seeded-hop": {
+            "observed": "Phase 14 dev lists: dense, bm25, relevance-hop@alpha=0.75",
+            "reference": "Phase 10 dev lists' dense and bm25, Phase 14 dev lists' relevance-hop@alpha=0.75"
+          }
+        },
+        "seconds": 74.04958140011877,
+        "weights": {
+          "hybrid-bm25-entity-hop": {
+            "bm25": 0.3,
+            "dense": 0.5,
+            "entity-hop": 0.2
+          },
+          "hybrid-bm25-seeded-hop": {
+            "bm25": 0.3,
+            "dense": 0.5,
+            "seeded-hop": 0.2
+          }
+        }
+      },
+      "weights": {
+        "alpha": 0.75,
+        "fit_digests": {
+          "hybrid-bm25-entity-hop": "66dfcec1c2b831ac580ee2257ce346b150a9ba5d9af4fc0955b4683bd46bdd96",
+          "hybrid-bm25-seeded-hop": "7ce07a171def50d85ca480383a978a2233cfa491ae048b9314a45850dabfe224"
+        },
+        "sources": {
+          "hybrid-bm25": "C:\\Python Projects\\concept-embeddings-RAG\\data\\replacement\\run-hybrid-bm25-dev-20260917T174929+0000.json",
+          "hybrid-bm25-entity-hop": "C:\\Python Projects\\concept-embeddings-RAG\\data\\phase10\\fit.json",
+          "hybrid-bm25-seeded-hop": "C:\\Python Projects\\concept-embeddings-RAG\\data\\phase14\\fit.json"
+        },
+        "weights": {
+          "hybrid-bm25": {
+            "bm25": 0.5,
+            "dense": 0.5
+          },
+          "hybrid-bm25-entity-hop": {
+            "bm25": 0.3,
+            "dense": 0.5,
+            "entity-hop": 0.2
+          },
+          "hybrid-bm25-seeded-hop": {
+            "bm25": 0.3,
+            "dense": 0.5,
+            "seeded-hop": 0.2
+          }
+        }
+      }
+    },
+    "multihop-rag": {
+      "recorded_pass": {
+        "contexts_match_recorded_full_support": true,
+        "corpus_unit_set_hash": "4aa1f9aab57fd101",
+        "integrity_digest": "c7b577f77f6157f4ef4aff61f5d8e5815931f4a9f50ec66a861bd0de2d9956bc",
+        "n_questions": 2255,
+        "outcomes_digests": {
+          "dense": "e7d9e2597354ff1c3a87569060abc0d1dba3eaaeaa017828fee63947d115c9e9",
+          "hybrid-bm25": "788e8fc115d8f5b3339552091d5b5eab400429ca77274a017fc57ef483f18433",
+          "hybrid-bm25-entity-hop": "f68ad8f007196a1994b5c33954f8b867bcccd1cda3e9d4db022784a895af07e4",
+          "hybrid-bm25-seeded-hop": "47c1bf78b871e2403f1d333418947393a1e65eb317785d8a9f7a3b115e76f88d"
+        },
+        "pass_code_commit": "7aa0bb45c2c2fc3d241ffcd5c18dec93e128ed78",
+        "pass_started_at": "2026-09-30T12:25:07+00:00",
+        "question_digest": "b97acfd62b1ed2af8f15eebb3cd56d5c932de8ec43a2db01bcfb940523cb35ce",
+        "rankings_digests": {
+          "dense": "054e396103df7c57c0abd46ed16c8097d959a56fd51c29ebc87f532edd3dd945",
+          "hybrid-bm25": "562944b4b69077bd620900285189896f6757a57e75897ec945a958095a37b8e9",
+          "hybrid-bm25-entity-hop": "81dc18f1f7acb52d7aa417b940e813d63a4d56caa24fd9e4f75f2f370a7d8eae",
+          "hybrid-bm25-seeded-hop": "42c1afb685b6bbd0cdd1b9c7c0becf7e6e3fb7c07f51623878723f31eeee908e"
+        },
+        "refusion_consistent": true,
+        "same_qid_order": true,
+        "systems": [
+          "dense",
+          "hybrid-bm25",
+          "hybrid-bm25-entity-hop",
+          "hybrid-bm25-seeded-hop"
+        ]
+      }
+    },
+    "musique": {
+      "recorded_pass": {
+        "contexts_match_recorded_full_support": true,
+        "corpus_unit_set_hash": "15e2770c8ceb70f7",
+        "integrity_digest": "c2c36dd2b69c6ba8244277f4734fe0bc1e38aeab201c19ff45fd4287f9cd7426",
+        "n_questions": 2417,
+        "outcomes_digests": {
+          "dense": "982b67600876de13ea489d0ff1c71f39a78f3cdd63b528160559e952c6e0bf45",
+          "hybrid-bm25": "555cd3bc7efca276a68e8c9464a7c85f7568fcaff9d03dbcef82399c2c72cfcf",
+          "hybrid-bm25-entity-hop": "dd0395f869df44753f35744a979f2b5973f7064c1a994a2b6441dafb0dc04022",
+          "hybrid-bm25-seeded-hop": "534751d0edc3fba9eefa56085ccf594f806ff37702d30131b25d2a0ddb28e74e"
+        },
+        "pass_code_commit": "59de840692188c7a12c5fd73b97fa424034797e9",
+        "pass_started_at": "2026-09-29T15:29:17+00:00",
+        "question_digest": "33db3ec4f563eb6e97170a701fba62984477dd92007c2eb7c5c11e6405e8b2cc",
+        "rankings_digests": {
+          "dense": "efc940522f3458860b8679efba280a1f259170ba94f32a9d25984163883439f4",
+          "hybrid-bm25": "f7bce63883296714a04949f760309aeac48da1a5540d6ef9983e1041269e54c3",
+          "hybrid-bm25-entity-hop": "f23aa84f98841bd767c6668beb1ea62cf039d6c50b90740230aae6672621f629",
+          "hybrid-bm25-seeded-hop": "ee1f03b2aa489f993b0f1017ac3fa73bc34929c9c0d2370e0dbb864d9c10e5cd"
+        },
+        "refusion_consistent": true,
+        "same_qid_order": true,
+        "systems": [
+          "dense",
+          "hybrid-bm25",
+          "hybrid-bm25-entity-hop",
+          "hybrid-bm25-seeded-hop"
+        ]
+      }
+    }
+  },
+  "host": {
+    "cpu_count": 12,
+    "device": "cpu",
+    "gpu": null,
+    "machine": "ARM64",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "processor": "ARMv8 (64-bit) Family 8 Model 1 Revision 201, Qualcomm Technologies Inc",
+    "python": "3.12.10",
+    "ram_bytes": 33896992768,
+    "release": "11",
+    "system": "Windows",
+    "torch_threads": 12,
+    "torch_version": "2.13.0+cpu"
+  },
+  "in_sample_weights": {
+    "hotpotqa": true,
+    "note": "P10-C's and P14's weights were fitted on HotpotQA dev (D3)"
+  },
+  "metric": "full_support@2048_tokens",
+  "peak_memory_mb": 4082.67578125,
+  "phase": 17,
+  "recorded_replays": {
+    "checks": {
+      "hotpotqa": {
+        "dense": {
+          "expected": 4125,
+          "label": "P10-A",
+          "n_questions": 7405,
+          "observed": 4125,
+          "passed": true
+        },
+        "hybrid-bm25": {
+          "expected": 4536,
+          "label": "P10-B",
+          "n_questions": 7405,
+          "observed": 4536,
+          "passed": true
+        }
+      },
+      "multihop-rag": {
+        "dense": {
+          "expected": 338,
+          "label": "P10-A",
+          "n_questions": 2255,
+          "observed": 338,
+          "passed": true
+        }
+      },
+      "musique": {
+        "dense": {
+          "expected": 436,
+          "label": "P10-A",
+          "n_questions": 2417,
+          "observed": 436,
+          "passed": true
+        }
+      }
+    },
+    "passed": true
+  },
+  "seconds": 100.86054720007814,
+  "stop_reasons": [],
+  "terminal_state": null
+}
