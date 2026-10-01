@@ -67,6 +67,7 @@
     p17-pool        D3 on the three sets, then the four systems' pools and the judges' pairs
     p17-score       a pinned judge's logits for one set's pairs: sharded, resumable, write-once
     p17-outcome     the reordered lists, D5's 17 comparisons per set and D6, three judges
+    p17-tables      every table, macro and figure of the paper, written from the artifacts (R5)
 
 Each stage is idempotent and refuses to run if its input is missing, saying which
 stage to run first rather than failing somewhere deep inside numpy.
@@ -174,6 +175,7 @@ from concept_embeddings_rag.embeddings.cache import (
 from concept_embeddings_rag.evaluation import (
     decision_judge,
     judge,
+    paper,
     phase10,
     phase11,
     phase12,
@@ -9768,6 +9770,29 @@ def _p17_determinism(
     }
 
 
+def cmd_p17_tables(
+    paper_dir: Path | None = None, root: Path = config.PROJECT_ROOT
+) -> paper.Written:
+    """S6 (R5): `docs/paper/tables/` and `docs/paper/figures/`, from the artifacts only.
+
+    Reads the committed Phase 17 JSONs and the earlier phases' artifacts (read-only), overwrites
+    the generated directories (same inputs, same bytes) and refuses when a hand-written `.tex`
+    under `docs/paper/` holds a number the prose must take from a macro.
+    """
+    target = Path(paper_dir) if paper_dir is not None else Path(root) / "docs" / "paper"
+    sources = paper.load_sources(Path(root))
+    written = paper.write_all(sources, target)
+    violations = paper.r5_violations(target)
+    if violations:
+        raise paper.PaperError("hand-written numbers (R5):" + chr(10) + chr(10).join(violations))
+    print(
+        f"[OK] {written.tables} tables, {written.macros} macros, {written.figures} figures"
+        f" -> {target}",
+        flush=True,
+    )
+    return written
+
+
 def cmd_p17_score(
     judge_key: str,
     set_name: str,
@@ -11241,6 +11266,10 @@ def build_parser() -> argparse.ArgumentParser:
         "p17-outcome",
         help="Phase 17: reorder, the 17 comparisons per set and the metrics (write-once)",
     )
+    subparsers.add_parser(
+        "p17-tables",
+        help="Phase 17: every table, macro and figure of the paper, from the artifacts (R5)",
+    )
     p17_score = subparsers.add_parser(
         "p17-score", help="Phase 17: a judge's logits for one set's pairs (sharded, write-once)"
     )
@@ -11503,6 +11532,11 @@ def main(argv: list[str] | None = None) -> int:
         try:
             cmd_p17_outcome()
         except phase17.Phase17Error as error:
+            _die(str(error))
+    elif args.command == "p17-tables":
+        try:
+            cmd_p17_tables()
+        except paper.PaperError as error:
             _die(str(error))
     elif args.command == "p17-score":
         if args.hourly_rate_usd is None and not args.truncation_only:
