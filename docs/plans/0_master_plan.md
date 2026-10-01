@@ -83,7 +83,7 @@ From Phase 7 onward:
 | 14 | Ordering the hop's candidates by their similarity to the question | [Approved](phase_14/14.spec.md) | **Complete — CANDIDATE_RELEVANCE_SUPPORTED** |
 | 15 | Validation on MuSiQue: Dense, P10-B, P10-C and P14 with nothing refitted (author decision 2026-09-29) | [Approved](phase_15/15.spec.md) | **Complete — TRANSFER_SUPPORTED** |
 | 16 | Validation on a corpus that is not Wikipedia: MultiHop-RAG news, the same frozen systems | [Approved](phase_16/16.spec.md) | **Complete — TRANSFER_REGRESSION** |
-| 17 | Two zero-shot cross-encoder judges over the four frozen systems on HotpotQA dev, MuSiQue and MultiHop-RAG; the literature's metrics; the paper | [Spec](phase_17/17.spec.md), approved 2026-09-30 | **Specified**, plan pending |
+| 17 | Three zero-shot judges over the four frozen systems on HotpotQA dev, MuSiQue and MultiHop-RAG: two cross-encoders and, by [deviation 17.1](phase_17/17.1_clm8b_third_judge.md), the decision model CLM-8B; the literature's metrics; the paper | [Spec](phase_17/17.spec.md), approved 2026-09-30; [plan](phase_17/17.0_judge_and_paper.md), approved 2026-10-01; deviation 17.1, 2026-10-01 | **In implementation** (S1 done, S2 measured) |
 
 **The first research line is closed** (2026-09-15): concepts induced from pooled embeddings, tested through Phases 2-4, gave a negative and bounded result. The original Phase 5 — a comparative evaluation of that method — was not run; the plan was renumbered so Phase 5 tests the representation the proposal actually described. See [`phase_4/4.1_research_line_closure.md`](phase_4/4.1_research_line_closure.md).
 
@@ -186,6 +186,8 @@ validation phases come before any new component:
 - **Phase 17**, redefined by the author on 2026-09-30 after Phase 16: two zero-shot
   cross-encoder judges over the four frozen systems on the three measured corpora, the
   literature's metrics beside this line's, and a paper ([`phase_17/17.spec.md`](phase_17/17.spec.md)).
+  On 2026-10-01, before any scoring, [deviation 17.1](phase_17/17.1_clm8b_third_judge.md) added a
+  third declared judge, the open decision model CLM-8B, so three judges are reported.
   The query reformulation chosen on 2026-09-29 (written first as Phase 15 in the review note and
   in `phase_14/14.results.md`, which keep that number as historical records) moves to the
   successor project ([`successor_project_charter.md`](successor_project_charter.md)).
