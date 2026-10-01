@@ -213,6 +213,11 @@ def question_metrics(
     }
 
 
+def full_support_at(ranked: Sequence[str], gold: Sequence[str], k: int) -> bool:
+    """Whether the first `k` units hold every gold unit (D6's full support for one question)."""
+    return bool(full_support(list(ranked)[:k], gold))
+
+
 def line_metrics(
     rankings: Sequence[Sequence[str]],
     questions: Sequence[Question],

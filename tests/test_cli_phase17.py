@@ -600,3 +600,249 @@ def test_truncation_only_counts_with_the_tokenizer_alone_and_loads_no_judge(deci
 def test_truncation_only_is_the_decision_judges_alone(scoring):
     with pytest.raises(phase17.Phase17Error, match="decision"):
         scoring["score"](judge_key="light", truncation_only=True)
+
+
+# --- S3: cer p17-outcome, written before any score exists ---------------------------------------
+
+JUDGES = (config.PHASE_17_LIGHT, config.PHASE_17_STRONG, config.PHASE_17_DECISION)
+SMALL_SETS = {
+    config.PHASE_17_HOTPOTQA: 40,
+    config.PHASE_17_MUSIQUE: 33,
+    config.PHASE_17_MULTIHOP_RAG: 27,
+}
+# One unit fits a 2,048-token context (1,500 each), so Full Support is "the list's first unit
+# is the gold unit": the order, and so the judge, decides it.
+TOKENS = 1500
+
+
+def hand_lists(ids: list[str]) -> dict[str, list[str]]:
+    return {
+        P10A: ids[0:3],
+        P10B: ids[2:5],
+        P10C: [ids[5], ids[0]],
+        P14: [ids[1], ids[6], ids[3]],
+    }
+
+
+def hand_counts(n: int) -> dict[str, int]:
+    """Unjudged Full Support: questions whose gold `ids[i % 5]` heads the system's list."""
+    first = {P10A: 0, P10B: 2, P10C: 5, P14: 1}
+    return {s: sum(1 for i in range(n) if i % 5 == k) for s, k in first.items()}
+
+
+@pytest.fixture
+def shrunk(monkeypatch):
+    """Tiny sets, a binding token budget and counts that match what the lists replay to."""
+    original = fake_set
+
+    def small_fake_set(set_name, units, *, miss=False):
+        data = original(set_name, units, miss=miss)
+        ids = [u.unit_id for u in units]
+        n = len(data["questions"])
+        data["lists"] = {**data["lists"], **{s: [lst] * n for s, lst in hand_lists(ids).items()}}
+        data["token_counts"] = {u: TOKENS + k for k, u in enumerate(ids)}
+        return data
+
+    monkeypatch.setitem(globals(), "fake_set", small_fake_set)
+    for set_name, n in SMALL_SETS.items():
+        monkeypatch.setitem(config.PHASE_17_SETS, set_name, n)
+        counts = hand_counts(n)
+        for table in (config.PHASE_17_D3_SUPPORTED, config.PHASE_17_REPLAYS_SUPPORTED):
+            monkeypatch.setitem(table, set_name, {s: counts[s] for s in table[set_name]})
+    return small_fake_set
+
+
+@pytest.fixture
+def chain(shrunk, decision, monkeypatch):
+    """The pool, nine scorings (stub judges, all three sets) and a runner for the outcome."""
+    target: Path = decision["target"]
+    for judge_key in JUDGES:
+        for set_name in SETS:
+            cli.cmd_p17_score(
+                judge_key,
+                set_name,
+                hourly_rate_usd=1.0,
+                target_dir=target,
+                shard_questions=300,
+                is_committed=lambda _p: True,
+                vllm_command="vllm serve stub",
+                pooler="LAST",
+            )
+
+    def replay_inputs(set_name, _directory):
+        data = shrunk(set_name, decision["units"][set_name])
+        return data["questions"], data["token_counts"]
+
+    monkeypatch.setattr(cli, "_p17_replay_inputs", replay_inputs)
+
+    def run(*, committed=True):
+        return cli.cmd_p17_outcome(target, phase9_dir=target, is_committed=lambda _p: committed)
+
+    return {**decision, "outcome": run}
+
+
+def hand_head(units: list[str], scores: dict[str, float]) -> str:
+    """The unit a judge puts first: highest score, ties by the system's own order."""
+    return sorted(units, key=lambda unit: (-scores[unit], units.index(unit)))[0]
+
+
+def exact_p(wins: int, losses: int) -> float:
+    from math import comb
+
+    n = wins + losses
+    if n == 0:
+        return 1.0
+    return min(1.0, 2 * sum(comb(n, k) for k in range(min(wins, losses) + 1)) / 2**n)
+
+
+def hand_label(wins: int, losses: int) -> str:
+    adds, hurts, neutral = config.PHASE_17_LABELS
+    p = exact_p(wins, losses)
+    if wins > losses and p < 0.05:
+        return adds
+    return hurts if losses > wins and p < 0.05 else neutral
+
+
+def nothing_written(target: Path) -> bool:
+    return not (
+        list(target.glob("reordered-*"))
+        or (target / "outcome.json").exists()
+        or (target / "metrics.json").exists()
+    )
+
+
+def test_the_outcome_writes_fifteen_reordered_files_per_set_and_two_json_files(chain):
+    target: Path = chain["target"]
+    path = chain["outcome"]()
+
+    assert path == target / "outcome.json" and (target / "metrics.json").exists()
+    for set_name in SETS:
+        assert len(list(target.glob(f"reordered-*-{set_name}-*.jsonl.gz"))) == 15
+    assert len(list(target.glob("reordered-*.jsonl.gz"))) == 45
+    outcome = json.loads(path.read_text(encoding="utf-8"))
+    assert outcome["terminal_state"] is None and outcome["gate"] is None
+    for set_name, block in outcome["sets"].items():
+        assert block["in_sample_weights"] is (set_name == config.PHASE_17_HOTPOTQA)
+        assert set(block["per_judge"]) == set(JUDGES)
+        assert all(len(by) == 5 for by in block["per_judge"].values())
+        assert set(block["cross_judge"]) == {"strong_vs_light_p10b", "decision_vs_strong_p10b"}
+        assert block["replayed_lines"] == 19
+        record = outcome["provenance"]["reordered_files"][set_name][f"light:{P14}"]
+        assert record["sha256"] == phase17.sha256_file(
+            target / phase17.reordered_name("light", set_name, P14)
+        )
+        assert record["rows"] == SMALL_SETS[set_name]
+    metrics = json.loads((target / "metrics.json").read_text(encoding="utf-8"))
+    union = f"strong:{config.PHASE_17_UNION}"
+    assert metrics["sets"][config.PHASE_17_MULTIHOP_RAG]["lines"][union]["descriptive"] is True
+    for block in metrics["sets"].values():
+        assert len(block["lines"]) == 19
+        assert all(line["harness_mismatches"] == [] for line in block["lines"].values())
+
+
+def test_the_primary_comparison_and_label_equal_a_hand_count_from_the_scores(chain):
+    target: Path = chain["target"]
+    outcome = json.loads(chain["outcome"]().read_text(encoding="utf-8"))
+    for set_name in SETS:
+        ids = [u.unit_id for u in chain["units"][set_name]]
+        lists = hand_lists(ids)
+        for judge_key in JUDGES:
+            rows = phase17.read_jsonl(target / phase17.scores_name(judge_key, set_name))
+            by_q = {r["qid"]: dict(zip(r["unit_ids"], r["scores"], strict=True)) for r in rows}
+
+            def head(system, i, by_q=by_q, set_name=set_name, lists=lists):
+                return hand_head(lists[system], by_q[f"{set_name}-q{i}"])
+
+            wins = losses = 0
+            for i in range(SMALL_SETS[set_name]):
+                gold = ids[i % 5]
+                control, candidate = head(P10B, i) == gold, head(P14, i) == gold
+                wins += int(candidate and not control)
+                losses += int(control and not candidate)
+            result = outcome["sets"][set_name]["per_judge"][judge_key]["j_p14_vs_j_p10b"]
+            assert (result["wins"], result["losses"]) == (wins, losses)
+            assert result["exact_two_sided_p"] == pytest.approx(exact_p(wins, losses))
+            label = outcome["sets"][set_name]["hop_label"][judge_key]
+            assert label == hand_label(wins, losses)
+            # J(P10-B) against P10-B, by hand as well.
+            plain = sum(1 for i in range(SMALL_SETS[set_name]) if lists[P10B][0] == ids[i % 5])
+            judged = sum(1 for i in range(SMALL_SETS[set_name]) if head(P10B, i) == ids[i % 5])
+            counts = outcome["sets"][set_name]["full_support_2048"]
+            assert counts[P10B]["supported"] == plain
+            assert counts[f"{judge_key}:{P10B}"]["supported"] == judged
+
+
+def test_the_unjudged_replay_equals_the_integrity_counts_and_a_judge_permutes_the_list(chain):
+    target: Path = chain["target"]
+    outcome = json.loads(chain["outcome"]().read_text(encoding="utf-8"))
+    metrics = json.loads((target / "metrics.json").read_text(encoding="utf-8"))
+    integrity = json.loads((target / "integrity.json").read_text(encoding="utf-8"))
+    for set_name in SETS:
+        recorded = {
+            **integrity["d3"][set_name],
+            **integrity["recorded_replays"]["checks"][set_name],
+        }
+        counts = outcome["sets"][set_name]["full_support_2048"]
+        lines = metrics["sets"][set_name]["lines"]
+        for system in config.PHASE_17_SYSTEMS:
+            assert counts[system]["supported"] == recorded[system]["observed"]
+            assert counts[system]["supported"] == hand_counts(SMALL_SETS[set_name])[system]
+            for judge_key in JUDGES:
+                judged, plain = lines[f"{judge_key}:{system}"], lines[system]
+                assert judged["full_support_at_k"]["100"] == plain["full_support_at_k"]["100"]
+                assert judged["gold_recall_at_k"]["100"] == plain["gold_recall_at_k"]["100"]
+                assert judged["ceiling"]["all_gold_inside"] == plain["ceiling"]["all_gold_inside"]
+    set_name = config.PHASE_17_MULTIHOP_RAG
+    record = outcome["provenance"]["reordered_files"][set_name][f"light:{P14}"]
+    judged_lists = phase17.read_reordered(
+        target, "light", set_name, P14, digest=record["digest"], sha256=record["sha256"]
+    )
+    ids = [u.unit_id for u in chain["units"][set_name]]
+    for _qid, ranked in judged_lists:
+        assert sorted(u for u, _s, _r in ranked) == sorted([ids[1], ids[6], ids[3]])
+        assert [s for _u, s, _r in ranked] == sorted((s for _u, s, _r in ranked), reverse=True)
+
+
+def test_a_tampered_scores_file_refuses_and_nothing_is_written(chain):
+    target: Path = chain["target"]
+    path = target / phase17.scores_name("strong", config.PHASE_17_MUSIQUE)
+    path.write_bytes(gzip.compress(b'{"qid": "x", "scores": [], "unit_ids": []}\n'))
+
+    with pytest.raises(phase17.Phase17Error, match="SHA-256"):
+        chain["outcome"]()
+
+    assert nothing_written(target)
+
+
+def test_a_missing_judge_manifest_or_an_uncommitted_chain_refuses(chain):
+    target: Path = chain["target"]
+    with pytest.raises(phase17.Phase17Error, match="committed"):
+        chain["outcome"](committed=False)
+    (target / "scoring-decision.json").rename(target / "elsewhere.json")
+    with pytest.raises(phase17.Phase17Error, match="every judge is reported"):
+        chain["outcome"]()
+    assert nothing_written(target)
+
+
+def test_a_pool_that_does_not_replay_to_the_integrity_counts_refuses(chain):
+    target: Path = chain["target"]
+    path = target / "integrity.json"
+    body = json.loads(path.read_text(encoding="utf-8"))
+    body["d3"][config.PHASE_17_MUSIQUE][P14]["observed"] += 1
+    text = json.dumps(body)
+    path.write_text(text, encoding="utf-8")
+    pool_path = target / "pool.json"
+    pool = json.loads(pool_path.read_text(encoding="utf-8"))
+    pool["integrity_digest"] = digest_of(text)
+    pool_path.write_text(json.dumps(pool), encoding="utf-8")
+
+    with pytest.raises(phase17.Phase17Error, match="integrity.json records"):
+        chain["outcome"]()
+
+    assert nothing_written(target)
+
+
+def test_a_second_run_refuses(chain):
+    chain["outcome"]()
+    with pytest.raises(phase17.Phase17Error, match="written once"):
+        chain["outcome"]()

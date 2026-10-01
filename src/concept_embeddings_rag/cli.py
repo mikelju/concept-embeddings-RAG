@@ -66,6 +66,7 @@
     p16-refit       D10, exploratory: the 330-point grid re-fused from the stored rankings
     p17-pool        D3 on the three sets, then the four systems' pools and the judges' pairs
     p17-score       a pinned judge's logits for one set's pairs: sharded, resumable, write-once
+    p17-outcome     the reordered lists, D5's 17 comparisons per set and D6, three judges
 
 Each stage is idempotent and refuses to run if its input is missing, saying which
 stage to run first rather than failing somewhere deep inside numpy.
@@ -10470,6 +10471,393 @@ def _p17_score_decision(
     return scores_path
 
 
+P17_OUTCOME_NAME = "outcome.json"
+P17_METRICS_NAME = "metrics.json"
+P17_JUDGE_ORDER: tuple[str, ...] = (
+    config.PHASE_17_LIGHT,
+    config.PHASE_17_STRONG,
+    config.PHASE_17_DECISION,
+)
+
+
+def _p17_replay_inputs(set_name: str, directory: Path) -> tuple[list[Question], dict[str, int]]:
+    """The set's questions (frozen order) and token counts, from the artifacts the pool stage
+    read: `_p11_dev_inputs` for HotpotQA dev, `_p15_recorded_pass` for the other two."""
+    if set_name == config.PHASE_17_HOTPOTQA:
+        return _p11_dev_inputs(Path(directory))
+    source = MUSIQUE_SOURCE if set_name == config.PHASE_17_MUSIQUE else MULTIHOP_RAG_SOURCE
+    checked = _p15_recorded_pass(Path(directory), config.PHASE_17_SETS[set_name], source=source)
+    return checked["questions"], checked["token_counts"]
+
+
+def _p17_outcome_chain(target_dir: Path, is_committed: Callable[[Path], bool]) -> dict[str, Any]:
+    """Every link the outcome stands on, against its record, before anything is read for a
+    metric: `integrity.json` and `pool.json` (`_p17_checked_inputs`), each judge's committed
+    `scoring-<judge>.json` holding a block for every set that records its scores file."""
+    _p17_checked_inputs(target_dir, config.PHASE_17_HOTPOTQA, is_committed)
+    integrity_path = target_dir / phase17.INTEGRITY_FILENAME
+    pool_path = target_dir / phase17.POOL_MANIFEST
+    pool = json.loads(pool_path.read_text(encoding="utf-8"))
+    manifests: dict[str, dict[str, Any]] = {}
+    for judge_key in P17_JUDGE_ORDER:
+        path = target_dir / phase17.scoring_manifest_name(judge_key)
+        if not path.exists():
+            raise phase17.Phase17Error(
+                f"{path} is missing: every judge is reported (D2), score all three first"
+            )
+        if not is_committed(path):
+            raise phase17.Phase17Error(f"{path.name} is not committed unmodified; commit it first")
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        for set_name in config.PHASE_17_SETS:
+            block = manifest["sets"].get(set_name)
+            if block is None or "scores_file" not in block:
+                raise phase17.Phase17Error(f"{path.name} holds no scored block for {set_name}")
+            if block.get("pairs_sha256_read") != pool["sets"][set_name]["pairs_file"]["sha256"]:
+                raise phase17.Phase17Error(
+                    f"{path.name} scored another pairs file than pool.json records for {set_name}"
+                )
+        manifests[judge_key] = manifest
+    return {
+        "integrity": json.loads(integrity_path.read_text(encoding="utf-8")),
+        "pool": pool,
+        "manifests": manifests,
+        "sha256": {
+            "integrity": phase17.sha256_file(integrity_path),
+            "pool": phase17.sha256_file(pool_path),
+            **{
+                f"scoring-{key}": phase17.sha256_file(
+                    target_dir / phase17.scoring_manifest_name(key)
+                )
+                for key in P17_JUDGE_ORDER
+            },
+        },
+    }
+
+
+def _p17_system_lists(
+    pool: Sequence[tuple[str, Sequence[phase17.PoolEntry]]],
+) -> dict[str, list[list[str]]]:
+    """Each system's fused top-100, rebuilt from the pool's per-system ranks (which must be
+    1..m with no gap)."""
+    lists: dict[str, list[list[str]]] = {name: [] for name in config.PHASE_17_SYSTEMS}
+    for qid, entries in pool:
+        for name in config.PHASE_17_SYSTEMS:
+            ranked = sorted((ranks[name], unit_id) for unit_id, ranks in entries if name in ranks)
+            if [rank for rank, _u in ranked] != list(range(1, len(ranked) + 1)):
+                raise phase17.Phase17Error(f"{qid}: the pool's ranks of {name} are not 1..m")
+            lists[name].append([unit_id for _r, unit_id in ranked])
+    return lists
+
+
+def _p17_judge_scores(
+    target_dir: Path,
+    judge_key: str,
+    set_name: str,
+    record: Mapping[str, Any],
+    pool: Sequence[tuple[str, Sequence[phase17.PoolEntry]]],
+) -> list[dict[str, float]]:
+    """One set's scores of one judge, the file read against its manifest record (SHA-256,
+    digest, bytes, rows) and its qids and unit ids against the pool's, in the pool's order."""
+    path = target_dir / phase17.scores_name(judge_key, set_name)
+    rows = phase17.read_scores(
+        target_dir, judge_key, set_name, digest=record["digest"], sha256=record["sha256"]
+    )
+    if path.stat().st_size != int(record["bytes"]) or len(rows) != int(record["rows"]):
+        raise phase17.Phase17Error(f"{path.name} does not match its manifest's bytes and rows")
+    if len(rows) != len(pool):
+        raise phase17.Phase17Error(f"{path.name} holds {len(rows)} lines for {len(pool)} questions")
+    scores: list[dict[str, float]] = []
+    for row, (qid, entries) in zip(rows, pool, strict=True):
+        unit_ids = [unit_id for unit_id, _ranks in entries]
+        if row["qid"] != qid or list(row["unit_ids"]) != unit_ids:
+            raise phase17.Phase17Error(f"{path.name} does not follow the pool at {qid}")
+        if len(row["scores"]) != len(unit_ids):
+            raise phase17.Phase17Error(f"{path.name} has a different score count at {qid}")
+        scores.append(dict(zip(unit_ids, (float(s) for s in row["scores"]), strict=True)))
+    return scores
+
+
+def _p17_judged_lines(
+    pool: Sequence[tuple[str, Sequence[phase17.PoolEntry]]],
+    lists: Mapping[str, Sequence[Sequence[str]]],
+    scores: Sequence[Mapping[str, float]],
+) -> Iterator[tuple[str, list[tuple[str, list[phase17.Reordered]]]]]:
+    """J(S) for each system and the union line under J, per question in the pool's order."""
+    for line in config.PHASE_17_SYSTEMS:
+        yield (
+            line,
+            [
+                (qid, phase17.reorder(top, by_unit))
+                for (qid, _entries), top, by_unit in zip(pool, lists[line], scores, strict=True)
+            ],
+        )
+    yield (
+        config.PHASE_17_UNION,
+        [
+            (qid, phase17.union_order(entries, by_unit))
+            for (qid, entries), by_unit in zip(pool, scores, strict=True)
+        ],
+    )
+
+
+def _p17_line_report(
+    judge_key: str | None,
+    line: str,
+    ranked: Sequence[Sequence[str]],
+    hits: Sequence[tuple[str, list[Any]]],
+    candidates: Sequence[Sequence[str]],
+    prep: Mapping[str, Any],
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """One line's replay records and its D6 report: units metrics, budget metrics, the
+    harness check (must be empty) and the ceiling."""
+    questions: list[Question] = prep["questions"]
+    depth = config.PHASE_17_DEPTH
+    key = phase17.line_key(judge_key, line)
+    records = _p10_replay_records(key, hits, questions, prep["token_counts"])
+    top = [list(units)[:depth] for units in ranked]
+    mismatched = phase17.harness_mismatches(top, questions, records)
+    if mismatched:
+        raise phase17.Phase17Error(
+            f"{key}: D6 differs from the harness at k <= 20 on {len(mismatched)} questions "
+            f"({mismatched[:3]})"
+        )
+    n = len(questions)
+    budgets = {}
+    for budget in config.PHASE_17_BUDGETS:
+        supported = sum(r["budgets"][str(budget)]["full_support"] for r in records)
+        recalled = sum(r["budgets"][str(budget)]["gold_recall"] for r in records)
+        budgets[str(budget)] = {
+            "full_support_count": int(supported),
+            "full_support": supported / n,
+            "gold_recall": recalled / n,
+        }
+    report = {
+        "judge": judge_key,
+        "line": line,
+        "label": phase17.line_label(judge_key, line),
+        "descriptive": line == config.PHASE_17_UNION,
+        **phase17.line_metrics(top, questions),
+        "budgets": budgets,
+        "harness_mismatches": mismatched,
+        "ceiling": phase17.ceiling(questions, candidates, records),
+    }
+    return records, report
+
+
+def _p17_measure_set(
+    set_name: str, target_dir: Path, chain: Mapping[str, Any], directory: Path
+) -> dict[str, Any]:
+    """Everything one set contributes, nothing written: the pool and every scores file
+    checked against their records, the four systems replayed without a judge (their Full
+    Support @2,048 equal to `integrity.json`'s), then each judge's five lines replayed and
+    reported. Returns the set's blocks for `outcome.json` and `metrics.json`."""
+    pool_record = chain["pool"]["sets"][set_name]["pool_file"]
+    pool = phase17.read_pool(
+        target_dir, set_name, digest=pool_record["digest"], sha256=pool_record["sha256"]
+    )
+    lists = _p17_system_lists(pool)
+    questions, token_counts = _p17_replay_inputs(set_name, directory)
+    if [q.qid for q in questions] != [qid for qid, _entries in pool]:
+        raise phase17.Phase17Error(f"{set_name}: the questions are not the pool's, in its order")
+    pooled = {unit_id for _qid, entries in pool for unit_id, _ranks in entries}
+    prep = {"questions": questions, "token_counts": {u: int(token_counts[u]) for u in pooled}}
+    del token_counts
+    depth = config.PHASE_17_DEPTH
+    n = len(questions)
+
+    runs: dict[str, list[dict[str, Any]]] = {}
+    lines: dict[str, Any] = {}
+    for system in config.PHASE_17_SYSTEMS:
+        hits = [
+            (q.question, [(u, 0.0) for u in top])
+            for q, top in zip(questions, lists[system], strict=True)
+        ]
+        records, report = _p17_line_report(None, system, lists[system], hits, lists[system], prep)
+        runs[system] = records
+        lines[phase17.line_key(None, system)] = report
+    recorded = {
+        **chain["integrity"]["d3"].get(set_name, {}),
+        **chain["integrity"]["recorded_replays"]["checks"].get(set_name, {}),
+    }
+    for system in config.PHASE_17_SYSTEMS:
+        seen = phase10.supported(runs[system])
+        if system not in recorded or seen != int(recorded[system]["observed"]):
+            raise phase17.Phase17Error(
+                f"{set_name} {config.PHASE_17_SYSTEM_LABELS[system]}: the pool replays to "
+                f"{seen} of {n} at {config.PHASE_9_PRIMARY_BUDGET}, integrity.json records "
+                f"{recorded.get(system, {}).get('observed')}"
+            )
+
+    pool_ids = [[unit_id for unit_id, _ranks in entries] for _qid, entries in pool]
+    for judge_key in P17_JUDGE_ORDER:
+        record = chain["manifests"][judge_key]["sets"][set_name]["scores_file"]
+        scores = _p17_judge_scores(target_dir, judge_key, set_name, record, pool)
+        for line, reordered in _p17_judged_lines(pool, lists, scores):
+            ranked = [[u for u, _s, _r in entry] for _qid, entry in reordered]
+            union = line == config.PHASE_17_UNION
+            if not union:
+                for q, units, original in zip(questions, ranked, lists[line], strict=True):
+                    if sorted(units) != sorted(original) or phase17.full_support_at(
+                        units, q.gold_unit_ids, depth
+                    ) != phase17.full_support_at(original, q.gold_unit_ids, depth):
+                        raise phase17.Phase17Error(
+                            f"{judge_key}:{line}: not a permutation of its system at {q.qid}"
+                        )
+            hits = [
+                (q.question, [(u, s) for u, s, _r in entry][:depth])
+                for q, (_qid, entry) in zip(questions, reordered, strict=True)
+            ]
+            candidates = pool_ids if union else lists[line]
+            records, report = _p17_line_report(judge_key, line, ranked, hits, candidates, prep)
+            runs[phase17.line_key(judge_key, line)] = records
+            lines[phase17.line_key(judge_key, line)] = report
+        del scores
+
+    compared = phase17.comparisons(runs, P17_JUDGE_ORDER)
+    cross = (phase17.STRONG_VS_LIGHT, phase17.DECISION_VS_STRONG)
+    return {
+        "metrics": {"label": P17_SET_LABELS[set_name], "n_questions": n, "lines": lines},
+        "outcome": {
+            "label": P17_SET_LABELS[set_name],
+            "n_questions": n,
+            "in_sample_weights": set_name == config.PHASE_17_HOTPOTQA,
+            "per_judge": {judge_key: compared[judge_key] for judge_key in P17_JUDGE_ORDER},
+            "hop_label": {
+                judge_key: phase17.hop_label(compared[judge_key][phase17.PRIMARY])
+                for judge_key in P17_JUDGE_ORDER
+            },
+            "cross_judge": {key: compared[key] for key in cross},
+            "full_support_2048": {
+                key: {
+                    "supported": phase10.supported(records),
+                    "n_questions": n,
+                    "descriptive": key.endswith(f":{config.PHASE_17_UNION}"),
+                }
+                for key, records in runs.items()
+            },
+            "replayed_lines": len(runs),
+        },
+    }
+
+
+def cmd_p17_outcome(
+    target_dir: Path = config.PHASE_17_DIR,
+    *,
+    phase9_dir: Path = config.PHASE_9_DIR,
+    phase15_dir: Path = config.PHASE_15_DIR,
+    phase16_dir: Path = config.PHASE_16_DIR,
+    is_committed: Callable[[Path], bool] = _p10_fit_is_committed,
+) -> Path:
+    """S5 (D1, D5, D6): the reordered lists, the 17 comparisons per set and the metrics, once.
+
+    Refuses, with nothing written, unless `integrity.json`, `pool.json` and the three
+    `scoring-<judge>.json` are committed unmodified, every set's block is present, each
+    scores file equals its manifest record and follows the pool's qids and unit ids, and the
+    four systems, replayed from the pool without a judge, give `integrity.json`'s Full
+    Support @2,048 (the pools hold the lists that passed D3). Every list (4 systems and 3
+    judges x 5 lines, 19 per set) goes through `_p10_replay_records`; J(S) must be a
+    permutation of S and D6 must equal the harness's at k <= 20. All of it is computed
+    before the first file: then 45 `reordered-*` files (write-once), `metrics.json` and
+    `outcome.json`. `outcome.json` has no gate (`terminal_state: null`); no metric is printed.
+    """
+    target_dir = Path(target_dir)
+    outcome_path = target_dir / P17_OUTCOME_NAME
+    metrics_path = target_dir / P17_METRICS_NAME
+    reordered_paths = [
+        target_dir / phase17.reordered_name(judge_key, set_name, line)
+        for set_name in config.PHASE_17_SETS
+        for judge_key in P17_JUDGE_ORDER
+        for line in (*config.PHASE_17_SYSTEMS, config.PHASE_17_UNION)
+    ]
+    for path in (outcome_path, metrics_path, *reordered_paths):
+        if path.exists():
+            raise phase17.Phase17Error(f"{path} exists; the Phase 17 outcome is written once")
+    started = time.perf_counter()
+    chain = _p17_outcome_chain(target_dir, is_committed)
+    directories = {
+        config.PHASE_17_HOTPOTQA: Path(phase9_dir),
+        config.PHASE_17_MUSIQUE: Path(phase15_dir),
+        config.PHASE_17_MULTIHOP_RAG: Path(phase16_dir),
+    }
+    measured = {
+        set_name: _p17_measure_set(set_name, target_dir, chain, directories[set_name])
+        for set_name in config.PHASE_17_SETS
+    }
+
+    reordered_files: dict[str, dict[str, dict[str, Any]]] = {}
+    for set_name in config.PHASE_17_SETS:
+        pool_record = chain["pool"]["sets"][set_name]["pool_file"]
+        pool = phase17.read_pool(
+            target_dir, set_name, digest=pool_record["digest"], sha256=pool_record["sha256"]
+        )
+        lists = _p17_system_lists(pool)
+        reordered_files[set_name] = {}
+        for judge_key in P17_JUDGE_ORDER:
+            record = chain["manifests"][judge_key]["sets"][set_name]["scores_file"]
+            scores = _p17_judge_scores(target_dir, judge_key, set_name, record, pool)
+            for line, reordered in _p17_judged_lines(pool, lists, scores):
+                reordered_files[set_name][phase17.line_key(judge_key, line)] = (
+                    phase17.write_reordered(target_dir, judge_key, set_name, line, reordered)
+                )
+    print(f"[OK] {len(reordered_paths)} reordered files -> {target_dir}", flush=True)
+
+    common = {
+        "phase": 17,
+        "judges": config.PHASE_17_JUDGES,
+        "systems": dict(config.PHASE_17_SYSTEM_LABELS),
+        "code_commit": _git_commit(),
+        "created_at": datetime.now(UTC).isoformat(timespec="seconds"),
+    }
+    metrics = {
+        **common,
+        "ks": list(config.PHASE_17_KS),
+        "ndcg_k": config.PHASE_17_NDCG_K,
+        "budgets": list(config.PHASE_17_BUDGETS),
+        "depth": config.PHASE_17_DEPTH,
+        "union_note": (
+            "union lines are descriptive; their units metrics read the first 100 of the whole "
+            "pool, their ceiling the whole pool"
+        ),
+        "sets": {s: m["metrics"] for s, m in measured.items()},
+    }
+    write_text_atomic(metrics_path, json.dumps(metrics, indent=2, sort_keys=True))
+    print(f"[OK] metrics -> {metrics_path}", flush=True)
+
+    outcome = {
+        **common,
+        "primary_comparison": "J(P14) against J(P10-B), per judge",
+        "primary_metric": f"full_support@{config.PHASE_9_PRIMARY_BUDGET}_tokens",
+        "test": "exact two-sided McNemar (binomial on discordant questions, p = 1/2)",
+        "alpha": config.PHASE_9_ALPHA,
+        "labels": list(config.PHASE_17_LABELS),
+        "label_rule": (
+            "HOP_ADDS_UNDER_JUDGE wins > losses and p < 0.05; HOP_HURTS_UNDER_JUDGE losses > "
+            "wins and p < 0.05; HOP_NEUTRAL_UNDER_JUDGE otherwise; from the first comparison "
+            "of each judge only (D5)"
+        ),
+        "terminal_state": None,
+        "gate": None,
+        "sets": {s: m["outcome"] for s, m in measured.items()},
+        "provenance": {
+            "sha256": chain["sha256"],
+            "integrity_digest": chain["pool"]["integrity_digest"],
+            "scores_files": {
+                judge_key: {
+                    set_name: manifest["sets"][set_name]["scores_file"]
+                    for set_name in config.PHASE_17_SETS
+                }
+                for judge_key, manifest in chain["manifests"].items()
+            },
+            "reordered_files": reordered_files,
+            "metrics_file_sha256": phase17.sha256_file(metrics_path),
+        },
+        "seconds": time.perf_counter() - started,
+    }
+    write_text_atomic(outcome_path, json.dumps(outcome, indent=2, sort_keys=True))
+    print(f"[OK] outcome -> {outcome_path}; commit both JSONs with git add -f", flush=True)
+    return outcome_path
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="cer",
@@ -10849,6 +11237,10 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser(
         "p17-pool", help="Phase 17: D3 on the three sets, then the pools and the judges' pairs"
     )
+    subparsers.add_parser(
+        "p17-outcome",
+        help="Phase 17: reorder, the 17 comparisons per set and the metrics (write-once)",
+    )
     p17_score = subparsers.add_parser(
         "p17-score", help="Phase 17: a judge's logits for one set's pairs (sharded, write-once)"
     )
@@ -11107,6 +11499,11 @@ def main(argv: list[str] | None = None) -> int:
         cmd_p16_refit()
     elif args.command == "p17-pool":
         cmd_p17_pool()
+    elif args.command == "p17-outcome":
+        try:
+            cmd_p17_outcome()
+        except phase17.Phase17Error as error:
+            _die(str(error))
     elif args.command == "p17-score":
         if args.hourly_rate_usd is None and not args.truncation_only:
             _die("p17-score needs --hourly-rate-usd (except with --truncation-only)")
