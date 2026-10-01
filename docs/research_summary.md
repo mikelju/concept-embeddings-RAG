@@ -210,7 +210,7 @@ lowers every system on every set** (P10-B −35.84, −14.48, −16.81 pp), a ne
 bi-encoder decision model used zero-shot as an evidence judge, whose bfloat16 scores also reorder
 under batching. The union pool leaves about four questions in ten out of reach on MuSiQue and news
 (exploratory ceiling). Cost: 3.28 USD of attributable GPU (derived), 5.2325 USD by the account
-balance over a 6 h 56 min RTX 4090 session; the invoice is pending. A 25-page paper, every number
+balance over a 6 h 56 min RTX 4090 session, 5.257 USD as invoiced. A 25-page paper, every number
 generated from the artifacts, and a dated venue shortlist came out of the phase; the venue is the
 author's. Interpretation, untested: the hop's role under a judge is candidate generation, and the
 judge-ordered union pool is the natural reference for a successor project.

@@ -1,0 +1,5 @@
+# Measured artifacts are byte-exact records: no line-ending conversion on any checkout, so the
+# SHA-256 the manifests, results documents and the paper record stays the bytes the stage wrote
+# (found on 2026-10-01: a Windows checkout with core.autocrlf rewrote the committed Phase 17
+# JSONs with CRLF and their digests changed).
+data/** -text

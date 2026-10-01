@@ -1,7 +1,8 @@
 # Successor project: charter
 
 > Written 2026-09-30, after Phase 16 closed `TRANSFER_REGRESSION`, from the author's decisions of
-> that day. **Status: draft for the author.** Nothing here is a spec; the new repository's own
+> that day. **Status: approved by the author and merged on 2026-10-01 (PR 26); the operational reference
+> that starts from it is `successor_project_handover.md` (2026-10-01).** Nothing here is a spec; the new repository's own
 > Phase 0 and specs decide. This file stays in this repository as the hand-over record and is
 > copied into the new one as its starting brief.
 >
@@ -139,7 +140,7 @@ exist.
 | Expensive caches: FullWiki vectors and GLiNER records, MuSiQue and MultiHop-RAG vectors, BM25 and entity indexes | `data/phase9/`, `data/phase15/`, `data/phase16/` (about 12 GB) | read in place, read-only, each checked against its recorded digest; never moved or rewritten |
 | Stored rankings to depth 100, four systems | `data/phase15/`, `data/phase16/` `rankings-*.jsonl.gz`; HotpotQA dev lists in `data/phase10/`, `data/phase14/` | read-only inputs for the judge and for the game prototype |
 | Literature and surveys | `docs/refs/bibliografia.md`, `plans/corpora_survey_2026-09-30.md`, the segmentation survey in `phase_16/16.pre_spec_notes.md` | inputs to Phase 0 |
-| Plain-Spanish glossary | `docs/GLOSARIO.md` | copied and extended |
+| Plain-Spanish glossary | `docs/GLOSARIO.md` (git-ignored: author-local, copied by hand from the laptop) | copied and extended |
 
 **The reproduction gate for everything copied (proposal for the new Phase 0 or 1).** Before any
 new measurement, the copied code must reproduce these recorded figures exactly (measured here):

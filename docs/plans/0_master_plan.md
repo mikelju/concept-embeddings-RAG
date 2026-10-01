@@ -204,7 +204,7 @@ validation phases come before any new component:
   batching). P14 under J-strong reaches the union pool's level on HotpotQA (5,911 against 5,922),
   exceeds it on MuSiQue (871 against 809); the union leads on MultiHop-RAG (846 against 822).
   Cost: 3.28 USD attributable GPU (derived), 5.2325 USD by the account balance over a 6 h 56 min
-  session; the invoice is pending. The paper (25 pages, Tectonic 0.17.0, every number generated)
+  session; invoiced 5.257 USD (GPU 5.14, storage 0.117). The paper (25 pages, Tectonic 0.17.0, every number generated)
   and the dated venue shortlist exist; the venue and any submission are the author's. See
   [`phase_17/17.results.md`](phase_17/17.results.md).
 - Both validation phases extract entities with the pinned GLiNER on a rented RunPod GPU, which
