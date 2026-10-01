@@ -1330,9 +1330,9 @@ PHASE_17_JUDGES: Final[dict[str, dict[str, Any]]] = {
     # Deviation 17.1: CLM-8B, two projection heads (a `torch.save` checkpoint, checked by
     # SHA-256 before anything reads it) over a frozen Qwen3-8B served by vLLM. Apache 2.0.
     # `max_length` is the documented `--max-model-len 2048` / `clm-serve --max-tokens 2048`
-    # (Qwen3-8B's own `max_position_embeddings` is 40,960). `batch_size`, candidates per
-    # `rank` call, is a choice: 4 x the depth of 100, every unit of the largest possible pool,
-    # so each question's whole pool shares one softmax (the largest measured pool is 276).
+    # (Qwen3-8B's own `max_position_embeddings` is 40,960). `batch_size` is the texts per
+    # embedding request (plan S3): the stage embeds each text once and takes no softmax, so the
+    # S1-bis "candidates per `rank` call" has no role.
     PHASE_17_DECISION: {
         "label": "J-decision",
         "kind": PHASE_17_BI_ENCODER,
@@ -1371,7 +1371,7 @@ PHASE_17_JUDGES: Final[dict[str, dict[str, Any]]] = {
         },
         "max_length": 2048,
         "dtype": "bfloat16",
-        "batch_size": 400,
+        "batch_size": 32,  # texts per embedding request (plan S3)
     },
 }
 # Author decision 1: no TF32 matmuls for the float32 cross-encoders.

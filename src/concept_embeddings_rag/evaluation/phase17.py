@@ -87,6 +87,8 @@ def shard_meta_name(index: int) -> str:
 
 
 SHARD_RUNS_NAME = "runs.json"
+# J-decision (deviation 17.1): the offline embedding passes of a (judge, set) run.
+DECISION_OFFLINE_NAME = "offline.json"
 
 
 def reordered_name(judge: str, set_name: str, line: str) -> str:

@@ -141,9 +141,8 @@ def test_the_decision_judge_pins_its_heads_and_every_encoder_shard():
     assert pin["weights_file"] == "CLM_v0.1-8B.pt"
     assert pin["weights_sha256"].startswith("b2b4a8c9")
     assert pin["weights_bytes"] == 75_557_149
-    assert (pin["max_length"], pin["batch_size"]) == (2048, 400)
-    # Every pool fits one `rank` call: four systems' top-100 at most.
-    assert pin["batch_size"] >= len(config.PHASE_17_SYSTEMS) * config.PHASE_17_DEPTH
+    assert (pin["max_length"], pin["batch_size"]) == (2048, 32)
+    # Texts per embedding request (plan S3), the `Embedder`'s own default.
     encoder = pin["encoder"]
     assert encoder["name"] == "Qwen/Qwen3-8B"
     assert len(encoder["revision"]) == 40 and encoder["revision"].startswith("b968826d")

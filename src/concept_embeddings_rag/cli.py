@@ -170,8 +170,8 @@ from concept_embeddings_rag.embeddings.cache import (
     resolved_revision,
     unit_set_hash,
 )
-from concept_embeddings_rag.evaluation import fullwiki as phase9
 from concept_embeddings_rag.evaluation import (
+    decision_judge,
     judge,
     phase10,
     phase11,
@@ -184,6 +184,7 @@ from concept_embeddings_rag.evaluation import (
     scale_sensitivity,
     strong_dense,
 )
+from concept_embeddings_rag.evaluation import fullwiki as phase9
 from concept_embeddings_rag.evaluation.budget import TokenCounter, fill_context
 from concept_embeddings_rag.evaluation.cheap_extraction import (
     DEV_FILENAME,
@@ -9776,8 +9777,14 @@ def cmd_p17_score(
     target_dir: Path = config.PHASE_17_DIR,
     shard_questions: int = config.PHASE_17_SHARD_QUESTIONS,
     is_committed: Callable[[Path], bool] = _p10_fit_is_committed,
+    emb_url: str = decision_judge.DEFAULT_EMB_URL,
+    emb_model: str = decision_judge.DEFAULT_EMB_MODEL,
+    encoder_dir: Path | None = None,
+    vllm_command: str | None = None,
+    pooler: str | None = None,
+    truncation_only: bool = False,
 ) -> Path:
-    """S3 (D2): a cross-encoder's logits for every pair of one set, sharded and write-once.
+    """S3 (D2): a judge's logits for every pair of one set, sharded and write-once.
 
     Refuses unless `integrity.json` and `pool.json` are committed unmodified with D3 passed,
     the set's pairs file is the recorded one, and the served snapshot is the pin (`judge.load`).
@@ -9786,16 +9793,21 @@ def cmd_p17_score(
     `scores-<judge>-<set>.jsonl.gz` (refusing an existing one) and adds the set's block to
     `scoring-<judge>.json`. No metric is computed here. `--smoke N` scores the first N
     questions into the smoke directory and is never a record.
+
+    `--judge decision` (deviation 17.1) is the bi-encoder path: the pinned CLM-8B heads over
+    the vLLM-served Qwen3-8B (`--emb-url`, `--emb-model`), every distinct unit embedded once,
+    the logit as the score (`evaluation/decision_judge.py`); same shards, same files, same
+    manifest. `--truncation-only` counts, with the encoder's tokenizer alone (no server, no
+    model), the texts the 2,048-token limit cuts, and writes `truncation-decision-<set>.json`.
     """
     target_dir = Path(target_dir)
-    if judge_key == config.PHASE_17_DECISION:
-        raise phase17.Phase17Error(
-            "J-decision is not wired into p17-score yet: evaluation/decision_judge.py comes "
-            "after the cross-encoder path"
-        )
-    if judge_key not in (config.PHASE_17_LIGHT, config.PHASE_17_STRONG):
-        raise phase17.Phase17Error(f"unknown judge {judge_key!r}")
-    judge.cross_encoder_pin(judge_key)
+    decision = judge_key == config.PHASE_17_DECISION
+    if not decision:
+        if judge_key not in (config.PHASE_17_LIGHT, config.PHASE_17_STRONG):
+            raise phase17.Phase17Error(f"unknown judge {judge_key!r}")
+        judge.cross_encoder_pin(judge_key)
+    if truncation_only and not decision:
+        raise phase17.Phase17Error("--truncation-only is J-decision's: --judge decision")
     if set_name not in config.PHASE_17_SETS:
         raise phase17.Phase17Error(f"unknown set {set_name!r}")
     if not math.isfinite(hourly_rate_usd) or hourly_rate_usd < 0:
@@ -9806,6 +9818,15 @@ def cmd_p17_score(
         raise phase17.Phase17Error("--tag is lower-case letters, digits and hyphens")
     if smoke is not None and tag is not None:
         raise phase17.Phase17Error("--smoke and --tag do not combine")
+    if truncation_only:
+        if smoke is not None or tag is not None:
+            raise phase17.Phase17Error("--truncation-only takes neither --smoke nor --tag")
+        return _p17_truncation_only(set_name, target_dir)
+    if decision and smoke is None and (not vllm_command or not pooler):
+        raise phase17.Phase17Error(
+            "a J-decision record run needs --vllm-command (the serve command line, recorded "
+            "verbatim) and --pooler (read from vLLM's startup log)"
+        )
 
     block_key = f"{set_name}-{tag}" if tag else set_name
     manifest_path = target_dir / phase17.scoring_manifest_name(judge_key)
@@ -9839,17 +9860,28 @@ def cmd_p17_score(
         pairs = phase17.read_jsonl(pairs_path)
         pairs_sha256 = phase17.sha256_file(pairs_path)
 
+    if decision:
+        return _p17_score_decision(
+            pairs,
+            set_name,
+            block_key=block_key,
+            tag=tag,
+            scores_path=scores_path,
+            manifest_path=manifest_path,
+            target_dir=target_dir,
+            hourly_rate_usd=hourly_rate_usd,
+            smoke=smoke,
+            shard_questions=shard_questions,
+            pairs_sha256=pairs_sha256,
+            emb_url=emb_url,
+            emb_model=emb_model,
+            encoder_dir=encoder_dir,
+            vllm_command=vllm_command,
+            pooler=pooler,
+        )
     loaded = judge.load(judge_key)
     identity = judge.identity(loaded)
-    host = local_extraction.hardware_block(device="cpu")
-    try:
-        import torch
-
-        if torch.cuda.is_available():
-            host = local_extraction.hardware_block(device="cuda")
-            torch.cuda.reset_peak_memory_stats()
-    except ImportError:
-        pass
+    host = _p17_host()
 
     if smoke is not None:
         return _p17_smoke(
@@ -9920,15 +9952,10 @@ def cmd_p17_score(
         "code_commit": _git_commit(),
         "finished_at": datetime.now(UTC).isoformat(timespec="seconds"),
     }
-    if manifest_path.exists():
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        for field in ("revision_served", "weights_sha256"):
-            if manifest["judge"][field] != identity[field]:
-                raise phase17.Phase17Error(
-                    f"{manifest_path.name} was written by another judge ({field})"
-                )
-    else:
-        manifest = {
+    _p17_merge_manifest(
+        manifest_path,
+        identity,
+        {
             "phase": 17,
             "judge": identity,
             "kind": identity["kind"],
@@ -9939,9 +9966,10 @@ def cmd_p17_score(
             "hourly_rate_usd": hourly_rate_usd,
             "created_at": block["finished_at"],
             "sets": {},
-        }
-    manifest["sets"][block_key] = block
-    write_text_atomic(manifest_path, json.dumps(manifest, indent=2, sort_keys=True))
+        },
+        block_key,
+        block,
+    )
     print(f"[OK] {block_key}: {n_pairs} pairs -> {scores_path}; {manifest_path.name} updated")
     return scores_path
 
@@ -9999,6 +10027,446 @@ def _p17_smoke(
     }
     write_text_atomic(manifest_path, json.dumps(manifest, indent=2, sort_keys=True))
     print(f"[OK] smoke: {len(rows)} questions -> {scores_path}", flush=True)
+    return scores_path
+
+
+def _p17_host() -> dict[str, Any]:
+    """The host block of a scoring manifest; CUDA's peak counter is reset when there is one."""
+    host = local_extraction.hardware_block(device="cpu")
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            host = local_extraction.hardware_block(device="cuda")
+            torch.cuda.reset_peak_memory_stats()
+    except ImportError:
+        pass
+    return host
+
+
+def _p17_merge_manifest(
+    manifest_path: Path,
+    identity: Mapping[str, Any],
+    new_manifest: dict[str, Any],
+    block_key: str,
+    block: Mapping[str, Any],
+) -> None:
+    """The set's block added to `scoring-<judge>.json`, created from `new_manifest` when absent;
+    refused when the file was written by another judge."""
+    if manifest_path.exists():
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        for field in ("revision_served", "weights_sha256"):
+            if manifest["judge"][field] != identity[field]:
+                raise phase17.Phase17Error(
+                    f"{manifest_path.name} was written by another judge ({field})"
+                )
+    else:
+        manifest = new_manifest
+    manifest["sets"][block_key] = block
+    write_text_atomic(manifest_path, json.dumps(manifest, indent=2, sort_keys=True))
+
+
+def _p17_truncation_only(set_name: str, target_dir: Path) -> Path:
+    """J-decision's truncation count for one set with Qwen3-8B's tokenizer alone (no server, no
+    model): the distinct units and the states the 2,048-token limit would cut. Streams the
+    pairs file, which is checked against `pool.json`'s SHA-256 when that exists."""
+    out_path = target_dir / decision_judge.truncation_name(set_name)
+    if out_path.exists():
+        raise phase17.Phase17Error(f"{out_path} exists; a Phase 17 file is written once")
+    pairs_path = target_dir / phase17.pairs_name(set_name)
+    if not pairs_path.exists():
+        raise phase17.Phase17Error(f"{pairs_path} is missing: run 'cer p17-pool' first")
+    pairs_sha256 = phase17.sha256_file(pairs_path)
+    pool_path = target_dir / phase17.POOL_MANIFEST
+    recorded = None
+    if pool_path.exists():
+        recorded = json.loads(pool_path.read_text(encoding="utf-8"))["sets"][set_name][
+            "pairs_file"
+        ]["sha256"]
+        if recorded != pairs_sha256:
+            raise phase17.Phase17Error(f"{pairs_path.name} does not match pool.json's SHA-256")
+    pin = decision_judge.pin()
+    tokenizer = decision_judge.load_tokenizer(pin)
+
+    def progress(units: int, states: int) -> None:
+        print(f"[INFO] {set_name}: {units} distinct units, {states} states tokenized", flush=True)
+
+    scan = decision_judge.scan_lengths(
+        decision_judge.stream_pairs(pairs_path), tokenizer, progress=progress
+    )
+    summary = decision_judge.truncation_summary(scan, int(pin["max_length"]))
+    body = {
+        "phase": 17,
+        "judge": config.PHASE_17_DECISION,
+        "set": set_name,
+        "note": "tokenizer only, no model and no server; texts counted untruncated with "
+        "special tokens; truncated means longer than max_length",
+        "tokenizer": {
+            "name": pin["encoder"]["name"],
+            "revision": pin["encoder"]["revision"],
+            "class": type(tokenizer).__name__,
+            "library_versions": {
+                name: decision_judge.library_version(name)
+                for name in ("transformers", "tokenizers")
+            },
+        },
+        "pairs_sha256": pairs_sha256,
+        "pairs_sha256_recorded_in_pool_json": recorded is not None,
+        "questions": len(scan.states),
+        **summary,
+        "tokenize_seconds": scan.seconds,
+        "code_commit": _git_commit(),
+        "created_at": datetime.now(UTC).isoformat(timespec="seconds"),
+    }
+    write_text_atomic(out_path, json.dumps(body, indent=2, sort_keys=True))
+    texts = summary["units"]["texts"] + summary["states"]["texts"]
+    print(
+        f"[OK] {set_name}: {summary['count']} of {texts} texts over {summary['max_length']} "
+        f"tokens (longest {summary['longest']}) -> {out_path}"
+    )
+    return out_path
+
+
+def _p17_decision_units(
+    judge_: Any, rows: Sequence[Mapping[str, Any]], scan: Any
+) -> tuple[np.ndarray, dict[str, int], dict[str, Any]]:
+    """One offline pass: the distinct units of `rows`, sorted by unit id, each text verbatim,
+    embedded and projected by the action head. Returns the vectors, the unit id -> row map and
+    the pass's record (units, seconds, tokens vLLM reported against the tokenizer's count)."""
+    texts: dict[str, str] = {}
+    for row in rows:
+        for unit_id, text in zip(row["unit_ids"], row["texts"], strict=True):
+            if texts.setdefault(unit_id, text) != text:
+                raise phase17.Phase17Error(f"unit {unit_id} appears with two different texts")
+    ids = sorted(texts)
+    started = time.perf_counter()
+    every = decision_judge.EMBED_CHUNK * 40
+
+    def progress(done: int) -> None:
+        if done % every < decision_judge.EMBED_CHUNK or done == len(ids):
+            rate = done / max(time.perf_counter() - started, 1e-9)
+            print(f"[INFO] offline: {done}/{len(ids)} units ({rate:.1f} units/s)", flush=True)
+
+    vectors, reported = judge_.embed_units([texts[i] for i in ids], progress)
+    seconds = time.perf_counter() - started
+    limit = int(judge_.pin["max_length"])
+    expected = sum(min(scan.units[i], limit) for i in ids)
+    record = {
+        "units": len(ids),
+        "seconds": seconds,
+        "units_per_second": len(ids) / seconds if seconds > 0 else None,
+        "tokens_reported": reported,
+        "tokens_expected": expected,
+        "tokens_match": (reported == expected) if reported else None,
+    }
+    return vectors, {unit_id: k for k, unit_id in enumerate(ids)}, record
+
+
+def _p17_decision_shards(
+    judge_: Any,
+    rows: Sequence[Mapping[str, Any]],
+    shard_dir: Path,
+    scan: Any,
+    *,
+    pairs_sha256: str,
+    shard_questions: int,
+) -> tuple[int, int]:
+    """J-decision's shards: complete ones skipped; for the others the distinct units of their
+    questions are embedded once (the offline pass), then each shard embeds its questions and
+    scores them against the held vectors, written once. Returns (scored, skipped)."""
+    limit = int(judge_.pin["max_length"])
+    bounds = phase17.shard_bounds(len(rows), shard_questions)
+    missing: list[int] = []
+    for index in range(len(bounds)):
+        path = shard_dir / phase17.shard_name(index)
+        if not path.exists():
+            missing.append(index)
+            continue
+        meta = json.loads((shard_dir / phase17.shard_meta_name(index)).read_text(encoding="utf-8"))
+        if (
+            meta["pairs_sha256"] != pairs_sha256
+            or meta["weights_sha256"] != judge_.weights_sha256
+            or meta.get("encoder_revision") != judge_.encoder["revision"]
+        ):
+            raise phase17.Phase17Error(f"{path.name} was scored by another pairs file or judge")
+    if missing:
+        wanted = [r for i in missing for r in rows[bounds[i][0] : bounds[i][1]]]
+        vectors, position, record = _p17_decision_units(judge_, wanted, scan)
+        offline_path = shard_dir / phase17.DECISION_OFFLINE_NAME
+        passes: list[dict[str, Any]] = []
+        if offline_path.exists():
+            passes = json.loads(offline_path.read_text(encoding="utf-8"))["passes"]
+        write_text_atomic(
+            offline_path, json.dumps({"passes": [*passes, record]}, indent=2, sort_keys=True)
+        )
+    for index in missing:
+        start, stop = bounds[index]
+        chunk = rows[start:stop]
+        started = time.perf_counter()
+        per_question, reported = judge_.score_rows(chunk, vectors, position)
+        seconds = time.perf_counter() - started
+        lengths = scan.states[start:stop]
+        meta = {
+            "index": index,
+            "questions": len(chunk),
+            "pairs": sum(len(r["unit_ids"]) for r in chunk),
+            "truncated": sum(1 for n in lengths if n > limit),
+            "longest": max(lengths, default=0),
+            "seconds": seconds,
+            "state_tokens_reported": reported,
+            "state_tokens_expected": sum(min(n, limit) for n in lengths),
+            "pairs_sha256": pairs_sha256,
+            "weights_sha256": judge_.weights_sha256,
+            "encoder_revision": judge_.encoder["revision"],
+        }
+        # Meta first, shard last: the shard file is the completeness mark.
+        write_text_atomic(
+            shard_dir / phase17.shard_meta_name(index), json.dumps(meta, indent=2, sort_keys=True)
+        )
+        phase17.write_jsonl_once(
+            shard_dir / phase17.shard_name(index),
+            (
+                {
+                    "qid": r["qid"],
+                    "unit_ids": list(r["unit_ids"]),
+                    "scores": [float(x) for x in scores],
+                }
+                for r, scores in zip(chunk, per_question, strict=True)
+            ),
+        )
+        print(
+            f"[INFO] shard {index + 1}/{len(bounds)}: {meta['pairs']} pairs in {seconds:.1f} s",
+            flush=True,
+        )
+    return len(missing), len(bounds) - len(missing)
+
+
+def _p17_decision_determinism(
+    judge_: Any,
+    rows: Sequence[Mapping[str, Any]],
+    scored: Sequence[Mapping[str, Any]],
+    scan: Any,
+) -> dict[str, Any]:
+    """The first questions' states and all their units re-embedded one text per request and
+    re-scored against the stored logits: the largest absolute difference and how many
+    questions' order changes; decides nothing. Batch composition below the request is vLLM's."""
+    n = min(config.PHASE_17_DETERMINISM_QUESTIONS, len(rows))
+    sub = rows[:n]
+    with judge_.request_size(1):
+        vectors, position, _record = _p17_decision_units(judge_, sub, scan)
+        again, _tokens = judge_.score_rows(sub, vectors, position)
+    largest = 0.0
+    changed = 0
+    for row, fresh in zip(scored[:n], again, strict=True):
+        first = np.asarray(row["scores"], dtype=np.float32)
+        if first.size:
+            largest = max(largest, float(np.max(np.abs(first - fresh))))
+        if _p17_order([float(x) for x in first]) != _p17_order([float(x) for x in fresh]):
+            changed += 1
+    return {
+        "questions": n,
+        "request_size": 1,
+        "max_abs_difference": largest,
+        "questions_order_changed": changed,
+        "order": "by score, descending; ties by the pool's own position",
+        "note": "vLLM schedules sequences into GPU batches itself; batch composition below "
+        "the request is outside the stage's control",
+    }
+
+
+def _p17_score_decision(
+    pairs: Sequence[Mapping[str, Any]],
+    set_name: str,
+    *,
+    block_key: str,
+    tag: str | None,
+    scores_path: Path,
+    manifest_path: Path,
+    target_dir: Path,
+    hourly_rate_usd: float,
+    smoke: int | None,
+    shard_questions: int,
+    pairs_sha256: str,
+    emb_url: str,
+    emb_model: str,
+    encoder_dir: Path | None,
+    vllm_command: str | None,
+    pooler: str | None,
+) -> Path:
+    """S3, deviation 17.1: J-decision over one set (or, with `smoke`, its first questions)."""
+    judge_ = decision_judge.load(emb_url=emb_url, emb_model=emb_model, encoder_dir=encoder_dir)
+    identity = judge_.identity()
+    tokenizer = decision_judge.load_tokenizer(judge_.pin)
+    host = _p17_host()
+    rows = list(pairs[:smoke]) if smoke is not None else list(pairs)
+    scan = decision_judge.scan_lengths(rows, tokenizer)
+    limit = int(judge_.pin["max_length"])
+    truncations = decision_judge.truncation_summary(scan, limit)
+    print(
+        f"[INFO] tokenized {len(scan.units)} units and {len(scan.states)} states in "
+        f"{scan.seconds:.1f} s: {truncations['count']} over {limit} tokens",
+        flush=True,
+    )
+    serving_block = {
+        "url": emb_url,
+        "model": emb_model,
+        "vllm_command": vllm_command,
+        "pooler": pooler,
+        "request_size": int(judge_.pin["batch_size"]),
+        "max_tokens": limit,
+        "cache_size": 0,
+    }
+
+    if smoke is not None:
+        smoke_dir = target_dir / config.PHASE_17_SMOKE_DIR.name
+        smoke_dir.mkdir(parents=True, exist_ok=True)
+        smoke_scores = smoke_dir / phase17.scores_name(config.PHASE_17_DECISION, set_name)
+        smoke_scores.unlink(missing_ok=True)
+        started = time.perf_counter()
+        vectors, position, offline = _p17_decision_units(judge_, rows, scan)
+        out: list[dict[str, Any]] = []
+        for start, stop in phase17.shard_bounds(len(rows), shard_questions):
+            chunk = rows[start:stop]
+            per_question, _tokens = judge_.score_rows(chunk, vectors, position)
+            out.extend(
+                {"qid": r["qid"], "unit_ids": list(r["unit_ids"]), "scores": [float(x) for x in s]}
+                for r, s in zip(chunk, per_question, strict=True)
+            )
+        seconds = time.perf_counter() - started
+        file_record = phase17.write_jsonl_once(smoke_scores, out)
+        manifest = {
+            "phase": 17,
+            "smoke": True,
+            "note": "a code check on the first questions; never a Phase 17 record",
+            "judge": identity,
+            "set": set_name,
+            "questions": len(rows),
+            "pairs": sum(len(r["unit_ids"]) for r in rows),
+            "truncations": truncations,
+            "offline": offline,
+            "serving": serving_block,
+            "wall_seconds": seconds,
+            "usd": seconds * hourly_rate_usd / 3600.0,
+            "pairs_sha256_read": pairs_sha256,
+            "scores_file": file_record,
+            "host": host,
+            "code_commit": _git_commit(),
+            "created_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        }
+        write_text_atomic(
+            smoke_dir / f"scoring-{config.PHASE_17_DECISION}-{set_name}.json",
+            json.dumps(manifest, indent=2, sort_keys=True),
+        )
+        print(f"[OK] smoke: {len(rows)} questions -> {smoke_scores}", flush=True)
+        return smoke_scores
+
+    shard_dir = target_dir / config.PHASE_17_SHARDS_DIR.name
+    shard_dir = shard_dir / phase17.shard_directory_name(
+        config.PHASE_17_DECISION, set_name, tag=tag
+    )
+    shard_dir.mkdir(parents=True, exist_ok=True)
+    runs_path = shard_dir / phase17.SHARD_RUNS_NAME
+    starts = 1
+    if runs_path.exists():
+        starts = int(json.loads(runs_path.read_text(encoding="utf-8"))["starts"]) + 1
+    write_text_atomic(runs_path, json.dumps({"starts": starts}))
+    scored, skipped = _p17_decision_shards(
+        judge_, rows, shard_dir, scan, pairs_sha256=pairs_sha256, shard_questions=shard_questions
+    )
+    print(f"[INFO] {scored} shards scored, {skipped} found complete", flush=True)
+
+    bounds = phase17.shard_bounds(len(rows), shard_questions)
+    metas = [
+        json.loads((shard_dir / phase17.shard_meta_name(i)).read_text(encoding="utf-8"))
+        for i in range(len(bounds))
+    ]
+    passes = json.loads((shard_dir / phase17.DECISION_OFFLINE_NAME).read_text(encoding="utf-8"))[
+        "passes"
+    ]
+    file_record = phase17.write_jsonl_once(
+        scores_path, _p17_shard_rows(shard_dir, rows, shard_questions)
+    )
+    scored_rows = phase17.read_jsonl(
+        scores_path, digest=file_record["digest"], sha256=file_record["sha256"]
+    )
+    determinism = _p17_decision_determinism(judge_, rows, scored_rows, scan)
+    del scored_rows
+
+    n_pairs = sum(m["pairs"] for m in metas)
+    offline_seconds = sum(float(p["seconds"]) for p in passes)
+    offline_units = sum(int(p["units"]) for p in passes)
+    query_seconds = sum(float(m["seconds"]) for m in metas)
+    wall = offline_seconds + query_seconds
+    block = {
+        "set": set_name,
+        "tag": tag,
+        "label": P17_SET_LABELS[set_name],
+        "questions": len(rows),
+        "pairs": n_pairs,
+        "truncations": truncations,
+        "shards": {"count": len(bounds), "questions": shard_questions, "scored_now": scored},
+        "restarts": starts - 1,
+        "offline": {
+            "passes": len(passes),
+            "distinct_units": len(scan.units),
+            "units_embedded": offline_units,
+            "seconds": offline_seconds,
+            "units_per_second": offline_units / offline_seconds if offline_seconds > 0 else None,
+            "tokens_reported": sum(int(p["tokens_reported"]) for p in passes),
+            "tokens_expected": sum(int(p["tokens_expected"]) for p in passes),
+        },
+        "query": {
+            "seconds": query_seconds,
+            "questions": len(rows),
+            "questions_per_second": len(rows) / query_seconds if query_seconds > 0 else None,
+            "state_tokens_reported": sum(int(m["state_tokens_reported"]) for m in metas),
+            "state_tokens_expected": sum(int(m["state_tokens_expected"]) for m in metas),
+            "note": "the question's embedding plus the logits against the held unit vectors",
+        },
+        "tokenize_seconds": scan.seconds,
+        "wall_seconds": wall,
+        "pairs_per_second": n_pairs / wall if wall > 0 else None,
+        "usd": wall * hourly_rate_usd / 3600.0,
+        "peak_rss_mb": _p14_peak_memory_mb(),
+        "peak_vram_mb": _p17_cuda_peak_mb(),
+        "determinism": determinism,
+        "pairs_sha256_read": pairs_sha256,
+        "scores_file": file_record,
+        "hourly_rate_usd": hourly_rate_usd,
+        "code_commit": _git_commit(),
+        "finished_at": datetime.now(UTC).isoformat(timespec="seconds"),
+    }
+    _p17_merge_manifest(
+        manifest_path,
+        identity,
+        {
+            "phase": 17,
+            "judge": identity,
+            "kind": identity["kind"],
+            "score": "logit",
+            "scale": identity["heads"]["scale"],
+            "encoder": identity["encoder"],
+            "heads": {
+                "file": identity["weights_file"],
+                "sha256": identity["weights_sha256"],
+                "bytes": identity["weights_bytes"],
+                "revision": identity["revision_served"],
+                "cfg": identity["heads"]["cfg"],
+                "parameters": identity["heads"]["parameters"],
+            },
+            "serving": serving_block,
+            "library_versions": identity["library_versions"],
+            "host": host,
+            "allocation": _p17_allocation(),
+            "code_commit": block["code_commit"],
+            "hourly_rate_usd": hourly_rate_usd,
+            "created_at": block["finished_at"],
+            "sets": {},
+        },
+        block_key,
+        block,
+    )
+    print(f"[OK] {block_key}: {n_pairs} pairs -> {scores_path}; {manifest_path.name} updated")
     return scores_path
 
 
@@ -10390,9 +10858,51 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
     )
     p17_score.add_argument("--set", choices=tuple(config.PHASE_17_SETS), required=True)
-    p17_score.add_argument("--hourly-rate-usd", type=float, required=True, dest="hourly_rate_usd")
+    p17_score.add_argument(
+        "--hourly-rate-usd",
+        type=float,
+        default=None,
+        dest="hourly_rate_usd",
+        help="the pod's rate; required except with --truncation-only",
+    )
     p17_score.add_argument("--smoke", type=int, default=None, help="score the first N questions")
     p17_score.add_argument("--tag", default=None, help="a rerun, on the author's word only")
+    p17_score.add_argument(
+        "--emb-url",
+        default=decision_judge.DEFAULT_EMB_URL,
+        dest="emb_url",
+        help="J-decision: vLLM's embeddings endpoint",
+    )
+    p17_score.add_argument(
+        "--emb-model",
+        default=decision_judge.DEFAULT_EMB_MODEL,
+        dest="emb_model",
+        help="J-decision: the model name vLLM serves (--served-model-name)",
+    )
+    p17_score.add_argument(
+        "--encoder-dir",
+        type=Path,
+        default=None,
+        dest="encoder_dir",
+        help="J-decision: the Qwen3-8B snapshot directory; default the Hub cache at the pin",
+    )
+    p17_score.add_argument(
+        "--vllm-command",
+        default=None,
+        dest="vllm_command",
+        help="J-decision: the vllm serve command line, recorded verbatim, not executed",
+    )
+    p17_score.add_argument(
+        "--pooler",
+        default=None,
+        help="J-decision: the pooler vLLM's startup log reports, recorded",
+    )
+    p17_score.add_argument(
+        "--truncation-only",
+        action="store_true",
+        dest="truncation_only",
+        help="J-decision: count the texts over 2,048 tokens with the tokenizer alone",
+    )
     p16_build.add_argument("--stage", choices=P15_BUILD_STAGES, required=True)
     p16_build.add_argument(
         "--hourly-rate-usd",
@@ -10598,13 +11108,21 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == "p17-pool":
         cmd_p17_pool()
     elif args.command == "p17-score":
+        if args.hourly_rate_usd is None and not args.truncation_only:
+            _die("p17-score needs --hourly-rate-usd (except with --truncation-only)")
         try:
             cmd_p17_score(
                 args.judge,
                 args.set,
-                hourly_rate_usd=args.hourly_rate_usd,
+                hourly_rate_usd=args.hourly_rate_usd or 0.0,
                 smoke=args.smoke,
                 tag=args.tag,
+                emb_url=args.emb_url,
+                emb_model=args.emb_model,
+                encoder_dir=args.encoder_dir,
+                vllm_command=args.vllm_command,
+                pooler=args.pooler,
+                truncation_only=args.truncation_only,
             )
         except (phase17.Phase17Error, judge.JudgeError) as error:
             _die(str(error))
