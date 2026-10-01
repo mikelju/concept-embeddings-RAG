@@ -76,7 +76,10 @@ J-strong on HotpotQA. J-decision is not: its encoder runs in bfloat16 (derived f
 plan's deviation for the third judge records) and the serving engine batches sequences itself, so the same re-scoring changed the order of
 \detOrderChangedDecisionHotpot{} of \detQuestionsDecisionHotpot{} questions, with a largest difference of \detMaxDiffDecisionHotpot{} in the
 score. Its figures are therefore one realization of the model; we did not measure how much a
-second pass would move \FS, so the size of that effect is unknown.
+second pass would move \FS, so the size of that effect is unknown. The two J-decision labels
+that sit close to the threshold (neutral on HotpotQA, hurts on MultiHop-RAG) should be read
+with that in mind; its MuSiQue label and its large losses against every un-judged system are
+far from anything that noise of that size could produce.
 
 \begin{figure}[t]
 \centering

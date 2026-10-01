@@ -11,7 +11,8 @@ number exists; `17.0_judge_and_paper.md` (approved 2026-10-01) fixes how.
   descriptive and enters no comparison.
 - **D6**: gold recall and full support at k units, nDCG@10, and the judge ceiling; for
   k <= 20 they equal the Phase 9 harness's `fs_at_k` / `gpr_at_k` (checked).
-- **D5**: eleven paired comparisons per set over `phase15.paired`, and the label from
+- **D5**: seventeen paired comparisons per set (five per judge and two across judges,
+  deviation 17.1) over `phase15.paired`, and the label from
   J(P14) against J(P10-B) through `phase14.label`.
 
 Every file is written once, as gzip with `mtime = 0` and no embedded file name, so the same
@@ -294,7 +295,7 @@ def ceiling(
     }
 
 
-# --- D5: the eleven comparisons and the label ------------------------------------------------
+# --- D5: the seventeen comparisons and the label ---------------------------------------------
 
 PRIMARY = "j_p14_vs_j_p10b"
 STRONG_VS_LIGHT = "strong_vs_light_p10b"
