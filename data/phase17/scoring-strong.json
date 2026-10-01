@@ -1,0 +1,183 @@
+{
+  "allocation": {
+    "cgroup_cpu_max": null,
+    "cgroup_memory_max": null,
+    "cpu_affinity": 128
+  },
+  "code_commit": "58610ed65b3dee1aeda42bdb8174bf1c0f8c037b",
+  "created_at": "2026-10-01T09:01:37+00:00",
+  "host": {
+    "cpu_count": 128,
+    "device": "cuda",
+    "gpu": "NVIDIA GeForce RTX 4090",
+    "machine": "x86_64",
+    "platform": "Linux-6.8.0-139-generic-x86_64-with-glibc2.35",
+    "processor": "x86_64",
+    "python": "3.12.14",
+    "ram_bytes": 540844707840,
+    "release": "6.8.0-139-generic",
+    "system": "Linux",
+    "torch_threads": 64,
+    "torch_version": "2.13.0+cu126"
+  },
+  "hourly_rate_usd": 0.74,
+  "judge": {
+    "activation": "Identity",
+    "architecture": "XLMRobertaForSequenceClassification",
+    "batch_size": 32,
+    "dtype": [
+      "float32"
+    ],
+    "key": "strong",
+    "kind": "cross-encoder",
+    "label": "J-strong",
+    "library_versions": {
+      "huggingface-hub": "1.33.0",
+      "safetensors": "0.8.0",
+      "sentence-transformers": "6.0.1",
+      "tokenizers": "0.23.1",
+      "torch": "2.13.0+cu126",
+      "transformers": "5.16.1"
+    },
+    "matmul_precision": "highest",
+    "max_length": 8192,
+    "name": "BAAI/bge-reranker-v2-m3",
+    "parameters": 567755777,
+    "revision_requested": "953dc6f6f85a1b2dbfca4c34a2796e7dde08d41e",
+    "revision_served": "953dc6f6f85a1b2dbfca4c34a2796e7dde08d41e",
+    "trust_remote_code": false,
+    "weights_file": "model.safetensors",
+    "weights_sha256": "d9e3e081faff1eefb84019509b2f5558fd74c1a05a2c7db22f74174fcedb5286"
+  },
+  "kind": "cross-encoder",
+  "phase": 17,
+  "score": "logit",
+  "sets": {
+    "hotpotqa": {
+      "code_commit": "58610ed65b3dee1aeda42bdb8174bf1c0f8c037b",
+      "determinism": {
+        "batch_size": 1,
+        "max_abs_difference": 5.626678466796875e-05,
+        "order": "by score, descending; ties by the pool's own position",
+        "questions": 20,
+        "questions_order_changed": 0
+      },
+      "finished_at": "2026-10-01T10:24:00+00:00",
+      "hourly_rate_usd": 0.74,
+      "label": "HotpotQA dev",
+      "pairs": 1295224,
+      "pairs_per_second": 390.5462597251044,
+      "pairs_sha256_read": "a82185054cadb4ace32d757a7e55a9cf398a029242a115c8e4d206f54368dff3",
+      "peak_rss_mb": 4134.55859375,
+      "peak_vram_mb": 3909.1875,
+      "questions": 7405,
+      "restarts": 0,
+      "scores_file": {
+        "bytes": 25789768,
+        "digest": "d37040faa3f10174cdd9546e8d292e84ea28e01a2cbcf618c8bfbe57597557e4",
+        "file": "scores-strong-hotpotqa.jsonl.gz",
+        "rows": 7405,
+        "sha256": "62e892bfd9b3444bd26ea4b1cd534aaba4c85ae5a8514cb284a4bcd6c4da5f7b"
+      },
+      "set": "hotpotqa",
+      "shards": {
+        "count": 30,
+        "questions": 250,
+        "scored_now": 30
+      },
+      "tag": null,
+      "truncations": {
+        "count": 0,
+        "longest": 1228,
+        "max_length": 8192,
+        "share": 0.0
+      },
+      "usd": 0.6817130679379412,
+      "wall_seconds": 3316.4419521305244
+    },
+    "multihop-rag": {
+      "code_commit": "58610ed65b3dee1aeda42bdb8174bf1c0f8c037b",
+      "determinism": {
+        "batch_size": 1,
+        "max_abs_difference": 3.6716461181640625e-05,
+        "order": "by score, descending; ties by the pool's own position",
+        "questions": 20,
+        "questions_order_changed": 0
+      },
+      "finished_at": "2026-10-01T09:01:37+00:00",
+      "hourly_rate_usd": 0.74,
+      "label": "MultiHop-RAG answerable",
+      "pairs": 317776,
+      "pairs_per_second": 316.21180748528786,
+      "pairs_sha256_read": "939132e93e0da3a604caf9569bdd94d1e8e7584f32c9d6f7335dae62baf3db71",
+      "peak_rss_mb": 3587.98046875,
+      "peak_vram_mb": 4945.935546875,
+      "questions": 2255,
+      "restarts": 0,
+      "scores_file": {
+        "bytes": 5928536,
+        "digest": "609554e4a8056cf096dd0e3b1b2036a6cc332cb42f68f06c5feaec7b8adff50b",
+        "file": "scores-strong-multihop-rag.jsonl.gz",
+        "rows": 2255,
+        "sha256": "d5a7af5b2922543f98cc96aaaaa77e052922c83df6c23bbe634c2d32c3873cb0"
+      },
+      "set": "multihop-rag",
+      "shards": {
+        "count": 10,
+        "questions": 250,
+        "scored_now": 10
+      },
+      "tag": null,
+      "truncations": {
+        "count": 0,
+        "longest": 1930,
+        "max_length": 8192,
+        "share": 0.0
+      },
+      "usd": 0.2065723691398252,
+      "wall_seconds": 1004.9466606802307
+    },
+    "musique": {
+      "code_commit": "58610ed65b3dee1aeda42bdb8174bf1c0f8c037b",
+      "determinism": {
+        "batch_size": 1,
+        "max_abs_difference": 2.193450927734375e-05,
+        "order": "by score, descending; ties by the pool's own position",
+        "questions": 20,
+        "questions_order_changed": 0
+      },
+      "finished_at": "2026-10-01T09:25:37+00:00",
+      "hourly_rate_usd": 0.74,
+      "label": "MuSiQue validation",
+      "pairs": 400745,
+      "pairs_per_second": 305.89369080238447,
+      "pairs_sha256_read": "fef878aeba159afd159305804675a144d111459b22c8b186a523d0a4e79863a1",
+      "peak_rss_mb": 3645.1875,
+      "peak_vram_mb": 3119.49462890625,
+      "questions": 2417,
+      "restarts": 0,
+      "scores_file": {
+        "bytes": 6899293,
+        "digest": "7352c635fd35683e627e97e6e295ca4e87b3541017437cfcb90ae833a407159c",
+        "file": "scores-strong-musique.jsonl.gz",
+        "rows": 2417,
+        "sha256": "a9e744f973a29445ca7a10e495d4e60851cf82cffece7cd6cca5e79badaef0f9"
+      },
+      "set": "musique",
+      "shards": {
+        "count": 10,
+        "questions": 250,
+        "scored_now": 10
+      },
+      "tag": null,
+      "truncations": {
+        "count": 0,
+        "longest": 677,
+        "max_length": 8192,
+        "share": 0.0
+      },
+      "usd": 0.2692940834936272,
+      "wall_seconds": 1310.0793251041323
+    }
+  }
+}
