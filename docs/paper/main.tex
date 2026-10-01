@@ -47,9 +47,7 @@ Gains, a Regression on News, and Zero-Shot Judges}
 \ifanonymous
   \author{Anonymous author(s)}
 \else
-  % TODO author: the author's name goes here (the repository's git user is mikelju; the
-  % placeholder below is deliberately not a name).
-  \author{Author name to be confirmed\\Independent researcher}
+  \author{Mikel Ugarte-Gil\\Independent researcher}
 \fi
 \date{}
 
@@ -68,8 +66,11 @@ refitted, on MuSiQue (\deltaPhFifteenPFourteen\pp{} for the best variant); on th
 MultiHop-RAG it loses (\deltaPhSixteenPFourteen\pp). We then apply three zero-shot
 judges, two cross-encoders and one open bi-encoder decision model, to the candidates the four
 stored systems already retrieved, and report the cost beside every figure. A strong
-cross-encoder lifts every system on every corpus, and the hop's candidates still add under it
-on HotpotQA and MuSiQue but not on news; the bi-encoder judge hurts everywhere. We place the
+cross-encoder lifts every system on every corpus, the hop's candidates still add under it on
+HotpotQA and MuSiQue but not on news, and the hop system with candidate relevance (P14) stays
+the best of the four under that judge on both Wikipedia benchmarks
+(\fsPctStrongPFourteenHotpot{} Full Support on HotpotQA); the eight-billion-parameter
+bi-encoder decision model lowers every system on every corpus. We place the
 figures beside those other systems have published, never as a paired comparison, and report the
 earlier negative result on concept spaces induced from pooled embeddings.
 \end{abstract}

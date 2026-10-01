@@ -201,6 +201,19 @@ plus zero-shot judges, negative results included, sole author, no affiliation, p
 | ACL 2027 via ARR January cycle | dates "Not specified"; kept as a later option for the ARR path | https://aclrollingreview.org/dates |
 | CHIIR 2027 | user-centred scope, not this paper (deadline 8 Oct 2026 seen only in a search result) | not read |
 
+## The author's choice (2026-10-01): journals and online publications only
+
+The author ruled out conferences. The path is therefore: (1) the **arXiv** preprint first
+(cs.IR, cross-list cs.CL; an endorser is needed for a first submission without an
+institutional email; licence CC BY 4.0 recommended, which every journal below accepts); (2)
+**TMLR** as the submission venue (rolling, no fees, double-blind on OpenReview with open
+reviews, accepts negative results, judges correctness over novelty, allows the arXiv preprint
+as long as the submission does not link to the named version); (3) **Discover Computing**
+(formerly Information Retrieval Journal, Springer, open access with an APC) as the IR-journal
+alternative if TMLR declines; ACM TOIS was not verifiable from this machine (HTTP 403) and
+stays a candidate to check by hand. The conference rows above are kept as the record of what
+was checked.
+
 ## What the author decides
 
 1. **Venue and order.** Candidates in my order: ARR October cycle (12 Oct; closest and 8-page

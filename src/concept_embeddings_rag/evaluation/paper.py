@@ -1198,14 +1198,16 @@ def table_hop_cost(sources: Sources) -> Table:
 
 
 def session_figures(recipe: Source) -> dict[str, Any]:
+    """The session's balance delta and duration from the recipe's "Recorded after the
+    session" table. The absolute balances are not written in the public repository (the
+    Phase 16 rule), so only the delta is read."""
     text = str(recipe.data)
-    balance = re.search(r"([0-9]+\.[0-9]+) to ([0-9]+\.[0-9]+) USD", text)
+    delta = re.search(r"Account balance delta \| \*\*([0-9]+\.[0-9]+) USD\*\*", text)
     duration = re.search(r"(\d+) h (\d+) min (\d+) s", text)
-    if not balance or not duration:
-        raise PaperError("the pod recipe does not carry the session's balance and duration")
+    if not delta or not duration:
+        raise PaperError("the pod recipe does not carry the session's balance delta and duration")
     return {
-        "before": float(balance.group(1)),
-        "after": float(balance.group(2)),
+        "delta": float(delta.group(1)),
         "hours": int(duration.group(1)),
         "minutes": int(duration.group(2)),
         "seconds": int(duration.group(3)),
@@ -1343,12 +1345,10 @@ def phase17_macros(b: MacroBuilder, sources: Sources) -> None:
         recipe = sources["recipe"]
         b.derived(
             "usdSession",
-            num(sess["before"] - sess["after"], 4),
+            num(sess["delta"], 4),
             [recipe],
-            "balance before minus balance after, as recorded in the pod recipe",
+            "the account balance delta (before minus after) as recorded in the pod recipe",
         )
-        b.derived("usdBalanceBefore", num(sess["before"], 4), [recipe], "balance before")
-        b.derived("usdBalanceAfter", num(sess["after"], 4), [recipe], "balance after")
         b.derived("sessionHours", plain_int(sess["hours"]), [recipe], "session duration, hours")
         b.derived("sessionMinutes", plain_int(sess["minutes"]), [recipe], "duration, minutes")
         b.derived("sessionSeconds", plain_int(sess["seconds"]), [recipe], "duration, seconds")

@@ -8,8 +8,13 @@ where it does. Placed beside a zero-shot cross-encoder, the control the line was
 picture is more mixed than the earlier phases suggested: a strong judge lifts every system on every
 corpus; the hop's candidates still add under it on the two Wikipedia benchmarks and do not on news;
 a bi-encoder decision model hurts everywhere, which reads as a limit of that use of the model and
-leaves its quality as evidence judge open; and on HotpotQA P14 under the strong judge sits at the level of the
-union pool of all four candidate lists.
+leaves its quality as evidence judge open. Under the strong judge P14 remains the best of the
+four systems on HotpotQA (\fsStrongPFourteenHotpot{} questions, at the level of the union pool
+of all four candidate lists, \fsStrongUnionHotpot{}) and on MuSiQue
+(\fsStrongPFourteenMusique{}); on news the judged Dense plus BM25 leads
+(\fsStrongPTenBMultihop{} against \fsStrongPFourteenMultihop{}). The size of a judge is not
+what decides: the strong cross-encoder is a fraction of the decision model's parameters and
+reads the question and the candidate together, which the decision model does not.
 
 Two readings follow, both stated as hypotheses supported on Wikipedia and not on news. First,
 under a judge the hop's role is \emph{candidate generation}: its value is in what it adds to the
