@@ -68,6 +68,27 @@ def scores_name(judge: str, set_name: str, *, tag: str | None = None) -> str:
     return f"scores-{judge}-{set_name}{suffix}.jsonl.gz"
 
 
+def scoring_manifest_name(judge: str) -> str:
+    return f"scoring-{judge}.json"
+
+
+def shard_directory_name(judge: str, set_name: str, *, tag: str | None = None) -> str:
+    """Where a (judge, set) run keeps its shards under `config.PHASE_17_SHARDS_DIR`."""
+    suffix = f"-{tag}" if tag else ""
+    return f"{judge}-{set_name}{suffix}"
+
+
+def shard_name(index: int) -> str:
+    return f"shard-{index:04d}.jsonl.gz"
+
+
+def shard_meta_name(index: int) -> str:
+    return f"shard-{index:04d}.json"
+
+
+SHARD_RUNS_NAME = "runs.json"
+
+
 def reordered_name(judge: str, set_name: str, line: str) -> str:
     return f"reordered-{judge}-{set_name}-{line}.jsonl.gz"
 

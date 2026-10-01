@@ -65,12 +65,14 @@
     p16-outcome     exact McNemar against P10-B (the label), the 3-column ladder, D7-D9, D11
     p16-refit       D10, exploratory: the 330-point grid re-fused from the stored rankings
     p17-pool        D3 on the three sets, then the four systems' pools and the judges' pairs
+    p17-score       a pinned judge's logits for one set's pairs: sharded, resumable, write-once
 
 Each stage is idempotent and refuses to run if its input is missing, saying which
 stage to run first rather than failing somewhere deep inside numpy.
 """
 
 import argparse
+import contextlib
 import gzip
 import importlib.metadata
 import json
@@ -79,7 +81,7 @@ import shutil
 import statistics
 import sys
 import time
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -170,6 +172,7 @@ from concept_embeddings_rag.embeddings.cache import (
 )
 from concept_embeddings_rag.evaluation import fullwiki as phase9
 from concept_embeddings_rag.evaluation import (
+    judge,
     phase10,
     phase11,
     phase12,
@@ -9586,6 +9589,419 @@ def cmd_p17_pool(
     return path
 
 
+P17_TAG_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789-")
+
+
+def _p17_allocation() -> dict[str, Any]:
+    """What this process was allowed to use, beside what the machine has (Phase 16's trap: a
+    container sees the host's CPU count). Absent entries are `None`, not guessed."""
+    import os
+
+    allocation: dict[str, Any] = {
+        "cpu_affinity": None,
+        "cgroup_cpu_max": None,
+        "cgroup_memory_max": None,
+    }
+    sched_getaffinity = getattr(os, "sched_getaffinity", None)
+    if sched_getaffinity is not None:
+        allocation["cpu_affinity"] = len(sched_getaffinity(0))
+    for key, path in (
+        ("cgroup_cpu_max", "/sys/fs/cgroup/cpu.max"),
+        ("cgroup_memory_max", "/sys/fs/cgroup/memory.max"),
+    ):
+        with contextlib.suppress(OSError):
+            allocation[key] = Path(path).read_text(encoding="utf-8").strip()
+    return allocation
+
+
+def _p17_order(scores: Sequence[float]) -> list[int]:
+    """Positions by score, descending; ties by position, which is the pool's own order
+    (best rank over the systems, then unit id), so it is the union line's tie-break."""
+    return sorted(range(len(scores)), key=lambda i: (-scores[i], i))
+
+
+def _p17_cuda_peak_mb() -> float | None:
+    """Peak CUDA memory allocated by this process in MiB, `None` without CUDA."""
+    import torch
+
+    if not torch.cuda.is_available():
+        return None
+    return float(torch.cuda.max_memory_allocated()) / (1024 * 1024)
+
+
+def _p17_checked_inputs(
+    target_dir: Path, set_name: str, is_committed: Callable[[Path], bool]
+) -> dict[str, Any]:
+    """The committed chain a Phase 17 score may stand on: `integrity.json` (D3 passed) and
+    `pool.json` tracked and unmodified, `pool.json` recording that `integrity.json`; returns
+    its record of this set's pairs file."""
+    integrity_path = target_dir / phase17.INTEGRITY_FILENAME
+    pool_path = target_dir / phase17.POOL_MANIFEST
+    for path in (integrity_path, pool_path):
+        if not path.exists():
+            raise phase17.Phase17Error(f"{path} is missing: run 'cer p17-pool' first")
+        if not is_committed(path):
+            raise phase17.Phase17Error(f"{path.name} is not committed unmodified; commit it first")
+    integrity_text = integrity_path.read_text(encoding="utf-8")
+    integrity = json.loads(integrity_text)
+    if integrity.get("terminal_state") is not None or not integrity.get("recorded_replays", {}).get(
+        "passed"
+    ):
+        raise phase17.Phase17Error(
+            f"{integrity_path.name} does not record a passed D3 "
+            f"(terminal state {integrity.get('terminal_state')})"
+        )
+    manifest = json.loads(pool_path.read_text(encoding="utf-8"))
+    if manifest.get("integrity_digest") != digest_of(integrity_text):
+        raise phase17.Phase17Error("pool.json does not record this integrity.json")
+    return dict(manifest["sets"][set_name]["pairs_file"])
+
+
+def _p17_shard_run(
+    loaded: judge.LoadedJudge,
+    rows: Sequence[Mapping[str, Any]],
+    shard_dir: Path,
+    *,
+    pairs_sha256: str,
+    shard_questions: int,
+) -> tuple[int, int]:
+    """Every shard of `rows` present under `shard_dir`: complete ones skipped, the others
+    scored in one `predict` call each and written once. Returns (scored, skipped)."""
+    batch_size = int(loaded.pin["batch_size"])
+    max_length = int(loaded.model.max_length)
+    scored = skipped = 0
+    bounds = phase17.shard_bounds(len(rows), shard_questions)
+    for index, (start, stop) in enumerate(bounds):
+        path = shard_dir / phase17.shard_name(index)
+        meta_path = shard_dir / phase17.shard_meta_name(index)
+        if path.exists():
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            if (
+                meta["pairs_sha256"] != pairs_sha256
+                or meta["weights_sha256"] != loaded.weights_sha256
+            ):
+                raise phase17.Phase17Error(f"{path.name} was scored by another pairs file or judge")
+            skipped += 1
+            continue
+        chunk = rows[start:stop]
+        started = time.perf_counter()
+        per_question = judge.score_rows(loaded.model, chunk, batch_size)
+        seconds = time.perf_counter() - started
+        counts = [
+            judge.truncations(loaded.model.tokenizer, str(r["question"]), r["texts"], max_length)
+            for r in chunk
+        ]
+        meta = {
+            "index": index,
+            "questions": len(chunk),
+            "pairs": sum(c["pairs"] for c in counts),
+            "truncated": sum(c["truncated"] for c in counts),
+            "longest": max(c["longest"] for c in counts),
+            "seconds": seconds,
+            "pairs_sha256": pairs_sha256,
+            "weights_sha256": loaded.weights_sha256,
+        }
+        # Meta first, shard last: the shard file is the completeness mark.
+        write_text_atomic(meta_path, json.dumps(meta, indent=2, sort_keys=True))
+        phase17.write_jsonl_once(
+            path,
+            (
+                {
+                    "qid": r["qid"],
+                    "unit_ids": list(r["unit_ids"]),
+                    "scores": [float(x) for x in scores],
+                }
+                for r, scores in zip(chunk, per_question, strict=True)
+            ),
+        )
+        scored += 1
+        print(
+            f"[INFO] shard {index + 1}/{len(bounds)}: {meta['pairs']} pairs in {seconds:.1f} s",
+            flush=True,
+        )
+    return scored, skipped
+
+
+def _p17_shard_rows(
+    shard_dir: Path, rows: Sequence[Mapping[str, Any]], shard_questions: int
+) -> Iterator[dict[str, Any]]:
+    """The shards' score rows in the pairs file's order, each checked against its pair row."""
+    position = 0
+    for index in range(len(phase17.shard_bounds(len(rows), shard_questions))):
+        for scored in phase17.read_jsonl(shard_dir / phase17.shard_name(index)):
+            if position >= len(rows):
+                raise phase17.Phase17Error("more scored questions than the pairs file holds")
+            pair = rows[position]
+            if scored["qid"] != pair["qid"] or scored["unit_ids"] != list(pair["unit_ids"]):
+                raise phase17.Phase17Error(f"shard {index} does not line up with the pairs file")
+            yield scored
+            position += 1
+    if position != len(rows):
+        raise phase17.Phase17Error(f"{position} scored questions for {len(rows)} in the pairs file")
+
+
+def _p17_determinism(
+    loaded: judge.LoadedJudge,
+    rows: Sequence[Mapping[str, Any]],
+    scored: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """The first questions re-scored at batch size 1 against the shard-composed scores:
+    the largest absolute difference and how many questions' order changes; decides nothing."""
+    n = min(config.PHASE_17_DETERMINISM_QUESTIONS, len(rows))
+    again = judge.score_rows(loaded.model, rows[:n], 1)
+    largest = 0.0
+    changed = 0
+    for row, fresh in zip(scored[:n], again, strict=True):
+        first = np.asarray(row["scores"], dtype=np.float32)
+        if first.size:
+            largest = max(largest, float(np.max(np.abs(first - fresh))))
+        if _p17_order([float(x) for x in first]) != _p17_order([float(x) for x in fresh]):
+            changed += 1
+    return {
+        "questions": n,
+        "batch_size": 1,
+        "max_abs_difference": largest,
+        "questions_order_changed": changed,
+        "order": "by score, descending; ties by the pool's own position",
+    }
+
+
+def cmd_p17_score(
+    judge_key: str,
+    set_name: str,
+    *,
+    hourly_rate_usd: float = 0.0,
+    smoke: int | None = None,
+    tag: str | None = None,
+    target_dir: Path = config.PHASE_17_DIR,
+    shard_questions: int = config.PHASE_17_SHARD_QUESTIONS,
+    is_committed: Callable[[Path], bool] = _p10_fit_is_committed,
+) -> Path:
+    """S3 (D2): a cross-encoder's logits for every pair of one set, sharded and write-once.
+
+    Refuses unless `integrity.json` and `pool.json` are committed unmodified with D3 passed,
+    the set's pairs file is the recorded one, and the served snapshot is the pin (`judge.load`).
+    One `predict` call per shard of `shard_questions` questions, each shard written atomically
+    once; a restart skips the complete ones. With every shard present it writes
+    `scores-<judge>-<set>.jsonl.gz` (refusing an existing one) and adds the set's block to
+    `scoring-<judge>.json`. No metric is computed here. `--smoke N` scores the first N
+    questions into the smoke directory and is never a record.
+    """
+    target_dir = Path(target_dir)
+    if judge_key == config.PHASE_17_DECISION:
+        raise phase17.Phase17Error(
+            "J-decision is not wired into p17-score yet: evaluation/decision_judge.py comes "
+            "after the cross-encoder path"
+        )
+    if judge_key not in (config.PHASE_17_LIGHT, config.PHASE_17_STRONG):
+        raise phase17.Phase17Error(f"unknown judge {judge_key!r}")
+    judge.cross_encoder_pin(judge_key)
+    if set_name not in config.PHASE_17_SETS:
+        raise phase17.Phase17Error(f"unknown set {set_name!r}")
+    if not math.isfinite(hourly_rate_usd) or hourly_rate_usd < 0:
+        raise phase17.Phase17Error("hourly-rate-usd must be finite and non-negative")
+    if smoke is not None and smoke < 1:
+        raise phase17.Phase17Error("--smoke needs at least one question")
+    if tag is not None and (not tag or not set(tag) <= P17_TAG_CHARS):
+        raise phase17.Phase17Error("--tag is lower-case letters, digits and hyphens")
+    if smoke is not None and tag is not None:
+        raise phase17.Phase17Error("--smoke and --tag do not combine")
+
+    block_key = f"{set_name}-{tag}" if tag else set_name
+    manifest_path = target_dir / phase17.scoring_manifest_name(judge_key)
+    scores_path = target_dir / phase17.scores_name(judge_key, set_name, tag=tag)
+    pairs_path = target_dir / phase17.pairs_name(set_name)
+    record: dict[str, Any] | None
+    if smoke is None:
+        record = _p17_checked_inputs(target_dir, set_name, is_committed)
+        if scores_path.exists():
+            raise phase17.Phase17Error(f"{scores_path} exists; a Phase 17 file is written once")
+        if manifest_path.exists():
+            existing = json.loads(manifest_path.read_text(encoding="utf-8"))
+            if block_key in existing["sets"]:
+                raise phase17.Phase17Error(
+                    f"{manifest_path.name} already holds a block for {block_key}"
+                )
+    else:
+        pool_path = target_dir / phase17.POOL_MANIFEST
+        record = (
+            dict(json.loads(pool_path.read_text(encoding="utf-8"))["sets"][set_name]["pairs_file"])
+            if pool_path.exists()
+            else None
+        )
+    # The pairs file against its record, before the model loads and before any pair is scored.
+    if record is not None:
+        pairs = phase17.read_pairs(
+            target_dir, set_name, digest=record["digest"], sha256=record["sha256"]
+        )
+        pairs_sha256 = str(record["sha256"])
+    else:
+        pairs = phase17.read_jsonl(pairs_path)
+        pairs_sha256 = phase17.sha256_file(pairs_path)
+
+    loaded = judge.load(judge_key)
+    identity = judge.identity(loaded)
+    host = local_extraction.hardware_block(device="cpu")
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            host = local_extraction.hardware_block(device="cuda")
+            torch.cuda.reset_peak_memory_stats()
+    except ImportError:
+        pass
+
+    if smoke is not None:
+        return _p17_smoke(
+            loaded,
+            identity,
+            pairs[:smoke],
+            set_name,
+            target_dir,
+            hourly_rate_usd,
+            host,
+            pairs_sha256,
+            shard_questions,
+        )
+
+    shard_dir = target_dir / config.PHASE_17_SHARDS_DIR.name
+    shard_dir = shard_dir / phase17.shard_directory_name(judge_key, set_name, tag=tag)
+    shard_dir.mkdir(parents=True, exist_ok=True)
+    runs_path = shard_dir / phase17.SHARD_RUNS_NAME
+    starts = 1
+    if runs_path.exists():
+        starts = int(json.loads(runs_path.read_text(encoding="utf-8"))["starts"]) + 1
+    write_text_atomic(runs_path, json.dumps({"starts": starts}))
+    scored, skipped = _p17_shard_run(
+        loaded, pairs, shard_dir, pairs_sha256=pairs_sha256, shard_questions=shard_questions
+    )
+    print(f"[INFO] {scored} shards scored, {skipped} found complete", flush=True)
+
+    bounds = phase17.shard_bounds(len(pairs), shard_questions)
+    metas = [
+        json.loads((shard_dir / phase17.shard_meta_name(i)).read_text(encoding="utf-8"))
+        for i in range(len(bounds))
+    ]
+    file_record = phase17.write_jsonl_once(
+        scores_path, _p17_shard_rows(shard_dir, pairs, shard_questions)
+    )
+    scored_rows = phase17.read_jsonl(
+        scores_path, digest=file_record["digest"], sha256=file_record["sha256"]
+    )
+    determinism = _p17_determinism(loaded, pairs, scored_rows)
+    del scored_rows
+
+    n_pairs = sum(m["pairs"] for m in metas)
+    wall = sum(float(m["seconds"]) for m in metas)
+    truncated = sum(m["truncated"] for m in metas)
+    block = {
+        "set": set_name,
+        "tag": tag,
+        "label": P17_SET_LABELS[set_name],
+        "questions": len(pairs),
+        "pairs": n_pairs,
+        "truncations": {
+            "max_length": identity["max_length"],
+            "count": truncated,
+            "share": truncated / n_pairs if n_pairs else 0.0,
+            "longest": max((m["longest"] for m in metas), default=0),
+        },
+        "shards": {"count": len(bounds), "questions": shard_questions, "scored_now": scored},
+        "restarts": starts - 1,
+        "wall_seconds": wall,
+        "pairs_per_second": n_pairs / wall if wall > 0 else None,
+        "usd": wall * hourly_rate_usd / 3600.0,
+        "peak_rss_mb": _p14_peak_memory_mb(),
+        "peak_vram_mb": _p17_cuda_peak_mb(),
+        "determinism": determinism,
+        "pairs_sha256_read": pairs_sha256,
+        "scores_file": file_record,
+        "hourly_rate_usd": hourly_rate_usd,
+        "code_commit": _git_commit(),
+        "finished_at": datetime.now(UTC).isoformat(timespec="seconds"),
+    }
+    if manifest_path.exists():
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        for field in ("revision_served", "weights_sha256"):
+            if manifest["judge"][field] != identity[field]:
+                raise phase17.Phase17Error(
+                    f"{manifest_path.name} was written by another judge ({field})"
+                )
+    else:
+        manifest = {
+            "phase": 17,
+            "judge": identity,
+            "kind": identity["kind"],
+            "score": "logit",
+            "host": host,
+            "allocation": _p17_allocation(),
+            "code_commit": block["code_commit"],
+            "hourly_rate_usd": hourly_rate_usd,
+            "created_at": block["finished_at"],
+            "sets": {},
+        }
+    manifest["sets"][block_key] = block
+    write_text_atomic(manifest_path, json.dumps(manifest, indent=2, sort_keys=True))
+    print(f"[OK] {block_key}: {n_pairs} pairs -> {scores_path}; {manifest_path.name} updated")
+    return scores_path
+
+
+def _p17_smoke(
+    loaded: judge.LoadedJudge,
+    identity: Mapping[str, Any],
+    rows: Sequence[Mapping[str, Any]],
+    set_name: str,
+    target_dir: Path,
+    hourly_rate_usd: float,
+    host: Mapping[str, Any],
+    pairs_sha256: str,
+    shard_questions: int,
+) -> Path:
+    """The first questions scored into the smoke directory: a code check, never a record."""
+    smoke_dir = target_dir / config.PHASE_17_SMOKE_DIR.name
+    smoke_dir.mkdir(parents=True, exist_ok=True)
+    scores_path = smoke_dir / phase17.scores_name(loaded.key, set_name)
+    manifest_path = smoke_dir / f"scoring-{loaded.key}-{set_name}.json"
+    scores_path.unlink(missing_ok=True)
+    started = time.perf_counter()
+    out: list[dict[str, Any]] = []
+    for start, stop in phase17.shard_bounds(len(rows), shard_questions):
+        chunk = rows[start:stop]
+        per_question = judge.score_rows(loaded.model, chunk, int(loaded.pin["batch_size"]))
+        out.extend(
+            {"qid": r["qid"], "unit_ids": list(r["unit_ids"]), "scores": [float(x) for x in s]}
+            for r, s in zip(chunk, per_question, strict=True)
+        )
+    seconds = time.perf_counter() - started
+    max_length = int(identity["max_length"])
+    counts = [
+        judge.truncations(loaded.model.tokenizer, str(r["question"]), r["texts"], max_length)
+        for r in rows
+    ]
+    file_record = phase17.write_jsonl_once(scores_path, out)
+    manifest = {
+        "phase": 17,
+        "smoke": True,
+        "note": "a code check on the first questions; never a Phase 17 record",
+        "judge": dict(identity),
+        "set": set_name,
+        "questions": len(rows),
+        "pairs": sum(c["pairs"] for c in counts),
+        "truncated": sum(c["truncated"] for c in counts),
+        "longest": max((c["longest"] for c in counts), default=0),
+        "wall_seconds": seconds,
+        "usd": seconds * hourly_rate_usd / 3600.0,
+        "pairs_sha256_read": pairs_sha256,
+        "scores_file": file_record,
+        "host": dict(host),
+        "code_commit": _git_commit(),
+        "created_at": datetime.now(UTC).isoformat(timespec="seconds"),
+    }
+    write_text_atomic(manifest_path, json.dumps(manifest, indent=2, sort_keys=True))
+    print(f"[OK] smoke: {len(rows)} questions -> {scores_path}", flush=True)
+    return scores_path
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="cer",
@@ -9965,6 +10381,18 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser(
         "p17-pool", help="Phase 17: D3 on the three sets, then the pools and the judges' pairs"
     )
+    p17_score = subparsers.add_parser(
+        "p17-score", help="Phase 17: a judge's logits for one set's pairs (sharded, write-once)"
+    )
+    p17_score.add_argument(
+        "--judge",
+        choices=(config.PHASE_17_LIGHT, config.PHASE_17_STRONG, config.PHASE_17_DECISION),
+        required=True,
+    )
+    p17_score.add_argument("--set", choices=tuple(config.PHASE_17_SETS), required=True)
+    p17_score.add_argument("--hourly-rate-usd", type=float, required=True, dest="hourly_rate_usd")
+    p17_score.add_argument("--smoke", type=int, default=None, help="score the first N questions")
+    p17_score.add_argument("--tag", default=None, help="a rerun, on the author's word only")
     p16_build.add_argument("--stage", choices=P15_BUILD_STAGES, required=True)
     p16_build.add_argument(
         "--hourly-rate-usd",
@@ -10169,6 +10597,17 @@ def main(argv: list[str] | None = None) -> int:
         cmd_p16_refit()
     elif args.command == "p17-pool":
         cmd_p17_pool()
+    elif args.command == "p17-score":
+        try:
+            cmd_p17_score(
+                args.judge,
+                args.set,
+                hourly_rate_usd=args.hourly_rate_usd,
+                smoke=args.smoke,
+                tag=args.tag,
+            )
+        except (phase17.Phase17Error, judge.JudgeError) as error:
+            _die(str(error))
     return 0
 
 

@@ -178,3 +178,195 @@ def test_a_replay_miss_outside_d3_stops_with_nothing_written(stage, monkeypatch)
         stage["run"]()
 
     assert list(stage["target"].iterdir()) == []
+
+
+# --- S3: cer p17-score, the cross-encoders' path ----------------------------------------------
+
+
+class ScoreStubModel:
+    """A deterministic hash-based scorer; `predict` counts its calls."""
+
+    max_length = 512
+
+    def __init__(self) -> None:
+        self.calls: list[int] = []
+        self.tokenizer = self
+
+    def __call__(self, questions, texts, truncation=False, add_special_tokens=True):
+        return {
+            "input_ids": [
+                [0] * (len(t.split()) + len(q.split()) + 3)
+                for q, t in zip(questions, texts, strict=True)
+            ]
+        }
+
+    def predict(self, inputs, batch_size=32, show_progress_bar=False, convert_to_numpy=True):
+        import hashlib
+
+        import numpy as np
+
+        self.calls.append(len(inputs))
+        return np.asarray(
+            [
+                int.from_bytes(hashlib.sha256((q + "|" + t).encode()).digest()[:4], "big") / 1e8
+                for q, t in inputs
+            ],
+            dtype=np.float32,
+        )
+
+
+@pytest.fixture
+def scoring(stage, monkeypatch):
+    """The p17-pool chain built once, a stub judge, and a runner for `cmd_p17_score`."""
+    from concept_embeddings_rag.evaluation import judge as judge_module
+
+    stage["run"]()
+    model = ScoreStubModel()
+
+    def fake_load(key, **_kw):
+        return judge_module.LoadedJudge(
+            key=key,
+            pin=config.PHASE_17_JUDGES[key],
+            model=model,
+            snapshot=Path("snap"),
+            served_revision=config.PHASE_17_JUDGES[key]["revision"],
+            weights_sha256=config.PHASE_17_JUDGES[key]["weights_sha256"],
+        )
+
+    monkeypatch.setattr(judge_module, "load", fake_load)
+    monkeypatch.setattr(
+        judge_module,
+        "identity",
+        lambda loaded: {
+            "key": loaded.key,
+            "kind": loaded.pin["kind"],
+            "max_length": 512,
+            "revision_served": loaded.served_revision,
+            "weights_sha256": loaded.weights_sha256,
+        },
+    )
+    set_name = config.PHASE_17_MULTIHOP_RAG
+
+    def run(*, judge_key="light", tag=None, smoke=None, committed=True, shard_questions=300):
+        return cli.cmd_p17_score(
+            judge_key,
+            set_name,
+            hourly_rate_usd=1.0,
+            smoke=smoke,
+            tag=tag,
+            target_dir=stage["target"],
+            shard_questions=shard_questions,
+            is_committed=lambda _p: committed,
+        )
+
+    return {**stage, "model": model, "score": run, "set": set_name}
+
+
+def test_a_pairs_digest_mismatch_refuses_before_any_pair_is_scored(scoring):
+    pool_path = scoring["target"] / "pool.json"
+    manifest = json.loads(pool_path.read_text(encoding="utf-8"))
+    manifest["sets"][scoring["set"]]["pairs_file"]["sha256"] = "0" * 64
+    pool_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(phase17.Phase17Error, match="SHA-256"):
+        scoring["score"]()
+
+    assert scoring["model"].calls == []
+    assert not (scoring["target"] / "shards").exists()
+
+
+def test_an_uncommitted_chain_refuses(scoring):
+    with pytest.raises(phase17.Phase17Error, match="committed"):
+        scoring["score"](committed=False)
+    assert scoring["model"].calls == []
+
+
+def test_a_shard_left_by_an_interrupted_run_is_skipped_and_the_file_is_the_same(scoring):
+    target: Path = scoring["target"]
+    scoring["score"]()
+    one_pass = (target / phase17.scores_name("light", scoring["set"])).read_bytes()
+    first_calls = list(scoring["model"].calls)
+    n_shards = len(phase17.shard_bounds(config.PHASE_17_SETS[scoring["set"]], 300))
+    assert first_calls[:n_shards] == [
+        7 * (stop - start)
+        for start, stop in phase17.shard_bounds(config.PHASE_17_SETS[scoring["set"]], 300)
+    ]
+
+    # Interrupt: the assembled file, the manifest and the last shard are gone.
+    (target / phase17.scores_name("light", scoring["set"])).unlink()
+    (target / "scoring-light.json").unlink()
+    shard_dir = target / "shards" / f"light-{scoring['set']}"
+    (shard_dir / phase17.shard_name(n_shards - 1)).unlink()
+    scoring["model"].calls.clear()
+
+    scoring["score"]()
+
+    assert scoring["model"].calls[0] == 7 * (
+        config.PHASE_17_SETS[scoring["set"]] - 300 * (n_shards - 1)
+    )
+    assert (target / phase17.scores_name("light", scoring["set"])).read_bytes() == one_pass
+    block = json.loads((target / "scoring-light.json").read_text(encoding="utf-8"))["sets"][
+        scoring["set"]
+    ]
+    assert block["restarts"] == 1
+    assert block["shards"]["scored_now"] == 1
+
+
+def test_an_existing_scores_file_refuses_and_a_tag_writes_distinct_files_and_block(scoring):
+    target: Path = scoring["target"]
+    scoring["score"]()
+    with pytest.raises(phase17.Phase17Error, match="exists"):
+        scoring["score"]()
+
+    scoring["score"](tag="rerun")
+
+    plain = phase17.scores_name("light", scoring["set"])
+    tagged = phase17.scores_name("light", scoring["set"], tag="rerun")
+    assert (target / tagged).exists() and tagged != plain
+    sets = json.loads((target / "scoring-light.json").read_text(encoding="utf-8"))["sets"]
+    assert set(sets) == {scoring["set"], f"{scoring['set']}-rerun"}
+
+
+def test_a_decision_judge_run_is_not_wired_yet(scoring):
+    with pytest.raises(phase17.Phase17Error, match="not wired"):
+        scoring["score"](judge_key="decision")
+    assert scoring["model"].calls == []
+
+
+def test_the_manifest_block_carries_pairs_shards_truncations_and_determinism(scoring):
+    target: Path = scoring["target"]
+    scoring["score"]()
+    manifest = json.loads((target / "scoring-light.json").read_text(encoding="utf-8"))
+    block = manifest["sets"][scoring["set"]]
+    n = config.PHASE_17_SETS[scoring["set"]]
+
+    assert manifest["judge"]["revision_served"] == config.PHASE_17_JUDGES["light"]["revision"]
+    assert manifest["score"] == "logit" and "allocation" in manifest and "host" in manifest
+    assert block["pairs"] == 7 * n and block["questions"] == n
+    assert block["shards"]["count"] == len(phase17.shard_bounds(n, 300))
+    assert block["truncations"]["count"] == 0 and block["truncations"]["longest"] > 0
+    assert block["determinism"]["questions"] == config.PHASE_17_DETERMINISM_QUESTIONS
+    assert block["determinism"]["max_abs_difference"] == 0.0
+    assert block["determinism"]["questions_order_changed"] == 0
+    assert (
+        block["pairs_sha256_read"]
+        == json.loads((target / "pool.json").read_text(encoding="utf-8"))["sets"][scoring["set"]][
+            "pairs_file"
+        ]["sha256"]
+    )
+    rows = phase17.read_jsonl(
+        target / phase17.scores_name("light", scoring["set"]),
+        digest=block["scores_file"]["digest"],
+        sha256=block["scores_file"]["sha256"],
+    )
+    assert len(rows) == n and rows[0]["qid"] == f"{scoring['set']}-q0"
+    assert all(isinstance(x, float) for x in rows[0]["scores"])
+
+
+def test_a_smoke_writes_into_the_smoke_directory_only(scoring):
+    path = scoring["score"](smoke=3, committed=False)
+
+    assert path.parent.name == "smoke"
+    assert len(phase17.read_jsonl(path)) == 3
+    assert not (scoring["target"] / "scoring-light.json").exists()
+    assert not (scoring["target"] / "shards").exists()
