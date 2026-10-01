@@ -1,0 +1,41 @@
+\section{Published figures of other systems}
+\label{sec:published}
+
+Table~\ref{tab:published} lists \nPublishedRows{} figures published by other work on these
+benchmarks: \nPublishedHotpotqa{} on HotpotQA, \nPublishedMusique{} on MuSiQue and \nPublishedMultihop{}
+on MultiHop-RAG. They cover the BM25-plus-cross-encoder recipe and dense baselines of
+BEIR~\citep{thakur2021beir}, trained multi-hop retrievers
+(MDR~\citep{xiong2021mdr}, Baleen~\citep{khattab2021baleen}), retrieval interleaved with
+language-model reasoning (IRCoT~\citep{trivedi2023ircot}, HippoRAG~\citep{gutierrez2024hipporag,gutierrez2025hipporag2})
+and the MultiHop-RAG paper's own pipelines~\citep{tang2024multihoprag}. Each row was read in the
+paper it comes from; \nPublishedExcluded{} candidate figures that could not be verified there were
+excluded rather than quoted from a survey or another paper's table. The appendix repeats every row with its
+corpus and a note on how it differs from our setting (Tables~\ref{tab:published-hotpotqa}
+to~\ref{tab:published-multihop}).
+
+\begin{table*}[!t]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\caption{\capPublishedShort}
+\label{tab:published}
+\input{tables/published-short}
+\end{table*}
+
+\paragraph{What the reader may conclude.} Our nDCG@10 and gold-recall figures
+(Appendix~\ref{app:d6}) use the corpus unit, the whole paragraph, and the same questions
+and corpus as BEIR on HotpotQA, so they can be laid beside the BM25-plus-cross-encoder row as
+context: for instance, our J-light over Dense plus BM25 reaches \ndcgLightPTenBHotpot{} (nDCG@10, times
+one hundred), and J-strong \ndcgStrongPTenBHotpot{}. They place the zero-shot recipe of this paper in the
+same range as other zero-shot recipes on identical questions.
+
+\paragraph{What the reader may not conclude.} These are \emph{published figures, not a paired
+comparison}. The rows differ from our setting in at least one of the unit of retrieval
+(chunks of a fixed token length, or whole paragraphs), the metric (nDCG with graded relevance, recall at
+a rank, hits at a rank, or our token-budget Full Support), the corpus (a pooled
+corpus of a subset of questions, or the whole of Wikipedia), the questions (a sampled subset, or all of
+them), and whether the system is trained or calls a language model; the differences column says which,
+row by row. Our weights are fitted on HotpotQA development questions, so our HotpotQA figures are
+in-sample for P10-C and P14. Our systems are untrained, call no model at query time, and are
+cheap; they are not offered as competitors of trained or language-model-based systems, and
+nothing in this paper shows that they match or beat those systems.

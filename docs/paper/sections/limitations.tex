@@ -1,0 +1,47 @@
+\section{Limitations}
+\label{sec:limits}
+
+\begin{enumerate}
+  \item \textbf{The judges are zero-shot models with their own training domain.} The two
+        cross-encoders are zero-shot models trained on English web question answering
+        (MS~MARCO); CLM-8B on question-answer pairs, synthetic hard negatives and agentic
+        trajectories. Their behaviour on news, on MuSiQue's composed
+        questions and on HotpotQA is itself a transfer, and no domain adaptation was attempted.
+  \item \textbf{The pool is bounded at the first hundred.} Gold outside every system's top-100
+        is unreachable by any reorder: on MuSiQue and MultiHop-RAG only \ceilUnionMusique{} of
+        \nQuestionsMusique{} and \ceilUnionMultihop{} of \nQuestionsMultihop{} questions have every gold unit
+        in the union pool. The judge results bound what better \emph{ordering} can give, not what
+        better retrieval could (the ceiling table is in Appendix~\ref{app:more}).
+  \item \textbf{HotpotQA development questions are in-sample for P10-C's and P14's weights.}
+        The judge figures on that set are still informative because the judges are fitted on
+        nothing, but the HotpotQA columns for those two systems are not held out. BGE-small was
+        also fine-tuned on HotpotQA training questions, which the held-out draws of earlier phases
+        use.
+  \item \textbf{One-hop design, two- to four-paragraph questions.} The hop anchors on the first
+        Dense paragraph and follows one hop. The gain is on questions with two supporting
+        paragraphs and absent on four; on news the first paragraph is rarely gold, and the design
+        fails there.
+  \item \textbf{Corpus sizes and kinds.} Only HotpotQA is measured at the scale of the full
+        Wikipedia (\hopCostNineUnits{} paragraphs). MuSiQue is \hopCostFifteenUnits{} paragraphs and
+        MultiHop-RAG \hopCostSixteenUnits{}: the transfer evidence is two small pools, one of
+        Wikipedia and one of news. No stronger Dense retriever than BGE-small was tested beside
+        the hop.
+  \item \textbf{MultiHop-RAG's queries were written by a language model} from the articles, so
+        their wording may favour lexical overlap with the evidence; that is one candidate
+        reason BM25 gives the largest step there, and we did not test it.
+  \item \textbf{The metric of record packs whole paragraphs into a token budget}, and the
+        comparable metrics count units. Neither equals a chunk-level metric of a paper that cut
+        its corpus differently (Section~\ref{sec:published}).
+  \item \textbf{The cost of a judge is real at query time.} A judge scores a pool of
+        candidates per question; the paper reports pairs per second and dollars beside every
+        figure, and the line's systems are never claimed to match a judge's quality at their cost.
+  \item \textbf{A bi-encoder judge does not read the question and the candidate together.}
+        J-decision compares two separate embeddings, and CLM-8B has no published passage-retrieval
+        benchmark, so what this paper measures is whether it judges evidence well, not an
+        assumption that it does. Its bfloat16 encoder is also not deterministic under batching
+        (Section~\ref{sec:judges}): its figures are one realization, and we did not measure how far
+        another pass would move them.
+  \item \textbf{A paper is a claim under review.} It reports what one author, with AI assistance,
+        measured on public benchmarks; the artifacts and the code are public so that each figure
+        can be checked, and whether it is accepted anywhere is outside this work.
+\end{enumerate}

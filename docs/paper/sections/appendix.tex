@@ -1,0 +1,152 @@
+\section{Reproducibility}
+\label{app:repro}
+
+\paragraph{Artifacts.} Every table, plot and number in the paper is written by
+\texttt{uv run cer p17-tables} from the committed artifacts of Phase~17 (\texttt{data/phase17/}) and,
+read-only, the outcome files of Phases~9, 10, 14, 15 and~16. The generated files are committed under
+\texttt{docs/paper/tables} and \texttt{docs/paper/figures}; each macro in \texttt{numbers.tex}
+carries its artifact path, the SHA-256 prefix of that file and the JSON key it was read from.
+Table~\ref{tab:sha} gives the full SHA-256 of the files the text cites; the Phase~9, 10 and 14 outcome files are
+not in git, so their digests are the record.
+
+\begin{table*}[t]
+\centering
+\scriptsize
+\caption{SHA-256 of the artifacts the paper reads (written from the files by the generator).}
+\label{tab:sha}
+\begin{tabular}{ll}
+\toprule
+Artifact & SHA-256 \\
+\midrule
+\texttt{data/phase17/outcome.json} & \texttt{\shaOutcome} \\
+\texttt{data/phase17/metrics.json} & \texttt{\shaMetrics} \\
+\texttt{data/phase17/pool.json} & \texttt{\shaPool} \\
+\texttt{data/phase17/integrity.json} & \texttt{\shaIntegrity} \\
+\texttt{data/phase17/scoring-light.json} & \texttt{\shaScoringLight} \\
+\texttt{data/phase17/scoring-strong.json} & \texttt{\shaScoringStrong} \\
+\texttt{data/phase17/scoring-decision.json} & \texttt{\shaScoringDecision} \\
+\texttt{data/phase17/published-figures.json} & \texttt{\shaPublished} \\
+\texttt{data/phase9/outcome.json} & \texttt{\shaPhaseNineOutcome} \\
+\texttt{data/phase10/outcome.json} & \texttt{\shaPhaseTenOutcome} \\
+\texttt{data/phase14/outcome.json} & \texttt{\shaPhaseFourteenOutcome} \\
+\texttt{data/phase15/outcome.json} & \texttt{\shaPhaseFifteenOutcome} \\
+\texttt{data/phase16/outcome.json} & \texttt{\shaPhaseSixteenOutcome} \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\paragraph{Pins.} Table~\ref{tab:judges} gives each judge's model, revision, parameters, maximum
+length and precision; each scoring manifest also records the library versions, the code commit,
+the weights' SHA-256 and the serving command. The extractor is GLiNER
+GLiNER (the medium zero-shot model) at a pinned revision recorded in the repository's
+configuration, and the Dense model is BGE-small at a pinned revision. Seeds are explicit and ties are broken by a deterministic rule.
+
+\paragraph{The rented session.} All scoring ran in one session on a rented RTX~4090 at
+\judgeRateLight{} USD per hour, driven over SSH from the laptop: \sessionHours{} h \sessionMinutes{} min, a balance
+drop of \usdSession{} USD, of which \usdGpuAttributable{} USD is attributable to scoring (derived from
+measured time and the hourly rate; Table~\ref{tab:judgecost}). Nothing else ran on a GPU in this
+phase; the paper itself builds on a laptop.
+
+\paragraph{Build.} \texttt{uv run python docs/paper/build.py} regenerates the tables, runs Tectonic
+on \texttt{docs/paper/main.tex}, and prints the page count and the SHA-256 of the PDF. The
+\texttt{\textbackslash anonymoustrue} switch in \texttt{main.tex} drops the author, the repository
+URL and the acknowledgements for double-blind review. The R5 guard
+(\texttt{paper.r5\_violations}) runs inside \texttt{cer p17-tables} and refuses any hand-written
+number with a decimal point, a thousands separator or a percent sign.
+
+\section{Paired comparisons (D5)}
+\label{app:d5}
+
+\begin{table*}[t]
+\centering
+\scriptsize
+\caption{\capDFiveHotpotqa}
+\input{tables/d5-hotpotqa}
+\end{table*}
+
+\begin{table*}[t]
+\centering
+\scriptsize
+\caption{\capDFiveMusique}
+\input{tables/d5-musique}
+\end{table*}
+
+\begin{table*}[t]
+\centering
+\scriptsize
+\caption{\capDFiveMultihopRag}
+\input{tables/d5-multihop-rag}
+\end{table*}
+
+\section{Comparable metrics (D6)}
+\label{app:d6}
+
+\begin{table*}[t]
+\centering
+\scriptsize
+\caption{\capDSixHotpotqa}
+\pagetable{tables/d6-hotpotqa}
+\end{table*}
+
+\begin{table*}[t]
+\centering
+\scriptsize
+\caption{\capDSixMusique}
+\pagetable{tables/d6-musique}
+\end{table*}
+
+\begin{table*}[t]
+\centering
+\scriptsize
+\caption{\capDSixMultihopRag}
+\pagetable{tables/d6-multihop-rag}
+\end{table*}
+
+\section{Budget curves and ceilings}
+\label{app:more}
+
+\begin{table}[t]
+\centering
+\scriptsize
+\caption{\capBudgetCurve}
+\coltable{tables/budget-curve}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\input{figures/budget-hotpotqa}
+\caption{\FS{} against the token budget on HotpotQA development questions, for P10-B and P14
+with and without J-strong.}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\input{figures/budget-musique}
+\caption{The same on MuSiQue validation.}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\input{figures/budget-multihop-rag}
+\caption{The same on MultiHop-RAG.}
+\end{figure}
+
+\begin{table*}[t]
+\centering
+\scriptsize
+\caption{\capCeiling}
+\pagetable{tables/ceiling}
+\end{table*}
+
+\clearpage
+\onecolumn
+\section{Published figures, row by row}
+\label{app:pub}
+
+\begingroup
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\input{tables/published-hotpotqa}
+\input{tables/published-musique}
+\input{tables/published-multihop}
+\endgroup

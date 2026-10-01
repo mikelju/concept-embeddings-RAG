@@ -1,0 +1,49 @@
+\section{Introduction and position}
+\label{sec:intro}
+
+Dense retrieval finds paragraphs that \emph{look like} the question. A multi-hop question also
+needs paragraphs that do not: the second document of a HotpotQA bridge question is tied to the
+first by a fact, not by wording~\citep{yang2018hotpotqa}. The question that guided this work
+was how little structure Dense retrieval needs to recover that evidence. The aim was never to
+build a graph system. It was to find the cheapest structure that measurably helps, and to
+measure its cost, so that richer structure has a baseline it must justify itself against.
+
+\paragraph{Position.} The systems in this paper are \emph{untrained, call no language model at
+query time, and are cheap}. We place them under that description and nowhere else. They are not
+offered as competitors of trained multi-hop retrievers or of retrieval loops that call a language
+model, and Section~\ref{sec:published} says what a reader may and may not conclude from the
+published figures of those systems.
+
+\paragraph{What we did.} A frozen first stage (a small Dense model, BM25, and the Entity Hop of
+Section~\ref{sec:hop}) was measured on three benchmarks: HotpotQA~\citep{yang2018hotpotqa},
+MuSiQue~\citep{trivedi2022musique} and MultiHop-RAG~\citep{tang2024multihoprag}. Every weight
+was fitted once, on HotpotQA development questions, and then frozen. The last phase adds a
+reordering step on top of the stored rankings: three zero-shot judges score every candidate the
+four systems retrieved, nothing is fitted, and the paper reports whether the hop's candidates
+still add evidence once a judge orders them.
+
+\paragraph{Contributions.}
+\begin{enumerate}
+  \item A one-hop, query-blind Entity Hop whose indexing cost we measure on three corpora,
+        with a zero-shot extractor that keeps most of the gain of a language-model extractor
+        for a small fraction of its cost (Section~\ref{sec:hop}).
+  \item Its measured gain over Dense and over Dense plus BM25 at full HotpotQA scale, its
+        transfer to MuSiQue with nothing refitted, and its \emph{regression} on news, reported
+        with the same test on every benchmark (Section~\ref{sec:scale}).
+  \item The first measurement in this line of a zero-shot cross-encoder, the cheap standard
+        control it had been missing, in two sizes, plus an open bi-encoder decision model,
+        over all four stored systems and the union of their candidates, with throughput and
+        dollar cost beside every figure (Section~\ref{sec:judges}).
+  \item The metrics the literature reports, computed beside this line's metric of record, and a
+        table of figures published by other systems on the same questions, every row read in
+        the paper it comes from (Section~\ref{sec:published}).
+  \item Negative results, kept: concept spaces induced from pooled embeddings add nothing
+        (Section~\ref{sec:concepts}); hard filters on the hop's seed entities lost on
+        development data three times (Section~\ref{sec:scale}); the bi-encoder judge hurts on
+        every set (Section~\ref{sec:judges}).
+\end{enumerate}
+
+\paragraph{Reading the numbers.} Every figure in the text, tables and plots is written by a
+script from a committed artifact (Appendix~\ref{app:repro}). A figure is \emph{measured} when a
+run produced it, \emph{derived} when it is arithmetic on measured values, and a
+\emph{projection} when it is neither; projections are labelled where they appear.

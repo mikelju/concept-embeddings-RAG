@@ -1,0 +1,20 @@
+\section{Conclusion and what comes next}
+\label{sec:conclusion}
+
+A query-blind, one-hop entity signal, read once by a cheap zero-shot extractor, recovers a share of
+the multi-hop evidence Dense misses and adds to Dense plus BM25 at full HotpotQA scale and, with
+nothing refitted, on MuSiQue. It does not transfer to news, and we do not know the boundary of
+where it does. Placed beside a zero-shot cross-encoder, the control the line was missing, the
+picture is more mixed than the earlier phases suggested: a strong judge lifts every system on every
+corpus; the hop's candidates still add under it on the two Wikipedia benchmarks and do not on news;
+a bi-encoder decision model hurts everywhere, which reads as a limit of that use of the model and
+leaves its quality as evidence judge open; and on HotpotQA P14 under the strong judge sits at the level of the
+union pool of all four candidate lists.
+
+Two readings follow, both stated as hypotheses supported on Wikipedia and not on news. First,
+under a judge the hop's role is \emph{candidate generation}: its value is in what it adds to the
+pool, not in its own ordering. Second, the union pool under a judge is the natural reference for
+the next project, because it is the best pool any of these systems can offer and what a better
+orderer would be measured against. The successor project takes both: a judge-ordered union pool as
+the reference, and the Entity Hop as one candidate generator among others, with its
+indexing and query cost reported beside every result as here.

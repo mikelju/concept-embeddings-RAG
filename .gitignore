@@ -143,3 +143,12 @@ docs/GLOSARIO.md
 .agents/
 .codex/
 AGENTS.md
+
+# Phase 17 paper: the PDF and TeX intermediates are built, never committed.
+docs/paper/main.pdf
+docs/paper/*.aux
+docs/paper/*.bbl
+docs/paper/*.blg
+docs/paper/*.log
+docs/paper/*.out
+docs/paper/*.toc

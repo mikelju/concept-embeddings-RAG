@@ -1,0 +1,98 @@
+% Phase 17 paper. Venue-neutral two-column article; the chosen venue's class replaces this
+% preamble later. Every number in the text comes from tables/numbers.tex, tables/captions.tex,
+% tables/*.tex or figures/*.tex, all written by `cer p17-tables`; nothing is typed by hand (R5).
+% Build: `uv run python docs/paper/build.py` (Tectonic).
+\documentclass[twocolumn,10pt]{article}
+
+\usepackage[letterpaper,margin=0.75in,columnsep=0.28in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{graphicx}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage[hidelinks]{hyperref}
+\usepackage{url}
+
+% ---- anonymity switch: \anonymoustrue drops the name, the repository URL and the
+% ---- acknowledgements (double-blind venues; the anonymous mirror is the author's).
+\newif\ifanonymous
+\anonymousfalse
+%\anonymoustrue
+
+\input{tables/numbers}
+\input{tables/captions}
+
+% Short names. The budget is named, never spelled with a thousands separator.
+\newcommand{\FS}{Full Support at 2048 tokens}
+\newcommand{\pp}{\,pp}
+\newcommand{\jl}{J-light}
+\newcommand{\js}{J-strong}
+\newcommand{\jd}{J-decision}
+\newcommand{\hopP}{P14}
+\newcommand{\repourl}{\url{https://github.com/mikelju/concept-embeddings-RAG}}
+
+% Generated tables are wide: they are scaled to the column or the page.
+\newcommand{\coltable}[1]{\resizebox{\columnwidth}{!}{\input{#1}}}
+\newcommand{\pagetable}[1]{\resizebox{\textwidth}{!}{\input{#1}}}
+
+\setlength{\tabcolsep}{4pt}
+\setlength{\emergencystretch}{2em}
+
+\title{An Untrained Entity Hop for Multi-Hop Retrieval:\\
+Gains, a Regression on News, and Zero-Shot Judges}
+
+\ifanonymous
+  \author{Anonymous author(s)}
+\else
+  \author{M. Jurado\\Independent researcher}
+\fi
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Dense retrieval finds paragraphs that look like the question; multi-hop questions also need
+paragraphs that do not. We ask what the minimum structural signal is that closes part of that
+gap with no training, no language model at query time and a small indexing cost. The answer we
+measured is a one-hop \emph{Entity Hop}: take the first paragraph Dense returns, read the named
+entities in it with a zero-shot extractor, and add the paragraphs that share them, ordered by
+rarity and by similarity to the question. Frozen after HotpotQA, it adds to Dense plus BM25 over
+the full-scale HotpotQA Wikipedia corpus (\deltaPhTenThree\pp{} on held-out questions) and, with nothing
+refitted, on MuSiQue (\deltaPhFifteenPFourteen\pp{} for the best variant); on the news articles of
+MultiHop-RAG it loses (\deltaPhSixteenPFourteen\pp). We then apply three zero-shot
+judges, two cross-encoders and one open bi-encoder decision model, to the candidates the four
+stored systems already retrieved, and report the cost beside every figure. A strong
+cross-encoder lifts every system on every corpus, and the hop's candidates still add under it
+on HotpotQA and MuSiQue but not on news; the bi-encoder judge hurts everywhere. We place the
+figures beside those other systems have published, never as a paired comparison, and report the
+earlier negative result on concept spaces induced from pooled embeddings.
+\end{abstract}
+
+\input{sections/introduction}
+\input{sections/hop}
+\input{sections/setup}
+\input{sections/scale}
+\input{sections/judges}
+\input{sections/published}
+\input{sections/concepts}
+\input{sections/limitations}
+\input{sections/conclusion}
+
+\ifanonymous\else
+\section*{Acknowledgements}
+Code, analysis and drafting were produced with AI assistance (Claude); the author designed the
+experiments, approved every specification and plan, and is responsible for the content. The
+repository is at \repourl.
+\fi
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\appendix
+\input{sections/appendix}
+
+\end{document}
