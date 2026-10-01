@@ -457,7 +457,9 @@ Keep the basic architecture unchanged initially.
 first-paragraph hyperlink, which is how HotpotQA built its bridge questions; a benchmark without
 that construction is the check that protects any general claim.
 
-**Scheduled on 2026-09-29 as Phases 15 and 16, before the query reformulation (now Phase 17).**
+**Scheduled on 2026-09-29 as Phases 15 and 16, before the query reformulation (then planned as
+Phase 17; on 2026-09-30 the author made Phase 17 the judges and the paper, and the reformulation
+moved to the successor project, `successor_project_charter.md`).**
 There are two different generalizations, and they get one phase each:
 
 | Question | Corpus | Phase |
@@ -613,7 +615,7 @@ on the author's authorization, and to record in `phase_14/14.results.md`.
 HotpotQA: re-introducing query relevance **on the candidate side**, as a soft score rather than a
 filter, helps; whether part of the gain is Dense's own signal counted twice cannot be separated
 (on dev, half of the won gold paragraphs were in Dense's ranks 11-100). P14 is the new bar; the
-MDR-style query vector (question + P1) is Phase 17 (scheduled as Phase 15 until the author placed the two validation phases of 7.1 before it, 2026-09-29).
+MDR-style query vector (question + P1) was scheduled as Phase 17 (as Phase 15 until the author placed the two validation phases of 7.1 before it, 2026-09-29) and moved to the successor project on 2026-09-30, when Phase 17 became the judges and the paper.
 
 **Review of 2026-09-29 (dev, gold-informed, exploratory;
 [`review_2026-09-29.md`](review_2026-09-29.md)).** A failure anatomy of P10-C on dev: of its
@@ -625,7 +627,7 @@ Two yardsticks measured how far a "fact link" from P1 reaches the missed gold: W
 hyperlinks 62.8 % (a yardstick only; **the author excluded them as a component**, because the
 target corpora carry none) and a link-free title-mention rule 55.6 % with all titles (ceiling
 +1,187; 47.1 % and +993 with multi-word titles only). **The author's decision (2026-09-29):
-Phase 15 (renumbered Phase 17 on 2026-09-29) is the second-hop query reformulation** that the Phase 14 spec (D1) left to the
+Phase 15 (renumbered Phase 17 on 2026-09-29, moved to the successor project on 2026-09-30) is the second-hop query reformulation** that the Phase 14 spec (D1) left to the
 roadmap: the vector of "question + text of P1" against Dense, untrained, chosen because it
 depends on no corpus structure. The hop to the unit *about* an entity (title, glossary entry,
 record) is recorded as a conditional variant, not scheduled.
@@ -883,7 +885,7 @@ This could isolate mechanisms very precisely.
 It is **not part of the immediate roadmap**.
 
 **Update 2026-09-29:** the untrained form of the "MDR-style second Dense" query (question + P1
-text encoded with the project's own Dense model) is now Phase 15 (renumbered Phase 17 on 2026-09-29) (see 7.2), measured as this
+text encoded with the project's own Dense model) was Phase 15 (renumbered Phase 17 on 2026-09-29, then moved to the successor project on 2026-09-30) (see 7.2), measured as this
 project's own system under its own spec, not as a reimplementation of MDR. The reimplementation
 suite above stays unplanned.
 
