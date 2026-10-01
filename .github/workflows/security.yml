@@ -90,7 +90,11 @@ jobs:
           if [ -f uv.lock ]; then
             pip install uv
             uv sync --group security --group labeling --group phase7 --group pod
-            uv run pip-audit --desc
+            # PYSEC-2026-3447 (setuptools < 83: MANIFEST.in exclusions bypassed by Unicode
+            # normalisation when building an sdist on macOS) is ignored by id: vllm 0.30
+            # pins setuptools<81 so it cannot be patched in the lock, and this project
+            # builds no sdist. Remove the flag when vllm lifts its pin (PR 28, 2026-10-01).
+            uv run pip-audit --desc --ignore-vuln PYSEC-2026-3447
           elif [ -f requirements.txt ]; then
             pip install pip-audit
             pip-audit -r requirements.txt --desc
