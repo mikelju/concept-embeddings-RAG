@@ -622,6 +622,17 @@ def test_the_exact_two_sided_p_is_the_binomial_on_discordant_questions():
     assert p9.exact_two_sided_p(3, 1) == pytest.approx(0.625)
 
 
+def test_the_exact_two_sided_p_survives_thousands_of_discordant_questions():
+    """Phase 17: a judge against its own system leaves thousands of discordant questions, so
+    2**n no longer fits a float; the integer division must not overflow and the small cases
+    must keep their value bit for bit."""
+    assert 0.0 < p9.exact_two_sided_p(1200, 800) < 1e-15
+    assert p9.exact_two_sided_p(1500, 1500) == 1.0
+    assert p9.exact_two_sided_p(317, 72) == pytest.approx(
+        2.0 * sum(__import__("math").comb(389, i) for i in range(73)) / 2**389
+    )
+
+
 def outcome_records(pairs):
     """`pairs` of (dense success, entity success) on retrieval-unseen questions."""
     dense, entity = [], []
