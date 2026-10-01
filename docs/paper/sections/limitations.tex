@@ -15,8 +15,8 @@
   \item \textbf{HotpotQA development questions are in-sample for P10-C's and P14's weights.}
         The judge figures on that set are still informative because the judges are fitted on
         nothing, but the HotpotQA columns for those two systems are not held out. BGE-small was
-        also fine-tuned on HotpotQA training questions, which the held-out draws of earlier phases
-        use.
+        also fine-tuned on HotpotQA training questions~\citep{xiao2024cpack}, which the held-out
+        draws of earlier phases use (Phase~10 bounded the effect with a probe).
   \item \textbf{One-hop design, two- to four-paragraph questions.} The hop anchors on the first
         Dense paragraph and follows one hop. The gain is on questions with two supporting
         paragraphs and absent on four; on news the first paragraph is rarely gold, and the design
@@ -28,7 +28,8 @@
         the hop.
   \item \textbf{MultiHop-RAG's queries were written by a language model} from the articles, so
         their wording may favour lexical overlap with the evidence; that is one candidate
-        reason BM25 gives the largest step there, and we did not test it.
+        reason BM25 gives the largest step there; Phase~16 records this as an interpretation, consistent with the
+size of that step but not proved by it, and we did not test it.
   \item \textbf{The metric of record packs whole paragraphs into a token budget}, and the
         comparable metrics count units. Neither equals a chunk-level metric of a paper that cut
         its corpus differently (Section~\ref{sec:published}).

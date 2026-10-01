@@ -2,8 +2,8 @@
 \label{sec:concepts}
 
 The line began with a different structure. Phases 2 to 4 asked whether a \emph{concept space}
-induced from pooled Dense embeddings (a dictionary learned by non-negative sparse coding, with
-each paragraph expressed as a sparse non-negative combination of its concepts) could guide retrieval toward the missing paragraph of a multi-hop question. It could
+induced from pooled Dense embeddings (a dictionary learned from the embeddings by sparse dictionary learning, with
+each paragraph coded as a sparse non-negative combination of its concepts) could guide retrieval toward the missing paragraph of a multi-hop question. It could
 not. Concepts added nothing over Dense; a Dense plus BM25 control, added as a fair comparator,
 beat them; and a diffusion step over the concept space re-ranked what was already retrieved
 without promoting a new paragraph. The line was closed with a bounded negative result.

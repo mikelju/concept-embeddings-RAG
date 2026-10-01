@@ -23,11 +23,11 @@ to~\ref{tab:published-multihop}).
 \end{table*}
 
 \paragraph{What the reader may conclude.} Our nDCG@10 and gold-recall figures
-(Appendix~\ref{app:d6}) use the corpus unit, the whole paragraph, and the same questions
-and corpus as BEIR on HotpotQA, so they can be laid beside the BM25-plus-cross-encoder row as
-context: for instance, our J-light over Dense plus BM25 reaches \ndcgLightPTenBHotpot{} (nDCG@10, times
-one hundred), and J-strong \ndcgStrongPTenBHotpot{}. They place the zero-shot recipe of this paper in the
-same range as other zero-shot recipes on identical questions.
+(Appendix~\ref{app:d6}) use the corpus unit, a whole paragraph, with binary relevance over the gold
+paragraphs. BEIR's unit on HotpotQA is a document (a title and an abstract) in BEIR's own index, so the
+two share the questions and not the index. Context only: our J-light over Dense plus BM25 reaches
+\ndcgLightPTenBHotpot{} (nDCG@10, times one hundred), and J-strong \ndcgStrongPTenBHotpot{}, in the range of
+the BEIR rows of the table. No ranking of systems is implied.
 
 \paragraph{What the reader may not conclude.} These are \emph{published figures, not a paired
 comparison}. The rows differ from our setting in at least one of the unit of retrieval

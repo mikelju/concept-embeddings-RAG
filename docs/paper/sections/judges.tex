@@ -42,8 +42,10 @@ lifts P10-A and P10-B on HotpotQA (\deltaLightPTenAHotpot\pp, \deltaLightPTenBHo
 (\deltaLightPTenCMusique\pp) and \emph{lowers} P14 on both (\deltaLightPFourteenHotpot\pp,
 \deltaLightPFourteenMusique\pp). On MultiHop-RAG it lowers every system, P10-B by
 \deltaLightPTenBMultihop\pp. Its input window truncated \truncCountLightMultihop{} pairs on news, against
-\truncCountLightHotpot{} on HotpotQA, and no pair for the other two judges (Table~\ref{tab:judgecost});
-we did not test whether that explains the news result.
+\truncCountLightHotpot{} on HotpotQA, and no pair for the other two judges (Table~\ref{tab:judgecost}).
+That is a very small share of the news pairs, so truncation alone is unlikely to account for a drop of this
+size, but we did not test it, for instance by checking whether the truncated pairs concentrate among the gold
+paragraphs; the cause of the news result is open.
 
 \begin{figure}[t]
 \centering
@@ -62,7 +64,7 @@ lowers every system on every set, P10-B by \deltaDecisionPTenBHotpot\pp{} on Hot
 which are small differences between two bad orders. We read this as a measurement of this
 \emph{use} of the model, not of the model: it is a bi-encoder that compares two separate
 embeddings and cannot weigh a candidate's words against the question's the way a cross-encoder
-does; it was designed for agent decisions, has no published passage-retrieval benchmark, and was
+does; its published evaluation is on agent tasks, it has no published passage-retrieval benchmark, and it was
 used here zero-shot with the question alone as its state and no instruction. We cannot separate
 ``it does not rank evidence'' from ``this usage does not suit it'', and the preregistration forbade
 trying another prompt.
@@ -70,8 +72,8 @@ trying another prompt.
 \paragraph{Determinism.} The two cross-encoders are deterministic to float noise: re-scoring
 \detQuestionsLightHotpot{} questions at batch size one changed the order of \detOrderChangedLightHotpot{} of them,
 with a largest score difference of \detMaxDiffLightHotpot{} for J-light and \detMaxDiffStrongHotpot{} for
-J-strong on HotpotQA. J-decision is not: its encoder runs in bfloat16 (a 24~GB card cannot hold
-it in float32) and the serving engine batches sequences itself, so the same re-scoring changed the order of
+J-strong on HotpotQA. J-decision is not: its encoder runs in bfloat16 (derived from its parameter count of about eight billion, it does not fit a 24~GB card in float32, as the
+plan's deviation for the third judge records) and the serving engine batches sequences itself, so the same re-scoring changed the order of
 \detOrderChangedDecisionHotpot{} of \detQuestionsDecisionHotpot{} questions, with a largest difference of \detMaxDiffDecisionHotpot{} in the
 score. Its figures are therefore one realization of the model; we did not measure how much a
 second pass would move \FS, so the size of that effect is unknown.
@@ -114,7 +116,7 @@ Table~\ref{tab:judgecost} gives pairs, throughput and attributable cost on one r
 scored all of HotpotQA's pairs in \wallSecLightHotpot{} s for \usdLightHotpot{} USD; J-strong took
 \wallSecStrongHotpot{} s and \usdStrongHotpot{} USD; J-decision took \wallSecDecisionHotpot{} s and
 \usdDecisionHotpot{} USD there. J-decision's wall time is dominated by embedding every distinct unit of
-the pool once, which is why its pairs per second differ by an order of magnitude across the sets. The
+the pool once (its manifest's offline seconds are nearly all of its wall seconds on each set), which is why its pairs per second differ by an order of magnitude across the sets. The
 three judges together cost \usdGpuAttributable{} USD of attributable GPU time; the whole rented session ran
 \sessionHours{} h \sessionMinutes{} min and cost \usdSession{} USD by the balance recorded before and after
 (derived). At query time a cross-encoder judge scores a pool of about \poolMeanHotpot{} pairs per

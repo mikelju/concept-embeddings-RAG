@@ -28,8 +28,9 @@ $(1-\alpha)\cdot\text{rarity}+\alpha\cdot\cos(q,c)$, both terms min-max normaliz
 with $\alpha=\phFourteenAlpha$ fitted on development questions. The seed, the candidate set and
 the fusion weights of P14 are P10-C's; only the order of the hop's candidates changes. The
 similarity is Dense's own signal, so part of P14's gain may re-weight what Dense already ranks;
-on development data about half of the gold paragraphs P14 brought in were beyond Dense's first
-hundred (derived, Phase~14).
+on development data, among the gold paragraphs whose coverage changed in the questions P14 won
+against P10-C, about half were in Dense's ranks 11 to 100 and about half were beyond its first
+hundred (derived, Phase~14); the split cannot separate the two causes.
 
 \paragraph{What did not work as a refinement.} Three attempts to make the hop choose which of
 $p_1$'s entities to follow, with a hard filter (a document-frequency cap, entities named in the
