@@ -37,6 +37,11 @@ phase7 = [
     "protobuf>=4.25",
     "spacy==3.8.16",
 ]
+# Deviation 17.1 (J-decision, CLM-8B): synced on the rented Linux x86_64 pod only, never on the laptop.
+pod = [
+    "contrastive-lm==0.1.0 ; sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "vllm>=0.6 ; sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
 security = [
     "detect-secrets>=1.5.0",
     "pip-audit>=2.10.1",
