@@ -83,7 +83,7 @@ From Phase 7 onward:
 | 14 | Ordering the hop's candidates by their similarity to the question | [Approved](phase_14/14.spec.md) | **Complete — CANDIDATE_RELEVANCE_SUPPORTED** |
 | 15 | Validation on MuSiQue: Dense, P10-B, P10-C and P14 with nothing refitted (author decision 2026-09-29) | [Approved](phase_15/15.spec.md) | **Complete — TRANSFER_SUPPORTED** |
 | 16 | Validation on a corpus that is not Wikipedia: MultiHop-RAG news, the same frozen systems | [Approved](phase_16/16.spec.md) | **Complete — TRANSFER_REGRESSION** |
-| 17 | Three zero-shot judges over the four frozen systems on HotpotQA dev, MuSiQue and MultiHop-RAG: two cross-encoders and, by [deviation 17.1](phase_17/17.1_clm8b_third_judge.md), the decision model CLM-8B; the literature's metrics; the paper | [Spec](phase_17/17.spec.md), approved 2026-09-30; [plan](phase_17/17.0_judge_and_paper.md), approved 2026-10-01; deviation 17.1, 2026-10-01 | **In implementation** (S1 done, S2 measured) |
+| 17 | Three zero-shot judges over the four frozen systems on HotpotQA dev, MuSiQue and MultiHop-RAG: two cross-encoders and, by [deviation 17.1](phase_17/17.1_clm8b_third_judge.md), the decision model CLM-8B; the literature's metrics; the paper | [Spec](phase_17/17.spec.md), approved 2026-09-30; [plan](phase_17/17.0_judge_and_paper.md), approved 2026-10-01; deviation 17.1, 2026-10-01 | **Complete: measured and closed (2026-10-01); no terminal state, no gate** ([`17.results.md`](phase_17/17.results.md)) |
 
 **The first research line is closed** (2026-09-15): concepts induced from pooled embeddings, tested through Phases 2-4, gave a negative and bounded result. The original Phase 5 — a comparative evaluation of that method — was not run; the plan was renumbered so Phase 5 tests the representation the proposal actually described. See [`phase_4/4.1_research_line_closure.md`](phase_4/4.1_research_line_closure.md).
 
@@ -191,6 +191,22 @@ validation phases come before any new component:
   The query reformulation chosen on 2026-09-29 (written first as Phase 15 in the review note and
   in `phase_14/14.results.md`, which keep that number as historical records) moves to the
   successor project ([`successor_project_charter.md`](successor_project_charter.md)).
+- **Phase 17 is measured and closed** (2026-10-01), with no gate and no terminal state. Three
+  zero-shot judges (J-light `ms-marco-MiniLM-L-6-v2`, J-strong `bge-reranker-v2-m3`, J-decision
+  CLM-8B) reordered each frozen system's own fused top-100 on HotpotQA dev (7,405), MuSiQue
+  validation (2,417) and MultiHop-RAG answerable (2,255), 2,013,745 pairs per judge, after D3
+  reproduced all seven recorded counts. **J-strong lifts every system on every set** (P10-B 4,536 to
+  5,198, 524 to 704, 587 to 822; derived); the hop's pool still adds under J-light and J-strong on
+  HotpotQA and MuSiQue (`HOP_ADDS_UNDER_JUDGE`) and hurts on MultiHop-RAG under J-strong
+  (`HOP_HURTS_UNDER_JUDGE`, 24 wins / 49 losses); J-light hurts every system on news (P10-B
+  -10.42 pp); J-decision hurts every system on every set (a negative result for a bi-encoder
+  decision model as an evidence judge, and not reproducible to the question's order under
+  batching). P14 under J-strong reaches the union pool's level on HotpotQA (5,911 against 5,922),
+  exceeds it on MuSiQue (871 against 809); the union leads on MultiHop-RAG (846 against 822).
+  Cost: 3.28 USD attributable GPU (derived), 5.2325 USD by the account balance over a 6 h 56 min
+  session; the invoice is pending. The paper (25 pages, Tectonic 0.17.0, every number generated)
+  and the dated venue shortlist exist; the venue and any submission are the author's. See
+  [`phase_17/17.results.md`](phase_17/17.results.md).
 - Both validation phases extract entities with the pinned GLiNER on a rented RunPod GPU, which
   the author authorized on 2026-09-29.
 

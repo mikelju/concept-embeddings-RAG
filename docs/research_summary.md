@@ -1,6 +1,6 @@
 # Research summary — minimum structure for multi-hop retrieval
 
-> Status on 2026-09-30: the planned research line (Phases 1-9) is complete, and Phases 10-16 of
+> Status on 2026-10-01: the planned research line (Phases 1-9) is complete, and Phases 10-17 of
 > the next line are measured. This page summarises
 > what was asked, what was measured and what it establishes. Every figure links back to the
 > phase document that records it with its artifact; nothing here is new measurement.
@@ -51,6 +51,7 @@ has a baseline it must justify itself against.
 | [14](plans/phase_14/14.results.md) | Does ordering the hop's candidates by their similarity to the question help? | **`CANDIDATE_RELEVANCE_SUPPORTED`**: +4.90 pp over Dense + BM25 + Entity Hop on 5,000 new held-out train questions |
 | [15](plans/phase_15/15.results.md) | Do the Entity Hop systems still beat Dense + BM25 on MuSiQue, with nothing refitted? | **`TRANSFER_SUPPORTED`**: P14 +9.81 pp over Dense + BM25 and +3.81 pp over the Entity Hop system; the gain is on 2-paragraph questions |
 | [16](plans/phase_16/16.results.md) | And on news articles (MultiHop-RAG), a corpus that is not Wikipedia? | **`TRANSFER_REGRESSION`**: P14 −3.28 pp against Dense + BM25 (31 wins / 105 losses); both hop steps lose; BM25 alone adds +11.04 pp over Dense |
+| [17](plans/phase_17/17.results.md) | With every retriever frozen, how much does a zero-shot judge close, and does the hop's pool still add evidence? | **No gate.** J-strong lifts every system on every set; the hop's pool adds under J-light and J-strong on HotpotQA and MuSiQue and hurts on news under J-strong; J-decision (CLM-8B) hurts everywhere; the paper exists |
 
 ## The mechanism that worked
 
@@ -186,6 +187,34 @@ BM25, which found at least 59 of the 114 gold paragraphs P14 lost. The hop's few
 two thirds from another article, not from the rest of P1's. One tiny corpus of one kind of text,
 with questions written by an LLM: it bounds the claim, it does not settle why.
 
+**9. Against a zero-shot judge, the standard recipe was a weak control; the hop's pool is
+candidate generation on Wikipedia and not on news.** Phase 17 added no retriever. Three declared
+judges, none fitted, reordered each frozen system's own fused top-100 (2,013,745 pairs per judge
+over HotpotQA dev, MuSiQue validation and MultiHop-RAG; D3 reproduced all seven recorded counts
+first). Full Support @2,048 of Dense + BM25 (P10-B), no judge, J-light, J-strong, J-decision:
+
+| Set | No judge | J-light | J-strong | J-decision |
+|---|---:|---:|---:|---:|
+| HotpotQA dev (7,405) | 4,536 | 4,730 | 5,198 | 1,882 |
+| MuSiQue validation (2,417) | 524 | 644 | 704 | 174 |
+| MultiHop-RAG (2,255) | 587 | 352 | 822 | 208 |
+
+J-strong lifts all twelve system-set pairs (+5.59 to +12.59 pp). The hop's pool still adds under a
+judge on the two Wikipedia sets (J(P14) against J(P10-B): +9.63 and +6.91 pp under J-strong,
+`HOP_ADDS_UNDER_JUDGE`) and hurts on news under J-strong (24 wins / 49 losses,
+`HOP_HURTS_UNDER_JUDGE`). P14 under J-strong reaches the union pool's level on HotpotQA (5,911
+against 5,922, in-sample for its weights), exceeds it on MuSiQue (871 against 809), and the union
+leads on news (846 against 822 for P10-B). J-light, the cheap cross-encoder, lowers every system on
+news (P10-B −10.42 pp), unexplained (its truncation touches 0.23 % of pairs); **J-decision (CLM-8B)
+lowers every system on every set** (P10-B −35.84, −14.48, −16.81 pp), a negative result for a
+bi-encoder decision model used zero-shot as an evidence judge, whose bfloat16 scores also reorder
+under batching. The union pool leaves about four questions in ten out of reach on MuSiQue and news
+(exploratory ceiling). Cost: 3.28 USD of attributable GPU (derived), 5.2325 USD by the account
+balance over a 6 h 56 min RTX 4090 session; the invoice is pending. A 25-page paper, every number
+generated from the artifacts, and a dated venue shortlist came out of the phase; the venue is the
+author's. Interpretation, untested: the hop's role under a judge is candidate generation, and the
+judge-ordered union pool is the natural reference for a successor project.
+
 ## What did not work, and what is not established
 
 - **Concepts, in two operationalizations**, add nothing. The first used concepts induced from
@@ -230,9 +259,12 @@ beat Dense + BM25 on MuSiQue, on two-paragraph questions. That is a second Wikip
 small corpus and a one-hop design against 2-4 hop questions: evidence, not proof, of generality.
 Phase 16 then ran the same frozen systems on news articles (MultiHop-RAG), and there they lose
 to Dense + BM25: the gain is not a default for any corpus, and one news corpus is not enough to
-say where its boundary lies (hypothesis: the configuration fitted on HotpotQA, not the hop itself). P14 remains the best system on the two Wikipedia benchmarks. The next
-step is the author's to decide with that result in view; the master plan had Phase 17 (an
-untrained second-hop query, the vector of "question + P1") after the corpus validations, and the
+say where its boundary lies (hypothesis: the configuration fitted on HotpotQA, not the hop itself). P14 remains the best system on the two Wikipedia benchmarks. Phase 17 then replaced the
+scheduled query reformulation with a control the line had never run, a zero-shot cross-encoder
+(and a decision model) over the frozen systems: the standard recipe under a strong judge is a
+much stronger baseline than Dense + BM25 was, the hop's pool still adds evidence under it on
+Wikipedia and not on news, and a paper with the numbers exists. The next step is the author's to
+decide with that result in view; the query reformulation moved to the successor project, and the
 roadmap queues QASPER and LegalBench-RAG ([`plans/0_master_plan.md`](plans/0_master_plan.md)).
 
 ## Reproducibility

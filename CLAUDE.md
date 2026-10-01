@@ -44,15 +44,17 @@ What is established (figures and full records in each phase's `X.results.md`):
 - frozen, they lose to Dense + BM25 on MultiHop-RAG news (2,255 queries; P14 −3.28 pp, 31 wins /
   105 losses; P10-C −2.88 pp; Phase 16, `TRANSFER_REGRESSION`). BM25 adds +11.04 pp there; P1 is
   gold for only 17 % of queries.
+- under zero-shot judges, nothing fitted (Phase 17, no gate): J-strong (bge-reranker-v2-m3) lifts
+  every system on every set (P10-B 4,536 to 5,198 of 7,405 on HotpotQA dev); the hop's pool adds
+  under it on HotpotQA and MuSiQue and hurts on news; J-light hurts on news, J-decision (CLM-8B)
+  everywhere (a negative result).
 
-**Current state (2026-09-30):** Phase 16 closed `TRANSFER_REGRESSION`
-(`phase_16/16.results.md`): P14 remains the best system on Wikipedia benchmarks but does not
-transfer to MultiHop-RAG news; `test-11` is spent; the pod invoice is still to be copied. Next,
-by the author's decision (2026-09-30): Phase 17 measures two zero-shot cross-encoder judges over
-the four frozen systems on the three corpora and writes the paper (`phase_17/17.spec.md`,
-approved); new components and corpora go to a successor project
-(`docs/plans/successor_project_charter.md`). If this line and the master plan disagree, the
-master plan wins; fix this line.
+**Current state (2026-10-01):** Phase 17 closed (`phase_17/17.results.md`): the three judges are
+measured and the paper (`docs/paper/`, 25 pages) is built; the author chooses the venue
+(`docs/paper/venues.md`) and confirms the full name in `main.tex`; the Phase 17 pod
+invoice is still to be copied from Billing; `test-11` is spent. Next step: the author's, with the
+successor project in view (`docs/plans/successor_project_charter.md`; query reformulation moved
+there). If this line and the master plan disagree, the master plan wins; fix this line.
 
 ## Where things live
 
