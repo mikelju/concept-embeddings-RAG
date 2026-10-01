@@ -47,7 +47,7 @@ What is established (figures and full records in each phase's `X.results.md`):
 
 **Current state (2026-09-30):** Phase 16 closed `TRANSFER_REGRESSION`
 (`phase_16/16.results.md`): P14 remains the best system on Wikipedia benchmarks but does not
-transfer to MultiHop-RAG news; `test-11` is spent; the pod invoice is still to be copied. Next
+transfer to MultiHop-RAG news; `test-11` is spent. Next
 step: to be decided by the author with Phase 16's result in view (the master plan had Phase 17,
 query reformulation, next; the roadmap queues QASPER and LegalBench-RAG). If this line and the
 master plan disagree, the master plan wins; fix this line.
